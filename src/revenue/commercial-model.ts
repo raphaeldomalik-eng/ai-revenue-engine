@@ -9,6 +9,24 @@ export type ConversionGoal = "SELF_SERVICE" | "QUALIFIED_LIVE_DEMO" | "BUSINESS_
 export type ClaimCategory = "FEATURE" | "ADVANTAGE" | "SALES_WEDGE" | "DEFENSIBLE_DIFFERENTIATOR";
 export type ClaimStrength = "DEFENSIBLE" | "ADVANTAGE" | "COMMODITY" | "HYPOTHESIS" | "PROHIBITED";
 export type EvidenceConfidence = "NONE" | "LOW" | "MEDIUM" | "HIGH";
+export type ClientSegmentStatus = "DRAFT" | "ACTIVE_TARGET_SEGMENT" | "RETIRED";
+export type PricingTreatmentStatus = "STANDARD" | "SPECIAL_DISCOUNT" | "CUSTOM" | "DEFERRED";
+export type ClientSegment = {
+  code: string;
+  name: string;
+  territoryRelevance: TerritoryCode[];
+  salesMotionRelevance: SalesMotion[];
+  status: ClientSegmentStatus;
+  description: string;
+  commercialTreatment: PricingTreatmentStatus;
+  pricingStatus: PricingStatus;
+  pricingInstruction: string;
+  qualificationNotes: string[];
+  buyerRoleHypotheses: string[];
+  eventExamples: string[];
+  notes: string[];
+  numericDiscount?: number;
+};
 
 export type CommercialClaim = {
   id: string;
@@ -82,6 +100,7 @@ export type CommercialPlaybook = {
   version: string;
   phase: "EVENT_OPERATIONS" | string;
   targetClientTypes: string[];
+  clientSegments?: ClientSegment[];
   targetRoles: string[];
   targetCharacteristics: string[];
   problems: CommercialProblem[];

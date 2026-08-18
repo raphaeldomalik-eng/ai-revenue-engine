@@ -20,6 +20,19 @@ Initial examples include festival organisers, event promoters, venues running mu
 
 Direct supports two routes: self-service signup and qualified live demo. The route threshold is not defined. Live demos and important commercial conversations remain human-led.
 
+## South African Schools / Education segment
+
+- Segment code: `schools`.
+- Status: DRAFT target segment; this is recognition of a possible segment, not a final prioritised ICP.
+- Scope: South African schools organising events that may benefit from Event Suite event operations capabilities.
+- Examples only: school sports, fundraising, performances, parent/community events, fairs/festivals, and ceremonies.
+- Potential buyer-role hypotheses: school leadership, event organiser/coordinator, operations/administration, finance/business management, and sports/events leadership.
+- Pricing treatment: special/discounted school pricing is intended, but the exact rate is deferred/TBD.
+- Instruction: school special pricing requires the current approved school pricing schedule or human confirmation; do not invent a numeric discount.
+- Standard South African pricing remains unchanged. Do not copy portfolio or UK discounts.
+
+Schools remain a segment within South African Direct. They are not a separate product, territory, sales motion, or top-level commercial program.
+
 ## Value hypotheses
 
 The working commercial story is connected Event Operations, with hypotheses around Event Operations as the centre of gravity, Growth + Operations, Connected Operations, modular entry/land-and-expand, technology plus optional local delivery, and high-frequency event value. None is a proven competitive-superiority claim.

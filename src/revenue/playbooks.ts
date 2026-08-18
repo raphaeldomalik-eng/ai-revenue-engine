@@ -1,4 +1,4 @@
-import type { CommercialCapability, CommercialPlaybook, CommercialProblem } from "./commercial-model.ts";
+import type { ClientSegment, CommercialCapability, CommercialPlaybook, CommercialProblem } from "./commercial-model.ts";
 import { commodityClaims, eventSuiteHypotheses, prohibitedCompetitiveClaim } from "./claims.ts";
 import { southAfricaPricing, unitedKingdomPricing } from "./pricing.ts";
 
@@ -16,6 +16,16 @@ const clientTypes = ["festival-organisers", "event-promoters", "venues-multiple-
 const roles = ["Founder / Owner", "Event Director", "Event Manager", "Operations Director", "Head of Events", "Production Manager", "Marketing / Growth lead", "Venue / event-programming leadership"];
 const directOffers = [{ id: "direct-self-service", label: "Start with a relevant event operations or growth module", description: "Self-service entry where appropriate; thresholds remain undefined.", conversionGoals: ["SELF_SERVICE"] as const }, { id: "direct-live-demo", label: "Qualified live demo", description: "Human-led demonstration for qualified commercial conversations.", conversionGoals: ["QUALIFIED_LIVE_DEMO"] as const }];
 const lnoOffers = [{ id: "lno-opportunity", label: "Business opportunity enquiry / application", description: "Explore originating, onboarding, local services, and agreed module delivery.", conversionGoals: ["BUSINESS_OPPORTUNITY_ENQUIRY"] as const }];
+const southAfricanSchoolsSegment: ClientSegment = {
+  code: "schools", name: "Schools / Education", territoryRelevance: ["ZA"], salesMotionRelevance: ["direct"], status: "DRAFT",
+  description: "South African schools organising events that may benefit from Event Suite event operations capabilities.",
+  commercialTreatment: "SPECIAL_DISCOUNT", pricingStatus: "DEFERRED",
+  pricingInstruction: "School special pricing requires the current approved school pricing schedule or human confirmation; do not invent a numeric discount.",
+  qualificationNotes: ["Segment recognition only; not a final prioritised ICP.", "Examples are indicative and are not qualification requirements."],
+  buyerRoleHypotheses: ["School leadership", "Event organiser / coordinator", "Operations / administration", "Finance / business management", "Sports / events leadership"],
+  eventExamples: ["School sports events", "Fundraising events", "Performances / productions", "Parent or community events", "School fairs / festivals", "Ceremonies"],
+  notes: ["Schools remain within South African Direct.", "Schools are not a separate product, territory, sales motion, or top-level commercial program.", "Do not copy portfolio or UK discounts."],
+};
 
 function makePlaybook(territory: "ZA" | "GB", salesMotion: "direct" | "lno"): CommercialPlaybook {
   const isZA = territory === "ZA";
@@ -23,7 +33,7 @@ function makePlaybook(territory: "ZA" | "GB", salesMotion: "direct" | "lno"): Co
   return {
     id: `event-suite-${territory.toLowerCase()}-${salesMotion}`,
     product: "event-suite", productLabel: "Event Suite", territory, territoryLabel: isZA ? "South Africa" : "United Kingdom", salesMotion, status: "DRAFT", version: "v1.0-draft", phase: "EVENT_OPERATIONS",
-    targetClientTypes: clientTypes, targetRoles: roles,
+    targetClientTypes: clientTypes, clientSegments: isZA && isDirect ? [southAfricanSchoolsSegment] : [], targetRoles: roles,
     targetCharacteristics: ["Runs or supports events", "May coordinate multiple operational workstreams", "May operate a recurring event portfolio"],
     problems, capabilityRelevance: capabilities,
     valuePropositions: ["Connected Event Operations across GROW, MANAGE, and RUN.", "Modular entry around the immediate event problem.", "Optional human/local delivery where approved."],

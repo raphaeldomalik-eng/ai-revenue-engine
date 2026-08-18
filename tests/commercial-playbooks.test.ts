@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { canBeUsedAsDefensibleDifferentiator, commodityClaims, eventSuiteHypotheses, prohibitedCompetitiveClaim } from "../src/revenue/claims.ts";
 import { resolveCommercialPlaybook, UnsupportedCommercialPlaybookError } from "../src/revenue/playbook-resolver.ts";
+import { commercialPlaybooks } from "../src/revenue/playbooks.ts";
 
 test("resolves Event Suite South Africa Direct", () => {
   const playbook = resolveCommercialPlaybook({ product: "event-suite", territory: "ZA", salesMotion: "direct" });
@@ -12,6 +13,31 @@ test("resolves Event Suite South Africa Direct", () => {
     assert.deepEqual(playbook.pricingGuidance.perEventPackages.map((item) => item.price), [4995, 5995, 7995, 10995, 14995]);
     assert.equal(playbook.pricingGuidance.ticketing.paidOrderPercentage, 3.95);
   }
+});
+
+test("South African Direct exposes Schools as a deferred special-pricing segment", () => {
+  const playbook = resolveCommercialPlaybook({ product: "event-suite", territory: "ZA", salesMotion: "direct" });
+  const schools = playbook.clientSegments?.find((segment) => segment.code === "schools");
+  assert.ok(schools);
+  assert.equal(schools.name, "Schools / Education");
+  assert.equal(schools.status, "DRAFT");
+  assert.equal(schools.commercialTreatment, "SPECIAL_DISCOUNT");
+  assert.equal(schools.pricingStatus, "DEFERRED");
+  assert.equal(schools.numericDiscount, undefined);
+  assert.match(schools.pricingInstruction, /current approved school pricing schedule or human confirmation/);
+  assert.deepEqual(schools.territoryRelevance, ["ZA"]);
+  assert.deepEqual(schools.salesMotionRelevance, ["direct"]);
+  assert.ok(schools.eventExamples.includes("School sports events"));
+  assert.ok(schools.buyerRoleHypotheses.includes("School leadership"));
+});
+
+test("Schools remain a South African Direct segment and do not alter standard SA pricing", () => {
+  const schoolPlaybooks = commercialPlaybooks.filter((playbook) => playbook.clientSegments?.some((segment) => segment.code === "schools"));
+  assert.equal(schoolPlaybooks.length, 1);
+  assert.equal(schoolPlaybooks[0].product, "event-suite");
+  assert.equal(schoolPlaybooks[0].territory, "ZA");
+  assert.equal(schoolPlaybooks[0].salesMotion, "direct");
+  assert.deepEqual(schoolPlaybooks[0].pricingGuidance.perEventPackages.map((item) => item.price), [4995, 5995, 7995, 10995, 14995]);
 });
 
 test("resolves Event Suite United Kingdom Direct with proposed pricing metadata", () => {
