@@ -32,14 +32,14 @@ function makePlaybook(territory: "ZA" | "GB", salesMotion: "direct" | "lno"): Co
     allowedClaims: [], prohibitedClaims: [...commodityClaims, prohibitedCompetitiveClaim], differentiationHypotheses: eventSuiteHypotheses,
     objections: ["We already use specialist tools.", "We do not want a full replacement.", "We need operational support, not another tool."],
     pricingGuidance: isZA ? southAfricaPricing : unitedKingdomPricing,
-    channelGuidance: isDirect ? undefined : { isChannelOpportunity: true, primaryConversion: "BUSINESS_OPPORTUNITY_ENQUIRY", networkLayers: 1, originatingPortfolioCommissionPercentage: isZA ? 20 : undefined, commissionNotes: isZA ? "Approved South African concept: 20% of qualifying package revenue each portfolio year while originating/servicing; no automatic decay in current pack." : "UK operator commission and terms are deferred; do not copy South African rules." },
+    channelGuidance: isDirect ? undefined : { isChannelOpportunity: true, primaryConversion: "BUSINESS_OPPORTUNITY_ENQUIRY", networkLayers: 1, originatingPortfolioCommissionPercentage: isZA ? 20 : 20, commissionDecay: "NONE", operatorDeliveryPriceModel: "CUSTOMER_OWNED_OR_OPERATOR_MANAGED", selfCommissionAllowed: false, commissionNotes: isZA ? "Approved South African concept: 20% of qualifying package revenue each portfolio year while originating/servicing; no automatic decay in current pack." : "Proposed UK concept: 20% of qualifying Event Package revenue every Portfolio year while originating/servicing; no automatic decay. Operator-managed purchases do not earn self-commission." },
     evidenceRequirements: ["Customer evidence for workflow pain and repeat-event value", "Territory-specific commercial approval", "Competitor evidence before superiority claims", "Human approval for LNO terms"],
     territoryConsiderations: isZA ? ["May favour operations + ticketing entry.", "LNO operator-pack concepts can use approved South African terms."] : ["May allow operations/growth entry alongside an incumbent ticketing platform.", "Do not copy South African pricing or commission rules."],
     qualificationConsiderations: ["Final ICP prioritisation is deferred.", "Event frequency may become a variable; no threshold is defined."],
     routeToConversionConsiderations: isDirect ? ["Self-service versus demo thresholds are deferred.", "Live demos remain human-led."] : ["Opportunity enquiry/application is the primary CTA.", "A software demo is supporting proof, not the default CTA."],
     humanEscalationPoints: ["Important commercial conversations", "Commercial negotiation", "LNO opportunity discussions and operator approval", "Major relationships"],
-    unresolvedDecisions: ["Final ICP priority", "Qualification scoring", "Route thresholds", "Competitor evidence and final differentiation wording"],
-    readiness: { playbook: "DRAFT", pricing: isZA ? "CURRENT" : "DEFERRED", icpPriority: "DEFERRED", differentiationEvidence: "PARTIAL", outreachReady: "NO" },
+    unresolvedDecisions: ["Final ICP priority", "Qualification scoring", "Route thresholds", "Competitor evidence and final differentiation wording", ...(isZA ? [] : ["Final owner approval and future revisions of UK pricing"])],
+    readiness: { playbook: "DRAFT", pricing: isZA ? "CURRENT" : "PROPOSED", icpPriority: "DEFERRED", differentiationEvidence: "PARTIAL", outreachReady: "NO" },
   };
 }
 

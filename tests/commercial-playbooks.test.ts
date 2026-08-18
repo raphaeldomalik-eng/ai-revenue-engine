@@ -9,16 +9,19 @@ test("resolves Event Suite South Africa Direct", () => {
   assert.deepEqual(playbook.conversionGoals, ["SELF_SERVICE", "QUALIFIED_LIVE_DEMO"]);
   assert.equal(playbook.pricingGuidance.status, "CURRENT");
   if (playbook.pricingGuidance.status === "CURRENT") {
-    assert.deepEqual(playbook.pricingGuidance.perEventPackages.map((item) => item.priceZar), [4995, 5995, 7995, 10995, 14995]);
+    assert.deepEqual(playbook.pricingGuidance.perEventPackages.map((item) => item.price), [4995, 5995, 7995, 10995, 14995]);
     assert.equal(playbook.pricingGuidance.ticketing.paidOrderPercentage, 3.95);
   }
 });
 
-test("resolves Event Suite United Kingdom Direct without inventing pricing", () => {
+test("resolves Event Suite United Kingdom Direct with proposed pricing metadata", () => {
   const playbook = resolveCommercialPlaybook({ product: "event-suite", territory: "GB", salesMotion: "direct" });
   assert.equal(playbook.territory, "GB");
-  assert.equal(playbook.pricingGuidance.status, "DEFERRED");
-  assert.equal(playbook.readiness.pricing, "DEFERRED");
+  assert.equal(playbook.pricingGuidance.status, "PROPOSED");
+  assert.equal(playbook.readiness.pricing, "PROPOSED");
+  assert.equal(playbook.pricingGuidance.pricingVersion, "UK-1.0");
+  assert.equal(playbook.pricingGuidance.sourceDate, "2026-08");
+  assert.deepEqual(playbook.pricingGuidance.perEventPackages.map((item) => item.price), [495, 595, 795, 1095, 1495]);
 });
 
 test("resolves Event Suite South Africa LNO with opportunity enquiry as primary goal", () => {
@@ -30,11 +33,44 @@ test("resolves Event Suite South Africa LNO with opportunity enquiry as primary 
   assert.equal(playbook.channelGuidance?.networkLayers, 1);
 });
 
-test("resolves Event Suite United Kingdom LNO as a distinct deferred-territory playbook", () => {
+test("resolves Event Suite United Kingdom LNO with proposed operator economics", () => {
   const playbook = resolveCommercialPlaybook({ product: "event-suite", territory: "GB", salesMotion: "lno" });
   assert.equal(playbook.salesMotion, "lno");
-  assert.equal(playbook.pricingGuidance.status, "DEFERRED");
+  assert.equal(playbook.pricingGuidance.status, "PROPOSED");
+  assert.deepEqual(playbook.pricingGuidance.annualPortfolio.packages["Event Essentials"], [495, 449, 425, 395]);
+  assert.equal(playbook.pricingGuidance.operatorEconomics?.packageCommissionPercentage, 20);
+  assert.equal(playbook.pricingGuidance.portfolioRules?.commissionDecay, "NONE");
+  assert.equal(playbook.pricingGuidance.operatorParticipation?.selfCommissionAllowed, false);
+  assert.deepEqual(playbook.pricingGuidance.perEventPackages.map((item) => item.price), resolveCommercialPlaybook({ product: "event-suite", territory: "GB", salesMotion: "direct" }).pricingGuidance.perEventPackages.map((item) => item.price));
   assert.notEqual(playbook.id, resolveCommercialPlaybook({ product: "event-suite", territory: "ZA", salesMotion: "lno" }).id);
+});
+
+test("UK operator-managed economics do not double count delivery price and commission", () => {
+  const playbook = resolveCommercialPlaybook({ product: "event-suite", territory: "GB", salesMotion: "lno" });
+  const firstPackage = playbook.pricingGuidance.perEventPackages[0];
+  assert.equal(firstPackage.operatorDeliveryPrice, 396);
+  assert.equal(firstPackage.operatorOriginatedCommission, 99);
+  assert.equal(playbook.pricingGuidance.operatorEconomics?.noSelfCommissionOnOperatorManagedPurchase, true);
+});
+
+test("UK ticketing and review rules preserve allocation semantics", () => {
+  const pricing = resolveCommercialPlaybook({ product: "event-suite", territory: "GB", salesMotion: "direct" }).pricingGuidance;
+  assert.equal(pricing.ticketing.corePercentage, 2);
+  assert.equal(pricing.ticketing.servicingPercentage, 1);
+  assert.equal(pricing.ticketing.servicingCapPerTicket, 1);
+  assert.equal(pricing.ticketing.freeStandardServiceFee, 0);
+  assert.equal(pricing.largeEventReview?.semantics, "REVIEW_NOT_SURCHARGE");
+  assert.equal(pricing.portfolioRules?.assignedPortfolioSupportSharePercentage, 10);
+  assert.equal(pricing.operatorEconomics?.operatorOriginatedTicketingServicingPercentage, 1);
+  assert.equal(pricing.operatorEconomics?.operatorOriginatedTicketingServicingCap, 1);
+  assert.equal(pricing.operatorEconomics?.assignedOperatorServicingPercentage, 0.5);
+  assert.equal(pricing.operatorEconomics?.assignedOperatorServicingCap, 0.5);
+});
+
+test("UK configurable commercial items stay unresolved", () => {
+  const pricing = resolveCommercialPlaybook({ product: "event-suite", territory: "GB", salesMotion: "direct" }).pricingGuidance;
+  assert.ok(pricing.configurableItems?.includes("SMS pricing"));
+  assert.equal(pricing.ticketing.highVolume, "APPROVED_CUSTOM_COMMERCIAL_TERMS");
 });
 
 test("rejects unknown or unsupported playbooks deterministically", () => {

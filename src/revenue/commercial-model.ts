@@ -3,7 +3,8 @@ export type TerritoryCode = "ZA" | "GB" | string;
 export type SalesMotion = "direct" | "lno" | string;
 
 export type PlaybookStatus = "DRAFT" | "ACTIVE" | "RETIRED";
-export type ReadinessState = "YES" | "NO" | "PARTIAL" | "CURRENT" | "DEFERRED";
+export type PricingStatus = "PROPOSED" | "CURRENT" | "DEFERRED" | "RETIRED";
+export type ReadinessState = "YES" | "NO" | "PARTIAL" | "PROPOSED" | "CURRENT" | "DEFERRED";
 export type ConversionGoal = "SELF_SERVICE" | "QUALIFIED_LIVE_DEMO" | "BUSINESS_OPPORTUNITY_ENQUIRY";
 export type ClaimCategory = "FEATURE" | "ADVANTAGE" | "SALES_WEDGE" | "DEFENSIBLE_DIFFERENTIATOR";
 export type ClaimStrength = "DEFENSIBLE" | "ADVANTAGE" | "COMMODITY" | "HYPOTHESIS" | "PROHIBITED";
@@ -30,15 +31,37 @@ export type CommercialClaim = {
 export type CommercialProblem = { id: string; label: string; notes: string };
 export type CommercialCapability = { id: string; label: string; group: "GROW" | "MANAGE" | "RUN" };
 export type CommercialOffer = { id: string; label: string; description: string; conversionGoals: readonly ConversionGoal[] };
-export type PricingModel =
-  | { status: "CURRENT"; currency: "ZAR"; vat: "EXCLUSIVE"; perEventPackages: PerEventPackage[]; growthStudio: GrowthStudioPricing; ticketing: TicketingPricing; annualPortfolio: AnnualPortfolioPricing }
-  | { status: "DEFERRED"; currency: "GBP"; notes: string };
+export type PricingModel = {
+  status: PricingStatus;
+  pricingVersion: string;
+  sourceDate?: string;
+  sourceDocuments: string[];
+  currency: "ZAR" | "GBP";
+  vat: "EXCLUSIVE" | "INCLUSIVE";
+  perEventPackages: PerEventPackage[];
+  growthStudio: GrowthStudioPricing;
+  ticketing: TicketingPricing;
+  annualPortfolio: AnnualPortfolioPricing;
+  operatorEconomics?: OperatorEconomics;
+  portfolioRules?: PortfolioRules;
+  channelPriceProtection?: string[];
+  operatorParticipation?: OperatorParticipation;
+  professionalServices?: ProfessionalServiceGuidance[];
+  largeEventReview?: LargeEventReview;
+  configurableItems?: string[];
+  notes?: string;
+};
 
-export type PerEventPackage = { name: "Essentials" | "Ticketed" | "Growth" | "Operations" | "Complete"; includedCapabilities: string[]; priceZar: number; ticketingOptional?: boolean };
-export type GrowthStudioPricing = { standalone: { pages: 3 | 6 | 12; priceZar: number }[]; managedFromZar: number; upgrades: { fromPages: 3 | 6; toPages: 6 | 12; priceZar: number }[] };
-export type TicketingPricing = { paidOrderPercentage: number; paidOrderFeeZar: number; serviceFee: { thresholdZar: number; atOrAboveZar: number; belowZar: number }; standaloneMinimumZar: number; includedComps: number; additionalCompFeeZar: number; freeEventPriceZar: number; freeEventIncludedTickets: number; externallyPaidImportedTicketFeeZar: number; highVolume: "APPROVED_PRICING_CUSTOM_QUOTE" };
-export type AnnualPortfolioPricing = { eventCounts: [4, 8, 12]; packages: Record<PerEventPackage["name"], [number, number, number]> };
-export type ChannelGuidance = { isChannelOpportunity: boolean; primaryConversion: ConversionGoal; networkLayers?: number; originatingPortfolioCommissionPercentage?: number; commissionNotes: string };
+export type PerEventPackage = { name: string; includedCapabilities: string[]; price: number; operatorDeliveryPrice?: number; operatorOriginatedCommission?: number; ticketingOptional?: boolean };
+export type GrowthStudioPricing = { standalone: { pages: 3 | 6 | 12; price: number; operatorDeliveryPrice?: number }[]; managedFrom: number; upgrades: { fromPages: 3 | 6; toPages: 6 | 12; price: number }[] };
+export type TicketingPricing = { paidOrderPercentage?: number; paidOrderFee?: number; serviceFee?: { threshold: number; atOrAbove: number; below: number }; standaloneMinimum?: number; includedComps?: number; additionalCompFee?: number; freeEventPrice?: number; freeEventIncludedTickets?: number; externallyPaidImportedTicketFee?: number; corePercentage?: number; servicingPercentage?: number; servicingCapPerTicket?: number; paymentProcessing?: "SEPARATE"; freeStandardServiceFee?: number; importedExternallyPaidTicket?: "CURRENT_RATE_CARD_OR_APPROVED_QUOTE"; highVolume: "APPROVED_PRICING_CUSTOM_QUOTE" | "APPROVED_CUSTOM_COMMERCIAL_TERMS" };
+export type AnnualPortfolioPricing = { eventCounts: readonly (number | string)[]; packages: Record<string, readonly number[]> };
+export type OperatorEconomics = { packageCommissionPercentage: number; packageCommissionBasis: string; exclusions: string[]; operatorDeliveryPriceIsSeparatePurchase: boolean; noSelfCommissionOnOperatorManagedPurchase: boolean; operatorOriginatedTicketingServicingPercentage?: number; operatorOriginatedTicketingServicingCap?: number; assignedOperatorServicingPercentage?: number; assignedOperatorServicingCap?: number; assignedOperatorServicingAllocation?: string; professionalServicesRevenuePercentage?: number };
+export type PortfolioRules = { commitmentPeriod: "12_MONTHS"; contractedPer: "EVENT_ENTITLEMENT"; additionalEventsUseContractedPortfolioFee: boolean; upgradesUseApplicablePriceDifference: boolean; paymentCadence: "YEARLY_OR_MONTHLY_AGAINST_COMMITMENT"; rolloverOnRenewal: Record<string, { events: number; days: number }>; originatingOperatorCommissionPercentage: number; commissionDecay: "NONE"; assignedPortfolioSupportSharePercentage?: number };
+export type OperatorParticipation = { applicationFee: number; joiningFee: number; workspace: "INCLUDED_FOR_APPROVED_ACTIVE_OPERATORS"; demoEnvironment: "ONE_NON_COMMERCIAL_INCLUDED"; commercialCustomerEvents: "BILLABLE"; ownCommercialEvents: "OPERATOR_DELIVERY_PRICE"; selfCommissionAllowed: false; professionalServicesRevenuePercentage: number };
+export type ProfessionalServiceGuidance = { category: string; item: string; price: number | { from: number; to?: number }; unit: string; binding: "NON_BINDING_RECOMMENDATION" };
+export type LargeEventReview = { semantics: "REVIEW_NOT_SURCHARGE"; triggers: Record<string, number | string> };
+export type ChannelGuidance = { isChannelOpportunity: boolean; primaryConversion: ConversionGoal; networkLayers?: number; originatingPortfolioCommissionPercentage?: number; commissionDecay?: "NONE"; operatorDeliveryPriceModel?: "CUSTOMER_OWNED_OR_OPERATOR_MANAGED"; selfCommissionAllowed?: false; commissionNotes: string };
 
 export type PlaybookReadiness = {
   playbook: PlaybookStatus;
