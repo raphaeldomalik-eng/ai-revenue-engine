@@ -34,9 +34,11 @@ Research Evidence keeps `FACT` and `INFERENCE` in separate persisted fields. Qua
 
 `UNDETERMINED DIRECT ROUTE != SELF-SERVICE OR DEMO`. A Product Opportunity stores product, territory, and sales motion while `commercial_program_id` remains null until a conversion route is selected. LNO Business Opportunity Enquiry can resolve an existing Commercial Program through stable `products.code`, `territories.code`, `sales_motions.code`, and conversion identifiers, never copied UUIDs.
 
+The migration conditionally bridges the checked-in foundation's legacy reference identifiers to those stable `code` fields, so a disposable database reproduces the current live schema without changing already-aligned production data.
+
 ## Production activation
 
-1. Review `supabase/migrations/20260818000001_secure_persistence_foundation.sql`.
+1. Review `supabase/migrations/20260819000001_secure_persistence_foundation.sql`.
 2. Run its RLS test matrix in a disposable/local Supabase environment.
 3. Apply it to production through the approved database-activation workflow.
 4. Provision the first Auth user and corresponding active internal `revenue_members` row administratively.

@@ -1,4 +1,4 @@
--- Secure Persistence Foundation V1.
+-- Secure Persistence Foundation V1, sequenced after the live foundation migrations.
 -- Targets the current production schema; review and test locally before activation.
 
 create schema if not exists private;
@@ -11,6 +11,35 @@ create table if not exists public.revenue_members (
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+-- Bridge the checked-in foundation schema to the current live reference schema.
+-- Every change is conditional so the already-aligned production schema is unchanged.
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'products' and column_name = 'slug')
+    and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'products' and column_name = 'code') then
+    alter table public.products rename column slug to code;
+  end if;
+
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'sales_motions' and column_name = 'slug')
+    and not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'sales_motions' and column_name = 'code') then
+    alter table public.sales_motions rename column slug to code;
+  end if;
+end $$;
+
+alter table public.products add column if not exists active boolean;
+
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'products' and column_name = 'status') then
+    update public.products set active = (status = 'active') where active is null;
+  end if;
+end $$;
+
+update public.products set active = true where active is null;
+alter table public.products alter column active set default true;
+alter table public.products alter column active set not null;
+update public.territories set code = lower(code) where code in ('ZA', 'GB');
 
 -- Compatibility additions mirror the current live schema without rewriting existing tables.
 alter table public.accounts

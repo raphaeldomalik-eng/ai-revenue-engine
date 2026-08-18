@@ -7,7 +7,8 @@ import { leadIntelligenceFixtures } from "../src/lead-intelligence/fixtures.ts";
 import { commercialProgramLookup, mapAccountProfile, mapProductOpportunity, mapResearchEvidence } from "../src/persistence/revenue-repository.ts";
 
 const byName = (name: string) => leadIntelligenceFixtures.find((fixture) => fixture.name === name)!;
-const migration = readFileSync(new URL("../supabase/migrations/20260818000001_secure_persistence_foundation.sql", import.meta.url), "utf8");
+const migrationVersion = "20260819000001";
+const migration = readFileSync(new URL(`../supabase/migrations/${migrationVersion}_secure_persistence_foundation.sql`, import.meta.url), "utf8");
 
 test("passwordless sign-in never creates an arbitrary user", () => {
   const options = passwordlessSignInOptions("https://example.test");
@@ -66,6 +67,7 @@ test("incumbent Ticketing and LNO program lookup survive persistence mapping", (
 });
 
 test("migration encodes internal-only membership, least-privilege grants, and route semantics", () => {
+  assert.equal(migrationVersion > "20260818210534", true, "the migration must follow the live foundation migration history");
   assert.match(migration, /create table if not exists public\.revenue_members/i);
   assert.match(migration, /Internal AI Revenue Engine company users only/i);
   assert.match(migration, /revoke all on table public\.revenue_members from anon, authenticated/i);
@@ -74,6 +76,8 @@ test("migration encodes internal-only membership, least-privilege grants, and ro
   assert.match(migration, /security definer/i);
   assert.match(migration, /set search_path = pg_catalog/i);
   assert.match(migration, /alter column commercial_program_id drop not null/i);
+  assert.match(migration, /rename column slug to code/i);
+  assert.match(migration, /update public\.territories set code = lower\(code\)/i);
   assert.match(migration, /'UNDETERMINED'/i);
   assert.match(migration, /evidence_kind[\s\S]*\('FACT', 'INFERENCE'\)/i);
   assert.equal(/service_role/i.test(migration), false);
