@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { researchCompany } from "../../../../src/ai-sales-team/research";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
+import { classifyAccountRelationship } from "../../../../src/ai-sales-team/outreach-model";
 
 export async function GET() {
   const client = await createServerSupabaseClient();
@@ -28,12 +29,13 @@ export async function POST(request: Request) {
     const result = await researchCompany({ companyName, website: body.website });
     const brief = result.brief;
     const website = body.website?.trim() || null;
+    const relationship = classifyAccountRelationship({ name: companyName, website, summary: brief.companySummary, qualificationFit: brief.qualification.fit });
     const existing = await client.from("accounts").select("id, website").eq("name", companyName);
     if (existing.error) throw existing.error;
     const existingAccount = (existing.data ?? []).find((row) => (row.website ?? null) === website);
     const accountQuery = existingAccount
-      ? client.from("accounts").update({ website, country_code: brief.territory.code === "UNKNOWN" ? null : brief.territory.code, source: "ai_sales_team", metadata: { aiSalesBrief: true, fit: brief.qualification.fit, lastResearchedDate: new Date().toISOString() } }).eq("id", existingAccount.id).select("id").single()
-      : client.from("accounts").insert({ name: companyName, website, country_code: brief.territory.code === "UNKNOWN" ? null : brief.territory.code, source: "ai_sales_team", metadata: { aiSalesBrief: true, fit: brief.qualification.fit, lastResearchedDate: new Date().toISOString() } }).select("id").single();
+      ? client.from("accounts").update({ website, country_code: brief.territory.code === "UNKNOWN" ? null : brief.territory.code, source: "ai_sales_team", metadata: { aiSalesBrief: true, fit: brief.qualification.fit, lastResearchedDate: new Date().toISOString(), relationship: relationship.relationship, outreachEligibility: relationship.eligibility, outreachEligibilityReason: relationship.reason } }).eq("id", existingAccount.id).select("id").single()
+      : client.from("accounts").insert({ name: companyName, website, country_code: brief.territory.code === "UNKNOWN" ? null : brief.territory.code, source: "ai_sales_team", metadata: { aiSalesBrief: true, fit: brief.qualification.fit, lastResearchedDate: new Date().toISOString(), relationship: relationship.relationship, outreachEligibility: relationship.eligibility, outreachEligibilityReason: relationship.reason } }).select("id").single();
     const { data: account, error: accountError } = await accountQuery;
     if (accountError) throw accountError;
     const evidence = [...brief.facts, ...brief.inferences].filter((item) => item.claim.trim()).map((item) => ({ account_id: account.id, evidence_type: item.sourceUrl ? "WEBSITE" : "OTHER", claim: item.claim, source_url: item.sourceUrl, source_title: item.sourceTitle, source_reference: item.sourceUrl ?? "ai-sales-team", observed_at: new Date().toISOString(), evidence_kind: item.kind, qualitative_confidence: item.confidence, metadata: { provider: result.provider, model: result.model } }));
