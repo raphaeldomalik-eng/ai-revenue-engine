@@ -5,8 +5,11 @@ import { boundedFollowUps, canSendMessage, classifyAccountRelationship, knownRec
 test("competitors are blocked while prospects remain eligible", () => {
   assert.equal(classifyAccountRelationship({ name: "Quicket", website: "https://www.quicket.co.za", qualificationFit: "HIGH" }).relationship, "COMPETITOR");
   assert.equal(classifyAccountRelationship({ name: "Quicket", website: "https://www.quicket.co.za", qualificationFit: "HIGH" }).eligibility, "BLOCKED");
+  assert.equal(classifyAccountRelationship({ name: "Regional Festival", summary: "The organiser uses Quicket for ticket sales.", qualificationFit: "HIGH" }).eligibility, "ELIGIBLE");
+  assert.equal(classifyAccountRelationship({ name: "Ticketing Platform Ltd", summary: "We provide event ticketing software and services.", qualificationFit: "HIGH" }).eligibility, "BLOCKED");
   assert.equal(classifyAccountRelationship({ name: "Example Prospect", website: "https://example.org", qualificationFit: "HIGH" }).eligibility, "ELIGIBLE");
   assert.equal(classifyAccountRelationship({ name: "Unclear Organisation", qualificationFit: "UNKNOWN" }).eligibility, "REVIEW_REQUIRED");
+  assert.equal(classifyAccountRelationship({ name: "Missing Relationship Evidence" }).eligibility, "REVIEW_REQUIRED");
   assert.equal(classifyAccountRelationship({ name: "Existing Customer", summary: "Existing customer of EventSuite", qualificationFit: "HIGH" }).relationship, "CUSTOMER");
   assert.equal(classifyAccountRelationship({ name: "Strategic Partner", summary: "Strategic partner organisation", qualificationFit: "HIGH" }).relationship, "PARTNER");
 });
@@ -16,6 +19,8 @@ test("outbound content removes research URLs and resolves the sender signature",
   assert.equal(clean.body.includes("https://"), false);
   assert.match(clean.body, /Best regards,\nEventSuite Partnerships$/);
   assert.throws(() => sanitizeOutboundContent("Hello [Your Name]", "Body"), /placeholder/);
+  assert.throws(() => sanitizeOutboundContent("A useful conversation", "FACT: [evidence-123] See source-id:abc"), /internal evidence/);
+  assert.throws(() => sanitizeOutboundContent("A useful conversation", "TODO — add the account name"), /placeholder/);
   assert.throws(() => sanitizeOutboundContent("Industry-leading option", "Body"), /comparative/);
 });
 
@@ -25,11 +30,12 @@ test("outreach never turns an unknown contact into a sendable recipient", () => 
   assert.equal(knownRecipient("owner@example.com"), "owner@example.com");
   assert.equal(canSendMessage({ status: "APPROVED", recipient_email: null }, "ACTIVE", false, false), false);
   assert.equal(canSendMessage({ status: "NEEDS_APPROVAL", recipient_email: "owner@example.com" }, "ACTIVE", false, false), false);
+  assert.equal(canSendMessage({ status: "APPROVED", recipient_email: "owner@example.com" }, "ACTIVE", false, false, "REVIEW_REQUIRED"), false);
 });
 
 test("outreach send decision requires approval, active sequence, and no stop state", () => {
   const message = { status: "APPROVED" as const, recipient_email: "owner@example.com" };
-  assert.equal(canSendMessage(message, "ACTIVE", false, false), true);
+  assert.equal(canSendMessage(message, "ACTIVE", false, false, "ELIGIBLE"), true);
   assert.equal(canSendMessage(message, "CANCELLED", false, false), false);
   assert.equal(canSendMessage(message, "ACTIVE", true, false), false);
   assert.equal(canSendMessage(message, "ACTIVE", false, true), false);

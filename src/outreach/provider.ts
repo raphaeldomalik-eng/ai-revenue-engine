@@ -13,7 +13,7 @@ export async function sendEmail(input: EmailSendInput): Promise<EmailSendResult>
     headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
     body: JSON.stringify({
       personalizations: [{ to: [{ email: input.recipientEmail }] }],
-      from: { email: fromEmail, name: process.env.OUTREACH_FROM_NAME || "EventSuite Partnerships" },
+      from: { email: fromEmail, name: process.env.OUTREACH_FROM_NAME && !/ai revenue engine/i.test(process.env.OUTREACH_FROM_NAME) ? process.env.OUTREACH_FROM_NAME : "EventSuite Partnerships" },
       subject: content.subject,
       content: [{ type: "text/plain", value: content.body }],
       headers: { "X-AI-Revenue-Engine-Message-ID": input.messageId },

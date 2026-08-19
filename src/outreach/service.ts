@@ -9,7 +9,7 @@ export async function sendApprovedOutreachMessage(client: SupabaseClient, messag
   if (message.status === "SENT") return { alreadySent: true, providerMessageId: message.provider_message_id };
   const { data: account, error: accountError } = await client.from("accounts").select("metadata").eq("id", message.account_id).single();
   if (accountError) throw accountError;
-  const eligibility = account?.metadata?.outreachEligibility ?? "ELIGIBLE";
+  const eligibility = account?.metadata?.outreachEligibility ?? "REVIEW_REQUIRED";
   if (eligibility !== "ELIGIBLE") throw new Error(account?.metadata?.outreachEligibilityReason ?? "OUTREACH_REVIEW_REQUIRED");
   const { data: sequence, error: sequenceError } = await client.from("outreach_sequences").select("status").eq("id", message.sequence_id).single();
   if (sequenceError) throw sequenceError;
@@ -20,7 +20,7 @@ export async function sendApprovedOutreachMessage(client: SupabaseClient, messag
   if (!recipient) throw new Error("OUTREACH_RECIPIENT_UNKNOWN");
 
   // Claiming APPROVED atomically makes browser retries, job retries, and double-clicks harmless.
-  const { data: claimed, error: claimError } = await client.from("outreach_messages").update({ status: "SENDING", send_attempts: (message.send_attempts ?? 0) + 1, updated_at: new Date().toISOString() }).eq("id", messageId).eq("status", "APPROVED").select("id, subject, body").maybeSingle();
+  const { data: claimed, error: claimError } = await client.from("outreach_messages").update({ status: "SENDING", send_attempts: (message.send_attempts ?? 0) + 1, updated_at: new Date().toISOString() }).eq("id", messageId).in("status", ["APPROVED", "SCHEDULED"]).select("id, subject, body").maybeSingle();
   if (claimError) throw claimError;
   if (!claimed) return { alreadyClaimed: true };
   try {

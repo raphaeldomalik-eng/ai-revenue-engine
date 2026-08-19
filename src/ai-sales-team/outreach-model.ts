@@ -29,32 +29,41 @@ export function knownRecipient(email: string | null | undefined) {
   return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? email.trim() : null;
 }
 
-export function classifyAccountRelationship(input: { name: string; website?: string | null; summary?: string | null; qualificationFit?: string | null }): { relationship: AccountRelationship; eligibility: OutreachEligibility; reason: string } {
-  const haystack = `${input.name} ${input.website ?? ""} ${input.summary ?? ""}`.toLowerCase();
-  if (/quicket\.co\.za|\bquicket\b|event ticketing platform|ticketing competitor/.test(haystack)) {
+export function classifyAccountRelationship(input: { name: string; website?: string | null; summary?: string | null; qualificationFit?: string | null; relationship?: AccountRelationship }): { relationship: AccountRelationship; eligibility: OutreachEligibility; reason: string } {
+  const nameAndWebsite = `${input.name} ${input.website ?? ""}`.toLowerCase();
+  const summary = (input.summary ?? "").toLowerCase();
+  const haystack = `${nameAndWebsite} ${summary}`;
+  if (input.relationship && input.relationship !== "PROSPECT") {
+    const blocked = input.relationship === "COMPETITOR";
+    return { relationship: input.relationship, eligibility: blocked ? "BLOCKED" : "REVIEW_REQUIRED", reason: blocked ? "Competitor — standard sales outreach not recommended" : `${input.relationship} relationship requires human review before outreach.` };
+  }
+  const organisationUsesCompetitor = /\b(?:uses?|using|runs? on|powered by|tickets? (?:sold|available) (?:through|via))\b.{0,60}\b(?:quicket|ticketmaster|eventbrite)\b/.test(summary);
+  const providesTicketingTechnology = /quicket\.co\.za|\bquicket\b|\b(?:event )?ticketing\s+(?:software|technology|platform|services?|provider|company|solutions?)\b|\b(?:box office|ticket sales)\s+platform\b|\bticketing competitor\b/.test(nameAndWebsite) || (!organisationUsesCompetitor && /\b(?:provides?|sells?|offers?|builds?|operates?)\b.{0,60}\b(?:event )?ticketing\s+(?:software|technology|platform|services?|solutions?)\b/.test(summary));
+  if (providesTicketingTechnology) {
     return { relationship: "COMPETITOR", eligibility: "BLOCKED", reason: "Competitor — standard sales outreach not recommended" };
   }
   if (/existing customer|current customer|customer of eventsuite/.test(haystack)) return { relationship: "CUSTOMER", eligibility: "REVIEW_REQUIRED", reason: "Customer relationship requires an explicit operator decision before net-new outreach." };
   if (/current partner|strategic partner|partner organisation/.test(haystack)) return { relationship: "PARTNER", eligibility: "REVIEW_REQUIRED", reason: "Partner relationship requires a partnership-oriented operator decision." };
-  if (input.qualificationFit === "UNKNOWN") return { relationship: "UNKNOWN", eligibility: "REVIEW_REQUIRED", reason: "Account relationship requires human review before outreach." };
+  if (!input.qualificationFit || input.qualificationFit === "UNKNOWN") return { relationship: "UNKNOWN", eligibility: "REVIEW_REQUIRED", reason: "Account relationship requires human review before outreach." };
   return { relationship: "PROSPECT", eligibility: "ELIGIBLE", reason: "Prospect is eligible for normal human-reviewed sales outreach." };
 }
 
-const PLACEHOLDER_PATTERN = /(?:\[\s*(?:your\s+name|name|company)\s*\]|\{\{\s*(?:name|sender)\s*\}\}|<\s*todo\s*>)/i;
+const PLACEHOLDER_PATTERN = /(?:\[\s*(?:your\s+name|name|company|sender|email)\s*\]|\{\{\s*(?:name|sender|company|email)\s*\}\}|<\s*(?:todo|name|sender|company)\s*>|\bTODO\b)/i;
 const RESEARCH_URL_PATTERN = /(?:https?:\/\/|www\.)\S+/gi;
-const UNSUPPORTED_SUPERLATIVE_PATTERN = /\b(?:industry-leading|market-leading|best-in-class|world-class)\b/gi;
+const RESEARCH_LEAK_PATTERN = /(?:\[\s*(?:\d+|source|citation|evidence|fact|inference)[^\]]*\]|\b(?:evidence|source)[_-]?id\s*[:#-]?\s*[a-z0-9-]+\b|\b(?:fact|inference)[_-]?\d+\b|\b(?:FACT|INFERENCE)\s*[:·-])/i;
+const UNSUPPORTED_SUPERLATIVE_PATTERN = /\b(?:industry-leading|market-leading|best-in-class|world-class)\b/i;
 
 export function sanitizeOutboundContent(subject: string, body: string) {
-  if (PLACEHOLDER_PATTERN.test(subject) || PLACEHOLDER_PATTERN.test(body)) throw new Error("OUTREACH_CONTENT_INVALID: unresolved placeholder");
+  if (PLACEHOLDER_PATTERN.test(subject) || PLACEHOLDER_PATTERN.test(body) || RESEARCH_LEAK_PATTERN.test(subject) || RESEARCH_LEAK_PATTERN.test(body)) throw new Error("OUTREACH_CONTENT_INVALID: internal evidence or unresolved placeholder");
   if (UNSUPPORTED_SUPERLATIVE_PATTERN.test(subject) || UNSUPPORTED_SUPERLATIVE_PATTERN.test(body)) throw new Error("OUTREACH_CONTENT_INVALID: unsupported comparative claim");
   const cleanSubject = subject.replace(RESEARCH_URL_PATTERN, "").replace(/\s{2,}/g, " ").trim();
   const cleanBody = body.replace(RESEARCH_URL_PATTERN, "").replace(/\n{3,}/g, "\n\n").trim();
   const signature = /best regards,?\s*eventsuite partnerships/i.test(cleanBody) ? cleanBody : `${cleanBody}\n\nBest regards,\nEventSuite Partnerships`;
-  if (PLACEHOLDER_PATTERN.test(signature) || RESEARCH_URL_PATTERN.test(signature)) throw new Error("OUTREACH_CONTENT_INVALID: unsafe outbound content");
+  if (PLACEHOLDER_PATTERN.test(signature) || RESEARCH_LEAK_PATTERN.test(signature) || /(?:https?:\/\/|www\.)\S+/i.test(signature)) throw new Error("OUTREACH_CONTENT_INVALID: unsafe outbound content");
   return { subject: cleanSubject, body: signature };
 }
 
-export function canSendMessage(message: { status: OutreachMessageStatus; recipient_email?: string | null }, sequenceStatus: string, suppressed: boolean, priorReply: boolean, eligibility: OutreachEligibility = "ELIGIBLE") {
+export function canSendMessage(message: { status: OutreachMessageStatus; recipient_email?: string | null }, sequenceStatus: string, suppressed: boolean, priorReply: boolean, eligibility: OutreachEligibility = "REVIEW_REQUIRED") {
   return (message.status === "APPROVED" || message.status === "SCHEDULED") && sequenceStatus === "ACTIVE" && eligibility === "ELIGIBLE" && !suppressed && !priorReply && Boolean(knownRecipient(message.recipient_email));
 }
 

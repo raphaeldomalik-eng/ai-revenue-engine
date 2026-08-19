@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       if (existing) return NextResponse.json({ sequenceId: existing.id, reused: true });
       const { data: accountState, error: accountStateError } = await client.from("accounts").select("metadata").eq("id", body.accountId).single();
       if (accountStateError) throw accountStateError;
-      if (accountState?.metadata?.outreachEligibility && accountState.metadata.outreachEligibility !== "ELIGIBLE") throw new Error(accountState.metadata.outreachEligibilityReason || "OUTREACH_REVIEW_REQUIRED");
+      if (accountState?.metadata?.outreachEligibility !== "ELIGIBLE") throw new Error(accountState?.metadata?.outreachEligibilityReason || "OUTREACH_REVIEW_REQUIRED");
       const [{ data: brief, error: briefError }, { data: contacts, error: contactsError }] = await Promise.all([
         client.from("ai_sales_briefs").select("*").eq("id", body.briefId).eq("account_id", body.accountId).single(),
         client.from("contacts").select("id, full_name, role_title, email").eq("account_id", body.accountId).order("created_at"),

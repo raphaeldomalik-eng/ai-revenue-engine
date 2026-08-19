@@ -6,7 +6,7 @@ test("failed provider submission never becomes SENT", async () => {
   process.env.SENDGRID_API_KEY = "controlled-test-key";
   process.env.OUTREACH_FROM_EMAIL = "partner@eventsuite.pro";
   const updates: Array<Record<string, unknown>> = [];
-  const message = { id: "message-1", status: "APPROVED", sequence_id: "sequence-1", account_id: "account-1", contact_id: null, recipient_email: "raphael@eventsuite.pro", subject: "A useful conversation", body: "A concise message", send_attempts: 0, sequence_number: 1 };
+  const message = { id: "message-1", status: "SCHEDULED", sequence_id: "sequence-1", account_id: "account-1", contact_id: null, recipient_email: "raphael@eventsuite.pro", subject: "A useful conversation", body: "A concise message", send_attempts: 0, sequence_number: 1 };
   const client = {
     from(table: string) {
       let updateValues: Record<string, unknown> | null = null;
@@ -23,7 +23,7 @@ test("failed provider submission never becomes SENT", async () => {
           if (table === "outreach_messages" && updateValues?.status === "SENDING") return { data: { id: message.id, subject: message.subject, body: message.body }, error: null };
           return { data: message, error: null };
         },
-        async single() { return { data: { status: "ACTIVE" }, error: null }; },
+        async single() { return { data: table === "accounts" ? { metadata: { outreachEligibility: "ELIGIBLE" } } : { status: "ACTIVE" }, error: null }; },
         async insert() { return { error: null }; },
       };
       return chain;
