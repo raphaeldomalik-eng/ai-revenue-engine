@@ -27,6 +27,8 @@ test("outbound content removes research URLs and resolves the sender signature",
   assert.throws(() => sanitizeOutboundContent("A useful conversation", "FACT: [evidence-123] See source-id:abc"), /internal evidence/);
   assert.throws(() => sanitizeOutboundContent("A useful conversation", "TODO — add the account name"), /placeholder/);
   assert.throws(() => sanitizeOutboundContent("Industry-leading option", "Body"), /comparative/);
+  const commercial = sanitizeOutboundContent("Explore", "See https://www.eventsuite.pro/.", ["https://www.eventsuite.pro/"]);
+  assert.match(commercial.body, /https:\/\/www\.eventsuite\.pro\//);
 });
 
 test("outreach never turns an unknown contact into a sendable recipient", () => {

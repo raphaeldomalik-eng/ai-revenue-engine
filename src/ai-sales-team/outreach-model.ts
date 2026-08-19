@@ -56,7 +56,10 @@ const UNSUPPORTED_SUPERLATIVE_PATTERN = /\b(?:industry-leading|market-leading|be
 export function sanitizeOutboundContent(subject: string, body: string, allowedUrls: string[] = []) {
   if (PLACEHOLDER_PATTERN.test(subject) || PLACEHOLDER_PATTERN.test(body) || RESEARCH_LEAK_PATTERN.test(subject) || RESEARCH_LEAK_PATTERN.test(body)) throw new Error("OUTREACH_CONTENT_INVALID: internal evidence or unresolved placeholder");
   if (UNSUPPORTED_SUPERLATIVE_PATTERN.test(subject) || UNSUPPORTED_SUPERLATIVE_PATTERN.test(body)) throw new Error("OUTREACH_CONTENT_INVALID: unsupported comparative claim");
-  const stripUnapprovedUrls = (value: string) => value.replace(RESEARCH_URL_PATTERN, (url) => allowedUrls.includes(url) ? url : "");
+  const stripUnapprovedUrls = (value: string) => value.replace(RESEARCH_URL_PATTERN, (url) => {
+    const canonicalUrl = url.replace(/[.,;:!?]+$/, "").replace(/\)$/, "");
+    return allowedUrls.includes(canonicalUrl) ? canonicalUrl : "";
+  });
   const cleanSubject = stripUnapprovedUrls(subject).replace(/\s{2,}/g, " ").trim();
   const cleanBody = stripUnapprovedUrls(body).replace(/\n{3,}/g, "\n\n").trim();
   const signature = /best regards,?\s*eventsuite partnerships/i.test(cleanBody) ? cleanBody : `${cleanBody}\n\nBest regards,\nEventSuite Partnerships`;

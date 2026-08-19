@@ -17,7 +17,7 @@ const schema = {
 
 const CALL_PATTERN = /\b(?:book|schedule|jump on|have) (?:a )?(?:call|meeting|demo|walkthrough)|\b(?:call|meeting|demo|walkthrough)\b/i;
 
-function urls(value: string) { return value.match(/https?:\/\/\S+/g) ?? []; }
+function urls(value: string) { return (value.match(/https?:\/\/\S+/g) ?? []).map((url) => url.replace(/[.,;:!?]+$/, "").replace(/\)$/, "")); }
 
 export function assertCommercialActionContract(draft: OutreachSequenceDraft, action: ProspectIntelligence["nextBestCommercialAction"]) {
   const messages = [draft.initialMessage, ...draft.followUps];
