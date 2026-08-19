@@ -19,6 +19,14 @@ const CALL_PATTERN = /\b(?:book|schedule|jump on|have) (?:a )?(?:call|meeting|de
 
 function urls(value: string) { return (value.match(/https?:\/\/\S+/g) ?? []).map((url) => url.replace(/[.,;:!?]+$/, "").replace(/\)$/, "")); }
 
+function withVerifiedPrimaryDestination(message: OutreachSequenceDraft["initialMessage"], action: ProspectIntelligence["nextBestCommercialAction"]) {
+  const resourceCta = `Explore free resource: ${action.resourceOffer.title}`;
+  const expectedUrl = message.cta === resourceCta ? action.resourceOffer.canonicalUrl : action.productDestinationUrl;
+  const messageUrls = urls(message.body);
+  if (!messageUrls.length) return { ...message, body: `${message.body.trim()}\n\n${expectedUrl}` };
+  return message;
+}
+
 export function assertCommercialActionContract(draft: OutreachSequenceDraft, action: ProspectIntelligence["nextBestCommercialAction"]) {
   const messages = [draft.initialMessage, ...draft.followUps];
   if (action.type === "NONE") throw new Error("OUTREACH_CTA_MISMATCH: no commercial action is available");
@@ -48,8 +56,14 @@ function parse(value: unknown, action: ProspectIntelligence["nextBestCommercialA
   const draft = value as OutreachSequenceDraft;
   if (!draft.initialMessage || !Array.isArray(draft.followUps) || typeof draft.overallStrategy !== "string") throw new Error("Outreach generation returned an incomplete sequence.");
   const allowedUrls = [action.productDestinationUrl, action.resourceOffer.canonicalUrl];
-  const initial = { ...draft.initialMessage, sequenceNumber: 0 as const, ...sanitizeOutboundContent(draft.initialMessage.subject, draft.initialMessage.body, allowedUrls) };
-  const followUps = boundedFollowUps(draft.followUps).map((item, index) => ({ ...item, sequenceNumber: (index + 1) as 1 | 2, ...sanitizeOutboundContent(item.subject, item.body, allowedUrls) }));
+  const initialSanitized = sanitizeOutboundContent(draft.initialMessage.subject, draft.initialMessage.body, allowedUrls);
+  const initialSource = withVerifiedPrimaryDestination({ ...draft.initialMessage, ...initialSanitized }, action);
+  const initial = { ...initialSource, sequenceNumber: 0 as const };
+  const followUps = boundedFollowUps(draft.followUps).map((item, index) => {
+    const sanitized = sanitizeOutboundContent(item.subject, item.body, allowedUrls);
+    const source = withVerifiedPrimaryDestination({ ...item, ...sanitized }, action);
+    return { ...source, sequenceNumber: (index + 1) as 1 | 2 };
+  });
   const parsed = { ...draft, initialMessage: initial, followUps };
   assertCommercialActionContract(parsed, action);
   return parsed;
