@@ -228,4 +228,10 @@ export class RevenueRepository {
   }
 
   async persistActivity(activity: ActivityInput) { return this.saveActivity(activity); }
+
+  async latestAiSalesBrief(accountId: string) {
+    const { data, error } = await this.client.from("ai_sales_briefs").select("*").eq("account_id", accountId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (error) throw error;
+    return data;
+  }
 }
