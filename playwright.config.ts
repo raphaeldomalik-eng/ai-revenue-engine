@@ -21,7 +21,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
   use: {
-    baseURL: "https://ai-revenue-engine-kmwectfm0-event-suite-team.vercel.app",
+    baseURL: process.env.E2E_BASE_URL ?? "https://ai-revenue-engine-git-feature-lead-inte-000dc1-event-suite-team.vercel.app",
     extraHTTPHeaders: {
       "x-vercel-protection-bypass": process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
       "x-vercel-set-bypass-cookie": "true",
