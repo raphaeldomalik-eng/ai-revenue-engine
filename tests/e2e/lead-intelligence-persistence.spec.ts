@@ -24,6 +24,7 @@ async function signInInMemory(context: BrowserContext) {
   if (error || !data.session) throw new Error(`E2E password sign-in failed: ${error?.message ?? "session missing"}`);
   const host = new URL(process.env.E2E_BASE_URL ?? "https://ai-revenue-engine-git-feature-lead-inte-000dc1-event-suite-team.vercel.app").hostname;
   await context.addCookies(sessionCookieChunks(data.session).map((cookie) => ({ ...cookie, domain: host, path: "/", secure: true, httpOnly: false, sameSite: "Lax" as const })));
+  return supabase;
 }
 
 async function expectAppReady(page: Page) {
@@ -34,10 +35,19 @@ async function expectAppReady(page: Page) {
 
 test("operator can persist and re-open Lead Intelligence workflow", async ({ page, context }) => {
   const browserErrors: string[] = [];
+  const previewHost = new URL(process.env.E2E_BASE_URL ?? "https://ai-revenue-engine-git-feature-lead-inte-000dc1-event-suite-team.vercel.app").hostname;
+  await page.route("**/*", async (route) => {
+    const requestUrl = new URL(route.request().url());
+    if (requestUrl.hostname === previewHost) return route.continue();
+    const headers = { ...route.request().headers() };
+    delete headers["x-vercel-protection-bypass"];
+    delete headers["x-vercel-set-bypass-cookie"];
+    return route.continue({ headers });
+  });
   page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
   page.on("console", (message) => { if (message.type() === "error") browserErrors.push(`console: ${message.text()}`); });
 
-  await signInInMemory(context);
+  const supabase = await signInInMemory(context);
   await page.goto("/");
   await expectAppReady(page);
 
@@ -62,8 +72,21 @@ test("operator can persist and re-open Lead Intelligence workflow", async ({ pag
 
   await expect(page.getByRole("status")).toContainText("Saved.", { timeout: 30_000 });
   await expect(page.getByText("DIRECT · UNDETERMINED", { exact: true })).toBeVisible();
-  await expect(page.getByText("NULL / DEFERRED", { exact: true })).toBeVisible();
   await expect(page.getByText("FACT · HIGH", { exact: true })).toBeVisible();
+  const { data: account, error: accountError } = await supabase.from("accounts").select("id").eq("name", organisation).maybeSingle();
+  expect(accountError).toBeNull();
+  expect(account).not.toBeNull();
+  const [contacts, evidence, opportunities, activities] = await Promise.all([
+    supabase.from("contacts").select("id").eq("account_id", account!.id),
+    supabase.from("research_evidence").select("evidence_kind, qualitative_confidence").eq("account_id", account!.id),
+    supabase.from("product_opportunities").select("conversion_route, commercial_program_id").eq("account_id", account!.id),
+    supabase.from("activities").select("summary").eq("account_id", account!.id),
+  ]);
+  expect(contacts.error).toBeNull();
+  expect(contacts.data).toHaveLength(1);
+  expect(evidence.data?.[0]).toMatchObject({ evidence_kind: "FACT", qualitative_confidence: "HIGH" });
+  expect(opportunities.data?.[0]).toMatchObject({ conversion_route: "UNDETERMINED", commercial_program_id: null });
+  expect(activities.data?.[0]?.summary).toBe(nextAction);
   await page.screenshot({ path: "test-results/lead-intelligence-saved.png", fullPage: true });
 
   await page.reload();
