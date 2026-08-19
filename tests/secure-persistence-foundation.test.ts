@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { resolveAuthCallbackInput } from "../src/lib/auth/callback.ts";
 import { passwordlessSignInOptions, resolveApplicationOrigin } from "../src/lib/auth/otp.ts";
 import { canMutateCommercialData, revenueAccessState } from "../src/lib/auth/access.ts";
 import { leadIntelligenceFixtures } from "../src/lead-intelligence/fixtures.ts";
@@ -16,19 +17,43 @@ test("passwordless sign-in never creates an arbitrary user", () => {
   assert.equal(options.emailRedirectTo, "https://example.test/auth/callback");
 });
 
-test("browser auth client uses PKCE and callback exchanges only a query code", () => {
+test("browser auth client uses PKCE and callback supports code and token-hash inputs", () => {
   const browserClient = readFileSync(new URL("../src/lib/supabase.ts", import.meta.url), "utf8");
   const callback = readFileSync(new URL("../app/auth/callback/route.ts", import.meta.url), "utf8");
+  const callbackInput = readFileSync(new URL("../src/lib/auth/callback.ts", import.meta.url), "utf8");
   assert.match(browserClient, /flowType:\s*["']pkce["']/);
   assert.match(browserClient, /createBrowserClient/);
-  assert.match(callback, /searchParams\.get\(["']code["']\)/);
-  assert.match(callback, /exchangeCodeForSession\(code\)/);
+  assert.match(callbackInput, /searchParams\.get\(["']code["']\)/);
+  assert.match(callback, /exchangeCodeForSession\(input\.code\)/);
+  assert.match(callbackInput, /searchParams\.get\(["']token_hash["']\)/);
+  assert.match(callback, /verifyOtp\(\{ token_hash: input\.tokenHash, type: ["']email["'] \}\)/);
+  assert.match(callback, /if \(error\) return failureRedirect\(requestUrl, ["']invalid_link["']\)/);
   assert.doesNotMatch(callback, /access_token|refresh_token/);
 
   const serverClient = readFileSync(new URL("../src/lib/supabase-server.ts", import.meta.url), "utf8");
   assert.match(serverClient, /createServerClient/);
   assert.match(serverClient, /getAll\(\)/);
   assert.match(serverClient, /setAll\(cookiesToSet\)/);
+});
+
+test("auth callback accepts code flow and token-hash email flow only", () => {
+  assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?code=abc")), { kind: "code", code: "abc" });
+  assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?token_hash=hash&type=email")), { kind: "token_hash", tokenHash: "hash" });
+  assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback")), { kind: "invalid", reason: "missing_code" });
+  assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?token_hash=hash")), { kind: "invalid", reason: "invalid_link" });
+  assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?token_hash=hash&type=recovery")), { kind: "invalid", reason: "invalid_link" });
+});
+
+test("auth callback destinations are sanitized of authentication parameters", () => {
+  const success = new URL("/", "https://example.test");
+  const failure = new URL("/?authError=invalid_link", "https://example.test");
+  for (const destination of [success, failure]) {
+    assert.equal(destination.searchParams.has("code"), false);
+    assert.equal(destination.searchParams.has("token_hash"), false);
+    assert.equal(destination.searchParams.has("access_token"), false);
+    assert.equal(destination.searchParams.has("refresh_token"), false);
+    assert.equal(destination.hash, "");
+  }
 });
 
 test("passwordless redirect origin is environment-aware", () => {
