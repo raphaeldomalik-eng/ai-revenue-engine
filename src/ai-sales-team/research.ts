@@ -1,4 +1,5 @@
 import type { AiSalesBrief, AiSalesResearchResult } from "./model.ts";
+import { evaluateProspectIntelligence } from "./prospect-intelligence.ts";
 
 const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const briefSchema = {
@@ -24,12 +25,13 @@ function parseBrief(value: unknown): AiSalesBrief {
   if (typeof brief.companySummary !== "string" || !brief.territory || !brief.qualification || !brief.eventSuite || !brief.nextBestAction) {
     throw new Error("AI research returned an incomplete structured brief.");
   }
-  return {
+  const parsed = {
     companySummary: brief.companySummary, whyItMatters: brief.whyItMatters ?? "", territory: brief.territory,
     qualification: brief.qualification, people: brief.people ?? [], facts: brief.facts ?? [], inferences: brief.inferences ?? [],
     pains: brief.pains ?? [], useCases: brief.useCases ?? [], signals: brief.signals ?? [], eventSuite: { ...brief.eventSuite, commercialProgramId: null },
     accountStrategy: brief.accountStrategy ?? { positioning: "", approach: "", validationQuestions: [] }, nextBestAction: brief.nextBestAction, unknowns: brief.unknowns ?? [],
   };
+  return { ...parsed, prospectIntelligence: evaluateProspectIntelligence({ relationship: "PROSPECT", territory: parsed.territory.code, facts: parsed.facts, inferences: parsed.inferences, unknowns: parsed.unknowns }) };
 }
 
 export async function researchCompany(input: { companyName: string; website?: string }): Promise<AiSalesResearchResult> {
@@ -40,7 +42,7 @@ export async function researchCompany(input: { companyName: string; website?: st
     body: JSON.stringify({
       model, tools: [{ type: "web_search" }],
       max_output_tokens: 8000,
-      input: `Research this prospective EventSuite account using current public web sources. Never invent people, facts, sources, or unknown values. Separate FACT from INFERENCE and cite source URLs when available. Company: ${input.companyName}. Website: ${input.website ?? "not provided"}. Return only the requested JSON brief.`,
+      input: `Research this prospective EventSuite account using current public web sources. Start with account-first event intelligence: identify actual events, conferences, festivals, programmes or other event activity the organisation owns, organises, registers, markets or operates. Shared subject matter, AI/technology overlap, sector, size or general organisational relevance is not an EventSuite opportunity. Assess EGS, Ticketing and ECC only from event-grounded evidence. Never invent people, facts, sources, event activity, pain or unknown values. Separate FACT from INFERENCE and cite source URLs when available. For a university or institute, research actual events rather than treating research topics as commercial relevance. Company: ${input.companyName}. Website: ${input.website ?? "not provided"}. Return only the requested JSON brief.`,
       text: { format: { type: "json_schema", name: "ai_sales_brief", strict: true, schema: briefSchema } },
     }),
   });

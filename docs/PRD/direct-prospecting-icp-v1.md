@@ -53,6 +53,10 @@ Every candidate follows this order:
 
 The system must not skip relationship classification, silently turn `UNKNOWN` into `PROSPECT`, or infer outreach eligibility from a promising event alone.
 
+### Event connection gate
+
+Every ordinary Direct EventSuite sales opportunity must also have an explicit EventSuite-relevant event connection. An organisation's sector, size, technology, topic or general interest in events is not sufficient. The connection is `CONFIRMED` when source-grounded evidence identifies an actual relevant event or active event programme, `STRONG` when reliable recurring event activity is established but the exact opportunity needs detail, `WEAK` when events are only plausible or generically mentioned, and `NONE` when no meaningful event connection is established. Only `CONFIRMED` or `STRONG` connections may proceed to lens qualification; `WEAK` requires review/research and `NONE` blocks ordinary Direct outreach.
+
 ## 5. Relationship and eligibility policy
 
 ### Account relationship

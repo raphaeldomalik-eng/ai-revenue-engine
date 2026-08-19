@@ -10,7 +10,8 @@ export async function sendApprovedOutreachMessage(client: SupabaseClient, messag
   const { data: account, error: accountError } = await client.from("accounts").select("metadata").eq("id", message.account_id).single();
   if (accountError) throw accountError;
   const eligibility = account?.metadata?.outreachEligibility ?? "REVIEW_REQUIRED";
-  if (eligibility !== "ELIGIBLE") throw new Error(account?.metadata?.outreachEligibilityReason ?? "OUTREACH_REVIEW_REQUIRED");
+  const prospectIntelligence = account?.metadata?.prospectIntelligence;
+  if (eligibility !== "ELIGIBLE" || prospectIntelligence?.outreachEligibility !== "ELIGIBLE" || prospectIntelligence?.salesMotion !== "DIRECT") throw new Error(account?.metadata?.outreachEligibilityReason ?? "OUTREACH_REVIEW_REQUIRED");
   const { data: sequence, error: sequenceError } = await client.from("outreach_sequences").select("status").eq("id", message.sequence_id).single();
   if (sequenceError) throw sequenceError;
   const { data: suppression } = await client.from("outreach_suppressions").select("id").eq("account_id", message.account_id).eq("active", true).or(`contact_id.is.null,contact_id.eq.${message.contact_id ?? "00000000-0000-0000-0000-000000000000"}`).limit(1).maybeSingle();
