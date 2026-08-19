@@ -16,6 +16,21 @@ test("passwordless sign-in never creates an arbitrary user", () => {
   assert.equal(options.emailRedirectTo, "https://example.test/auth/callback");
 });
 
+test("browser auth client uses PKCE and callback exchanges only a query code", () => {
+  const browserClient = readFileSync(new URL("../src/lib/supabase.ts", import.meta.url), "utf8");
+  const callback = readFileSync(new URL("../app/auth/callback/route.ts", import.meta.url), "utf8");
+  assert.match(browserClient, /flowType:\s*["']pkce["']/);
+  assert.match(browserClient, /createBrowserClient/);
+  assert.match(callback, /searchParams\.get\(["']code["']\)/);
+  assert.match(callback, /exchangeCodeForSession\(code\)/);
+  assert.doesNotMatch(callback, /access_token|refresh_token/);
+
+  const serverClient = readFileSync(new URL("../src/lib/supabase-server.ts", import.meta.url), "utf8");
+  assert.match(serverClient, /createServerClient/);
+  assert.match(serverClient, /getAll\(\)/);
+  assert.match(serverClient, /setAll\(cookiesToSet\)/);
+});
+
 test("passwordless redirect origin is environment-aware", () => {
   assert.equal(resolveApplicationOrigin("http://localhost:3000", {}), "http://localhost:3000");
   assert.equal(resolveApplicationOrigin("http://localhost:3000", { vercelUrl: "ai-revenue-engine-preview-event-suite-team.vercel.app" }), "https://ai-revenue-engine-preview-event-suite-team.vercel.app");
