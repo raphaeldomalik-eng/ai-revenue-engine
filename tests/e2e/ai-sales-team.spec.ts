@@ -55,6 +55,15 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await expect(page.getByText("ACCOUNT STRATEGY", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("NEXT BEST ACTION", { exact: true }).first()).toBeVisible();
 
+  await page.getByRole("button", { name: "Prepare outreach" }).first().click();
+  await expect(page.getByText("AI outreach prepared for human review.", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/Email address not known/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send approved email" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Approve" }).first().click();
+  await expect(page.getByRole("button", { name: "Send approved email" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Send approved email" }).first().click();
+  await expect(page.getByRole("status").filter({ hasText: "OUTREACH_RECIPIENT_UNKNOWN" })).toBeVisible();
+
   const account = await supabase.from("accounts").select("id").eq("name", company).maybeSingle();
   expect(account.error).toBeNull();
   expect(account.data).not.toBeNull();
