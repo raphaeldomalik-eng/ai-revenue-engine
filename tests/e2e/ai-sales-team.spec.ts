@@ -55,26 +55,36 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await expect(page.getByText("ACCOUNT STRATEGY", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("NEXT BEST ACTION", { exact: true }).first()).toBeVisible();
 
+  const e2eRecipient = process.env.E2E_OUTREACH_RECIPIENT;
+  if (e2eRecipient) await page.getByLabel("Known or owner-approved recipient email").first().fill(e2eRecipient);
   await page.getByRole("button", { name: "Prepare outreach" }).first().click();
   await expect(page.getByText("AI outreach prepared for human review.", { exact: true })).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByText(/Email address not known/).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "Send approved email" })).toHaveCount(0);
+  if (!e2eRecipient) {
+    await expect(page.getByText(/Email address not known/).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send approved email" })).toHaveCount(0);
+  }
   await page.getByRole("button", { name: "Approve" }).first().click();
   await expect(page.getByRole("button", { name: "Send approved email" }).first()).toBeVisible();
-  const messageId = await page.getByRole("button", { name: "Send approved email" }).first().getAttribute("data-message-id");
-  expect(messageId).toBeTruthy();
-  const sendResponse = await page.request.post(`${process.env.E2E_BASE_URL}/api/ai-sales/outreach`, { data: { action: "send", messageId } });
-  expect(sendResponse.status()).toBe(409);
+  if (e2eRecipient) {
+    await page.getByRole("button", { name: "Send approved email" }).first().click();
+    await expect(page.getByRole("status").filter({ hasText: "Approved message submitted" })).toBeVisible();
+  } else {
+    const messageId = await page.getByRole("button", { name: "Send approved email" }).first().getAttribute("data-message-id");
+    expect(messageId).toBeTruthy();
+    const sendResponse = await page.request.post(`${process.env.E2E_BASE_URL}/api/ai-sales/outreach`, { data: { action: "send", messageId } });
+    expect(sendResponse.status()).toBe(409);
+  }
 
   const account = await supabase.from("accounts").select("id").eq("name", company).maybeSingle();
   expect(account.error).toBeNull();
   expect(account.data).not.toBeNull();
-  const [briefs, contacts, evidence, opportunities, activities] = await Promise.all([
+  const [briefs, contacts, evidence, opportunities, activities, outreach] = await Promise.all([
     supabase.from("ai_sales_briefs").select("facts, inferences, qualification, territory, eventsuite_opportunity, account_strategy, next_best_action, unknowns").eq("account_id", account.data!.id),
     supabase.from("contacts").select("id").eq("account_id", account.data!.id),
     supabase.from("research_evidence").select("claim, evidence_kind, qualitative_confidence, source_url, source_title").eq("account_id", account.data!.id),
     supabase.from("product_opportunities").select("conversion_route, commercial_program_id").eq("account_id", account.data!.id),
     supabase.from("activities").select("activity_type, summary").eq("account_id", account.data!.id),
+    supabase.from("outreach_messages").select("status, provider_message_id, sent_at").eq("account_id", account.data!.id),
   ]);
   expect(briefs.error).toBeNull();
   expect(briefs.data?.length).toBeGreaterThan(0);
@@ -91,6 +101,14 @@ test("real AI Sales Team research persists and survives state changes", async ({
   expect(opportunities.data?.[0].commercial_program_id).toBeNull();
   expect((opportunities.data ?? []).length).toBeLessThanOrEqual(1);
   expect(activities.data?.some((row) => row.activity_type === "AI_RESEARCH_NEXT_ACTION")).toBe(true);
+  expect(outreach.error).toBeNull();
+  expect(outreach.data?.length).toBe(3);
+  if (e2eRecipient) {
+    expect(outreach.data?.filter((row) => row.status === "SENT")).toHaveLength(1);
+    expect(outreach.data?.find((row) => row.status === "SENT")?.provider_message_id).toBeTruthy();
+  } else {
+    expect(outreach.data?.filter((row) => row.status === "SENT")).toHaveLength(0);
+  }
 
   await page.reload();
   await ready(page);
