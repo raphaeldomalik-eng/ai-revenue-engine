@@ -44,9 +44,9 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await ready(page);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const company = `Eventbrite E2E AI Sales ${timestamp}`;
+  const company = `Quicket E2E AI Sales ${timestamp}`;
   await page.getByLabel("Prospect or company name").fill(company);
-  await page.getByLabel("Website or domain").fill("https://www.eventbrite.com");
+  await page.getByLabel("Website or domain").fill("https://www.quicket.co.za");
   await page.getByRole("button", { name: "Research prospect" }).click();
   await expect(page.getByRole("status").filter({ hasText: "AI Sales Brief saved" })).toBeVisible({ timeout: 180_000 });
   await expect(page.getByText("AI SALES BRIEF", { exact: true }).first()).toBeVisible();
@@ -76,6 +76,8 @@ test("real AI Sales Team research persists and survives state changes", async ({
   expect(evidence.data?.every((row) => ["NONE", "LOW", "MEDIUM", "HIGH"].includes(row.qualitative_confidence))).toBe(true);
   expect(evidence.data?.some((row) => row.source_url || row.source_title)).toBe(true);
   expect(opportunities.error).toBeNull();
+  expect((opportunities.data ?? []).length).toBeGreaterThan(0);
+  expect(opportunities.data?.[0].commercial_program_id).toBeNull();
   expect((opportunities.data ?? []).length).toBeLessThanOrEqual(1);
   expect(activities.data?.some((row) => row.activity_type === "AI_RESEARCH_NEXT_ACTION")).toBe(true);
 
@@ -83,7 +85,7 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await ready(page);
   await expect(page.getByText("AI SALES BRIEF", { exact: true }).first()).toBeVisible();
   await page.getByLabel("Prospect or company name").fill(company);
-  await page.getByLabel("Website or domain").fill("https://www.eventbrite.com");
+  await page.getByLabel("Website or domain").fill("https://www.quicket.co.za");
   await page.getByRole("button", { name: "Research prospect" }).click();
   await expect(page.getByRole("status").filter({ hasText: "AI Sales Brief saved" })).toBeVisible({ timeout: 180_000 });
   const duplicateCheck = await supabase.from("accounts").select("id").eq("name", company);
