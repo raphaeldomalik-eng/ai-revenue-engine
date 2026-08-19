@@ -59,6 +59,7 @@ test("real AI Sales Team research persists and survives state changes", async ({
   if (e2eRecipient && e2eRecipient !== "[SENSITIVE]") await page.getByLabel("Known or owner-approved recipient email").first().fill(e2eRecipient);
   await page.getByRole("button", { name: "Prepare outreach" }).first().click();
   await expect(page.getByText("AI outreach prepared for human review.", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/Known contact recipient available\.|Email address not known/).first()).toBeVisible({ timeout: 15_000 });
   const recipientAvailable = await page.getByText("Known contact recipient available.", { exact: true }).count() > 0;
   if (!recipientAvailable) {
     await expect(page.getByText(/Email address not known/).first()).toBeVisible();
