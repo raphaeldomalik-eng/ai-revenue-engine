@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { classifyAccountRelationship } from "../src/ai-sales-team/outreach-model.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
+import { RESOURCE_CENTRE_URL, selectResourceOffer } from "../src/ai-sales-team/resource-offers.ts";
 import type { AiSalesEvidence } from "../src/ai-sales-team/model.ts";
 
 const fact = (claim: string, sourceUrl = "https://example.org/event"): AiSalesEvidence => ({ claim, sourceUrl, sourceTitle: "Public event page", kind: "FACT", confidence: "HIGH" });
@@ -35,6 +36,7 @@ test("small Afrikaans festival keeps EGS primary without a size penalty", () => 
   assert.equal(result.preferredOutreachLanguage, "AF");
   assert.equal(result.commercialPriority, "HIGH");
   assert.equal(result.outreachEligibility, "ELIGIBLE");
+  assert.match(result.nextBestCommercialAction.resourceOffer.canonicalUrl, /event-website-content-planner/);
 });
 
 test("ticketing platform is blocked while its organiser customer remains a prospect", () => {
@@ -60,22 +62,25 @@ test("direct prospect motion never becomes partnership motion from shared subjec
   assert.equal(result.eventConnection.state, "CONFIRMED");
 });
 
-test("small ticketing organiser receives the verified self-service Ticketing action", () => {
+test("small ticketing organiser uses EventSuite landing page, not a bespoke onboarding deep-link", () => {
   const result = assess("Small Ticketing Festival", ["The organiser runs an annual paid festival with ticket tiers and admission scanning."]);
   assert.equal(result.primaryEntryOpportunity, "TICKETING");
-  assert.equal(result.nextBestCommercialAction.type, "SELF_SERVICE");
-  assert.equal(result.nextBestCommercialAction.code, "START_TICKETING_ONBOARDING");
-  assert.equal(result.nextBestCommercialAction.targetUrlIfVerified, "https://www.eventsuite.pro/onboarding/ticketing");
+  assert.equal(result.nextBestCommercialAction.type, "PRODUCT_EXPLORATION");
+  assert.equal(result.nextBestCommercialAction.targetUrlIfVerified, "https://www.eventsuite.pro/");
+  assert.equal(result.nextBestCommercialAction.productDestinationUrl, "https://www.eventsuite.pro/");
+  assert.doesNotMatch(result.nextBestCommercialAction.targetUrlIfVerified!, /onboarding/);
+  assert.match(result.nextBestCommercialAction.resourceOffer.canonicalUrl, /ticket-sales-and-registration-forecast/);
   assert.equal(result.nextBestCommercialAction.callRecommended, false);
 });
 
-test("EGS uses value proof when no verified EGS trial route exists", () => {
+test("EGS uses the landing page plus a verified marketing resource without inventing a trial", () => {
   const result = assess("Small Digital Festival", ["The organiser runs an annual festival with event information fragmented across social channels and a ticket-provider page."]);
   assert.equal(result.primaryEntryOpportunity, "EGS");
-  assert.equal(result.nextBestCommercialAction.type, "VALUE_PROOF");
-  assert.equal(result.nextBestCommercialAction.targetUrlIfVerified, null);
+  assert.equal(result.nextBestCommercialAction.type, "PRODUCT_EXPLORATION");
+  assert.equal(result.nextBestCommercialAction.productDestinationUrl, "https://www.eventsuite.pro/");
+  assert.match(result.nextBestCommercialAction.resourceOffer.canonicalUrl, /event-website-content-planner/);
+  assert.match(result.nextBestCommercialAction.resourceOffer.matchedProblem, /marketing and discoverability/);
   assert.equal(result.nextBestCommercialAction.callRecommended, false);
-  assert.match(result.nextBestCommercialAction.ctaLabel, /breakdown/i);
 });
 
 test("complex ECC event operations can justify a guided walkthrough", () => {
@@ -84,11 +89,21 @@ test("complex ECC event operations can justify a guided walkthrough", () => {
   assert.equal(result.nextBestCommercialAction.type, "HUMAN_ASSISTED");
   assert.equal(result.nextBestCommercialAction.code, "BOOK_WALKTHROUGH");
   assert.equal(result.nextBestCommercialAction.callRecommended, true);
+  assert.equal(result.nextBestCommercialAction.productDestinationUrl, "https://www.eventsuite.pro/");
+  assert.match(result.nextBestCommercialAction.resourceOffer.canonicalUrl, /conference-registration-checklist/);
 });
 
 test("enterprise migration evidence permits high-touch action without forcing self-service", () => {
   const result = assess("Enterprise Festival Group", ["The group operates recurring paid festivals and requires migration, procurement and settlement planning."]);
   assert.equal(result.primaryEntryOpportunity, "TICKETING");
   assert.equal(result.nextBestCommercialAction.type, "HUMAN_ASSISTED");
-  assert.equal(result.nextBestCommercialAction.targetUrlIfVerified, "https://www.eventsuite.pro/book-demo");
+  assert.equal(result.nextBestCommercialAction.targetUrlIfVerified, null);
+  assert.equal(result.nextBestCommercialAction.productDestinationUrl, "https://www.eventsuite.pro/");
+});
+
+test("an unknown resource match safely falls back to the Resource Centre root", () => {
+  const resource = selectResourceOffer({ primary: "UNKNOWN", claims: ["An event has an unusual, unclassified operating issue."], buyerRoles: [] });
+  assert.equal(resource.available, true);
+  assert.equal(resource.canonicalUrl, RESOURCE_CENTRE_URL);
+  assert.match(resource.relevanceReason, /No individually verified resource match/);
 });

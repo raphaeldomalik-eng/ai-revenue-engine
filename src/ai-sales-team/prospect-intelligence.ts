@@ -1,13 +1,14 @@
 import type { AccountRelationship } from "./outreach-model.ts";
 import type { AiSalesEvidence } from "./model.ts";
+import { EVENTSUITE_LANDING_URL, selectResourceOffer, type ResourceOffer } from "./resource-offers.ts";
 
 export type EventConnectionState = "CONFIRMED" | "STRONG" | "WEAK" | "NONE";
 export type OpportunityStrength = "CONFIRMED_NEED" | "STRONG_HYPOTHESIS" | "POSSIBLE" | "NO_EVIDENCE" | "NOT_APPLICABLE";
 export type ProspectOpportunity = "EGS" | "TICKETING" | "ECC" | "UNKNOWN";
 export type OutreachDecision = "ELIGIBLE" | "REVIEW_REQUIRED" | "BLOCKED";
 export type OutreachMotion = "DIRECT" | "PARTNER" | "UNKNOWN";
-export type CommercialActionType = "SELF_SERVICE" | "VALUE_PROOF" | "LOW_COMMITMENT_REPLY" | "HUMAN_ASSISTED" | "NONE";
-export type CommercialActionCode = "START_TICKETING_ONBOARDING" | "VIEW_TICKETING_PRICING" | "REQUEST_EVENT_ANALYSIS" | "REPLY_FOR_MORE_INFO" | "BOOK_WALKTHROUGH" | "SCHEDULE_CALL" | "NONE";
+export type CommercialActionType = "PRODUCT_EXPLORATION" | "VALUE_RESOURCE" | "LOW_COMMITMENT_REPLY" | "HUMAN_ASSISTED" | "NONE";
+export type CommercialActionCode = "EXPLORE_EVENTSUITE" | "VIEW_RESOURCE" | "REPLY_FOR_MORE_INFO" | "BOOK_WALKTHROUGH" | "NONE";
 
 export type LensAssessment = {
   status: "ASSESSED" | "NOT_ASSESSED";
@@ -34,7 +35,7 @@ export type ProspectIntelligence = {
   salesMotion: OutreachMotion;
   commercialPriority: "HIGH" | "MEDIUM" | "LOW";
   priorityReasons: string[];
-  nextBestCommercialAction: { type: CommercialActionType; code: CommercialActionCode; objective: string; ctaLabel: string; targetUrlIfVerified: string | null; rationale: string; humanHelpFallback: string | null; evidence: string[]; confidence: "LOW" | "MEDIUM" | "HIGH"; callRecommended: boolean };
+  nextBestCommercialAction: { type: CommercialActionType; code: CommercialActionCode; objective: string; ctaLabel: string; targetUrlIfVerified: string | null; productDestinationUrl: string; resourceOffer: ResourceOffer; rationale: string; humanHelpFallback: string | null; evidence: string[]; confidence: "LOW" | "MEDIUM" | "HIGH"; callRecommended: boolean };
   recommendedNextAction: string;
   unknownsToResearch: string[];
   events: Array<{ name: string; role: string; evidence: string }>;
@@ -47,8 +48,6 @@ const DIGITAL_GAP_PATTERN = /\b(?:no meaningful owned|weak owned|poor owned|frag
 const COMPLEXITY_PATTERN = /\b(?:multi-day|multi-stage|multi-room|multiple venues?|multiple locations?|suppliers?|exhibitors?|vendors?|workforce|production schedule|technical dependencies|guest operations|complex programme|concurrent|simultaneous)\b/i;
 const AFRIKAANS_PATTERN = /\b(?:afrikaans|afrikaans-language|predominantly afrikaans)\b/i;
 const HIGH_TOUCH_PATTERN = /\b(?:enterprise|procurement|migration|settlement|security|multiple departments?|multiple events?|multi-event)\b/i;
-const TICKETING_ONBOARDING_URL = "https://www.eventsuite.pro/onboarding/ticketing";
-const BOOK_DEMO_URL = "https://www.eventsuite.pro/book-demo";
 
 function materialEvidence(items: AiSalesEvidence[]) {
   return items.filter((item) => item.kind === "FACT" && item.claim.trim());
@@ -58,13 +57,12 @@ function assessment(strength: OpportunityStrength, facts: string[], inferences: 
   return { status: "ASSESSED", opportunityStrength: strength, facts, inferences, unknowns };
 }
 
-function selectCommercialAction(input: { eligible: boolean; primary: ProspectOpportunity; ticketing: LensAssessment; egs: LensAssessment; ecc: LensAssessment; claims: string[] }) : ProspectIntelligence["nextBestCommercialAction"] {
-  if (!input.eligible || input.primary === "UNKNOWN") return { type: "NONE", code: "NONE", objective: "Do not advance ordinary Direct outreach until Prospect Intelligence is eligible.", ctaLabel: "No outreach CTA", targetUrlIfVerified: null, rationale: "The event connection or evidence-backed opportunity is not sufficient for normal Direct outreach.", humanHelpFallback: null, evidence: [], confidence: "HIGH", callRecommended: false };
+function selectCommercialAction(input: { eligible: boolean; primary: ProspectOpportunity; ticketing: LensAssessment; egs: LensAssessment; ecc: LensAssessment; claims: string[]; buyerRoles: string[] }) : ProspectIntelligence["nextBestCommercialAction"] {
+  const resourceOffer = selectResourceOffer({ primary: input.primary, claims: input.claims, buyerRoles: input.buyerRoles });
+  if (!input.eligible || input.primary === "UNKNOWN") return { type: "NONE", code: "NONE", objective: "Do not advance ordinary Direct outreach until Prospect Intelligence is eligible.", ctaLabel: "No outreach CTA", targetUrlIfVerified: null, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "The event connection or evidence-backed opportunity is not sufficient for normal Direct outreach.", humanHelpFallback: null, evidence: [], confidence: "HIGH", callRecommended: false };
   const highTouch = HIGH_TOUCH_PATTERN.test(input.claims.join(" ")) || (input.primary === "ECC" && input.ecc.opportunityStrength === "STRONG_HYPOTHESIS");
-  if (highTouch) return { type: "HUMAN_ASSISTED", code: "BOOK_WALKTHROUGH", objective: "Clarify the event operating path with a guided walkthrough.", ctaLabel: "Book a guided walkthrough", targetUrlIfVerified: BOOK_DEMO_URL, rationale: "Observed event-operating, migration, procurement or enterprise complexity makes a guided conversation materially useful.", humanHelpFallback: "Reply if a lighter-weight conversation would be easier.", evidence: input.primary === "ECC" ? input.ecc.facts : input.claims.filter((claim) => HIGH_TOUCH_PATTERN.test(claim)), confidence: "MEDIUM", callRecommended: true };
-  if (input.primary === "TICKETING" && input.ticketing.opportunityStrength === "STRONG_HYPOTHESIS") return { type: "SELF_SERVICE", code: "START_TICKETING_ONBOARDING", objective: "Let the organiser start a straightforward ticketing launch at their own pace.", ctaLabel: "Start ticketing setup", targetUrlIfVerified: TICKETING_ONBOARDING_URL, rationale: "EventSuite has a verified Ticketing Quick Start route for self-directed event, tier, pricing, admissions and launch setup.", humanHelpFallback: "Reply if you would like help choosing the right launch path.", evidence: input.ticketing.facts, confidence: "HIGH", callRecommended: false };
-  if (input.primary === "EGS" && input.egs.opportunityStrength === "STRONG_HYPOTHESIS") return { type: "VALUE_PROOF", code: "REQUEST_EVENT_ANALYSIS", objective: "Offer a short, evidence-backed event-presence breakdown before asking for a meeting.", ctaLabel: "Reply for the event-presence breakdown", targetUrlIfVerified: null, rationale: "Weak or fragmented owned event presence is evidenced, but no verified EGS self-service trial route is available.", humanHelpFallback: "If useful, we can also talk through the findings.", evidence: input.egs.facts, confidence: "HIGH", callRecommended: false };
-  return { type: "LOW_COMMITMENT_REPLY", code: "REPLY_FOR_MORE_INFO", objective: "Invite a low-friction response while fit is still being refined.", ctaLabel: "Reply for more information", targetUrlIfVerified: null, rationale: "The opportunity is valid but the next product step needs lightweight validation rather than an invented route or a default call.", humanHelpFallback: "A guided conversation is available if preferred.", evidence: input.claims, confidence: "MEDIUM", callRecommended: false };
+  if (highTouch) return { type: "HUMAN_ASSISTED", code: "BOOK_WALKTHROUGH", objective: "Offer a guided walkthrough only because the evidenced event complexity warrants it.", ctaLabel: "Reply to arrange a walkthrough", targetUrlIfVerified: null, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "Observed event-operating, migration, procurement or enterprise complexity makes a guided conversation materially useful.", humanHelpFallback: "Explore EventSuite first if a lighter-weight route is easier.", evidence: input.primary === "ECC" ? input.ecc.facts : input.claims.filter((claim) => HIGH_TOUCH_PATTERN.test(claim)), confidence: "MEDIUM", callRecommended: true };
+  return { type: "PRODUCT_EXPLORATION", code: "EXPLORE_EVENTSUITE", objective: "Invite the organiser to explore EventSuite before choosing a product or setup path.", ctaLabel: "Explore EventSuite", targetUrlIfVerified: EVENTSUITE_LANDING_URL, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "Cold prospects should start at the public EventSuite landing page, which explains the connected platform and routes first-time evaluators to the right path.", humanHelpFallback: "Reply if help would be useful.", evidence: input.primary === "EGS" ? input.egs.facts : input.primary === "TICKETING" ? input.ticketing.facts : input.ecc.facts, confidence: "HIGH", callRecommended: false };
 }
 
 export function evaluateProspectIntelligence(input: {
@@ -106,6 +104,6 @@ export function evaluateProspectIntelligence(input: {
   const reason = relationshipBlocked ? "Competitor — standard sales outreach not recommended" : outreachEligibility === "ELIGIBLE" ? null : eventConnection.state === "NONE" ? "No EventSuite-relevant event connection; ordinary Direct outreach is blocked." : "Prospect Intelligence requires further event or opportunity evidence before ordinary Direct outreach.";
   const priority: ProspectIntelligence["commercialPriority"] = primaryEntryOpportunity === "UNKNOWN" ? "LOW" : egs.opportunityStrength === "STRONG_HYPOTHESIS" && DIGITAL_GAP_PATTERN.test(claims.join(" ")) ? "HIGH" : "MEDIUM";
   const unknowns = [...(input.unknowns ?? []), ...(primaryEntryOpportunity === "UNKNOWN" ? ["Actual event activity and EventSuite-relevant problem owner"] : [])];
-  const nextBestCommercialAction = selectCommercialAction({ eligible: outreachEligibility === "ELIGIBLE", primary: primaryEntryOpportunity, ticketing, egs, ecc, claims });
+  const nextBestCommercialAction = selectCommercialAction({ eligible: outreachEligibility === "ELIGIBLE", primary: primaryEntryOpportunity, ticketing, egs, ecc, claims, buyerRoles: likelyRoles });
   return { eventConnection, relationship: input.relationship, territory: input.territory, preferredOutreachLanguage, languageEvidence, egs, ticketing, ecc, primaryEntryOpportunity, secondaryOpportunities, buyerProblemOwner, outreachEligibility, outreachBlockOrReviewReason: reason, salesMotion: input.relationship === "PROSPECT" ? "DIRECT" : input.relationship === "PARTNER" ? "PARTNER" : "UNKNOWN", commercialPriority: priority, priorityReasons: priority === "HIGH" ? ["Strong event activity and weak owned digital presence are evidenced; small size is not penalised."] : primaryEntryOpportunity === "UNKNOWN" ? ["No event connection or primary opportunity is established."] : ["Event activity is evidenced; lens-specific problem strength remains subject to review."], nextBestCommercialAction, recommendedNextAction: nextBestCommercialAction.objective, unknownsToResearch: unknowns, events: eventFacts.map((item) => ({ name: item.sourceTitle ?? "Event activity", role: "organised or operated by the account", evidence: item.claim })) };
 }

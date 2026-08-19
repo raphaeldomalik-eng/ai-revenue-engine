@@ -52,14 +52,16 @@ test("outreach sequence is bounded to two follow-ups", () => {
   assert.deepEqual(boundedFollowUps(messages).map((item) => item.sequenceNumber), [1, 2]);
 });
 
-test("outreach CTA contract follows low-friction actions and allows justified walkthroughs", () => {
+test("outreach CTA contract uses one verified primary URL per message and includes the selected free resource", () => {
   const ticketing = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "ZA", facts: [prospectFact("The organiser runs an annual paid festival with ticket tiers and admission scanning.")], inferences: [] }).nextBestCommercialAction;
-  const selfServiceDraft = { outreachGoal: "", recipientRationale: "", overallStrategy: "", unknowns: [], warnings: [], initialMessage: { sequenceNumber: 0 as const, delayHours: 0, subject: "Launch ticketing", body: "You can start at your own pace.", rationale: "", evidenceReferences: [], cta: ticketing.ctaLabel, stopConditions: [] }, followUps: [] };
-  assert.doesNotThrow(() => assertCommercialActionContract(selfServiceDraft, ticketing));
-  assert.throws(() => assertCommercialActionContract({ ...selfServiceDraft, initialMessage: { ...selfServiceDraft.initialMessage, body: "Would you like to book a call?" } }, ticketing), /OUTREACH_CTA_MISMATCH/);
+  const productAndResourceDraft = { outreachGoal: "", recipientRationale: "", overallStrategy: "", unknowns: [], warnings: [], initialMessage: { sequenceNumber: 0 as const, delayHours: 0, subject: "Explore EventSuite", body: `A useful place to start is ${ticketing.productDestinationUrl}`, rationale: "", evidenceReferences: [], cta: "Explore EventSuite", stopConditions: [] }, followUps: [{ sequenceNumber: 1 as const, delayHours: 72, subject: "A free planning resource", body: `This free resource may help: ${ticketing.resourceOffer.canonicalUrl}`, rationale: "", evidenceReferences: [], cta: `Explore free resource: ${ticketing.resourceOffer.title}`, stopConditions: [] }] };
+  assert.doesNotThrow(() => assertCommercialActionContract(productAndResourceDraft, ticketing));
+  assert.throws(() => assertCommercialActionContract({ ...productAndResourceDraft, initialMessage: { ...productAndResourceDraft.initialMessage, body: `Would you like to book a call? ${ticketing.productDestinationUrl}` } }, ticketing), /OUTREACH_CTA_MISMATCH/);
+  assert.throws(() => assertCommercialActionContract({ ...productAndResourceDraft, followUps: [] }, ticketing), /resource/);
+  assert.throws(() => assertCommercialActionContract({ ...productAndResourceDraft, initialMessage: { ...productAndResourceDraft.initialMessage, body: `${ticketing.productDestinationUrl} and ${ticketing.resourceOffer.canonicalUrl}` } }, ticketing), /one verified primary destination/);
 
   const ecc = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "ZA", facts: [prospectFact("The university runs an annual conference programme across multiple events, departments, suppliers and workforce teams.")], inferences: [] }).nextBestCommercialAction;
-  const guidedDraft = { ...selfServiceDraft, initialMessage: { ...selfServiceDraft.initialMessage, subject: "Guided walkthrough", body: "Book a guided walkthrough to discuss the event operation.", cta: ecc.ctaLabel } };
+  const guidedDraft = { ...productAndResourceDraft, initialMessage: { ...productAndResourceDraft.initialMessage, subject: "Guided walkthrough", body: `Reply to arrange a walkthrough after exploring ${ecc.productDestinationUrl}`, cta: ecc.ctaLabel }, followUps: [{ ...productAndResourceDraft.followUps[0], body: `A useful free planning resource: ${ecc.resourceOffer.canonicalUrl}`, cta: `Explore free resource: ${ecc.resourceOffer.title}` }] };
   assert.doesNotThrow(() => assertCommercialActionContract(guidedDraft, ecc));
 });
 

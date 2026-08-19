@@ -223,7 +223,9 @@ The first contact uses only the primary engine and primary problem. Secondary op
 
 ### Next best commercial action / CTA strategy
 
-Prospect Intelligence selects the lowest-friction credible next commercial action; Outreach executes it. A call is not the default objective. Use verified self-service only where the relevant current EventSuite route supports it, use an evidence-backed value proof where it does not, and never promise a trial or product URL that is not active. EGS may lead with a short personalised event insight rather than a meeting. High-complexity, migration, procurement or enterprise situations may justify a guided walkthrough or call. Each message has one primary CTA, and follow-ups must progress value rather than repeat meeting requests.
+Prospect Intelligence selects the lowest-friction credible next commercial action; Outreach executes it. The default cold-prospect product destination is the public [EventSuite landing page](https://www.eventsuite.pro/), not an onboarding or other specialised setup route. It must not invent or over-specialise product destinations, trials or URLs.
+
+Every eligible Direct prospect normally receives a structured free Resource Centre offer matched to the evidenced event, problem and likely owner. Only verified canonical Resource Centre URLs may be used; when no individual match is safe, use the [Resource Centre](https://www.eventsuite.pro/resources) root. Product discovery and useful free value should normally both appear somewhere across the bounded sequence, while each individual email retains one primary CTA. A call is never the default objective: high-complexity, migration, procurement, enterprise or multi-team situations may justify a human-assisted walkthrough. EGS may lead with a short personalised event insight rather than a meeting.
 
 ## 18. Discovery requirements for a future implementation
 
