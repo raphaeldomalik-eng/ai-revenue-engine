@@ -18,6 +18,8 @@ Initial programs cover Event Suite Direct in South Africa and the United Kingdom
 
 Market intelligence, prospect research, contact intelligence, qualification, opportunity strategy, route-to-conversion, outreach, response intelligence, RevOps/learning, and Revenue Director.
 
+The canonical Direct Prospecting & ICP Intelligence V1 policy is documented in [`docs/PRD/direct-prospecting-icp-v1.md`](PRD/direct-prospecting-icp-v1.md). It governs evidence-grounded direct prospecting and ICP decisions without authorising autonomous discovery or outreach.
+
 ## Human role
 
 Humans initially retain live demos, important commercial conversations, LNO opportunity discussions, commercial negotiation, major relationships, and operator approval.
