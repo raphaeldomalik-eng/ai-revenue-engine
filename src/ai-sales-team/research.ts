@@ -27,7 +27,11 @@ export async function researchCompany(input: { companyName: string; website?: st
       text: { format: { type: "json_object" } },
     }),
   });
-  if (!response.ok) throw new Error(`AI research provider failed with HTTP ${response.status}.`);
+  if (!response.ok) {
+    const failure = await response.json().catch(() => null) as { error?: { type?: string; message?: string } } | null;
+    const detail = failure?.error?.message || failure?.error?.type || "no provider detail";
+    throw new Error(`AI research provider failed with HTTP ${response.status}: ${detail}`);
+  }
   const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
   const text = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("");
   if (!text) throw new Error("AI research provider returned no structured output.");

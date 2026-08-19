@@ -38,7 +38,7 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await page.getByLabel("Prospect or company name").fill(company);
   await page.getByLabel("Website or domain").fill("https://www.eventbrite.com");
   await page.getByRole("button", { name: "Research prospect" }).click();
-  await expect(page.getByRole("status")).toContainText("saved", { timeout: 180_000 });
+  await expect(page.getByRole("status").filter({ hasText: "AI Sales Brief saved" })).toBeVisible({ timeout: 180_000 });
   await expect(page.getByText("AI SALES BRIEF", { exact: true })).toBeVisible();
   await expect(page.getByText("QUALIFICATION / ICP FIT", { exact: true })).toBeVisible();
   await expect(page.getByText("FACT EVIDENCE / SOURCES", { exact: true })).toBeVisible();
@@ -75,7 +75,7 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await page.getByLabel("Prospect or company name").fill(company);
   await page.getByLabel("Website or domain").fill("https://www.eventbrite.com");
   await page.getByRole("button", { name: "Research prospect" }).click();
-  await expect(page.getByRole("status")).toContainText("saved", { timeout: 180_000 });
+  await expect(page.getByRole("status").filter({ hasText: "AI Sales Brief saved" })).toBeVisible({ timeout: 180_000 });
   const duplicateCheck = await supabase.from("accounts").select("id").eq("name", company);
   expect(duplicateCheck.data).toHaveLength(1);
   const opportunityCheck = await supabase.from("product_opportunities").select("id").eq("account_id", account.data!.id);
