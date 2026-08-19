@@ -139,34 +139,93 @@ export class RevenueRepository {
 
   constructor(client: SupabaseClient) { this.client = client; }
 
-  async persistAccount(profile: AccountProfile) {
-    const { data, error } = await this.client.from("accounts").insert(mapAccountProfile(profile)).select("id").single();
+  async listAccounts() {
+    const { data, error } = await this.client.from("accounts").select("*").order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async listContacts(accountId: string) {
+    const { data, error } = await this.client.from("contacts").select("*").eq("account_id", accountId).order("created_at");
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async listResearchEvidence(accountId: string) {
+    const { data, error } = await this.client.from("research_evidence").select("*").eq("account_id", accountId).order("created_at");
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async listProductOpportunities(accountId: string) {
+    const { data, error } = await this.client.from("product_opportunities").select("*").eq("account_id", accountId).order("created_at");
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async listActivities(accountId: string) {
+    const { data, error } = await this.client.from("activities").select("*").eq("account_id", accountId).order("occurred_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  async saveAccount(profile: AccountProfile, id?: string) {
+    const query = id
+      ? this.client.from("accounts").update(mapAccountProfile(profile)).eq("id", id).select("id").single()
+      : this.client.from("accounts").insert(mapAccountProfile(profile)).select("id").single();
+    const { data, error } = await query;
     if (error) throw error;
     return data.id as string;
   }
 
-  async persistContact(accountId: string, contact: ContactProfile) {
-    const { data, error } = await this.client.from("contacts").insert(mapContactProfile(accountId, contact)).select("id").single();
+  async persistAccount(profile: AccountProfile) { return this.saveAccount(profile); }
+
+  async saveContact(accountId: string, contact: ContactProfile, id?: string) {
+    const values = mapContactProfile(accountId, contact);
+    const query = id
+      ? this.client.from("contacts").update(values).eq("id", id).eq("account_id", accountId).select("id").single()
+      : this.client.from("contacts").insert(values).select("id").single();
+    const { data, error } = await query;
     if (error) throw error;
     return data.id as string;
   }
 
-  async persistResearchEvidence(accountId: string, evidence: ResearchEvidence) {
-    const { data, error } = await this.client.from("research_evidence").insert(mapResearchEvidence(accountId, evidence)).select("id").single();
+  async persistContact(accountId: string, contact: ContactProfile) { return this.saveContact(accountId, contact); }
+
+  async saveResearchEvidence(accountId: string, evidence: ResearchEvidence, id?: string, opportunityId?: string) {
+    const values = { ...mapResearchEvidence(accountId, evidence), opportunity_id: opportunityId ?? null };
+    const query = id
+      ? this.client.from("research_evidence").update(values).eq("id", id).eq("account_id", accountId).select("id").single()
+      : this.client.from("research_evidence").insert(values).select("id").single();
+    const { data, error } = await query;
     if (error) throw error;
     return data.id as string;
   }
 
-  async persistProductOpportunity(accountId: string, recommendation: ProductOpportunityRecommendation) {
+  async persistResearchEvidence(accountId: string, evidence: ResearchEvidence) { return this.saveResearchEvidence(accountId, evidence); }
+
+  async saveProductOpportunity(accountId: string, recommendation: ProductOpportunityRecommendation, id?: string) {
     const context = await resolveCommercialContext(this.client, recommendation);
-    const { data, error } = await this.client.from("product_opportunities").insert(mapProductOpportunity(accountId, recommendation, context)).select("id").single();
+    const values = mapProductOpportunity(accountId, recommendation, context);
+    const query = id
+      ? this.client.from("product_opportunities").update(values).eq("id", id).eq("account_id", accountId).select("id").single()
+      : this.client.from("product_opportunities").insert(values).select("id").single();
+    const { data, error } = await query;
     if (error) throw error;
     return data.id as string;
   }
 
-  async persistActivity(activity: ActivityInput) {
-    const { data, error } = await this.client.from("activities").insert({ account_id: activity.accountId, contact_id: activity.contactId ?? null, opportunity_id: activity.opportunityId ?? null, activity_type: activity.activityType, occurred_at: activity.occurredAt ?? new Date().toISOString(), summary: activity.summary ?? null, metadata: activity.metadata ?? {} }).select("id").single();
+  async persistProductOpportunity(accountId: string, recommendation: ProductOpportunityRecommendation) { return this.saveProductOpportunity(accountId, recommendation); }
+
+  async saveActivity(activity: ActivityInput, id?: string) {
+    const values = { account_id: activity.accountId, contact_id: activity.contactId ?? null, opportunity_id: activity.opportunityId ?? null, activity_type: activity.activityType, occurred_at: activity.occurredAt ?? new Date().toISOString(), summary: activity.summary ?? null, metadata: activity.metadata ?? {} };
+    const query = id
+      ? this.client.from("activities").update(values).eq("id", id).eq("account_id", activity.accountId).select("id").single()
+      : this.client.from("activities").insert(values).select("id").single();
+    const { data, error } = await query;
     if (error) throw error;
     return data.id as string;
   }
+
+  async persistActivity(activity: ActivityInput) { return this.saveActivity(activity); }
 }

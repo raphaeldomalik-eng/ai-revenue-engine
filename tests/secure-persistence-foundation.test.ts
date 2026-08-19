@@ -104,3 +104,13 @@ test("migration encodes internal-only membership, least-privilege grants, and ro
   assert.match(migration, /evidence_kind[\s\S]*\('FACT', 'INFERENCE'\)/i);
   assert.equal(/service_role/i.test(migration), false);
 });
+
+test("Lead Intelligence uses persistent repository workflow and keeps viewers read-only", () => {
+  const view = readFileSync(new URL("../app/lead-intelligence-view.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(view, /leadIntelligenceFixtures/);
+  assert.match(view, /listAccounts/);
+  assert.match(view, /saveProductOpportunity/);
+  assert.match(view, /opportunityId/);
+  assert.match(view, /canMutateCommercialData/);
+  assert.equal(canMutateCommercialData("VIEWER"), false);
+});
