@@ -39,6 +39,7 @@ export async function researchCompany(input: { companyName: string; website?: st
     method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model, tools: [{ type: "web_search" }],
+      max_output_tokens: 8000,
       input: `Research this prospective EventSuite account using current public web sources. Never invent people, facts, sources, or unknown values. Separate FACT from INFERENCE and cite source URLs when available. Company: ${input.companyName}. Website: ${input.website ?? "not provided"}. Return only the requested JSON brief.`,
       text: { format: { type: "json_schema", name: "ai_sales_brief", strict: true, schema: briefSchema } },
     }),
