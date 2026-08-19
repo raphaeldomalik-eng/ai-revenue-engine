@@ -53,6 +53,10 @@ Every candidate follows this order:
 
 The system must not skip relationship classification, silently turn `UNKNOWN` into `PROSPECT`, or infer outreach eligibility from a promising event alone.
 
+### Event connection gate
+
+Every ordinary Direct EventSuite sales opportunity must also have an explicit EventSuite-relevant event connection. An organisation's sector, size, technology, topic or general interest in events is not sufficient. The connection is `CONFIRMED` when source-grounded evidence identifies an actual relevant event or active event programme, `STRONG` when reliable recurring event activity is established but the exact opportunity needs detail, `WEAK` when events are only plausible or generically mentioned, and `NONE` when no meaningful event connection is established. Only `CONFIRMED` or `STRONG` connections may proceed to lens qualification; `WEAK` requires review/research and `NONE` blocks ordinary Direct outreach.
+
 ## 5. Relationship and eligibility policy
 
 ### Account relationship
@@ -216,6 +220,12 @@ next_action: string
 ## 17. Outreach boundary
 
 The first contact uses only the primary engine and primary problem. Secondary opportunities inform account strategy but do not create a multi-product pitch. Outreach is never sent automatically by this contract; human review must confirm identity, relationship, evidence, eligibility and the proposed problem statement.
+
+### Next best commercial action / CTA strategy
+
+Prospect Intelligence selects the lowest-friction credible next commercial action; Outreach executes it. The default cold-prospect product destination is the public [EventSuite landing page](https://www.eventsuite.pro/), not an onboarding or other specialised setup route. It must not invent or over-specialise product destinations, trials or URLs.
+
+Every eligible Direct prospect normally receives a structured free Resource Centre offer matched to the evidenced event, problem and likely owner. Only verified canonical Resource Centre URLs may be used; when no individual match is safe, use the [Resource Centre](https://www.eventsuite.pro/resources) root. Product discovery and useful free value should normally both appear somewhere across the bounded sequence, while each individual email retains one primary CTA. A call is never the default objective: high-complexity, migration, procurement, enterprise or multi-team situations may justify a human-assisted walkthrough. EGS may lead with a short personalised event insight rather than a meeting.
 
 ## 18. Discovery requirements for a future implementation
 

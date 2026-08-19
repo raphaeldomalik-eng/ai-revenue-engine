@@ -6,6 +6,8 @@ export type AiSalesEvidence = {
   confidence: "NONE" | "LOW" | "MEDIUM" | "HIGH";
 };
 
+import type { ProspectIntelligence } from "./prospect-intelligence.ts";
+
 export type AiSalesPerson = {
   name: string;
   role: string | null;
@@ -29,6 +31,7 @@ export type AiSalesBrief = {
   accountStrategy: { positioning: string; approach: string; validationQuestions: string[] };
   nextBestAction: { action: string; reason: string; owner: "HUMAN_REVIEW" | "AI_SALES_TEAM" };
   unknowns: string[];
+  prospectIntelligence: ProspectIntelligence;
 };
 
 export type AiSalesResearchResult = { brief: AiSalesBrief; provider: "openai"; model: string; sourceCount: number };

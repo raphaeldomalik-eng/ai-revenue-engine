@@ -53,13 +53,18 @@ const RESEARCH_URL_PATTERN = /(?:https?:\/\/|www\.)\S+/gi;
 const RESEARCH_LEAK_PATTERN = /(?:\[\s*(?:\d+|source|citation|evidence|fact|inference)[^\]]*\]|\b(?:evidence|source)[_-]?id\s*[:#-]?\s*[a-z0-9-]+\b|\b(?:fact|inference)[_-]?\d+\b|\b(?:FACT|INFERENCE)\s*[:·-])/i;
 const UNSUPPORTED_SUPERLATIVE_PATTERN = /\b(?:industry-leading|market-leading|best-in-class|world-class)\b/i;
 
-export function sanitizeOutboundContent(subject: string, body: string) {
+export function sanitizeOutboundContent(subject: string, body: string, allowedUrls: string[] = []) {
   if (PLACEHOLDER_PATTERN.test(subject) || PLACEHOLDER_PATTERN.test(body) || RESEARCH_LEAK_PATTERN.test(subject) || RESEARCH_LEAK_PATTERN.test(body)) throw new Error("OUTREACH_CONTENT_INVALID: internal evidence or unresolved placeholder");
   if (UNSUPPORTED_SUPERLATIVE_PATTERN.test(subject) || UNSUPPORTED_SUPERLATIVE_PATTERN.test(body)) throw new Error("OUTREACH_CONTENT_INVALID: unsupported comparative claim");
-  const cleanSubject = subject.replace(RESEARCH_URL_PATTERN, "").replace(/\s{2,}/g, " ").trim();
-  const cleanBody = body.replace(RESEARCH_URL_PATTERN, "").replace(/\n{3,}/g, "\n\n").trim();
+  const stripUnapprovedUrls = (value: string) => value.replace(RESEARCH_URL_PATTERN, (url) => {
+    const canonicalUrl = url.replace(/[.,;:!?]+$/, "").replace(/\)$/, "");
+    return allowedUrls.includes(canonicalUrl) ? canonicalUrl : "";
+  });
+  const cleanSubject = stripUnapprovedUrls(subject).replace(/\s{2,}/g, " ").trim();
+  const cleanBody = stripUnapprovedUrls(body).replace(/\n{3,}/g, "\n\n").trim();
   const signature = /best regards,?\s*eventsuite partnerships/i.test(cleanBody) ? cleanBody : `${cleanBody}\n\nBest regards,\nEventSuite Partnerships`;
-  if (PLACEHOLDER_PATTERN.test(signature) || RESEARCH_LEAK_PATTERN.test(signature) || /(?:https?:\/\/|www\.)\S+/i.test(signature)) throw new Error("OUTREACH_CONTENT_INVALID: unsafe outbound content");
+  const remainingUrls = signature.match(RESEARCH_URL_PATTERN) ?? [];
+  if (PLACEHOLDER_PATTERN.test(signature) || RESEARCH_LEAK_PATTERN.test(signature) || remainingUrls.some((url) => !allowedUrls.includes(url))) throw new Error("OUTREACH_CONTENT_INVALID: unsafe outbound content");
   return { subject: cleanSubject, body: signature };
 }
 

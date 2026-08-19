@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { boundedFollowUps, canSendMessage, classifyAccountRelationship, knownRecipient, sanitizeOutboundContent } from "../src/ai-sales-team/outreach-model.ts";
+import { assertCommercialActionContract } from "../src/ai-sales-team/outreach.ts";
+import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
+import type { AiSalesEvidence } from "../src/ai-sales-team/model.ts";
+
+const prospectFact = (claim: string): AiSalesEvidence => ({ claim, sourceUrl: "https://example.org", sourceTitle: "Example", kind: "FACT", confidence: "HIGH" });
 
 test("competitors are blocked while prospects remain eligible", () => {
   assert.equal(classifyAccountRelationship({ name: "Quicket", website: "https://www.quicket.co.za", qualificationFit: "HIGH" }).relationship, "COMPETITOR");
@@ -22,6 +27,8 @@ test("outbound content removes research URLs and resolves the sender signature",
   assert.throws(() => sanitizeOutboundContent("A useful conversation", "FACT: [evidence-123] See source-id:abc"), /internal evidence/);
   assert.throws(() => sanitizeOutboundContent("A useful conversation", "TODO — add the account name"), /placeholder/);
   assert.throws(() => sanitizeOutboundContent("Industry-leading option", "Body"), /comparative/);
+  const commercial = sanitizeOutboundContent("Explore", "See https://www.eventsuite.pro/.", ["https://www.eventsuite.pro/"]);
+  assert.match(commercial.body, /https:\/\/www\.eventsuite\.pro\//);
 });
 
 test("outreach never turns an unknown contact into a sendable recipient", () => {
@@ -45,6 +52,19 @@ test("outreach send decision requires approval, active sequence, and no stop sta
 test("outreach sequence is bounded to two follow-ups", () => {
   const messages = [0, 1, 2, 3].map((sequenceNumber) => ({ sequenceNumber: sequenceNumber as 0 | 1 | 2, delayHours: 24, subject: "", body: "", rationale: "", evidenceReferences: [], cta: "", stopConditions: [] }));
   assert.deepEqual(boundedFollowUps(messages).map((item) => item.sequenceNumber), [1, 2]);
+});
+
+test("outreach CTA contract uses one verified primary URL per message and includes the selected free resource", () => {
+  const ticketing = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "ZA", facts: [prospectFact("The organiser runs an annual paid festival with ticket tiers and admission scanning.")], inferences: [] }).nextBestCommercialAction;
+  const productAndResourceDraft = { outreachGoal: "", recipientRationale: "", overallStrategy: "", unknowns: [], warnings: [], initialMessage: { sequenceNumber: 0 as const, delayHours: 0, subject: "Explore EventSuite", body: `A useful place to start is ${ticketing.productDestinationUrl}`, rationale: "", evidenceReferences: [], cta: "Explore EventSuite", stopConditions: [] }, followUps: [{ sequenceNumber: 1 as const, delayHours: 72, subject: "A free planning resource", body: `This free resource may help: ${ticketing.resourceOffer.canonicalUrl}`, rationale: "", evidenceReferences: [], cta: `Explore free resource: ${ticketing.resourceOffer.title}`, stopConditions: [] }] };
+  assert.doesNotThrow(() => assertCommercialActionContract(productAndResourceDraft, ticketing));
+  assert.throws(() => assertCommercialActionContract({ ...productAndResourceDraft, initialMessage: { ...productAndResourceDraft.initialMessage, body: `Would you like to book a call? ${ticketing.productDestinationUrl}` } }, ticketing), /OUTREACH_CTA_MISMATCH/);
+  assert.throws(() => assertCommercialActionContract({ ...productAndResourceDraft, followUps: [] }, ticketing), /resource/);
+  assert.throws(() => assertCommercialActionContract({ ...productAndResourceDraft, initialMessage: { ...productAndResourceDraft.initialMessage, body: `${ticketing.productDestinationUrl} and ${ticketing.resourceOffer.canonicalUrl}` } }, ticketing), /one verified primary destination/);
+
+  const ecc = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "ZA", facts: [prospectFact("The university runs an annual conference programme across multiple events, departments, suppliers and workforce teams.")], inferences: [] }).nextBestCommercialAction;
+  const guidedDraft = { ...productAndResourceDraft, initialMessage: { ...productAndResourceDraft.initialMessage, subject: "Guided walkthrough", body: `Reply to arrange a walkthrough after exploring ${ecc.productDestinationUrl}`, cta: ecc.ctaLabel }, followUps: [{ ...productAndResourceDraft.followUps[0], body: `A useful free planning resource: ${ecc.resourceOffer.canonicalUrl}`, cta: `Explore free resource: ${ecc.resourceOffer.title}` }] };
+  assert.doesNotThrow(() => assertCommercialActionContract(guidedDraft, ecc));
 });
 
 test("outreach migration keeps message identity and approval states durable", async () => {

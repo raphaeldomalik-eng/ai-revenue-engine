@@ -40,7 +40,8 @@ export async function POST(request: Request) {
       if (existing) return NextResponse.json({ sequenceId: existing.id, reused: true });
       const { data: accountState, error: accountStateError } = await client.from("accounts").select("metadata").eq("id", body.accountId).single();
       if (accountStateError) throw accountStateError;
-      if (accountState?.metadata?.outreachEligibility !== "ELIGIBLE") throw new Error(accountState?.metadata?.outreachEligibilityReason || "OUTREACH_REVIEW_REQUIRED");
+      const prospectIntelligence = accountState?.metadata?.prospectIntelligence;
+      if (accountState?.metadata?.outreachEligibility !== "ELIGIBLE" || prospectIntelligence?.outreachEligibility !== "ELIGIBLE" || prospectIntelligence?.salesMotion !== "DIRECT" || !prospectIntelligence?.nextBestCommercialAction || prospectIntelligence.nextBestCommercialAction.type === "NONE" || !prospectIntelligence.nextBestCommercialAction.resourceOffer || !prospectIntelligence.nextBestCommercialAction.productDestinationUrl) throw new Error(accountState?.metadata?.outreachEligibilityReason || "OUTREACH_REVIEW_REQUIRED");
       const [{ data: brief, error: briefError }, { data: contacts, error: contactsError }] = await Promise.all([
         client.from("ai_sales_briefs").select("*").eq("id", body.briefId).eq("account_id", body.accountId).single(),
         client.from("contacts").select("id, full_name, role_title, email").eq("account_id", body.accountId).order("created_at"),
@@ -52,7 +53,7 @@ export async function POST(request: Request) {
       const explicitRecipient = body.recipientEmail?.trim() ? knownRecipient(body.recipientEmail) : previewRecipient;
       if (body.recipientEmail?.trim() && !explicitRecipient) throw new Error("OUTREACH_RECIPIENT_INVALID");
       const recipient = explicitRecipient ?? contact?.email ?? null;
-      const generated = await generateOutreachSequence({ brief: { companySummary: brief.company_summary, whyItMatters: brief.why_it_matters, territory: brief.territory, qualification: brief.qualification, people: brief.people, facts: brief.facts, inferences: brief.inferences, pains: brief.pains, useCases: brief.use_cases, signals: brief.signals, eventSuite: brief.eventsuite_opportunity, accountStrategy: brief.account_strategy, nextBestAction: brief.next_best_action, unknowns: brief.unknowns }, contact: contact ? { name: contact.full_name, role: contact.role_title, email: recipient } : recipient ? { name: null, role: null, email: recipient } : null });
+      const generated = await generateOutreachSequence({ brief: { companySummary: brief.company_summary, whyItMatters: brief.why_it_matters, territory: brief.territory, qualification: brief.qualification, people: brief.people, facts: brief.facts, inferences: brief.inferences, pains: brief.pains, useCases: brief.use_cases, signals: brief.signals, eventSuite: brief.eventsuite_opportunity, accountStrategy: brief.account_strategy, nextBestAction: brief.next_best_action, unknowns: brief.unknowns, prospectIntelligence: brief.eventsuite_opportunity?.prospectIntelligence }, contact: contact ? { name: contact.full_name, role: contact.role_title, email: recipient } : recipient ? { name: null, role: null, email: recipient } : null });
       const { data: sequence, error: sequenceError } = await client.from("outreach_sequences").insert({ account_id: body.accountId, contact_id: contact?.id ?? null, ai_sales_brief_id: body.briefId, created_by: user.id, outreach_goal: generated.draft.outreachGoal, overall_strategy: generated.draft.overallStrategy }).select("id").single();
       if (sequenceError) throw sequenceError;
       const all = [generated.draft.initialMessage, ...generated.draft.followUps];
