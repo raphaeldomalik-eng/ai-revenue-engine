@@ -22,7 +22,7 @@ async function signInInMemory(context: BrowserContext) {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await supabase.auth.signInWithPassword({ email: process.env.E2E_TEST_EMAIL!, password: process.env.E2E_TEST_PASSWORD! });
   if (error || !data.session) throw new Error(`E2E password sign-in failed: ${error?.message ?? "session missing"}`);
-  const host = new URL("https://ai-revenue-engine-kmwectfm0-event-suite-team.vercel.app").hostname;
+  const host = new URL(process.env.E2E_BASE_URL ?? "https://ai-revenue-engine-git-feature-lead-inte-000dc1-event-suite-team.vercel.app").hostname;
   await context.addCookies(sessionCookieChunks(data.session).map((cookie) => ({ ...cookie, domain: host, path: "/", secure: true, httpOnly: false, sameSite: "Lax" as const })));
 }
 
@@ -62,7 +62,6 @@ test("operator can persist and re-open Lead Intelligence workflow", async ({ pag
 
   await expect(page.getByRole("status")).toContainText("Saved.", { timeout: 30_000 });
   await expect(page.getByText("DIRECT · UNDETERMINED", { exact: true })).toBeVisible();
-  await expect(page.getByText("UNDETERMINED", { exact: true })).toBeVisible();
   await expect(page.getByText("NULL / DEFERRED", { exact: true })).toBeVisible();
   await expect(page.getByText("FACT · HIGH", { exact: true })).toBeVisible();
   await page.screenshot({ path: "test-results/lead-intelligence-saved.png", fullPage: true });

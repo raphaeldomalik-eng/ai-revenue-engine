@@ -30,6 +30,7 @@ export function LeadIntelligenceView({ access }: { access: RevenueAccessState })
   const [saving, setSaving] = useState(false);
   const repository = useMemo(() => new RevenueRepository(createBrowserSupabaseClient()), []);
   const loadGeneration = useRef(0);
+  const userSelectedState = useRef(false);
 
   async function loadAccount(accountId?: string, sourceAccounts = accounts) {
     const generation = ++loadGeneration.current;
@@ -42,7 +43,7 @@ export function LeadIntelligenceView({ access }: { access: RevenueAccessState })
     setSelectedId(row.id); setDraft(nextDraft); setAssessment(savedEvidence.length ? assessLeadIntelligence({ account: nextDraft.profile, evidence: savedEvidence, contacts }) : null); setMessage(opportunity ? "Saved opportunity loaded." : "Saved prospect loaded.");
   }
 
-  useEffect(() => { repository.listAccounts().then((rows) => { setAccounts(rows); if (rows[0]) void loadAccount(rows[0].id, rows); else setMessage("No saved prospects yet. Create the first internal lead below."); }).catch((error) => setMessage(error.message)); }, [repository]);
+  useEffect(() => { repository.listAccounts().then((rows) => { setAccounts(rows); if (userSelectedState.current) return; if (rows[0]) void loadAccount(rows[0].id, rows); else setMessage("No saved prospects yet. Create the first internal lead below."); }).catch((error) => setMessage(error.message)); }, [repository]);
   function updateProfile(field: keyof AccountProfile, value: string) { setDraft((current) => ({ ...current, profile: { ...current.profile, [field]: value } })); }
   function updateContact(field: keyof ContactProfile, value: string) { setDraft((current) => ({ ...current, contact: { ...current.contact, [field]: value } })); }
   function updateEvidence(field: keyof ResearchEvidence, value: string) { setDraft((current) => ({ ...current, evidence: { ...current.evidence, [field]: value } as ResearchEvidence })); }
@@ -64,7 +65,7 @@ export function LeadIntelligenceView({ access }: { access: RevenueAccessState })
   return <section className="lead-intelligence-section">
     <div className="section-heading"><span className="label">LEAD INTELLIGENCE</span><span className="muted">Persistent EventSuite prospects · {canEdit ? "editing enabled" : "viewer mode"}</span></div>
     <div className="lead-intelligence-layout">
-      <nav className="scenario-list" aria-label="Saved prospects">{accounts.map((account) => <button className={account.id === selectedId ? "scenario-button selected" : "scenario-button"} key={account.id} onClick={() => void loadAccount(account.id)}>{account.name}</button>)}<button className="scenario-button" onClick={() => { loadGeneration.current += 1; setDraft(emptyDraft()); setSelectedId(null); setAssessment(null); setMessage("New prospect ready."); }}>+ New prospect</button></nav>
+      <nav className="scenario-list" aria-label="Saved prospects">{accounts.map((account) => <button className={account.id === selectedId ? "scenario-button selected" : "scenario-button"} key={account.id} onClick={() => { userSelectedState.current = true; void loadAccount(account.id); }}>{account.name}</button>)}<button className="scenario-button" onClick={() => { userSelectedState.current = true; loadGeneration.current += 1; setDraft(emptyDraft()); setSelectedId(null); setAssessment(null); setMessage("New prospect ready."); }}>+ New prospect</button></nav>
       <article className="intelligence-card">
         <div className="card-top"><span className="pill">PERSISTENT WORKFLOW</span><span className="muted">{selectedId ? "Saved record" : "New record"}</span></div>
         <div className="lead-form-grid">
