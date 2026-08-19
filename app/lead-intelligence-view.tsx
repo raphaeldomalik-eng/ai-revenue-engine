@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { assessLeadIntelligence } from "../src/lead-intelligence/assessment";
 import type { AccountProfile, ContactProfile, LeadIntelligenceAssessment, ResearchEvidence } from "../src/lead-intelligence/model";
 import { canMutateCommercialData, type RevenueAccessState } from "../src/lib/auth/access";
@@ -29,11 +29,14 @@ export function LeadIntelligenceView({ access }: { access: RevenueAccessState })
   const [message, setMessage] = useState("Loading saved prospects…");
   const [saving, setSaving] = useState(false);
   const repository = useMemo(() => new RevenueRepository(createBrowserSupabaseClient()), []);
+  const loadGeneration = useRef(0);
 
   async function loadAccount(accountId?: string, sourceAccounts = accounts) {
+    const generation = ++loadGeneration.current;
     const row = sourceAccounts.find((item) => item.id === accountId) ?? sourceAccounts[0];
     if (!row) { setDraft(emptyDraft()); setAssessment(null); setSelectedId(null); setMessage("No saved prospects yet. Create the first internal lead below."); return; }
     const [contacts, evidence, opportunities, activities] = await Promise.all([repository.listContacts(row.id), repository.listResearchEvidence(row.id), repository.listProductOpportunities(row.id), repository.listActivities(row.id)]);
+    if (generation !== loadGeneration.current) return;
     const profile = accountFromRow(row); const savedEvidence = evidence.map(evidenceFromRow); const savedContact = contacts[0] ? contactFromRow(contacts[0]) : emptyDraft().contact; const opportunity = opportunities[0];
     const nextDraft = { accountId: row.id, profile: { ...profile, sourceEvidenceIds: savedEvidence.map((item) => item.id) }, contact: savedContact, evidence: savedEvidence[0] ?? emptyDraft().evidence, opportunityId: opportunity?.id, activityId: activities[0]?.id, nextAction: text(opportunity?.next_action) || text(activities[0]?.summary) };
     setSelectedId(row.id); setDraft(nextDraft); setAssessment(savedEvidence.length ? assessLeadIntelligence({ account: nextDraft.profile, evidence: savedEvidence, contacts }) : null); setMessage(opportunity ? "Saved opportunity loaded." : "Saved prospect loaded.");
@@ -61,7 +64,7 @@ export function LeadIntelligenceView({ access }: { access: RevenueAccessState })
   return <section className="lead-intelligence-section">
     <div className="section-heading"><span className="label">LEAD INTELLIGENCE</span><span className="muted">Persistent EventSuite prospects · {canEdit ? "editing enabled" : "viewer mode"}</span></div>
     <div className="lead-intelligence-layout">
-      <nav className="scenario-list" aria-label="Saved prospects">{accounts.map((account) => <button className={account.id === selectedId ? "scenario-button selected" : "scenario-button"} key={account.id} onClick={() => void loadAccount(account.id)}>{account.name}</button>)}<button className="scenario-button" onClick={() => { setDraft(emptyDraft()); setSelectedId(null); setAssessment(null); setMessage("New prospect ready."); }}>+ New prospect</button></nav>
+      <nav className="scenario-list" aria-label="Saved prospects">{accounts.map((account) => <button className={account.id === selectedId ? "scenario-button selected" : "scenario-button"} key={account.id} onClick={() => void loadAccount(account.id)}>{account.name}</button>)}<button className="scenario-button" onClick={() => { loadGeneration.current += 1; setDraft(emptyDraft()); setSelectedId(null); setAssessment(null); setMessage("New prospect ready."); }}>+ New prospect</button></nav>
       <article className="intelligence-card">
         <div className="card-top"><span className="pill">PERSISTENT WORKFLOW</span><span className="muted">{selectedId ? "Saved record" : "New record"}</span></div>
         <div className="lead-form-grid">
