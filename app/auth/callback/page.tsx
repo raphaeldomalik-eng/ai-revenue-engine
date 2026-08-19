@@ -11,7 +11,7 @@ export default function AuthCallbackPage() {
     if (!code) { setMessage("The sign-in link is missing its confirmation code."); return; }
     createBrowserSupabaseClient().auth.exchangeCodeForSession(code).then(({ error }) => {
       if (error) { setMessage(error.message); return; }
-      window.location.replace("/internal");
+      window.location.replace("/");
     });
   }, []);
 

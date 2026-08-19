@@ -1,5 +1,11 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { LeadIntelligenceView } from "./lead-intelligence-view";
+import { LoginForm } from "./login/login-form";
+import { revenueAccessState, type RevenueAccessState } from "../src/lib/auth/access";
 import { commercialPlaybooks } from "../src/revenue/playbooks";
+import { createBrowserSupabaseClient } from "../src/lib/supabase";
 
 const programs = [
   ["Direct Customer Acquisition", "ZA · UK", "Self-service or qualified live demo"],
@@ -13,9 +19,9 @@ function readinessClass(value: string) {
   return value.toLowerCase().replaceAll("_", "-");
 }
 
-export default function Home() {
+function CommandCentre({ onSignOut }: { onSignOut: () => void }) {
   return <main className="shell">
-    <header><span className="eyebrow">REVENUE COMMAND CENTRE · FOUNDATION</span><div className="status"><i /> Foundation ready</div></header>
+    <header><span className="eyebrow">REVENUE COMMAND CENTRE · FOUNDATION</span><div className="header-actions"><div className="status"><i /> Foundation ready</div><button className="sign-out" type="button" onClick={onSignOut}>Sign out</button></div></header>
     <section className="hero"><p className="kicker">AI REVENUE ENGINE</p><h1>One revenue system.<br /><em>Many products.</em></h1><p className="lede">A product-agnostic foundation for market intelligence, commercial programs, and human-led conversion.</p></section>
     <section className="context"><div><span className="label">ACTIVE PRODUCT</span><strong>Event Suite</strong><small>Product #1 · Phase 1</small></div><div><span className="label">ARCHITECTURE</span><strong>Multi-product platform</strong><small>Allxs and Prestige ID ready to add later</small></div><div><span className="label">DATABASE</span><strong>Supabase</strong><small>eu-west-2 · RLS fail-closed</small></div></section>
     <section className="programs"><div className="section-heading"><span className="label">COMMERCIAL PROGRAMS</span><span className="muted">Event Suite · initial scope</span></div>{programs.map(([name, territory, route]) => <article className="program" key={name}><div className="dot" /><div><h2>{name}</h2><p>{territory} <span>•</span> {route}</p></div><span className="arrow">↗</span></article>)}</section>
@@ -23,4 +29,37 @@ export default function Home() {
     <LeadIntelligenceView />
     <footer><span>DESIGNED FOR HUMAN-LED REVENUE</span><span>v0.1 FOUNDATION</span></footer>
   </main>;
+}
+
+function AccessDenied({ onSignOut }: { onSignOut: () => void }) {
+  return <main className="auth-shell"><span className="eyebrow">AI REVENUE ENGINE · INTERNAL ACCESS</span><h1>Access not available</h1><p>Your sign-in is valid, but this account has not been approved for Revenue Engine access. Ask an administrator to check your internal access.</p><button type="button" onClick={onSignOut}>Use another account</button></main>;
+}
+
+export default function Home() {
+  const [access, setAccess] = useState<RevenueAccessState | "CHECKING">("CHECKING");
+
+  useEffect(() => {
+    let active = true;
+    async function checkAccess() {
+      const supabase = createBrowserSupabaseClient();
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (!active) return;
+      if (userError || !userData.user) { setAccess("ANON"); return; }
+      const { data: member } = await supabase.from("revenue_members").select("member_role, active").eq("user_id", userData.user.id).maybeSingle();
+      if (!active) return;
+      setAccess(revenueAccessState(member, true));
+    }
+    void checkAccess();
+    return () => { active = false; };
+  }, []);
+
+  async function signOut() {
+    await createBrowserSupabaseClient().auth.signOut();
+    setAccess("ANON");
+  }
+
+  if (access === "CHECKING") return <main className="auth-shell"><span className="eyebrow">AI REVENUE ENGINE · INTERNAL ACCESS</span><p>Checking your sign-in…</p></main>;
+  if (access === "ANON") return <main className="auth-shell"><span className="eyebrow">AI REVENUE ENGINE · INTERNAL ACCESS</span><h1>Sign in</h1><p>Use your approved internal email address to access the Revenue Engine.</p><LoginForm /></main>;
+  if (access === "NON_MEMBER") return <AccessDenied onSignOut={signOut} />;
+  return <CommandCentre onSignOut={signOut} />;
 }
