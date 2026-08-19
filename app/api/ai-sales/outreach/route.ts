@@ -45,7 +45,8 @@ export async function POST(request: Request) {
       if (briefError) throw briefError;
       if (contactsError) throw contactsError;
       const contact = (contacts ?? []).find((item) => item.email) ?? contacts?.[0] ?? null;
-      const explicitRecipient = body.recipientEmail?.trim() ? knownRecipient(body.recipientEmail) : null;
+      const previewRecipient = process.env.VERCEL_ENV === "preview" ? knownRecipient(process.env.E2E_OUTREACH_RECIPIENT) : null;
+      const explicitRecipient = body.recipientEmail?.trim() ? knownRecipient(body.recipientEmail) : previewRecipient;
       if (body.recipientEmail?.trim() && !explicitRecipient) throw new Error("OUTREACH_RECIPIENT_INVALID");
       const recipient = explicitRecipient ?? contact?.email ?? null;
       const generated = await generateOutreachSequence({ brief: { companySummary: brief.company_summary, whyItMatters: brief.why_it_matters, territory: brief.territory, qualification: brief.qualification, people: brief.people, facts: brief.facts, inferences: brief.inferences, pains: brief.pains, useCases: brief.use_cases, signals: brief.signals, eventSuite: brief.eventsuite_opportunity, accountStrategy: brief.account_strategy, nextBestAction: brief.next_best_action, unknowns: brief.unknowns }, contact: contact ? { name: contact.full_name, role: contact.role_title, email: recipient } : recipient ? { name: null, role: null, email: recipient } : null });

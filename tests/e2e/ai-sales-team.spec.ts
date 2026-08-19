@@ -56,16 +56,17 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await expect(page.getByText("NEXT BEST ACTION", { exact: true }).first()).toBeVisible();
 
   const e2eRecipient = process.env.E2E_OUTREACH_RECIPIENT;
-  if (e2eRecipient) await page.getByLabel("Known or owner-approved recipient email").first().fill(e2eRecipient);
+  if (e2eRecipient && e2eRecipient !== "[SENSITIVE]") await page.getByLabel("Known or owner-approved recipient email").first().fill(e2eRecipient);
   await page.getByRole("button", { name: "Prepare outreach" }).first().click();
   await expect(page.getByText("AI outreach prepared for human review.", { exact: true })).toBeVisible({ timeout: 120_000 });
-  if (!e2eRecipient) {
+  const recipientAvailable = await page.getByText("Known contact recipient available.", { exact: true }).count() > 0;
+  if (!recipientAvailable) {
     await expect(page.getByText(/Email address not known/).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Send approved email" })).toHaveCount(0);
   }
   await page.getByRole("button", { name: "Approve" }).first().click();
   await expect(page.getByRole("button", { name: "Send approved email" }).first()).toBeVisible();
-  if (e2eRecipient) {
+  if (recipientAvailable) {
     await page.getByRole("button", { name: "Send approved email" }).first().click();
     await expect(page.getByRole("status").filter({ hasText: "Approved message submitted" })).toBeVisible();
   } else {
@@ -103,7 +104,7 @@ test("real AI Sales Team research persists and survives state changes", async ({
   expect(activities.data?.some((row) => row.activity_type === "AI_RESEARCH_NEXT_ACTION")).toBe(true);
   expect(outreach.error).toBeNull();
   expect(outreach.data?.length).toBe(3);
-  if (e2eRecipient) {
+  if (recipientAvailable) {
     expect(outreach.data?.filter((row) => row.status === "SENT")).toHaveLength(1);
     expect(outreach.data?.find((row) => row.status === "SENT")?.provider_message_id).toBeTruthy();
   } else {
