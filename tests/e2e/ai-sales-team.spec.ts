@@ -44,9 +44,9 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await ready(page);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const company = `Quicket E2E AI Sales ${timestamp}`;
+  const company = `Wits University E2E AI Sales ${timestamp}`;
   await page.getByLabel("Prospect or company name").fill(company);
-  await page.getByLabel("Website or domain").fill("https://www.quicket.co.za");
+  await page.getByLabel("Website or domain").fill("https://www.wits.ac.za");
   await page.getByRole("button", { name: "Research prospect" }).click();
   await expect(page.getByRole("status").filter({ hasText: "AI Sales Brief saved" })).toBeVisible({ timeout: 180_000 });
   await expect(page.getByText("AI SALES BRIEF", { exact: true }).first()).toBeVisible();
@@ -55,15 +55,74 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await expect(page.getByText("ACCOUNT STRATEGY", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("NEXT BEST ACTION", { exact: true }).first()).toBeVisible();
 
+  const e2eRecipient = process.env.E2E_OUTREACH_RECIPIENT;
+  if (e2eRecipient && e2eRecipient !== "[SENSITIVE]") await page.getByLabel("Known or owner-approved recipient email").first().fill(e2eRecipient);
+  await page.getByRole("button", { name: "Prepare outreach" }).first().click();
+  await expect(page.getByText("AI outreach prepared for human review.", { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/Known contact recipient available\.|Email address not known/).first()).toBeVisible({ timeout: 15_000 });
+  const recipientAvailable = await page.getByText("Known contact recipient available.", { exact: true }).count() > 0;
+  if (!recipientAvailable) {
+    await expect(page.getByText(/Email address not known/).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send approved email" })).toHaveCount(0);
+  }
+  await page.getByRole("button", { name: "Approve" }).first().click();
+  await expect(page.getByRole("button", { name: "Send approved email" }).first()).toBeVisible();
+  if (recipientAvailable) {
+    await page.getByRole("button", { name: "Send approved email" }).first().click();
+    await expect(page.getByRole("status").filter({ hasText: "Approved message submitted" })).toBeVisible();
+    const e2eAccount = (await supabase.from("accounts").select("id").eq("name", company).single()).data!;
+    const followUp = await supabase.from("outreach_messages").select("id").eq("account_id", e2eAccount.id).eq("sequence_number", 1).single();
+    expect(followUp.error).toBeNull();
+    const approval = await page.request.post(`${process.env.E2E_BASE_URL}/api/ai-sales/outreach`, { data: { action: "approve", messageId: followUp.data!.id } });
+    expect(approval.status()).toBe(200);
+    await expect.poll(async () => (await supabase.from("outreach_messages").select("status").eq("account_id", e2eAccount.id).eq("sequence_number", 1).single()).data?.status, { timeout: 15_000 }).toBe("APPROVED");
+    const dueFollowUp = await supabase.from("outreach_messages").select("id, sequence_number").eq("id", followUp.data!.id).single();
+    expect(dueFollowUp.error).toBeNull();
+    expect(process.env.CRON_SECRET).toBeTruthy();
+    const scheduled = await supabase.from("outreach_messages").update({ status: "SCHEDULED", scheduled_for: new Date(Date.now() - 60_000).toISOString() }).eq("id", dueFollowUp.data!.id).eq("status", "APPROVED").select("id").single();
+    expect(scheduled.error).toBeNull();
+    const schedulerHeaders = { authorization: `Bearer ${process.env.CRON_SECRET}` };
+    const schedulerRun = await page.request.get(`${process.env.E2E_BASE_URL}/api/cron/outreach`, { headers: schedulerHeaders });
+    expect(schedulerRun.status()).toBe(200);
+    const scheduledRow = await supabase.from("outreach_messages").select("status, provider_message_id, sent_subject, sent_body").eq("id", dueFollowUp.data!.id).single();
+    expect(scheduledRow.data?.status).toBe("SENT");
+    expect(scheduledRow.data?.provider_message_id).toBeTruthy();
+    expect(scheduledRow.data?.sent_subject).not.toMatch(/https?:\/\/|www\.|\[\s*(?:source|citation|evidence|\d+)/i);
+    expect(scheduledRow.data?.sent_body).not.toMatch(/https?:\/\/|www\.|\b(?:FACT|INFERENCE)\s*[:·-]|\bTODO\b|\[\s*(?:source|citation|evidence|\d+)/i);
+    const sentActivity = await supabase.from("activities").select("id").eq("account_id", e2eAccount.id).eq("activity_type", "OUTREACH_EMAIL_SENT");
+    expect(sentActivity.data?.length).toBe(2);
+    const secondRun = await page.request.get(`${process.env.E2E_BASE_URL}/api/cron/outreach`, { headers: schedulerHeaders });
+    expect(secondRun.status()).toBe(200);
+    const duplicateCheck = await supabase.from("outreach_messages").select("status, provider_message_id").eq("id", dueFollowUp.data!.id).single();
+    expect(duplicateCheck.data?.status).toBe("SENT");
+    expect(duplicateCheck.data?.provider_message_id).toBe(scheduledRow.data?.provider_message_id);
+    const suppression = await page.request.post(`${process.env.E2E_BASE_URL}/api/ai-sales/outreach`, { data: { action: "suppress", accountId: e2eAccount.id, reason: "MANUAL_STOP" } });
+    expect(suppression.status()).toBe(200);
+    await expect.poll(async () => (await supabase.from("outreach_sequences").select("status").eq("account_id", e2eAccount.id).order("created_at", { ascending: false }).limit(1).single()).data?.status, { timeout: 15_000 }).toBe("STOPPED");
+    const stopped = await supabase.from("outreach_sequences").select("status").eq("account_id", e2eAccount.id).order("created_at", { ascending: false }).limit(1).single();
+    expect(stopped.data?.status).toBe("STOPPED");
+    const suppressedScheduler = await page.request.get(`${process.env.E2E_BASE_URL}/api/cron/outreach`, { headers: schedulerHeaders });
+    expect(suppressedScheduler.status()).toBe(200);
+    const cancelledFollowUp = await supabase.from("outreach_messages").select("status, provider_message_id").eq("account_id", e2eAccount.id).eq("sequence_number", 2).single();
+    expect(cancelledFollowUp.data?.status).toBe("CANCELLED");
+    expect(cancelledFollowUp.data?.provider_message_id).toBeNull();
+  } else {
+    const messageId = await page.getByRole("button", { name: "Send approved email" }).first().getAttribute("data-message-id");
+    expect(messageId).toBeTruthy();
+    const sendResponse = await page.request.post(`${process.env.E2E_BASE_URL}/api/ai-sales/outreach`, { data: { action: "send", messageId } });
+    expect(sendResponse.status()).toBe(409);
+  }
+
   const account = await supabase.from("accounts").select("id").eq("name", company).maybeSingle();
   expect(account.error).toBeNull();
   expect(account.data).not.toBeNull();
-  const [briefs, contacts, evidence, opportunities, activities] = await Promise.all([
+  const [briefs, contacts, evidence, opportunities, activities, outreach] = await Promise.all([
     supabase.from("ai_sales_briefs").select("facts, inferences, qualification, territory, eventsuite_opportunity, account_strategy, next_best_action, unknowns").eq("account_id", account.data!.id),
     supabase.from("contacts").select("id").eq("account_id", account.data!.id),
     supabase.from("research_evidence").select("claim, evidence_kind, qualitative_confidence, source_url, source_title").eq("account_id", account.data!.id),
     supabase.from("product_opportunities").select("conversion_route, commercial_program_id").eq("account_id", account.data!.id),
     supabase.from("activities").select("activity_type, summary").eq("account_id", account.data!.id),
+    supabase.from("outreach_messages").select("status, provider_message_id, sent_at").eq("account_id", account.data!.id),
   ]);
   expect(briefs.error).toBeNull();
   expect(briefs.data?.length).toBeGreaterThan(0);
@@ -80,12 +139,21 @@ test("real AI Sales Team research persists and survives state changes", async ({
   expect(opportunities.data?.[0].commercial_program_id).toBeNull();
   expect((opportunities.data ?? []).length).toBeLessThanOrEqual(1);
   expect(activities.data?.some((row) => row.activity_type === "AI_RESEARCH_NEXT_ACTION")).toBe(true);
+  expect(outreach.error).toBeNull();
+  expect(outreach.data?.length).toBe(3);
+  if (recipientAvailable) {
+    expect(outreach.data?.filter((row) => row.status === "SENT")).toHaveLength(2);
+    expect(outreach.data?.filter((row) => row.status === "SENT").every((row) => row.provider_message_id)).toBe(true);
+    expect(outreach.data?.filter((row) => row.status === "CANCELLED")).toHaveLength(1);
+  } else {
+    expect(outreach.data?.filter((row) => row.status === "SENT")).toHaveLength(0);
+  }
 
   await page.reload();
   await ready(page);
   await expect(page.getByText("AI SALES BRIEF", { exact: true }).first()).toBeVisible();
   await page.getByLabel("Prospect or company name").fill(company);
-  await page.getByLabel("Website or domain").fill("https://www.quicket.co.za");
+  await page.getByLabel("Website or domain").fill("https://www.wits.ac.za");
   await page.getByRole("button", { name: "Research prospect" }).click();
   await expect(page.getByRole("status").filter({ hasText: "AI Sales Brief saved" })).toBeVisible({ timeout: 180_000 });
   const duplicateCheck = await supabase.from("accounts").select("id").eq("name", company);
