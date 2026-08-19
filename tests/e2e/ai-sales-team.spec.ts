@@ -101,6 +101,11 @@ test("real AI Sales Team research persists and survives state changes", async ({
     await expect.poll(async () => (await supabase.from("outreach_sequences").select("status").eq("account_id", e2eAccount.id).order("created_at", { ascending: false }).limit(1).single()).data?.status, { timeout: 15_000 }).toBe("STOPPED");
     const stopped = await supabase.from("outreach_sequences").select("status").eq("account_id", e2eAccount.id).order("created_at", { ascending: false }).limit(1).single();
     expect(stopped.data?.status).toBe("STOPPED");
+    const suppressedScheduler = await page.request.get(`${process.env.E2E_BASE_URL}/api/cron/outreach`, { headers: schedulerHeaders });
+    expect(suppressedScheduler.status()).toBe(200);
+    const cancelledFollowUp = await supabase.from("outreach_messages").select("status, provider_message_id").eq("account_id", e2eAccount.id).eq("sequence_number", 2).single();
+    expect(cancelledFollowUp.data?.status).toBe("CANCELLED");
+    expect(cancelledFollowUp.data?.provider_message_id).toBeNull();
   } else {
     const messageId = await page.getByRole("button", { name: "Send approved email" }).first().getAttribute("data-message-id");
     expect(messageId).toBeTruthy();
