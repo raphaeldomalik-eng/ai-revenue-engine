@@ -1,14 +1,21 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../src/lib/supabase-server";
+import { resolveAuthCallbackInput } from "../../../src/lib/auth/callback";
+
+function failureRedirect(requestUrl: URL, reason: "missing_code" | "invalid_link") {
+  return NextResponse.redirect(new URL(`/?authError=${reason}`, requestUrl.origin));
+}
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  if (!code) return NextResponse.redirect(new URL("/?authError=missing_code", requestUrl.origin));
+  const input = resolveAuthCallbackInput(requestUrl);
+  if (input.kind === "invalid") return failureRedirect(requestUrl, input.reason);
 
   const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) return NextResponse.redirect(new URL(`/?authError=${encodeURIComponent(error.message)}`, requestUrl.origin));
+  const { error } = input.kind === "code"
+    ? await supabase.auth.exchangeCodeForSession(input.code)
+    : await supabase.auth.verifyOtp({ token_hash: input.tokenHash, type: "email" });
+  if (error) return failureRedirect(requestUrl, "invalid_link");
 
   return NextResponse.redirect(new URL("/", requestUrl.origin));
 }
