@@ -38,8 +38,15 @@ export async function POST(request: Request) {
     if (accountError) throw accountError;
     const evidence = [...brief.facts, ...brief.inferences].filter((item) => item.claim.trim()).map((item) => ({ account_id: account.id, evidence_type: item.sourceUrl ? "WEBSITE" : "OTHER", claim: item.claim, source_url: item.sourceUrl, source_title: item.sourceTitle, source_reference: item.sourceUrl ?? "ai-sales-team", observed_at: new Date().toISOString(), evidence_kind: item.kind, qualitative_confidence: item.confidence, metadata: { provider: result.provider, model: result.model } }));
     if (evidence.length) { const { error } = await client.from("research_evidence").insert(evidence); if (error) throw error; }
-    const people = brief.people.filter((person) => person.name.trim()).map((person) => ({ account_id: account.id, full_name: person.name, role_title: person.role, verification_status: person.kind === "FACT" ? "UNVERIFIED" : "UNKNOWN", source: "ai_sales_team", metadata: { sourceUrl: person.sourceUrl, evidenceKind: person.kind, confidence: person.confidence } }));
-    if (people.length) { const { error } = await client.from("contacts").insert(people); if (error) throw error; }
+    const people = brief.people.filter((person) => person.name.trim());
+    for (const person of people) {
+      const existingPerson = await client.from("contacts").select("id").eq("account_id", account.id).eq("full_name", person.name).maybeSingle();
+      if (existingPerson.error) throw existingPerson.error;
+      const values = { account_id: account.id, full_name: person.name, role_title: person.role, verification_status: person.kind === "FACT" ? "UNVERIFIED" : "UNKNOWN", source: "ai_sales_team", metadata: { sourceUrl: person.sourceUrl, evidenceKind: person.kind, confidence: person.confidence } };
+      const contactQuery = existingPerson.data ? client.from("contacts").update(values).eq("id", existingPerson.data.id) : client.from("contacts").insert(values);
+      const { error } = await contactQuery;
+      if (error) throw error;
+    }
     let opportunityId: string | null = null;
     if (brief.territory.code !== "UNKNOWN" && brief.eventSuite.salesMotion !== "UNKNOWN") {
       const [product, territory, motion] = await Promise.all([
@@ -47,7 +54,15 @@ export async function POST(request: Request) {
         client.from("territories").select("id").eq("code", brief.territory.code.toLowerCase() === "gb" ? "uk" : brief.territory.code.toLowerCase()).maybeSingle(),
         client.from("sales_motions").select("id").eq("code", brief.eventSuite.salesMotion.toLowerCase() === "both" ? "direct" : brief.eventSuite.salesMotion.toLowerCase()).maybeSingle(),
       ]);
-      if (product.data && territory.data && motion.data) { const inserted = await client.from("product_opportunities").insert({ account_id: account.id, product_id: product.data.id, territory_id: territory.data.id, sales_motion_id: motion.data.id, commercial_program_id: null, stage: "identified", conversion_route: brief.eventSuite.conversionRoute, qualitative_confidence: brief.qualification.fit === "UNKNOWN" ? null : "MEDIUM", route_reason: brief.eventSuite.rationale, next_action: brief.nextBestAction.action, metadata: { aiSalesTeam: true, pains: brief.pains, useCases: brief.useCases, signals: brief.signals } }).select("id").single(); if (inserted.error) throw inserted.error; opportunityId = inserted.data.id; }
+      if (product.data && territory.data && motion.data) {
+        const values = { account_id: account.id, product_id: product.data.id, territory_id: territory.data.id, sales_motion_id: motion.data.id, commercial_program_id: null, stage: "identified", conversion_route: brief.eventSuite.conversionRoute, qualitative_confidence: brief.qualification.fit === "UNKNOWN" ? null : "MEDIUM", route_reason: brief.eventSuite.rationale, next_action: brief.nextBestAction.action, metadata: { aiSalesTeam: true, pains: brief.pains, useCases: brief.useCases, signals: brief.signals } };
+        const existingOpportunity = await client.from("product_opportunities").select("id").eq("account_id", account.id).eq("product_id", product.data.id).maybeSingle();
+        if (existingOpportunity.error) throw existingOpportunity.error;
+        const opportunityQuery = existingOpportunity.data ? client.from("product_opportunities").update(values).eq("id", existingOpportunity.data.id).select("id").single() : client.from("product_opportunities").insert(values).select("id").single();
+        const savedOpportunity = await opportunityQuery;
+        if (savedOpportunity.error) throw savedOpportunity.error;
+        opportunityId = savedOpportunity.data.id;
+      }
     }
     const { error: activityError } = await client.from("activities").insert({ account_id: account.id, opportunity_id: opportunityId, activity_type: "AI_RESEARCH_NEXT_ACTION", summary: brief.nextBestAction.action, metadata: { reason: brief.nextBestAction.reason, owner: brief.nextBestAction.owner } });
     if (activityError) throw activityError;
