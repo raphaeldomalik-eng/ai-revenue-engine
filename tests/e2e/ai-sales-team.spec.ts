@@ -27,8 +27,18 @@ async function ready(page: Page) {
 test("real AI Sales Team research persists and survives state changes", async ({ page, context }) => {
   test.setTimeout(240_000);
   const errors: string[] = [];
+  const previewHost = new URL(process.env.E2E_BASE_URL!).hostname;
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    if (new URL(request.url()).hostname === previewHost) return route.continue();
+    if (request.resourceType() === "font") return route.abort();
+    const headers = { ...request.headers() };
+    delete headers["x-vercel-protection-bypass"];
+    delete headers["x-vercel-set-bypass-cookie"];
+    return route.continue({ headers });
+  });
   page.on("pageerror", (error) => errors.push(error.message));
-  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  page.on("console", (message) => { if (message.type() === "error" && message.text() !== "Failed to load resource: net::ERR_FAILED") errors.push(message.text()); });
   const supabase = await signIn(context);
   await page.goto("/");
   await ready(page);
@@ -39,11 +49,11 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await page.getByLabel("Website or domain").fill("https://www.eventbrite.com");
   await page.getByRole("button", { name: "Research prospect" }).click();
   await expect(page.getByRole("status").filter({ hasText: "AI Sales Brief saved" })).toBeVisible({ timeout: 180_000 });
-  await expect(page.getByText("AI SALES BRIEF", { exact: true })).toBeVisible();
-  await expect(page.getByText("QUALIFICATION / ICP FIT", { exact: true })).toBeVisible();
-  await expect(page.getByText("FACT EVIDENCE / SOURCES", { exact: true })).toBeVisible();
-  await expect(page.getByText("ACCOUNT STRATEGY", { exact: true })).toBeVisible();
-  await expect(page.getByText("NEXT BEST ACTION", { exact: true })).toBeVisible();
+  await expect(page.getByText("AI SALES BRIEF", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("QUALIFICATION / ICP FIT", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("FACT EVIDENCE / SOURCES", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("ACCOUNT STRATEGY", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("NEXT BEST ACTION", { exact: true }).first()).toBeVisible();
 
   const account = await supabase.from("accounts").select("id").eq("name", company).maybeSingle();
   expect(account.error).toBeNull();
@@ -71,7 +81,7 @@ test("real AI Sales Team research persists and survives state changes", async ({
 
   await page.reload();
   await ready(page);
-  await expect(page.getByText("AI SALES BRIEF", { exact: true })).toBeVisible();
+  await expect(page.getByText("AI SALES BRIEF", { exact: true }).first()).toBeVisible();
   await page.getByLabel("Prospect or company name").fill(company);
   await page.getByLabel("Website or domain").fill("https://www.eventbrite.com");
   await page.getByRole("button", { name: "Research prospect" }).click();
@@ -86,6 +96,6 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await signIn(context);
   await page.goto("/");
   await ready(page);
-  await expect(page.getByText("AI SALES BRIEF", { exact: true })).toBeVisible();
+  await expect(page.getByText("AI SALES BRIEF", { exact: true }).first()).toBeVisible();
   expect(errors, errors.join("\n")).toEqual([]);
 });

@@ -70,7 +70,7 @@ test("operator can persist and re-open Lead Intelligence workflow", async ({ pag
   await page.getByLabel("Next action").fill(nextAction);
   await page.getByRole("button", { name: "Save prospect" }).click();
 
-  await expect(page.getByRole("status")).toContainText("Saved.", { timeout: 30_000 });
+  await expect(page.getByRole("status").filter({ hasText: "Saved." })).toContainText("Saved.", { timeout: 30_000 });
   await expect(page.getByText("DIRECT · UNDETERMINED", { exact: true })).toBeVisible();
   await expect(page.getByText("FACT · HIGH", { exact: true })).toBeVisible();
   const { data: account, error: accountError } = await supabase.from("accounts").select("id").eq("name", organisation).maybeSingle();
@@ -95,11 +95,11 @@ test("operator can persist and re-open Lead Intelligence workflow", async ({ pag
   await expect(page.getByLabel("Contact name")).toHaveValue(contact);
   await expect(page.getByLabel("Research observation")).toHaveValue(observation);
   await expect(page.getByLabel("Next action")).toHaveValue(nextAction);
-  await expect(page.getByRole("status")).toContainText("Saved");
+  await expect(page.getByRole("status").filter({ hasText: "Saved opportunity loaded." })).toContainText("Saved opportunity loaded.");
 
   await page.getByLabel("Research observation").fill(`${observation} Updated once.`);
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByRole("status")).toContainText("Saved.", { timeout: 30_000 });
+  await expect(page.getByRole("status").filter({ hasText: "Saved." })).toContainText("Saved.", { timeout: 30_000 });
   await expect(page.getByRole("button", { name: organisation, exact: true })).toHaveCount(1);
 
   await page.getByRole("button", { name: "Sign out" }).click();
