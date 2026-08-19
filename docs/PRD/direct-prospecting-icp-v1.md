@@ -221,6 +221,10 @@ next_action: string
 
 The first contact uses only the primary engine and primary problem. Secondary opportunities inform account strategy but do not create a multi-product pitch. Outreach is never sent automatically by this contract; human review must confirm identity, relationship, evidence, eligibility and the proposed problem statement.
 
+### Next best commercial action / CTA strategy
+
+Prospect Intelligence selects the lowest-friction credible next commercial action; Outreach executes it. A call is not the default objective. Use verified self-service only where the relevant current EventSuite route supports it, use an evidence-backed value proof where it does not, and never promise a trial or product URL that is not active. EGS may lead with a short personalised event insight rather than a meeting. High-complexity, migration, procurement or enterprise situations may justify a guided walkthrough or call. Each message has one primary CTA, and follow-ups must progress value rather than repeat meeting requests.
+
 ## 18. Discovery requirements for a future implementation
 
 Future discovery must support public-source collection, source freshness, canonical URL retention, duplicate resolution, organisation/event separation, competitor detection, evidence provenance, conflict handling, rate limits, robots/terms compliance, opt-out/DNC, auditability and human review. It must not scrape access-controlled content or invent contact details.

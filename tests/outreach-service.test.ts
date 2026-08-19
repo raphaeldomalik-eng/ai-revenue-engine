@@ -18,12 +18,12 @@ test("failed provider submission never becomes SENT", async () => {
         limit() { return chain; },
         update(values: Record<string, unknown>) { updateValues = values; updates.push(values); return chain; },
         async maybeSingle() {
-          if (table === "accounts") return { data: { metadata: { outreachEligibility: "ELIGIBLE", prospectIntelligence: { outreachEligibility: "ELIGIBLE", salesMotion: "DIRECT" } } }, error: null };
+          if (table === "accounts") return { data: { metadata: { outreachEligibility: "ELIGIBLE", prospectIntelligence: { outreachEligibility: "ELIGIBLE", salesMotion: "DIRECT", nextBestCommercialAction: { type: "SELF_SERVICE" } } } }, error: null };
           if (table === "outreach_suppressions") return { data: null, error: null };
           if (table === "outreach_messages" && updateValues?.status === "SENDING") return { data: { id: message.id, subject: message.subject, body: message.body }, error: null };
           return { data: message, error: null };
         },
-        async single() { return { data: table === "accounts" ? { metadata: { outreachEligibility: "ELIGIBLE", prospectIntelligence: { outreachEligibility: "ELIGIBLE", salesMotion: "DIRECT" } } } : { status: "ACTIVE" }, error: null }; },
+        async single() { return { data: table === "accounts" ? { metadata: { outreachEligibility: "ELIGIBLE", prospectIntelligence: { outreachEligibility: "ELIGIBLE", salesMotion: "DIRECT", nextBestCommercialAction: { type: "SELF_SERVICE" } } } } : { status: "ACTIVE" }, error: null }; },
         async insert() { return { error: null }; },
       };
       return chain;

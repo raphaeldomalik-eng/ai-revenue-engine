@@ -59,3 +59,36 @@ test("direct prospect motion never becomes partnership motion from shared subjec
   assert.equal(result.salesMotion, "DIRECT");
   assert.equal(result.eventConnection.state, "CONFIRMED");
 });
+
+test("small ticketing organiser receives the verified self-service Ticketing action", () => {
+  const result = assess("Small Ticketing Festival", ["The organiser runs an annual paid festival with ticket tiers and admission scanning."]);
+  assert.equal(result.primaryEntryOpportunity, "TICKETING");
+  assert.equal(result.nextBestCommercialAction.type, "SELF_SERVICE");
+  assert.equal(result.nextBestCommercialAction.code, "START_TICKETING_ONBOARDING");
+  assert.equal(result.nextBestCommercialAction.targetUrlIfVerified, "https://www.eventsuite.pro/onboarding/ticketing");
+  assert.equal(result.nextBestCommercialAction.callRecommended, false);
+});
+
+test("EGS uses value proof when no verified EGS trial route exists", () => {
+  const result = assess("Small Digital Festival", ["The organiser runs an annual festival with event information fragmented across social channels and a ticket-provider page."]);
+  assert.equal(result.primaryEntryOpportunity, "EGS");
+  assert.equal(result.nextBestCommercialAction.type, "VALUE_PROOF");
+  assert.equal(result.nextBestCommercialAction.targetUrlIfVerified, null);
+  assert.equal(result.nextBestCommercialAction.callRecommended, false);
+  assert.match(result.nextBestCommercialAction.ctaLabel, /breakdown/i);
+});
+
+test("complex ECC event operations can justify a guided walkthrough", () => {
+  const result = assess("University Events", ["The university runs an annual conference programme across multiple events, departments, suppliers and workforce teams."]);
+  assert.equal(result.primaryEntryOpportunity, "ECC");
+  assert.equal(result.nextBestCommercialAction.type, "HUMAN_ASSISTED");
+  assert.equal(result.nextBestCommercialAction.code, "BOOK_WALKTHROUGH");
+  assert.equal(result.nextBestCommercialAction.callRecommended, true);
+});
+
+test("enterprise migration evidence permits high-touch action without forcing self-service", () => {
+  const result = assess("Enterprise Festival Group", ["The group operates recurring paid festivals and requires migration, procurement and settlement planning."]);
+  assert.equal(result.primaryEntryOpportunity, "TICKETING");
+  assert.equal(result.nextBestCommercialAction.type, "HUMAN_ASSISTED");
+  assert.equal(result.nextBestCommercialAction.targetUrlIfVerified, "https://www.eventsuite.pro/book-demo");
+});
