@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { passwordlessSignInOptions } from "../src/lib/auth/otp.ts";
+import { passwordlessSignInOptions, resolveApplicationOrigin } from "../src/lib/auth/otp.ts";
 import { canMutateCommercialData, revenueAccessState } from "../src/lib/auth/access.ts";
 import { leadIntelligenceFixtures } from "../src/lead-intelligence/fixtures.ts";
 import { commercialProgramLookup, mapAccountProfile, mapProductOpportunity, mapResearchEvidence } from "../src/persistence/revenue-repository.ts";
@@ -14,6 +14,13 @@ test("passwordless sign-in never creates an arbitrary user", () => {
   const options = passwordlessSignInOptions("https://example.test");
   assert.equal(options.shouldCreateUser, false);
   assert.equal(options.emailRedirectTo, "https://example.test/auth/callback");
+});
+
+test("passwordless redirect origin is environment-aware", () => {
+  assert.equal(resolveApplicationOrigin("http://localhost:3000", {}), "http://localhost:3000");
+  assert.equal(resolveApplicationOrigin("http://localhost:3000", { vercelUrl: "ai-revenue-engine-preview-event-suite-team.vercel.app" }), "https://ai-revenue-engine-preview-event-suite-team.vercel.app");
+  assert.equal(resolveApplicationOrigin("http://localhost:3000", { siteUrl: "https://ai-revenue-engine-pearl.vercel.app/" }), "https://ai-revenue-engine-pearl.vercel.app");
+  assert.equal(passwordlessSignInOptions("https://ai-revenue-engine-preview-event-suite-team.vercel.app").emailRedirectTo, "https://ai-revenue-engine-preview-event-suite-team.vercel.app/auth/callback");
 });
 
 test("application access states separate authentication from active internal membership", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { passwordlessSignInOptions } from "../../src/lib/auth/otp";
+import { passwordlessSignInOptions, resolveApplicationOrigin } from "../../src/lib/auth/otp";
 import { createBrowserSupabaseClient } from "../../src/lib/supabase";
 
 export function LoginForm() {
@@ -11,7 +11,8 @@ export function LoginForm() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const supabase = createBrowserSupabaseClient();
-    const { error } = await supabase.auth.signInWithOtp({ email, options: passwordlessSignInOptions(window.location.origin) });
+    const origin = resolveApplicationOrigin(window.location.origin);
+    const { error } = await supabase.auth.signInWithOtp({ email, options: passwordlessSignInOptions(origin) });
     setMessage(error ? error.message : "If this address is already provisioned, a secure sign-in link has been sent.");
   }
 
