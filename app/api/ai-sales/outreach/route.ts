@@ -85,7 +85,7 @@ export async function POST(request: Request) {
     throw new Error("OUTREACH_ACTION_INVALID");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Outreach action failed.";
-    const status = message.includes("NOT_CONFIGURED") ? 503 : message.includes("REQUIRED") || message.includes("INVALID") ? 400 : 502;
+    const status = message.includes("NOT_CONFIGURED") ? 503 : message.includes("REQUIRED") || message.includes("INVALID") ? 400 : message.includes("OUTREACH_RECIPIENT_UNKNOWN") || message.includes("OUTREACH_APPROVAL_REQUIRED") || message.includes("OUTREACH_STOPPED") ? 409 : 502;
     return NextResponse.json({ code: message.split(":")[0], message }, { status });
   }
 }

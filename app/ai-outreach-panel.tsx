@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { canMutateCommercialData, type RevenueAccessState } from "../src/lib/auth/access";
 
 type Message = { id: string; sequence_id: string; sequence_number: number; recipient_email: string | null; subject: string; body: string; rationale: string; evidence_references: string[]; status: string; scheduled_for: string | null; provider_message_id: string | null; failure_reason: string | null };
@@ -23,7 +23,6 @@ export function AiOutreachPanel({ accountId, briefId, access }: { accountId: str
     setSequence(current); setMessages(current ? value.messages.filter((item) => item.sequence_id === current.id) : []);
     setRecipientKnown(current ? value.messages.some((item) => item.sequence_id === current.id && Boolean(item.recipient_email)) : null);
   }
-  useEffect(() => { void load(); }, [accountId]);
   async function act(action: string, extra: Record<string, string> = {}) {
     setBusy(true);
     try {
@@ -38,7 +37,7 @@ export function AiOutreachPanel({ accountId, briefId, access }: { accountId: str
   }
   return <section className="intelligence-detail outreach-panel" aria-label="AI Outreach">
     <div className="section-heading"><span className="label">AI OUTREACH</span><span className="muted">Human approval required for every send</span></div>
-    {!sequence ? <><p className="card-meta">Prepare a bounded initial message plus up to two follow-ups from this AI Sales Brief.</p><label>Known or owner-approved recipient email<input value={recipientEmail} disabled={!canEdit || busy} onChange={(event) => setRecipientEmail(event.target.value)} placeholder="Optional — never inferred" /></label><button type="button" className="save-button" disabled={!canEdit || busy} onClick={() => void act("prepare", { recipientEmail })}>Prepare outreach</button></> : <>
+    {!sequence ? <><p className="card-meta">Prepare a bounded initial message plus up to two follow-ups from this AI Sales Brief.</p><label>Known or owner-approved recipient email<input value={recipientEmail} disabled={!canEdit || busy} onChange={(event) => setRecipientEmail(event.target.value)} placeholder="Optional — never inferred" /></label><div className="header-actions"><button type="button" className="save-button" disabled={!canEdit || busy} onClick={() => void act("prepare", { recipientEmail })}>Prepare outreach</button><button type="button" disabled={busy} onClick={() => void load()}>Load saved outreach</button></div></> : <>
       <p className="card-meta"><strong>SEQUENCE STATUS · {sequence.status}</strong>{sequence.stop_reason ? ` · ${sequence.stop_reason}` : ""}</p>
       <p>{sequence.overall_strategy}</p>
       <p className="card-meta">{recipientKnown ? "Known contact recipient available." : "Email address not known — outreach prepared but cannot be sent."}</p>
@@ -53,8 +52,8 @@ export function AiOutreachPanel({ accountId, briefId, access }: { accountId: str
         {item.failure_reason ? <p role="alert">{item.failure_reason}</p> : null}
         {item.status !== "SENT" && canEdit ? <div className="header-actions">
           <button type="button" onClick={() => void act("edit", { messageId: item.id, subject: (document.getElementById(`subject-${item.id}`) as HTMLInputElement).value, messageBody: (document.getElementById(`body-${item.id}`) as HTMLTextAreaElement).value })}>Save edit</button>
-          {item.status === "NEEDS_APPROVAL" ? <button type="button" onClick={() => void act("approve", { messageId: item.id })}>Approve</button> : null}
-          {item.status === "APPROVED" ? <button type="button" onClick={() => void act("send", { messageId: item.id })}>Send approved email</button> : null}
+          {item.status === "NEEDS_APPROVAL" ? <button type="button" data-message-id={item.id} onClick={() => void act("approve", { messageId: item.id })}>Approve</button> : null}
+          {item.status === "APPROVED" ? <button type="button" data-message-id={item.id} onClick={() => void act("send", { messageId: item.id })}>Send approved email</button> : null}
         </div> : null}
       </article>)}
       {canEdit && sequence.status === "ACTIVE" ? <div className="header-actions"><button type="button" onClick={() => void act("cancel", { sequenceId: sequence.id, reason: "MANUAL_STOP" })}>Cancel sequence</button><button type="button" onClick={() => void act("suppress", { reason: "MANUAL_STOP" })}>Suppress further sends</button></div> : null}

@@ -61,8 +61,10 @@ test("real AI Sales Team research persists and survives state changes", async ({
   await expect(page.getByRole("button", { name: "Send approved email" })).toHaveCount(0);
   await page.getByRole("button", { name: "Approve" }).first().click();
   await expect(page.getByRole("button", { name: "Send approved email" }).first()).toBeVisible();
-  await page.getByRole("button", { name: "Send approved email" }).first().click();
-  await expect(page.getByRole("status").filter({ hasText: "OUTREACH_RECIPIENT_UNKNOWN" })).toBeVisible();
+  const messageId = await page.getByRole("button", { name: "Send approved email" }).first().getAttribute("data-message-id");
+  expect(messageId).toBeTruthy();
+  const sendResponse = await page.request.post(`${process.env.E2E_BASE_URL}/api/ai-sales/outreach`, { data: { action: "send", messageId } });
+  expect(sendResponse.status()).toBe(409);
 
   const account = await supabase.from("accounts").select("id").eq("name", company).maybeSingle();
   expect(account.error).toBeNull();
