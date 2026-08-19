@@ -7,6 +7,7 @@ import { revenueAccessState, type RevenueAccessState } from "../src/lib/auth/acc
 import { commercialPlaybooks } from "../src/revenue/playbooks";
 import { createBrowserSupabaseClient } from "../src/lib/supabase";
 import { AiSalesTeamView } from "./ai-sales-team-view";
+import { AutonomousDiscoveryView } from "./autonomous-discovery-view";
 
 const programs = [
   ["Direct Customer Acquisition", "ZA · UK", "Self-service or qualified live demo"],
@@ -29,6 +30,7 @@ function CommandCentre({ onSignOut, access }: { onSignOut: () => void; access: E
     <section className="playbook-section"><div className="section-heading"><span className="label">PLAYBOOKS / READINESS</span><span className="muted">Loaded deterministically · outreach disabled</span></div><div className="playbook-grid">{commercialPlaybooks.map((playbook) => <article className="playbook-card" key={playbook.id}><div className="card-top"><span className="pill">{motionLabels[playbook.salesMotion as keyof typeof motionLabels]}</span><span className="muted">{playbook.version}</span></div><h2>{territoryLabels[playbook.territory as keyof typeof territoryLabels]}</h2><p className="card-route">{playbook.conversionGoals.map((goal) => goal.replaceAll("_", " ")).join(" · ")}</p><p className="card-meta">{playbook.pricingGuidance.currency} · {playbook.pricingGuidance.pricingVersion} · VAT {playbook.pricingGuidance.vat === "EXCLUSIVE" ? "excl." : "incl."}</p>{playbook.clientSegments?.map((segment) => <p className="card-meta" key={segment.code}>SEGMENT · {segment.name} · SPECIAL DISCOUNT · RATE TBD / DEFERRED</p>)}<div className="readiness-grid"><div><span className="label">PLAYBOOK</span><strong className={readinessClass(playbook.readiness.playbook)}>{playbook.readiness.playbook}</strong></div><div><span className="label">PRICING</span><strong className={readinessClass(playbook.readiness.pricing)}>{playbook.readiness.pricing}</strong></div><div><span className="label">ICP PRIORITY</span><strong className={readinessClass(playbook.readiness.icpPriority)}>{playbook.readiness.icpPriority}</strong></div><div><span className="label">EVIDENCE</span><strong className={readinessClass(playbook.readiness.differentiationEvidence)}>{playbook.readiness.differentiationEvidence}</strong></div></div><footer className="card-footer"><span>OUTREACH READY</span><span className="no">{playbook.readiness.outreachReady}</span></footer></article>)}</div></section>
     <LeadIntelligenceView access={access} />
     <AiSalesTeamView access={access} />
+    <AutonomousDiscoveryView access={access} />
     <footer><span>DESIGNED FOR HUMAN-LED REVENUE</span><span>v0.1 FOUNDATION</span></footer>
   </main>;
 }
