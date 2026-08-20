@@ -60,3 +60,9 @@ test("contact research migration extends only discovery-candidate memory", () =>
   assert.match(sql, /contact_research jsonb/);
   assert.doesNotMatch(sql, /create table|create policy|alter table public\.contacts/i);
 });
+
+test("organisation contact routes do not require a fabricated person name", () => {
+  const sql = readFileSync("supabase/migrations/20260820000006_prospect_contact_route_name_nullable.sql", "utf8");
+  assert.match(sql, /alter column full_name drop not null/);
+  assert.doesNotMatch(sql, /create table|create policy/i);
+});
