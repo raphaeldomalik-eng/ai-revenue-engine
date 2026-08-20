@@ -16,6 +16,9 @@ export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: 
 
 const sourceRoles = ["DISCOVERY", "VALIDATION", "COMMERCIAL_EVIDENCE", "CONTACT", "SIGNAL"] as const;
 const freshnessStates = ["ACTIVE_UPCOMING", "RECENT_RECURRING_EVIDENCE", "HISTORICAL", "CANCELLED_DEAD_UNSUPPORTED", "UNKNOWN"] as const;
+const SERVICE_NOISE_PATTERN = /\b(?:ticketing platform|ticketing software|ticketing provider|event technology|event[- ]tech|recruitment solutions?|recruitment business)\b/i;
+const EVENT_CONTEXT_PATTERN = /\b(?:event|conference|symposium|festival|programme|tournament|exhibition|performance|summit|workshop|concert)\w*\b/i;
+const ORGANISER_PATTERN = /\b(?:organis(?:e|es|ed|ing)|promotes?|operates?|produces?|presents?|runs?|owns?|host(?:s|ed|ing))\b/i;
 const candidateSchema = {
   type: "object", additionalProperties: false, required: ["candidates"], properties: {
     candidates: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["canonicalName", "organiserName", "website", "origin", "relationshipHint", "facts", "inferences", "unknowns"], properties: {
@@ -92,7 +95,9 @@ export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, terri
   const relationship = classifyAccountRelationship({ name: candidate.organiserName || candidate.canonicalName, website: candidate.website, summary: [...facts, ...candidate.inferences].map((item) => item.claim).join(" "), qualificationFit: facts.length ? "MEDIUM" : "UNKNOWN", relationship: candidate.relationshipHint }).relationship;
   const prospectIntelligence = evaluateProspectIntelligence({ relationship, territory, facts, inferences: candidate.inferences.filter((item) => item.kind === "INFERENCE"), unknowns: candidate.unknowns });
   const freshness = prospectIntelligence.eventFreshness.state;
-  const status: DiscoveryCandidateStatus = relationship === "COMPETITOR" ? "BLOCKED" : freshness === "HISTORICAL" || freshness === "CANCELLED_DEAD_UNSUPPORTED" || prospectIntelligence.eventConnection.state === "NONE" ? "REJECTED" : prospectIntelligence.accountCreationEligible ? "QUALIFIED" : "REVIEW_REQUIRED";
+  const hasOrganiserEvidence = facts.some((item) => EVENT_CONTEXT_PATTERN.test(item.claim) && ORGANISER_PATTERN.test(item.claim));
+  const providerNoise = relationship !== "COMPETITOR" && facts.some((item) => SERVICE_NOISE_PATTERN.test(item.claim)) && !hasOrganiserEvidence;
+  const status: DiscoveryCandidateStatus = relationship === "COMPETITOR" ? "BLOCKED" : providerNoise ? "REJECTED" : freshness === "HISTORICAL" || freshness === "CANCELLED_DEAD_UNSUPPORTED" || prospectIntelligence.eventConnection.state === "NONE" ? "REJECTED" : prospectIntelligence.accountCreationEligible ? "QUALIFIED" : "REVIEW_REQUIRED";
   return { ...candidate, facts, canonicalKey: canonicalDiscoveryKey(candidate.organiserName || candidate.canonicalName, candidate.website), relationship, status, prospectIntelligence, sourceUrls: [...new Set(facts.map((item) => item.sourceUrl).filter((url): url is string => Boolean(url)))] };
 }
 

@@ -72,6 +72,14 @@ test("facts, inferences and unknowns remain distinct and contact/outreach remain
   assert.doesNotMatch(route, /outreach_messages\)\.insert/);
 });
 
+test("provider and service noise without organiser evidence is rejected before enrichment", () => {
+  const noise = evaluateDiscoveryCandidate(candidate({ canonicalName: "Noise Tickets", organiserName: "Noise Tickets", facts: [fact("Noise Tickets is a South African ticketing platform offering online ticketing software for events.", ["DISCOVERY"])] }), "ZA");
+  const organiser = evaluateDiscoveryCandidate(candidate({ facts: [fact("Quality Events organises an upcoming festival and uses a ticketing platform for paid admissions.", ["VALIDATION", "COMMERCIAL_EVIDENCE"])] }), "ZA");
+  assert.equal(noise.status, "REJECTED");
+  assert.equal(organiser.relationship, "PROSPECT");
+  assert.notEqual(organiser.status, "REJECTED");
+});
+
 test("bounded enrichment adds validation and commercial roles without inflating discovery confidence", () => {
   const initial = evaluateDiscoveryCandidate(candidate({ facts: [fact("A directory lists Quality Festival.", ["DISCOVERY"])] }), "ZA");
   const enriched = applyDiscoveryEnrichment(initial, {
