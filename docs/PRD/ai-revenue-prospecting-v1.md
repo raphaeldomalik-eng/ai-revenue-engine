@@ -22,6 +22,8 @@ An event is normally evidence about the organisation. Individual performances, i
 
 Individual artists and performers are not normal V1 targets unless a future, explicit sales motion activates that segment.
 
+EventSuite itself and authoritative EventSuite-owned first-party identities or domains are not prospects. First-party properties may be used as source, product or reference material, but must never become autonomous prospect Accounts, commercial Opportunities, contact-research targets or outreach targets. Identity is determined from authoritative first-party identity, especially the official `eventsuite.pro` domain and its appropriate subdomains; loose name or substring matching is not sufficient.
+
 ## 2. Discovery paths
 
 The strategy supports three conceptual paths, with no fixed quota or required ratio:
