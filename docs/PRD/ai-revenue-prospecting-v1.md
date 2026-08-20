@@ -14,6 +14,10 @@ The canonical workflow is:
 
 `DISCOVER → RESOLVE ORGANISATION → VALIDATE → BUILD EVENT / ACTIVITY CONTEXT → DIAGNOSE COMMERCIAL NEED → IDENTIFY BUYER ROLE → VERIFY CONTACT ROUTE → QUALIFY / REVIEW / REJECT → RECOMMEND NEXT ACTION`
 
+### Revenue intelligence principle
+
+The AI Revenue Engine owns commercial intelligence and sales memory. EventSuite owns tenant and product operational state. Gig Guide owns its public content and discovery graph. SendGrid owns email delivery and engagement events. Systems exchange only narrowly scoped facts and signals through explicit server-side contracts; the Revenue Engine must not receive unrestricted cross-database access.
+
 ## 1. Primary commercial entity
 
 The primary commercial entity is normally the organisation: organiser, promoter, festival operator, conference or exhibition organiser, recurring event business, venue operating a meaningful programme, event agency, association or institution running recurring events, or community event operator.
@@ -55,6 +59,8 @@ The source model is intentionally multi-source:
 - search engines;
 - news and announcements;
 - public professional and company sources.
+
+Future first-party source families must also use this bounded model. Gig Guide is a future discovery/source family whose first intended use is venue prospecting. Its public graph may connect venues, gigs/events, artists, locations, ticket links/providers and recurring programmes. Artists are primarily discovery graph nodes in this use case, not automatic sales prospects. A Gig Guide listing alone is not sufficient Account qualification.
 
 Future adapters must fit this source model rather than create a separate prospecting architecture.
 
@@ -235,6 +241,99 @@ The following are deferred from this policy’s current implementation stage:
 - unrelated UI redesign;
 - new partner/channel or outreach motions.
 
+The following revenue-intelligence capabilities are also explicitly future roadmap items, not production capability in this slice:
+
+- EventSuite Lifecycle Bridge;
+- tenant, trial and customer lifecycle matching;
+- shared commercial identity mapping;
+- Local Operator Network integration;
+- Gig Guide venue prospect graph;
+- SendGrid Revenue Engine event-webhook feedback;
+- Signal-first source expansion;
+- Meta and LinkedIn source integrations;
+- scheduled or background prospecting.
+
+## 19. Revenue intelligence and first-party integration roadmap
+
+The Revenue Engine should eventually connect commercial intelligence to first-party lifecycle signals without duplicating operational systems. This section establishes boundaries and sequencing only; it authorises no integration, schema, credential or runtime work.
+
+### EventSuite Lifecycle Bridge
+
+The future EventSuite Lifecycle Bridge should allow the Revenue Engine to recognise when a researched organisation starts a trial, becomes an EventSuite tenant, activates products, becomes a paying customer, converts through another acquisition source, expands, churns or otherwise changes lifecycle state where appropriate. A prospect that independently starts a trial or becomes a customer must stop being treated as an ordinary outbound prospect. The conceptual lifecycle is:
+
+`DISCOVERED → RESEARCHED → CONTACTED where applicable → TRIAL → TENANT → CUSTOMER`
+
+Lifecycle matching must work regardless of acquisition source and must not require outreach attribution. The bridge should exchange the smallest useful server-side facts and retain commercial state in the Revenue Engine; it must not copy EventSuite tenant data wholesale.
+
+### Commercial identity and attribution
+
+The future commercial identity map is conceptually:
+
+`Revenue Engine Account ↔ EventSuite Tenant / Organisation ↔ first-party source identities`
+
+Matching should prefer authoritative identifiers and domains. Fuzzy company-name matching must not be the primary key. The Revenue Engine should retain only the commercial facts and signals needed for sales reasoning.
+
+Future attribution should distinguish original discovery source, first commercial signal, outreach involvement, known trial source, known conversion source, organic or other conversion, time from discovery to trial/customer, the product hypothesis at discovery and eventual product adoption. `UNKNOWN ATTRIBUTION` must remain distinct from `REVENUE ENGINE ATTRIBUTION`; the existence of a prospect in Revenue Engine memory does not prove that Revenue Engine outreach caused a conversion.
+
+This identity and lifecycle boundary is also foundational for the future Local Operator Network. It must be capable of distinguishing a direct EventSuite prospect/customer, a Local Operator Network relationship, an operator-influenced or operator-referred conversion, territory/channel attribution and other future commercial channels. The full Local Operator Network data model belongs in its own future product specification and is not defined here.
+
+### Gig Guide venue prospect graph
+
+After quality proof, a future Gig Guide Venue Prospect Graph may use limited server/API contracts to derive venue discovery signals such as event frequency, recurring programmes, unique artists, programme breadth, city/territory, ticketing-provider mix, listing/activity growth and an active but weak owned destination. Gig Guide facts should normally begin as DISCOVERY and/or SIGNAL evidence; public or official sources must still validate commercial claims where appropriate. The graph may support loops such as:
+
+`VENUE → events → artists → other venues → validate venue → commercial research`
+
+and:
+
+`ARTIST → performances → venues → venue programme → commercial research`
+
+Revenue Engine access must remain limited to the facts needed for prospect discovery and commercial reasoning, not unrelated Gig Guide or EventSuite operational data.
+
+### SendGrid outreach feedback
+
+The future SendGrid Event Webhook integration for Revenue Engine outreach may retain processed, delivered, deferred, bounce, dropped, open, click, spam-report and unsubscribe events. Where architecture permits, it should reuse proven EventSuite patterns for signature validation, correlation/custom arguments, webhook deduplication and idempotency, delivery/failure persistence and unsubscribe suppression. This is distinct from EventSuite’s existing SendGrid implementation and is not implemented by this PRD update.
+
+Telemetry should treat hard bounces, unsubscribes, replies, meaningful link clicks, trial starts and conversions as strong/actionable signals. Opens are weaker evidence and must not independently drive strong sales conclusions.
+
+### Closed-loop learning
+
+The intended future feedback loop is:
+
+`prospect discovery → validation → commercial hypothesis → approved outreach where applicable → engagement → trial → tenant/customer → commercial outcome → prospecting-quality learning`
+
+Initially this means durable measurable data and product analytics that can later improve prospecting rules and AI reasoning. It does not approve autonomous model retraining.
+
+### Approved sequencing
+
+After core public-web prospecting is quality-proven, the current roadmap is:
+
+1. Operator Experience V1;
+2. EventSuite Lifecycle Bridge V1;
+3. Gig Guide Venue Prospect Graph V1;
+4. SendGrid Outreach Feedback V1;
+5. Meta source feasibility/integration;
+6. LinkedIn source feasibility/integration;
+7. Signal-first expansion;
+8. scheduled/background autonomous prospecting only after later quality gates.
+
+This order may evolve from evidence, but represents the current approved product sequencing. The immediate release and quality sequence is:
+
+1. finish safety and integrity corrections — complete through PR #17;
+2. Revenue Intelligence roadmap documentation — this PRD update in PR #16;
+3. explicitly approve and remove only the known invalid EventSuite self-prospect graph;
+4. run Production Quality Calibration V4;
+5. if needed, make one focused commercial-quality correction against the bottleneck proven by V4;
+6. repeat bounded calibration until a quality decision is reached;
+7. only after core prospecting quality is proven, begin Operator Experience V1 and the future integrations above.
+
+The current quality gate is not weakened by this future roadmap. Operator Experience is not unlocked by documentation alone.
+
+### Current commercial-quality gap
+
+Current prospecting is safer and more observable, but has not yet proven that it reliably delivers valid, commercially qualified prospects. Production Quality Calibration V3 observed 39 discovered candidates, 0 valid qualified prospects, sparse commercial evidence, 0 positive EGS hypotheses, 0 positive Ticketing hypotheses and only an invalid EventSuite self-prospect carrying the positive ECC/qualified result. This remains an unresolved product question, not a completed capability.
+
+Quality Calibration V4 is the next evidence gate. Its purpose is to use the enrichment telemetry to identify whether the bottleneck is candidate discovery quality, enrichment eligibility, enrichment execution, validation evidence, commercial-evidence extraction, EGS/Ticketing/ECC diagnosis, FACT/INFERENCE/UNKNOWN generation, Event Connection, or the qualification/account gate. V4 is diagnostic; it does not authorise autonomous model retraining.
+
 ## Non-normative implementation status
 
 Implemented or proven so far:
@@ -245,7 +344,8 @@ Implemented or proven so far:
 - competitor/customer distinction;
 - cautious canonicalisation;
 - gated contact research;
-- one bounded second-stage enrichment pass in PR #14 when merged.
+- one bounded second-stage enrichment pass in PR #14 when merged;
+- first-party self-exclusion and enrichment observability in PR #15 when merged.
 
 Not yet quality-proven at real-world production scale:
 
@@ -255,3 +355,7 @@ Not yet quality-proven at real-world production scale:
 - meaningful live inference and unknown output at scale.
 
 PR #14 is governed by this PRD and remains limited to bounded evidence enrichment. It does not implement Signal-first discovery, Meta, LinkedIn, UI redesign or scheduled discovery. Production quality calibration remains a separate post-merge gate.
+
+PR #15 is governed by this PRD and remains limited to first-party self-exclusion and bounded enrichment observability. It does not implement the EventSuite Lifecycle Bridge, lifecycle matching, Local Operator Network integration, Gig Guide prospect graph, SendGrid Revenue Engine webhook feedback, Meta, LinkedIn, Signal-first expansion or scheduled prospecting. All such capabilities remain planned, not implemented.
+
+PR #17 is governed by this PRD and remains limited to the legacy first-party Contact Discovery and outreach guard. Current authoritative Account identity now blocks stale EventSuite self-prospect state before contact research or outreach work; this correction does not clean historical records or prove broader commercial qualification quality.
