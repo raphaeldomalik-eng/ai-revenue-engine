@@ -75,7 +75,7 @@ export async function POST(request: Request) {
     if (candidateWriteError) throw candidateWriteError;
     return NextResponse.json({ candidate: savedCandidate, contactResearch: { status: researched.result.status, likelyBuyerRole: researched.result.likelyBuyerRole, namedContact: researched.result.namedContact, organisationRoute: researched.result.organisationRoute } });
   } catch (cause) {
-    const message = cause instanceof Error ? cause.message : "Public contact research failed.";
+    const message = cause instanceof Error ? cause.message : cause && typeof cause === "object" && "message" in cause && typeof cause.message === "string" ? cause.message : "Public contact research failed.";
     console.error("Prospect contact research failed", { candidateId: candidate.id, message });
     return NextResponse.json({ message }, { status: message.startsWith("AI_RESEARCH_NOT_CONFIGURED") ? 503 : 502 });
   }
