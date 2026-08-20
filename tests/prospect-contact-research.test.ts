@@ -40,7 +40,7 @@ test("a named person can be retained while an unquoted email pattern is rejected
 });
 
 test("only credible prospect candidates may run contact research", () => {
-  const allowed = { status: "REVIEW_REQUIRED", relationship: "PROSPECT", account_id: "account-id", prospect_intelligence: { eventConnection: { state: "CONFIRMED" } } };
+  const allowed = { status: "QUALIFIED", relationship: "PROSPECT", account_id: "account-id", prospect_intelligence: { eventConnection: { state: "CONFIRMED" }, accountCreationEligible: true } };
   assert.equal(isContactResearchEligible(allowed), true);
   assert.equal(isContactResearchEligible({ ...allowed, status: "REJECTED" }), false);
   assert.equal(isContactResearchEligible({ ...allowed, relationship: "COMPETITOR" }), false);

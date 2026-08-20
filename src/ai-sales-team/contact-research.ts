@@ -145,8 +145,8 @@ export function normaliseContactResearch(value: ContactResearchInput): ContactRe
 }
 
 export function isContactResearchEligible(candidate: { status: string; relationship: string; account_id: string | null; prospect_intelligence: unknown }) {
-  const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { eventConnection?: { state?: string } } : {};
-  return Boolean(candidate.account_id) && ["QUALIFIED", "REVIEW_REQUIRED"].includes(candidate.status) && candidate.relationship === "PROSPECT" && ["CONFIRMED", "STRONG"].includes(intelligence.eventConnection?.state ?? "");
+  const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { eventConnection?: { state?: string }; accountCreationEligible?: boolean } : {};
+  return Boolean(candidate.account_id) && candidate.status === "QUALIFIED" && candidate.relationship === "PROSPECT" && intelligence.accountCreationEligible === true && ["CONFIRMED", "STRONG"].includes(intelligence.eventConnection?.state ?? "");
 }
 
 export function contactPersistenceTargets(result: ContactResearchResult): ContactPersistenceTarget[] {
