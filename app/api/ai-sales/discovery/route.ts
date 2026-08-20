@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { discoverProspects, type DiscoveryFocus, type DiscoveryTerritory } from "../../../../src/ai-sales-team/discovery";
+import { canPersistCommercialMemory, discoverProspects, isFirstPartyCandidate, type DiscoveryFocus, type DiscoveryTerritory } from "../../../../src/ai-sales-team/discovery";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
+import { FIRST_PARTY_SELF } from "../../../../src/ai-sales-team/first-party";
 
 async function operatorClient() {
   const client = await createServerSupabaseClient();
@@ -34,8 +35,9 @@ export async function POST(request: Request) {
       const prior = await state.client.from("ai_prospect_candidates").select("id, account_id").eq("canonical_key", candidate.canonicalKey).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (prior.error) throw prior.error;
       const accountName = candidate.organiserName || candidate.canonicalName;
-      let accountId = prior.data?.account_id ?? null;
-      const shouldCreateAccount = candidate.prospectIntelligence.accountCreationEligible;
+      const firstPartySelf = isFirstPartyCandidate(candidate);
+      let accountId = firstPartySelf ? null : prior.data?.account_id ?? null;
+      const shouldCreateAccount = canPersistCommercialMemory(candidate);
       if (!accountId && shouldCreateAccount) {
         const existing = candidate.website
           ? await state.client.from("accounts").select("id, website").eq("website", candidate.website).limit(1).maybeSingle()
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
           accountId = created.id;
         }
       }
-      if (accountId && candidate.prospectIntelligence.accountCreationEligible) {
+      if (accountId && !firstPartySelf && candidate.prospectIntelligence.accountCreationEligible) {
         const evidence = candidate.facts.map((item) => ({ account_id: accountId, evidence_type: item.sourceUrl ? "WEBSITE" : "OTHER", claim: item.claim, source_url: item.sourceUrl, source_title: item.sourceTitle, source_reference: item.sourceUrl ?? "autonomous-discovery", observed_at: new Date().toISOString(), evidence_kind: "FACT", qualitative_confidence: item.confidence, metadata: { discoveryRunId: run.id, origin: candidate.origin, sourceRoles: item.sourceRoles ?? ["DISCOVERY"], eventFreshness: item.eventFreshness ?? "UNKNOWN" } }));
         const existingEvidence = await state.client.from("research_evidence").select("claim, source_url").eq("account_id", accountId);
         if (existingEvidence.error) throw existingEvidence.error;
@@ -69,13 +71,15 @@ export async function POST(request: Request) {
           if (error) throw error;
         }
       }
-      const status = prior.data ? "DUPLICATE" : candidate.status;
-      const values = { discovery_run_id: run.id, canonical_key: candidate.canonicalKey, candidate_name: candidate.canonicalName, organiser_name: candidate.organiserName, website: candidate.website, territory_code: body.territory, origin: candidate.origin, status, account_id: accountId, relationship: candidate.relationship, facts: candidate.facts, inferences: candidate.inferences, unknowns: candidate.unknowns, prospect_intelligence: candidate.prospectIntelligence, source_urls: candidate.sourceUrls, dedupe_of_candidate_id: prior.data?.id ?? null, last_seen_at: new Date().toISOString() };
+      const status = firstPartySelf ? "REJECTED" : prior.data ? "DUPLICATE" : candidate.status;
+      const relationship = firstPartySelf ? "UNKNOWN" : candidate.relationship;
+      const prospectIntelligence = { ...candidate.prospectIntelligence, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, enrichment: candidate.enrichment };
+      const values = { discovery_run_id: run.id, canonical_key: candidate.canonicalKey, candidate_name: candidate.canonicalName, organiser_name: candidate.organiserName, website: candidate.website, territory_code: body.territory, origin: candidate.origin, status, account_id: accountId, relationship, facts: candidate.facts, inferences: candidate.inferences, unknowns: candidate.unknowns, prospect_intelligence: prospectIntelligence, source_urls: candidate.sourceUrls, dedupe_of_candidate_id: prior.data?.id ?? null, last_seen_at: new Date().toISOString() };
       const { data, error } = await state.client.from("ai_prospect_candidates").insert(values).select("*").single();
       if (error) throw error;
       saved.push(data);
     }
-    const counts = { discovered: saved.length, qualified: saved.filter((item) => item.status === "QUALIFIED").length, reviewRequired: saved.filter((item) => item.status === "REVIEW_REQUIRED").length, blockedOrRejected: saved.filter((item) => item.status === "BLOCKED" || item.status === "REJECTED").length, duplicates: saved.filter((item) => item.status === "DUPLICATE").length };
+    const counts = { discovered: saved.length, qualified: saved.filter((item) => item.status === "QUALIFIED").length, reviewRequired: saved.filter((item) => item.status === "REVIEW_REQUIRED").length, blockedOrRejected: saved.filter((item) => item.status === "BLOCKED" || item.status === "REJECTED").length, duplicates: saved.filter((item) => item.status === "DUPLICATE").length, ...result.enrichment };
     await state.client.from("ai_prospect_discovery_runs").update({ status: "COMPLETED", provider: result.provider, model: result.model, summary: counts, completed_at: new Date().toISOString() }).eq("id", run.id);
     return NextResponse.json({ run: { id: run.id, territory_code: body.territory, focus: body.focus, status: "COMPLETED", summary: counts, ai_prospect_candidates: saved } });
   } catch (error) {

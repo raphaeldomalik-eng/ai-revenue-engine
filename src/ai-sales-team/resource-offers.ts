@@ -11,7 +11,7 @@ export type ResourceOffer = {
   matchedBuyerRole: string | null;
 };
 
-const EVENTSUITE_ORIGIN = "https://www.eventsuite.pro";
+export const EVENTSUITE_ORIGIN = "https://www.eventsuite.pro";
 export const EVENTSUITE_LANDING_URL = `${EVENTSUITE_ORIGIN}/`;
 export const RESOURCE_CENTRE_URL = `${EVENTSUITE_ORIGIN}/resources`;
 

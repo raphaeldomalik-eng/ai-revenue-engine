@@ -1,18 +1,30 @@
 import type { AiSalesEvidence } from "./model.ts";
 import { classifyAccountRelationship, type AccountRelationship } from "./outreach-model.ts";
 import { evaluateProspectIntelligence, type ProspectIntelligence } from "./prospect-intelligence.ts";
+import { FIRST_PARTY_SELF, isEventSuiteFirstPartyIdentity } from "./first-party.ts";
 
 export type DiscoveryTerritory = "ZA" | "GB";
 export type DiscoveryFocus = "ALL" | "EGS" | "TICKETING" | "ECC";
 export type DiscoveryOrigin = "EVENT_FIRST" | "ORGANISATION_FIRST";
-export type DiscoveryCandidateStatus = "QUALIFIED" | "REVIEW_REQUIRED" | "BLOCKED" | "REJECTED";
+export type DiscoveryCandidateStatus = "QUALIFIED" | "REVIEW_REQUIRED" | "BLOCKED" | "REJECTED" | "DUPLICATE";
 export type DiscoverySourceRole = "DISCOVERY" | "VALIDATION" | "COMMERCIAL_EVIDENCE" | "CONTACT" | "SIGNAL";
 export type EventFreshness = NonNullable<AiSalesEvidence["eventFreshness"]>;
 export type DiscoveryEvidence = AiSalesEvidence & { sourceRoles?: DiscoverySourceRole[]; eventFreshness?: EventFreshness };
 export type EnrichmentEvidence = DiscoveryEvidence;
+export type EnrichmentSkipReason = "BLOCKED" | "REJECTED" | "DUPLICATE" | "FIRST_PARTY_SELF" | "NONE_EVENT_CONNECTION" | "NOT_PLAUSIBLE" | "BUDGET_LIMIT" | "OTHER_SAFE_REASON";
+export type EnrichmentCandidateTelemetry = { status: "SKIPPED" | "ATTEMPTED" | "SUCCEEDED" | "FAILED"; attempted: boolean; succeeded: boolean; materiallyChanged: boolean; skipReason?: EnrichmentSkipReason };
+export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number };
 
 export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[] };
-export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence; sourceUrls: string[] };
+export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence & { firstPartyStatus?: typeof FIRST_PARTY_SELF }; sourceUrls: string[]; firstPartyStatus?: typeof FIRST_PARTY_SELF; enrichment: EnrichmentCandidateTelemetry };
+
+export function isFirstPartyCandidate(candidate: Pick<EvaluatedDiscoveryCandidate, "website" | "sourceUrls" | "firstPartyStatus" | "canonicalName" | "organiserName">) {
+  return candidate.firstPartyStatus === FIRST_PARTY_SELF || isEventSuiteFirstPartyIdentity({ website: candidate.website, identityName: candidate.organiserName || candidate.canonicalName, sourceUrls: candidate.sourceUrls });
+}
+
+export function canPersistCommercialMemory(candidate: Pick<EvaluatedDiscoveryCandidate, "prospectIntelligence" | "website" | "sourceUrls" | "firstPartyStatus" | "canonicalName" | "organiserName">) {
+  return !isFirstPartyCandidate(candidate) && candidate.prospectIntelligence.accountCreationEligible;
+}
 
 const sourceRoles = ["DISCOVERY", "VALIDATION", "COMMERCIAL_EVIDENCE", "CONTACT", "SIGNAL"] as const;
 const freshnessStates = ["ACTIVE_UPCOMING", "RECENT_RECURRING_EVIDENCE", "HISTORICAL", "CANCELLED_DEAD_UNSUPPORTED", "UNKNOWN"] as const;
@@ -76,29 +88,64 @@ export function applyDiscoveryEnrichment(candidate: EvaluatedDiscoveryCandidate,
   return evaluateDiscoveryCandidate({ ...candidate, facts, inferences, unknowns: [...new Set([...candidate.unknowns, ...update.unknowns.filter((item) => item.trim())])] }, territory);
 }
 
-export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory) {
-  const targets = candidates.filter((candidate) => candidate.status === "REVIEW_REQUIRED" && candidate.relationship === "PROSPECT" && candidate.prospectIntelligence.eventConnection.state !== "NONE").slice(0, 4);
-  if (!targets.length) return candidates;
+function materialSnapshot(candidate: EvaluatedDiscoveryCandidate) {
+  return JSON.stringify({ eventConnection: candidate.prospectIntelligence.eventConnection, roles: candidate.facts.map((item) => ({ claim: item.claim, sourceRoles: item.sourceRoles ?? [], confidence: item.confidence })).sort((a, b) => a.claim.localeCompare(b.claim)), products: { egs: candidate.prospectIntelligence.egs, ticketing: candidate.prospectIntelligence.ticketing, ecc: candidate.prospectIntelligence.ecc }, primaryEntryOpportunity: candidate.prospectIntelligence.primaryEntryOpportunity, inferences: candidate.inferences.map((item) => item.claim).sort(), unknowns: [...candidate.unknowns].sort(), status: candidate.status, accountCreationEligible: candidate.prospectIntelligence.accountCreationEligible });
+}
+
+function skipReason(candidate: EvaluatedDiscoveryCandidate): EnrichmentSkipReason {
+  if (candidate.firstPartyStatus === FIRST_PARTY_SELF) return "FIRST_PARTY_SELF";
+  if (candidate.status === "BLOCKED") return "BLOCKED";
+  if (candidate.status === "REJECTED") return "REJECTED";
+  if (candidate.status === "DUPLICATE") return "DUPLICATE";
+  if (candidate.prospectIntelligence.eventConnection.state === "NONE") return "NONE_EVENT_CONNECTION";
+  return "NOT_PLAUSIBLE";
+}
+
+function telemetryFor(candidates: EvaluatedDiscoveryCandidate[], eligibleCount: number, attemptedCount: number, successCount: number, failedCount: number, materialCount: number): EnrichmentRunTelemetry {
+  return { firstPassCandidateCount: candidates.length, enrichmentEligibleCount: eligibleCount, enrichmentAttemptedCount: attemptedCount, enrichmentSucceededCount: successCount, enrichmentFailedCount: failedCount, enrichmentSkippedCount: candidates.length - attemptedCount, enrichmentMateriallyChangedCount: materialCount };
+}
+
+export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: EnrichmentRunTelemetry }> {
+  const eligible = candidates.filter((candidate) => candidate.status === "REVIEW_REQUIRED" && candidate.relationship === "PROSPECT" && candidate.prospectIntelligence.eventConnection.state !== "NONE" && candidate.firstPartyStatus !== FIRST_PARTY_SELF);
+  const targets = eligible.slice(0, 4);
+  const targetKeys = new Set(targets.map((candidate) => candidate.canonicalKey));
+  let prepared: EvaluatedDiscoveryCandidate[] = candidates.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "ATTEMPTED" as const, attempted: true, succeeded: false, materiallyChanged: false } } : { ...candidate, enrichment: { status: "SKIPPED" as const, attempted: false, succeeded: false, materiallyChanged: false, skipReason: (eligible.includes(candidate) ? "BUDGET_LIMIT" : skipReason(candidate)) as EnrichmentSkipReason } });
+  if (!targets.length) return { candidates: prepared, telemetry: telemetryFor(prepared, eligible.length, 0, 0, 0, 0) };
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-  if (!apiKey) throw new Error("AI_RESEARCH_NOT_CONFIGURED: OPENAI_API_KEY is required for prospect enrichment.");
+  const failed = () => ({ candidates: prepared.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const } } : candidate), telemetry: telemetryFor(prepared, eligible.length, targets.length, 0, targets.length, 0) });
+  if (!apiKey) return failed();
   const dossier = targets.map((candidate, index) => ({ candidateRef: String(index + 1), candidate: candidate.canonicalName, organiser: candidate.organiserName, website: candidate.website, origin: candidate.origin, facts: candidate.facts.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, roles: item.sourceRoles, confidence: item.confidence })), unresolved: candidate.prospectIntelligence.accountCreationReason }));
   const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, tools: [{ type: "web_search" }], max_output_tokens: 10000, input: `Perform one bounded second-stage public-web enrichment pass for these plausible ${territory === "ZA" ? "South African" : "UK"} EventSuite candidates. Do not repeat generic discovery. For each candidate, deliberately seek official organiser/event/portfolio validation, current or recurring activity, owned digital presence for EGS, concrete ticketing or registration operations for Ticketing, and observable event complexity for ECC. Use only public web evidence. A fact is FACT only when directly supported by its URL. Assign VALIDATION to evidence confirming identity/event responsibility, COMMERCIAL_EVIDENCE to evidence supporting an EGS/Ticketing/ECC problem, SIGNAL to timing/change/growth, CONTACT only for a clearly public route, and DISCOVERY only for existence. Calibrate confidence: official direct evidence may be HIGH, credible corroboration MEDIUM, generic listings or indirect evidence LOW/MEDIUM. Return a useful INFERENCE only when it follows from sourced facts. Return a meaningful UNKNOWN when a material commercial question remains unanswered. Do not invent providers, dissatisfaction, switching intent, people, emails or operational tools. If no commercial evidence exists, say so through a specific unknown and leave the candidate unqualified. Never approve or send outreach. Dossiers: ${JSON.stringify(dossier)}`, text: { format: { type: "json_schema", name: "prospecting_evidence_enrichment", strict: true, schema: enrichmentSchema } } }) });
-  if (!response.ok) throw new Error(`AI enrichment provider failed with HTTP ${response.status}.`);
+  if (!response.ok) return failed();
   const parsed = parseProviderText(await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> });
   const updates = new Map((parsed.candidates ?? []).filter((item) => targets[Number(item.candidateRef) - 1]).map((item) => [item.candidateRef, item]));
-  return candidates.map((candidate) => { const index = targets.indexOf(candidate); const update = updates.get(String(index + 1)); return update ? applyDiscoveryEnrichment(candidate, update, territory) : candidate; });
+  let succeeded = 0;
+  let materiallyChanged = 0;
+  prepared = prepared.map((candidate) => {
+    const index = targets.findIndex((target) => target.canonicalKey === candidate.canonicalKey);
+    const update = updates.get(String(index + 1));
+    if (!update) return targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const } } : candidate;
+    const enriched = applyDiscoveryEnrichment(candidate, update, territory);
+    const changed = materialSnapshot(candidate) !== materialSnapshot(enriched);
+    succeeded += 1;
+    if (changed) materiallyChanged += 1;
+    return { ...enriched, enrichment: { status: "SUCCEEDED" as const, attempted: true, succeeded: true, materiallyChanged: changed } };
+  });
+  return { candidates: prepared, telemetry: telemetryFor(prepared, eligible.length, targets.length, succeeded, targets.length - succeeded, materiallyChanged) };
 }
 
 export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, territory: DiscoveryTerritory): EvaluatedDiscoveryCandidate {
   const facts = candidate.facts.filter((item) => item.kind === "FACT").map(normaliseFact);
-  const relationship = classifyAccountRelationship({ name: candidate.organiserName || candidate.canonicalName, website: candidate.website, summary: [...facts, ...candidate.inferences].map((item) => item.claim).join(" "), qualificationFit: facts.length ? "MEDIUM" : "UNKNOWN", relationship: candidate.relationshipHint }).relationship;
-  const prospectIntelligence = evaluateProspectIntelligence({ relationship, territory, facts, inferences: candidate.inferences.filter((item) => item.kind === "INFERENCE"), unknowns: candidate.unknowns });
+  const firstPartyStatus = isEventSuiteFirstPartyIdentity({ website: candidate.website, identityName: candidate.organiserName || candidate.canonicalName, sourceUrls: facts.map((item) => item.sourceUrl) }) ? FIRST_PARTY_SELF : undefined;
+  const relationship = firstPartyStatus ? "UNKNOWN" : classifyAccountRelationship({ name: candidate.organiserName || candidate.canonicalName, website: candidate.website, summary: [...facts, ...candidate.inferences].map((item) => item.claim).join(" "), qualificationFit: facts.length ? "MEDIUM" : "UNKNOWN", relationship: candidate.relationshipHint }).relationship;
+  const evaluated = evaluateProspectIntelligence({ relationship, territory, facts, inferences: candidate.inferences.filter((item) => item.kind === "INFERENCE"), unknowns: candidate.unknowns });
+  const prospectIntelligence = firstPartyStatus ? { ...evaluated, primaryEntryOpportunity: "UNKNOWN" as const, commercialPriority: "LOW" as const, accountCreationEligible: false, accountCreationReason: "EventSuite first-party identity is not a prospect.", outreachEligibility: "BLOCKED" as const, outreachBlockOrReviewReason: "FIRST_PARTY_SELF — EventSuite first-party identity is not eligible for commercial memory or outreach.", firstPartyStatus } : evaluated;
   const freshness = prospectIntelligence.eventFreshness.state;
   const hasOrganiserEvidence = facts.some((item) => EVENT_CONTEXT_PATTERN.test(item.claim) && ORGANISER_PATTERN.test(item.claim));
   const providerNoise = relationship !== "COMPETITOR" && facts.some((item) => SERVICE_NOISE_PATTERN.test(item.claim)) && !hasOrganiserEvidence;
-  const status: DiscoveryCandidateStatus = relationship === "COMPETITOR" ? "BLOCKED" : providerNoise ? "REJECTED" : freshness === "HISTORICAL" || freshness === "CANCELLED_DEAD_UNSUPPORTED" || prospectIntelligence.eventConnection.state === "NONE" ? "REJECTED" : prospectIntelligence.accountCreationEligible ? "QUALIFIED" : "REVIEW_REQUIRED";
-  return { ...candidate, facts, canonicalKey: canonicalDiscoveryKey(candidate.organiserName || candidate.canonicalName, candidate.website), relationship, status, prospectIntelligence, sourceUrls: [...new Set(facts.map((item) => item.sourceUrl).filter((url): url is string => Boolean(url)))] };
+  const status: DiscoveryCandidateStatus = firstPartyStatus ? "REJECTED" : relationship === "COMPETITOR" ? "BLOCKED" : providerNoise ? "REJECTED" : freshness === "HISTORICAL" || freshness === "CANCELLED_DEAD_UNSUPPORTED" || prospectIntelligence.eventConnection.state === "NONE" ? "REJECTED" : prospectIntelligence.accountCreationEligible ? "QUALIFIED" : "REVIEW_REQUIRED";
+  return { ...candidate, facts, canonicalKey: canonicalDiscoveryKey(candidate.organiserName || candidate.canonicalName, candidate.website), relationship, status, prospectIntelligence, firstPartyStatus, sourceUrls: [...new Set(facts.map((item) => item.sourceUrl).filter((url): url is string => Boolean(url)))], enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
 }
 
 export function parseDiscovery(value: unknown, territory: DiscoveryTerritory) {
@@ -119,11 +166,6 @@ export async function discoverProspects(input: { territory: DiscoveryTerritory; 
   const text = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("");
   if (!text) throw new Error("AI discovery provider returned no structured output.");
   const initial = parseDiscovery(JSON.parse(text), input.territory);
-  let candidates = initial;
-  try {
-    candidates = await enrichDiscoveryCandidates(initial, input.territory);
-  } catch {
-    candidates = initial.map((candidate) => candidate.status === "REVIEW_REQUIRED" ? { ...candidate, unknowns: [...new Set([...candidate.unknowns, "Second-stage commercial enrichment was unavailable; validation and product fit remain unresolved."])] } : candidate);
-  }
-  return { candidates, provider: "openai", model };
+  const enrichment = await enrichDiscoveryCandidates(initial, input.territory);
+  return { candidates: enrichment.candidates, provider: "openai", model, enrichment: enrichment.telemetry };
 }
