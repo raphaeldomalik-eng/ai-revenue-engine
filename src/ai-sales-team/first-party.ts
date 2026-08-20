@@ -23,3 +23,8 @@ export function isEventSuiteFirstPartyIdentity(input: { website?: string | null;
   const exactIdentity = input.identityName?.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === "eventsuite";
   return Boolean(exactIdentity && input.sourceUrls?.some((sourceUrl) => isEventSuiteFirstPartyUrl(sourceUrl)));
 }
+
+export function isEventSuiteFirstPartyTarget(input: { accountName?: string | null; accountWebsite?: string | null; candidateName?: string | null; candidateWebsite?: string | null }) {
+  return isEventSuiteFirstPartyIdentity({ website: input.accountWebsite, identityName: input.accountName })
+    || isEventSuiteFirstPartyIdentity({ website: input.candidateWebsite, identityName: input.candidateName });
+}
