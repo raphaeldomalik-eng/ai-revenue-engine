@@ -273,9 +273,9 @@ The future commercial identity map is conceptually:
 
 Matching should prefer authoritative identifiers and domains. Fuzzy company-name matching must not be the primary key. The Revenue Engine should retain only the commercial facts and signals needed for sales reasoning.
 
-Future attribution should distinguish original discovery source, first commercial signal, outreach involvement, known trial source, known conversion source, time from discovery to trial/customer, the product hypothesis at discovery and eventual product adoption. `UNKNOWN ATTRIBUTION` must remain distinct from `REVENUE ENGINE ATTRIBUTION`; the existence of a prospect in Revenue Engine memory does not prove that Revenue Engine outreach caused a conversion.
+Future attribution should distinguish original discovery source, first commercial signal, outreach involvement, known trial source, known conversion source, organic or other conversion, time from discovery to trial/customer, the product hypothesis at discovery and eventual product adoption. `UNKNOWN ATTRIBUTION` must remain distinct from `REVENUE ENGINE ATTRIBUTION`; the existence of a prospect in Revenue Engine memory does not prove that Revenue Engine outreach caused a conversion.
 
-This identity and lifecycle boundary is also foundational for the future Local Operator Network. It must be capable of distinguishing a direct EventSuite prospect/customer, a Local Operator Network relationship, an operator-influenced or operator-referred conversion and other future commercial channels. The full Local Operator Network data model belongs in its own future product specification and is not defined here.
+This identity and lifecycle boundary is also foundational for the future Local Operator Network. It must be capable of distinguishing a direct EventSuite prospect/customer, a Local Operator Network relationship, an operator-influenced or operator-referred conversion, territory/channel attribution and other future commercial channels. The full Local Operator Network data model belongs in its own future product specification and is not defined here.
 
 ### Gig Guide venue prospect graph
 
@@ -316,11 +316,23 @@ After core public-web prospecting is quality-proven, the current roadmap is:
 7. Signal-first expansion;
 8. scheduled/background autonomous prospecting only after later quality gates.
 
-This order may evolve from evidence, but represents the current approved product sequencing. The immediate runtime sequence remains:
+This order may evolve from evidence, but represents the current approved product sequencing. The immediate release and quality sequence is:
 
-`PR #15 production complete → Quality Calibration V4 → quality decision`
+1. finish safety and integrity corrections — complete through PR #17;
+2. Revenue Intelligence roadmap documentation — this PRD update in PR #16;
+3. explicitly approve and remove only the known invalid EventSuite self-prospect graph;
+4. run Production Quality Calibration V4;
+5. if needed, make one focused commercial-quality correction against the bottleneck proven by V4;
+6. repeat bounded calibration until a quality decision is reached;
+7. only after core prospecting quality is proven, begin Operator Experience V1 and the future integrations above.
 
-The current quality gate is not weakened by this future roadmap.
+The current quality gate is not weakened by this future roadmap. Operator Experience is not unlocked by documentation alone.
+
+### Current commercial-quality gap
+
+Current prospecting is safer and more observable, but has not yet proven that it reliably delivers valid, commercially qualified prospects. Production Quality Calibration V3 observed 39 discovered candidates, 0 valid qualified prospects, sparse commercial evidence, 0 positive EGS hypotheses, 0 positive Ticketing hypotheses and only an invalid EventSuite self-prospect carrying the positive ECC/qualified result. This remains an unresolved product question, not a completed capability.
+
+Quality Calibration V4 is the next evidence gate. Its purpose is to use the enrichment telemetry to identify whether the bottleneck is candidate discovery quality, enrichment eligibility, enrichment execution, validation evidence, commercial-evidence extraction, EGS/Ticketing/ECC diagnosis, FACT/INFERENCE/UNKNOWN generation, Event Connection, or the qualification/account gate. V4 is diagnostic; it does not authorise autonomous model retraining.
 
 ## Non-normative implementation status
 
@@ -345,3 +357,5 @@ Not yet quality-proven at real-world production scale:
 PR #14 is governed by this PRD and remains limited to bounded evidence enrichment. It does not implement Signal-first discovery, Meta, LinkedIn, UI redesign or scheduled discovery. Production quality calibration remains a separate post-merge gate.
 
 PR #15 is governed by this PRD and remains limited to first-party self-exclusion and bounded enrichment observability. It does not implement the EventSuite Lifecycle Bridge, lifecycle matching, Local Operator Network integration, Gig Guide prospect graph, SendGrid Revenue Engine webhook feedback, Meta, LinkedIn, Signal-first expansion or scheduled prospecting. All such capabilities remain planned, not implemented.
+
+PR #17 is governed by this PRD and remains limited to the legacy first-party Contact Discovery and outreach guard. Current authoritative Account identity now blocks stale EventSuite self-prospect state before contact research or outreach work; this correction does not clean historical records or prove broader commercial qualification quality.
