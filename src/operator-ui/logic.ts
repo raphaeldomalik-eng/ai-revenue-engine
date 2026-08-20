@@ -133,8 +133,13 @@ export function contactState(candidate: OperatorCandidate) {
 export function needsReview(candidate: OperatorCandidate) {
   if (candidate.status !== "REVIEW_REQUIRED") return false;
   const value = intelligence(candidate);
-  const action = String(value.recommendedNextAction ?? value.nextBestCommercialAction?.type ?? "");
-  return Boolean(action || asArray(candidate.unknowns).length || value.outreachBlockOrReviewReason);
+  const action = reviewDecision(candidate);
+  return Boolean(action && !/more research|continue.*research|research required|needs validation/i.test(action));
+}
+
+export function reviewDecision(candidate: OperatorCandidate) {
+  const value = intelligence(candidate);
+  return String(value.recommendedNextAction ?? value.nextBestCommercialAction?.type ?? value.outreachBlockOrReviewReason ?? "");
 }
 
 export function runCounts(run: OperatorRun | null, candidates: OperatorCandidate[]) {
