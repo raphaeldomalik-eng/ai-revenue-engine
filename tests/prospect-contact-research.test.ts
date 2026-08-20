@@ -55,14 +55,14 @@ test("a matching public email is persisted only once when the named person and r
 });
 
 test("contact research migration extends only discovery-candidate memory", () => {
-  const sql = readFileSync("supabase/migrations/20260819235859_prospect_contact_discovery_verification_v1.sql", "utf8");
+  const sql = readFileSync("supabase/migrations/20260820000020_prospect_contact_discovery_verification_v1.sql", "utf8");
   assert.match(sql, /alter table public\.ai_prospect_candidates/);
   assert.match(sql, /contact_research jsonb/);
   assert.doesNotMatch(sql, /create table|create policy|alter table public\.contacts/i);
 });
 
 test("organisation contact routes do not require a fabricated person name", () => {
-  const sql = readFileSync("supabase/migrations/20260820000006_prospect_contact_route_name_nullable.sql", "utf8");
+  const sql = readFileSync("supabase/migrations/20260820000947_prospect_contact_route_name_nullable.sql", "utf8");
   assert.match(sql, /alter column full_name drop not null/);
   assert.doesNotMatch(sql, /create table|create policy/i);
 });
