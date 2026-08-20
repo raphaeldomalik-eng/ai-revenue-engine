@@ -79,9 +79,13 @@ Runs are newest first. The latest run receives a `LATEST RUN` badge; older recor
 Each run displays where available:
 
 - run ID and start/completion times;
+- trigger/source of run;
 - territory and prospecting lens;
+- discovery path/configuration and source-family configuration;
+- bounded candidate/research limits;
+- discovery/query strategy version where available;
 - status: running, completed, failed or partly completed;
-- engine/version/commit in diagnostics;
+- application commit SHA and deployment/version identifier in diagnostics;
 - discovered, resolved, unresolved, attempted, technically succeeded, commercially advanced, qualified, rejected and duplicate counts;
 - account creation and contactable counts;
 - a plain-language result summary.
@@ -90,7 +94,11 @@ Clicking a run opens only candidates belonging to that run. It must never silent
 
 ### Run detail
 
-Run detail begins with status and outcome, then a candidate list scoped to that run. The page explains technical success separately from commercial advancement. A technically successful enrichment with no product signal is shown as “Research completed — no commercial signal established”, not as a success KPI.
+Run detail begins with status and outcome, then a compact `RESEARCH BRIEF` / run-provenance area followed by a candidate list scoped to that run. Where available, the provenance area shows run ID, trigger/source, territory, commercial lens, discovery path/configuration, source-family configuration, bounded candidate/research limits, discovery/query strategy version, application commit SHA, deployment/version identifier, started/completed timestamps and a plain-language brief such as “South Africa · Ticketing — Find active event organisations showing credible ticketing workflow, fragmentation or change signals.” The operator must be able to answer what this run was instructed to investigate without guessing.
+
+The brief is a product-facing summary of the research instruction. It must not expose system prompts, hidden chain-of-thought, secrets, API keys or privileged configuration. If the exact prompt/query version or another provenance field is not persisted, show `BACKEND SUPPORT REQUIRED` in the data-contract mapping rather than implying that the value is available.
+
+The page explains technical success separately from commercial advancement. A technically successful enrichment with no product signal is shown as “Research completed — no commercial signal established”, not as a success KPI.
 
 The operator can filter within the run by resolution, product outcome, qualification, contactability, source type and review state. A failed run shows what was completed and what remains unavailable.
 
@@ -113,6 +121,7 @@ The list is organisation-centric. Each row/card contains:
 - canonical organisation name, or `ORGANISATION NOT YET RESOLVED`;
 - key event or discovery signal;
 - territory and origin;
+- `FOUND IN RUN` with run date/time, territory, lens, current/historical/calibration label and a short run identifier;
 - resolution state and confidence;
 - primary opportunity: Event Growth, Ticketing, Event Operations or no established opportunity;
 - commercial priority and outcome;
@@ -175,6 +184,10 @@ Show the organiser claim, source, site type, confidence, official event site, of
 
 Summarise events, dates, recurrence, locations, portfolio breadth, freshness, ticketing/provider context and evidenced operational complexity. Present a story and evidence clusters rather than a dump of rows.
 
+### E. Origin run context
+
+Place `FOUND IN RUN` near the discovery signal or detail header. Show the originating run/context prominently enough that the operator never has to infer from timestamps whether a prospect belongs to the latest test. `CURRENT` is a recency label, not a substitute for origin-run identity. For cross-run canonical prospects, show where practical: `FIRST SEEN`, `LATEST SEEN` and `CURRENT RUN`, without turning the detail screen into CRM history.
+
 ## 10. Commercial intelligence
 
 Use product-facing lenses:
@@ -209,6 +222,7 @@ Contactability is first-class. For every route show:
 - verification state and contact type;
 - source URL and source site type;
 - organisation/contact owner;
+- bounded ownership evidence explaining why the route belongs to the resolved target;
 - whether it belongs to the resolved commercial target;
 - usable, rejected or review-required state;
 - rejection reason.
@@ -220,7 +234,20 @@ Prominent provenance labels include:
 - `DIRECTORY CONTACT — NOT TARGET CONTACT`
 - `TARGET ORGANISATION CONTACT — VERIFIED`
 
-No provenance means the route is not safe to present as usable sales contact. Contact Discovery and outreach policy remain unchanged by this PRD.
+For a usable target route, present the bounded evidence in plain language, for example:
+
+```text
+CONTACT       events@abcpromotions.co.za
+OWNER         ABC Promotions Ltd
+SOURCE        Official organisation contact page
+WHY WE BELIEVE IT BELONGS TO THE TARGET
+              Published on ABC Promotions Ltd's authoritative contact page.
+STATUS        TARGET ORGANISATION CONTACT — VERIFIED
+```
+
+Ownership evidence may be an authoritative organisation website, an official event site explicitly attributing the contact to the resolved organiser, or an authoritative contact/about/legal page tying the route to the target. For rejected/non-target routes, show the mismatch plainly, including the owner, source type, target and reason, for example `support@ticketsza.co.za` → `TicketsZA` → `TICKETING_PROVIDER` → `NOT TARGET CONTACT`: “This route belongs to the ticketing provider, not the event organiser.” Ticket-provider support pages, directories, unrelated venue or artist/agent routes, generic third-party footers and guessed email patterns must not establish target ownership alone.
+
+No provenance or ownership evidence means the route is not safe to present as usable sales contact. If stronger ownership evidence or its history is not currently persisted, mark that specific field/history `BACKEND SUPPORT REQUIRED`. Contact Discovery and outreach policy remain unchanged by this PRD.
 
 ## 14. AI recommendation
 
@@ -249,11 +276,13 @@ Future comparison mode should place `ORIGINAL HISTORICAL RESULT` beside `CURRENT
 
 ## 17. Evaluation feedback
 
-When calibration is active, an operator can submit structured feedback:
+When calibration is active and durable backend support exists, an operator can submit structured feedback:
 
 `CORRECT`, `WRONG ORGANISATION`, `WRONG OFFICIAL WEBSITE`, `WRONG SITE TYPE`, `WRONG ORGANISER`, `BAD COMMERCIAL HYPOTHESIS`, `BAD PRODUCT MAPPING`, `BAD CONTACT`, `DUPLICATE`, `OTHER`.
 
 Feedback is evaluation data with timestamp, reviewer and affected candidate/run context. It does not trigger automatic model retraining. The UI should show whether feedback is pending review or incorporated into a future calibration cycle.
+
+Structured evaluation feedback is a product requirement, but it is `AVAILABLE NOW` only when durable backend persistence exists. Otherwise the control is `PLANNED / BACKEND SUPPORT REQUIRED`; do not create local-only feedback that disappears on refresh or silently encode feedback into unrelated candidate fields. Do not request a schema change in this documentation correction.
 
 ## 18. Status semantics
 
@@ -294,7 +323,7 @@ Valid research outcomes must not look like application failures.
 
 ## 21. Transparency and diagnostics
 
-The normal interface uses commercial language and evidence summaries. An expandable `Diagnostics` layer may expose run ID, candidate ID, provider/model, timestamps, technical outcome, commit/deployment version, source roles and raw status mapping.
+The normal interface uses commercial language and evidence summaries. An expandable `Diagnostics` layer may expose run ID, candidate ID, trigger/source, territory, commercial lens, discovery path/configuration, source-family configuration, bounded limits, discovery/query strategy version where available, provider/model, started/completed timestamps, technical outcome, application commit SHA, deployment/version identifier, source roles and raw status mapping. Run Detail also shows the plain-language `RESEARCH BRIEF` where available.
 
 Do not render raw JSON, access tokens, service credentials, chain-of-thought or internal prompts in the default page or diagnostic layer.
 
@@ -318,6 +347,9 @@ Tables are used only where comparison benefits from columns; cards and sections 
 | Opportunities | `product_opportunities` | Contextual product/commercial summary |
 | Contacts | `contacts` | Contact provenance presentation |
 | Contact research | Candidate `contact_research` and contact metadata | Derived verification/ownership display |
+| Run provenance and research brief | Run metadata where persisted | Display run instruction context; exact prompt/query version, discovery configuration or brief history are `BACKEND SUPPORT REQUIRED` where not persisted |
+| Prospect origin run | `ai_prospect_candidates.discovery_run_id` plus run metadata | `FOUND IN RUN`, first/latest/current-seen context; richer cross-run lineage may require backend support |
+| Contact ownership evidence | Contact research, evidence and source URLs where persisted | Show owner/source/why/rejection evidence; missing bounded evidence/history is `BACKEND SUPPORT REQUIRED` |
 | Evidence | `research_evidence` and candidate source URLs | Source and claim presentation |
 | Needs Review | Existing statuses/intelligence/recommendations | Derived queue; a durable review decision model may be needed later |
 | Current versus historical | Timestamps, run context and metadata | Derived policy/configuration; no schema request in V1 |
@@ -330,7 +362,7 @@ Tables are used only where comparison benefits from columns; cards and sections 
 
 **NEEDS DERIVED UI LOGIC:** latest/current/historical labels, attention queue, commercially advanced summary, contactability rollups, sales-ready interpretation, source-owner warnings, status translation and run comparison summaries.
 
-**PLANNED / BACKEND SUPPORT REQUIRED:** durable evaluation-feedback records, replay lineage/comparison, explicit review decisions, richer contact verification history and future notification/assignment mechanics.
+**PLANNED / BACKEND SUPPORT REQUIRED:** exact prompt/query version and any unpersisted research-brief/provenance fields, richer cross-run lineage where unavailable, bounded contact ownership evidence/history where unavailable, durable evaluation-feedback records, replay lineage/comparison, explicit review decisions and future notification/assignment mechanics.
 
 No missing capability requires a schema change for the documentation slice. Future backend work must preserve RLS, internal-only membership and the distinction between event signals and commercial targets.
 
@@ -387,12 +419,17 @@ HISTORICAL RUN  19 Aug · GB · EGS · COMPLETED
 South Africa · All · Completed
 Found 8 | Resolved 3 | Unresolved 2 | Enrichment 4/4 | Advanced 1
 
+RESEARCH BRIEF                         RUN PROVENANCE
+South Africa · Ticketing               Run ID · trigger/source
+Find active event organisations ...     Discovery path · source families
+                                        Limits · strategy version · commit/deployment
+
 Candidates in this run only
 [Organisation] [Signal] [Resolution] [Product] [Outcome] [Attention]
 ...
 
 Diagnostics (collapsed)
-  Run ID · model/provider · commit · timestamps · technical result
+  Run ID · model/provider · commit/deployment · timestamps · technical result
 ```
 
 ### D. Prospect list
@@ -403,6 +440,8 @@ Organisation       Signal          Product       Contactability  Status
 Promoter Group     Festival X      Event Growth  No verified route  Review
 ORGANISATION NOT   TicketsZA event  Unknown       None              Memory
 YET RESOLVED
+
+FOUND IN RUN: 20 Aug · ZA · Event Growth · CURRENT · run-abc123
 
 Badges: NEW · CURRENT · HISTORICAL · NEEDS YOUR DECISION
 ```
@@ -417,10 +456,16 @@ PROSPECT · South Africa · Event Growth
 WHAT WE FOUND                         WHO WE THINK THE CUSTOMER IS
 Festival X · EVENT_OFFICIAL            Promoter Group · ORGANISATION_OFFICIAL
 Original source [Open evidence]        Why: organiser claim [source]
+FOUND IN RUN: 20 Aug · ZA · Event Growth · run-abc123
+FIRST SEEN · LATEST SEEN · CURRENT RUN
 
 EVENT / ACTIVITY   COMMERCIAL INTELLIGENCE   BUYER   CONTACTABILITY
 ...                Event Growth: Strong       Festival  No verified target route
                     FACT / INFERENCE / UNKNOWN
+
+CONTACTABILITY
+  Contact · Owner · Source · Ownership evidence
+  TARGET ORGANISATION CONTACT — VERIFIED / NOT TARGET CONTACT
 
 RECOMMENDATION: Confirm organiser relationship [Needs your decision]
 Diagnostics (collapsed)
@@ -468,6 +513,11 @@ The implementation of this PRD is acceptable only when an operator can, without 
 - distinguish FACT, INFERENCE and UNKNOWN;
 - see buyer-role reasoning without invented people;
 - inspect contact provenance, ownership, verification state and rejection reason;
+- answer the exact originating run, its territory/lens/research brief and application/version where available;
+- see `FOUND IN RUN` on prospect cards/lists/details, including run time, territory, lens, context label and short identifier;
+- distinguish `FIRST SEEN`, `LATEST SEEN` and `CURRENT RUN` for cross-run canonical prospects where practical;
+- understand why a contact route is believed to belong to the resolved target and why ticket-provider, venue or directory routes were rejected;
+- determine whether operator calibration feedback is durably persisted or deliberately deferred as backend support required;
 - understand what belongs in Needs Review and what does not;
 - inspect rejected, duplicate and unresolved candidates without treating them as active leads;
 - identify the information shown on prospect cards and detail screens;
@@ -475,5 +525,4 @@ The implementation of this PRD is acceptable only when an operator can, without 
 
 ## 28. Non-goals and safety constraints
 
-This documentation does not implement frontend code, backend changes, schema, migrations, RLS, auth, replay, contact-provenance backend changes, database cleanup, prospecting changes or Quality Calibration V4. It does not alter outreach approval/send behaviour. It must not expose privileged credentials or raw authentication material.
-
+This documentation does not implement frontend code, backend changes, schema, migrations, RLS, auth, replay, contact-provenance backend changes, database cleanup, prospecting changes or Quality Calibration V4. It does not alter outreach approval/send behaviour. It must not expose privileged credentials, system prompts, hidden chain-of-thought, API keys or raw authentication material. Durable evaluation feedback and stronger contact-ownership evidence are not represented as available UI capabilities unless backend persistence exists.
