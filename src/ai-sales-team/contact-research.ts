@@ -171,7 +171,10 @@ export async function researchProspectContact(input: { accountName: string; webs
       text: { format: { type: "json_schema", name: "prospect_contact_research", strict: true, schema } },
     }),
   });
-  if (!response.ok) throw new Error(`AI contact research provider failed with HTTP ${response.status}.`);
+  if (!response.ok) {
+    const failure = await response.json().catch(() => null) as { error?: { message?: string; type?: string } } | null;
+    throw new Error(`AI contact research provider failed with HTTP ${response.status}: ${failure?.error?.message || failure?.error?.type || "no provider detail"}`);
+  }
   const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
   const output = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("");
   if (!output) throw new Error("AI contact research provider returned no structured output.");

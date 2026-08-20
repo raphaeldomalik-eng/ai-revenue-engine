@@ -76,6 +76,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ candidate: savedCandidate, contactResearch: { status: researched.result.status, likelyBuyerRole: researched.result.likelyBuyerRole, namedContact: researched.result.namedContact, organisationRoute: researched.result.organisationRoute } });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Public contact research failed.";
+    console.error("Prospect contact research failed", { candidateId: candidate.id, message });
     return NextResponse.json({ message }, { status: message.startsWith("AI_RESEARCH_NOT_CONFIGURED") ? 503 : 502 });
   }
 }
