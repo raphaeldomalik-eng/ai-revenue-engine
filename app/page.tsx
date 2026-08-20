@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { LeadIntelligenceView } from "./lead-intelligence-view";
 import { LoginForm } from "./login/login-form";
 import { revenueAccessState, type RevenueAccessState } from "../src/lib/auth/access";
@@ -40,6 +41,7 @@ function AccessDenied({ onSignOut }: { onSignOut: () => void }) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [access, setAccess] = useState<RevenueAccessState | "CHECKING">("CHECKING");
 
   useEffect(() => {
@@ -57,6 +59,10 @@ export default function Home() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    if (access === "ADMIN" || access === "OPERATOR" || access === "VIEWER") router.replace("/operator");
+  }, [access, router]);
+
   async function signOut() {
     await createBrowserSupabaseClient().auth.signOut();
     setAccess("ANON");
@@ -65,5 +71,5 @@ export default function Home() {
   if (access === "CHECKING") return <main className="auth-shell"><span className="eyebrow">AI REVENUE ENGINE · INTERNAL ACCESS</span><p>Checking your sign-in…</p></main>;
   if (access === "ANON") return <main className="auth-shell"><span className="eyebrow">AI REVENUE ENGINE · INTERNAL ACCESS</span><h1>Sign in</h1><p>Use your approved internal email address to access the Revenue Engine.</p><LoginForm /></main>;
   if (access === "NON_MEMBER") return <AccessDenied onSignOut={signOut} />;
-  return <CommandCentre onSignOut={signOut} access={access} />;
+  return <main className="auth-shell"><span className="eyebrow">AI REVENUE ENGINE · OPERATOR</span><p>Opening the AI Sales Team workspace…</p></main>;
 }
