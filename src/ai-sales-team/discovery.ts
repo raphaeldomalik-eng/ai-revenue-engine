@@ -18,11 +18,11 @@ export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichme
 export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[] };
 export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence & { firstPartyStatus?: typeof FIRST_PARTY_SELF }; sourceUrls: string[]; firstPartyStatus?: typeof FIRST_PARTY_SELF; enrichment: EnrichmentCandidateTelemetry };
 
-export function isFirstPartyCandidate(candidate: Pick<EvaluatedDiscoveryCandidate, "website" | "sourceUrls" | "firstPartyStatus">) {
-  return candidate.firstPartyStatus === FIRST_PARTY_SELF || isEventSuiteFirstPartyIdentity({ website: candidate.website, sourceUrls: candidate.sourceUrls });
+export function isFirstPartyCandidate(candidate: Pick<EvaluatedDiscoveryCandidate, "website" | "sourceUrls" | "firstPartyStatus" | "canonicalName" | "organiserName">) {
+  return candidate.firstPartyStatus === FIRST_PARTY_SELF || isEventSuiteFirstPartyIdentity({ website: candidate.website, identityName: candidate.organiserName || candidate.canonicalName, sourceUrls: candidate.sourceUrls });
 }
 
-export function canPersistCommercialMemory(candidate: Pick<EvaluatedDiscoveryCandidate, "prospectIntelligence" | "website" | "sourceUrls" | "firstPartyStatus">) {
+export function canPersistCommercialMemory(candidate: Pick<EvaluatedDiscoveryCandidate, "prospectIntelligence" | "website" | "sourceUrls" | "firstPartyStatus" | "canonicalName" | "organiserName">) {
   return !isFirstPartyCandidate(candidate) && candidate.prospectIntelligence.accountCreationEligible;
 }
 
@@ -137,7 +137,7 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
 
 export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, territory: DiscoveryTerritory): EvaluatedDiscoveryCandidate {
   const facts = candidate.facts.filter((item) => item.kind === "FACT").map(normaliseFact);
-  const firstPartyStatus = isEventSuiteFirstPartyIdentity({ website: candidate.website, sourceUrls: facts.map((item) => item.sourceUrl) }) ? FIRST_PARTY_SELF : undefined;
+  const firstPartyStatus = isEventSuiteFirstPartyIdentity({ website: candidate.website, identityName: candidate.organiserName || candidate.canonicalName, sourceUrls: facts.map((item) => item.sourceUrl) }) ? FIRST_PARTY_SELF : undefined;
   const relationship = firstPartyStatus ? "UNKNOWN" : classifyAccountRelationship({ name: candidate.organiserName || candidate.canonicalName, website: candidate.website, summary: [...facts, ...candidate.inferences].map((item) => item.claim).join(" "), qualificationFit: facts.length ? "MEDIUM" : "UNKNOWN", relationship: candidate.relationshipHint }).relationship;
   const evaluated = evaluateProspectIntelligence({ relationship, territory, facts, inferences: candidate.inferences.filter((item) => item.kind === "INFERENCE"), unknowns: candidate.unknowns });
   const prospectIntelligence = firstPartyStatus ? { ...evaluated, primaryEntryOpportunity: "UNKNOWN" as const, commercialPriority: "LOW" as const, accountCreationEligible: false, accountCreationReason: "EventSuite first-party identity is not a prospect.", outreachEligibility: "BLOCKED" as const, outreachBlockOrReviewReason: "FIRST_PARTY_SELF — EventSuite first-party identity is not eligible for commercial memory or outreach.", firstPartyStatus } : evaluated;

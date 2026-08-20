@@ -20,6 +20,11 @@ test("name similarity alone never creates a first-party classification", () => {
   assert.equal(result.firstPartyStatus, undefined);
 });
 
+test("an ordinary prospect citing an EventSuite resource is not self", () => {
+  const result = evaluateDiscoveryCandidate(prospect({ facts: [fact("Regional Events organises an annual public festival.", "https://www.eventsuite.pro/resources/event-planning")] }), "ZA");
+  assert.equal(result.firstPartyStatus, undefined);
+});
+
 test("first-party candidate is rejected before persistence gates", () => {
   const result = evaluateDiscoveryCandidate(prospect({ canonicalName: "EventSuite", organiserName: "EventSuite", website: "https://www.eventsuite.pro/" }), "GB");
   assert.equal(result.firstPartyStatus, "FIRST_PARTY_SELF");
@@ -37,7 +42,7 @@ test("first-party identity discovered during enrichment remains blocked", async 
   const originalFetch = globalThis.fetch;
   process.env.OPENAI_API_KEY = "test-only-key";
   globalThis.fetch = async () => new Response(JSON.stringify({ output_text: JSON.stringify({ candidates: [{ candidateRef: "1", facts: [fact("EventSuite operates an event operations platform.", "https://www.eventsuite.pro/platform")], inferences: [], unknowns: [] }] }) }), { status: 200, headers: { "content-type": "application/json" } });
-  const initial = evaluateDiscoveryCandidate(prospect(), "GB");
+  const initial = evaluateDiscoveryCandidate(prospect({ canonicalName: "EventSuite", organiserName: "EventSuite" }), "GB");
   const result = await enrichDiscoveryCandidates([initial], "GB");
   const enriched = result.candidates[0];
   assert.equal(enriched.firstPartyStatus, "FIRST_PARTY_SELF");

@@ -18,6 +18,8 @@ export function isEventSuiteFirstPartyUrl(value: string | null | undefined) {
   return Boolean(host && (host === EVENTSUITE_CANONICAL_DOMAIN || host.endsWith(`.${EVENTSUITE_CANONICAL_DOMAIN}`)));
 }
 
-export function isEventSuiteFirstPartyIdentity(input: { website?: string | null; sourceUrls?: Array<string | null | undefined> }) {
-  return Boolean(isEventSuiteFirstPartyUrl(input.website) || input.sourceUrls?.some((sourceUrl) => isEventSuiteFirstPartyUrl(sourceUrl)));
+export function isEventSuiteFirstPartyIdentity(input: { website?: string | null; identityName?: string | null; sourceUrls?: Array<string | null | undefined> }) {
+  if (isEventSuiteFirstPartyUrl(input.website)) return true;
+  const exactIdentity = input.identityName?.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === "eventsuite";
+  return Boolean(exactIdentity && input.sourceUrls?.some((sourceUrl) => isEventSuiteFirstPartyUrl(sourceUrl)));
 }
