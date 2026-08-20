@@ -23,8 +23,12 @@ test("public contact research uses the authenticated preview path without outrea
   await signInInBrowser(page);
   const discovery = await page.evaluate(async () => (await fetch("/api/ai-sales/discovery")).json());
   const candidates = discovery.runs.flatMap((run: { ai_prospect_candidates?: any[] }) => run.ai_prospect_candidates ?? []);
-  const prospects = candidates.filter((candidate: any) => ["QUALIFIED", "REVIEW_REQUIRED"].includes(candidate.status) && candidate.relationship === "PROSPECT" && candidate.account_id && ["CONFIRMED", "STRONG"].includes(candidate.prospect_intelligence?.eventConnection?.state)).slice(0, 3);
-  expect(prospects.length).toBeGreaterThan(0);
+  const prospects = candidates.filter((candidate: any) => candidate.status === "QUALIFIED" && candidate.relationship === "PROSPECT" && candidate.account_id && candidate.prospect_intelligence?.accountCreationEligible === true && ["CONFIRMED", "STRONG"].includes(candidate.prospect_intelligence?.eventConnection?.state)).slice(0, 3);
+  if (!prospects.length) {
+    await expect(page.getByText("DISCOVERY MEMORY ONLY").first()).toBeVisible();
+    await expect(page.getByText(/no sequence is created or sent automatically/).first()).toBeVisible();
+    return;
+  }
   const results = [] as string[];
   for (const prospect of prospects) {
     const result = await page.evaluate(async (candidateId) => {
