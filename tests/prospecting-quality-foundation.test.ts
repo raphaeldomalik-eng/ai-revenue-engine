@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { applyDiscoveryEnrichment, canonicalDiscoveryKey, evaluateDiscoveryCandidate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
+import { isContactResearchEligible } from "../src/ai-sales-team/contact-research.ts";
 
 const fact = (claim: string, roles: Array<"DISCOVERY" | "VALIDATION" | "COMMERCIAL_EVIDENCE" | "CONTACT" | "SIGNAL">, freshness: "ACTIVE_UPCOMING" | "RECENT_RECURRING_EVIDENCE" | "HISTORICAL" | "CANCELLED_DEAD_UNSUPPORTED" | "UNKNOWN" = "ACTIVE_UPCOMING") => ({ claim, sourceUrl: "https://official.example.org/event", sourceTitle: "Official organiser", kind: "FACT" as const, confidence: "HIGH" as const, sourceRoles: roles, eventFreshness: freshness });
 const candidate = (overrides: Record<string, unknown> = {}) => ({ canonicalName: "Quality Festival", organiserName: "Quality Events", website: "https://quality.example.org", origin: "EVENT_FIRST" as const, relationshipHint: "PROSPECT" as const, facts: [fact("Quality Events organises the upcoming annual Quality Festival; event information is fragmented across social channels and the ticket page.", ["VALIDATION", "COMMERCIAL_EVIDENCE"])], inferences: [{ claim: "A fragmented owned destination may limit discoverability.", sourceUrl: null, sourceTitle: null, kind: "INFERENCE" as const, confidence: "MEDIUM" as const }], unknowns: ["Current event website owner is not published."], ...overrides });
@@ -95,4 +96,91 @@ test("bounded enrichment adds validation and commercial roles without inflating 
   assert.equal(enriched.prospectIntelligence.accountCreationEligible, true);
   assert.ok(enriched.inferences.length > 0);
   assert.ok(enriched.prospectIntelligence.unknownsToResearch.some((item) => /operations workflow/i.test(item)));
+});
+
+test("third-party ticketing pages remain discovery signals rather than commercial websites", () => {
+  const parsed = parseDiscovery({ candidates: [
+    candidate({ canonicalName: "Women's Heritage Festival 2026", organiserName: null, website: "https://www.ticketsza.co.za/", facts: [{ ...fact("Women's Heritage Festival 2026 is scheduled for September 2026.", ["DISCOVERY"]), sourceUrl: "https://www.ticketsza.co.za/" }] }),
+    candidate({ canonicalName: "Potch Geesfees", organiserName: null, website: "https://www.tixsa.co.za/events/potch", facts: [{ ...fact("Potch Geesfees is listed for the current season.", ["DISCOVERY"]), sourceUrl: "https://www.tixsa.co.za/events/potch" }] }),
+  ] }, "ZA");
+  assert.equal(parsed[0].website, null);
+  assert.equal(parsed[1].website, null);
+  assert.ok(parsed[0].sourceUrls.includes("https://www.ticketsza.co.za/"));
+  assert.ok(parsed[1].sourceUrls.includes("https://www.tixsa.co.za/events/potch"));
+});
+
+test("unresolved event-first identity remains discovery memory and cannot create an account", () => {
+  const unresolved = evaluateDiscoveryCandidate(candidate({ canonicalName: "Unresolved Event", organiserName: null, website: null, facts: [fact("Unresolved Event is scheduled this year.", ["DISCOVERY"])] }), "ZA");
+  assert.equal(unresolved.organisationResolution?.status, "UNRESOLVED");
+  assert.equal(unresolved.website, null);
+  assert.equal(unresolved.prospectIntelligence.accountCreationEligible, false);
+  assert.equal(isContactResearchEligible({ status: unresolved.status, relationship: unresolved.relationship, account_id: null, prospect_intelligence: unresolved.prospectIntelligence }), false);
+});
+
+test("organiser noun phrasing establishes validation and resolution promotes the commercial target", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Event Production Show 2026", organiserName: "Mash Media Group Ltd.", website: "https://www.eventproductionshow.co.uk/", facts: [fact("Mash Media Group Ltd. is the organiser of Event Production Show 2026 at ExCeL London.", ["DISCOVERY"])] }), "GB");
+  assert.ok(initial.facts[0].sourceRoles?.includes("VALIDATION"));
+  assert.equal(initial.prospectIntelligence.eventConnection.state, "CONFIRMED");
+  const promoted = applyDiscoveryEnrichment(initial, {
+    organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Mash Media Group Ltd.", officialWebsite: "https://www.mashmedia.co.uk/", aliases: ["Mash Media"], confidence: "HIGH", evidence: [{ claim: "Mash Media Group Ltd. is the organiser of Event Production Show 2026.", sourceUrl: "https://www.eventproductionshow.co.uk/about", sourceTitle: "Official organiser information", confidence: "HIGH" }] },
+    commercialEvidence: [], facts: [], inferences: [], unknowns: [],
+  }, "GB");
+  assert.equal(promoted.canonicalName, "Mash Media Group Ltd.");
+  assert.equal(promoted.organiserName, "Mash Media Group Ltd.");
+  assert.equal(promoted.website, "https://www.mashmedia.co.uk/");
+  assert.equal(promoted.canonicalKey, "mash-media-group-ltd|mashmedia.co.uk");
+  assert.ok(promoted.facts.some((item) => /Event Production Show/.test(item.claim)));
+  assert.equal(promoted.organisationResolution?.status, "RESOLVED");
+});
+
+test("eCommerce Expo-style resolution hands commercial research to UPTECH, not the event page", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "eCommerce Expo 2026", organiserName: "UPTECH Events", website: "https://www.ecommerceexpo.co.uk/", facts: [fact("UPTECH Events is the organiser of eCommerce Expo 2026.", ["DISCOVERY"])] }), "GB");
+  const promoted = applyDiscoveryEnrichment(initial, {
+    organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "UPTECH Events", officialWebsite: "https://www.uptechevents.com/", aliases: [], confidence: "HIGH", evidence: [{ claim: "UPTECH Events is the organiser of eCommerce Expo 2026.", sourceUrl: "https://www.ecommerceexpo.co.uk/about", sourceTitle: "Organiser information", confidence: "HIGH" }] },
+    commercialEvidence: [{ product: "EGS", claim: "UPTECH Events has fragmented event pages across disconnected destinations.", sourceUrl: "https://www.uptechevents.com/events", evidenceCategory: "DISCONNECTED_EVENT_PAGES", confidence: "MEDIUM" }], facts: [], inferences: [], unknowns: [],
+  }, "GB");
+  assert.equal(promoted.canonicalName, "UPTECH Events");
+  assert.equal(promoted.website, "https://www.uptechevents.com/");
+  assert.equal(promoted.prospectIntelligence.primaryEntryOpportunity, "EGS");
+  assert.equal(promoted.prospectIntelligence.accountCreationEligible, true);
+  assert.ok(promoted.facts.some((item) => item.sourceRoles?.includes("COMMERCIAL_EVIDENCE")));
+});
+
+test("provider presence and an owned ticketing system alone are not Ticketing pain", () => {
+  const provider = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "GB", facts: [fact("The organiser runs an upcoming event and tickets are sold through Ticketmaster.", ["VALIDATION", "COMMERCIAL_EVIDENCE"])], inferences: [] });
+  const owned = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "GB", facts: [fact("The organiser runs an upcoming event and operates its own ticketing system.", ["VALIDATION", "COMMERCIAL_EVIDENCE"])], inferences: [] });
+  assert.notEqual(provider.ticketing.opportunityStrength, "STRONG_HYPOTHESIS");
+  assert.equal(owned.ticketing.opportunityStrength, "NO_EVIDENCE");
+});
+
+test("validated structured evidence maps product-by-product without weakening negative rules", () => {
+  const egs = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "GB", facts: [fact("The organiser runs an upcoming event.", ["VALIDATION"])], commercialEvidence: [{ product: "EGS", claim: "The organisation has a fragmented owned event destination.", sourceUrl: "https://official.example.org/site", evidenceCategory: "FRAGMENTED_DIGITAL", confidence: "HIGH" }], inferences: [] });
+  const ticketing = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "GB", facts: [fact("The organiser runs an upcoming event.", ["VALIDATION"])], commercialEvidence: [{ product: "TICKETING", claim: "The organisation has multiple fragmented ticket providers and manual reconciliation.", sourceUrl: "https://official.example.org/tickets", evidenceCategory: "PROVIDER_FRAGMENTATION", confidence: "HIGH" }], inferences: [] });
+  const ecc = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "GB", facts: [fact("The organiser runs an upcoming event.", ["VALIDATION"])], commercialEvidence: [{ product: "ECC", claim: "The event has multiple stages, concurrent programming and vendor coordination.", sourceUrl: "https://official.example.org/plan", evidenceCategory: "CONCURRENCY", confidence: "HIGH" }], inferences: [] });
+  assert.equal(egs.primaryEntryOpportunity, "EGS");
+  assert.equal(ticketing.primaryEntryOpportunity, "TICKETING");
+  assert.equal(ecc.primaryEntryOpportunity, "ECC");
+});
+
+test("Festival Republic own-ticketing context is downgraded when it lacks problem or change evidence", () => {
+  const result = evaluateProspectIntelligence({ relationship: "PROSPECT", territory: "GB", facts: [fact("Festival Republic operates its own ticketing system.", ["VALIDATION", "COMMERCIAL_EVIDENCE"]), fact("Festival Republic organises an upcoming festival.", ["VALIDATION"])], inferences: [] });
+  assert.equal(result.ticketing.opportunityStrength, "NO_EVIDENCE");
+  assert.equal(result.primaryEntryOpportunity, "UNKNOWN");
+});
+
+test("commercial advancement telemetry distinguishes resolution/product progress from technical success", async () => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  const originalFetch = globalThis.fetch;
+  process.env.OPENAI_API_KEY = "test-only-key";
+  globalThis.fetch = async () => new Response(JSON.stringify({ output_text: JSON.stringify({ candidates: [{ candidateRef: "1", organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Resolved Events", officialWebsite: "https://resolved.example.org", aliases: [], confidence: "HIGH", evidence: [{ claim: "Resolved Events is the organiser of the current event.", sourceUrl: "https://event.example.org/about", sourceTitle: "Organiser", confidence: "HIGH" }] }, commercialEvidence: [{ product: "EGS", claim: "The organisation has fragmented event pages.", sourceUrl: "https://resolved.example.org/events", evidenceCategory: "FRAGMENTED_DIGITAL", confidence: "HIGH" }], facts: [], inferences: [], unknowns: [] }] }) }), { status: 200, headers: { "content-type": "application/json" } });
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Current Event", organiserName: null, website: null, facts: [fact("Current Event is scheduled this year.", ["DISCOVERY"])] }), "GB");
+  const result = await (await import("../src/ai-sales-team/discovery.ts")).enrichDiscoveryCandidates([initial], "GB");
+  assert.equal(result.candidates[0].enrichment.status, "SUCCEEDED");
+  assert.equal(result.candidates[0].enrichment.resolutionOutcome, "RESOLVED");
+  assert.equal(result.candidates[0].enrichment.commercialOutcome, "PRODUCT_SIGNAL_FOUND");
+  assert.equal(result.candidates[0].enrichment.commerciallyAdvanced, true);
+  assert.equal(result.telemetry.enrichmentMateriallyChangedCount, 1);
+  assert.equal(JSON.stringify(result).includes("reasoning"), false);
+  process.env.OPENAI_API_KEY = originalKey;
+  globalThis.fetch = originalFetch;
 });

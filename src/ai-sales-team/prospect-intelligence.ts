@@ -10,6 +10,9 @@ export type OutreachMotion = "DIRECT" | "PARTNER" | "UNKNOWN";
 export type EventFreshness = "ACTIVE_UPCOMING" | "RECENT_RECURRING_EVIDENCE" | "HISTORICAL" | "CANCELLED_DEAD_UNSUPPORTED" | "UNKNOWN";
 export type CommercialActionType = "PRODUCT_EXPLORATION" | "VALUE_RESOURCE" | "LOW_COMMITMENT_REPLY" | "HUMAN_ASSISTED" | "NONE";
 export type CommercialActionCode = "EXPLORE_EVENTSUITE" | "VIEW_RESOURCE" | "REPLY_FOR_MORE_INFO" | "BOOK_WALKTHROUGH" | "NONE";
+export type CommercialEvidenceProduct = "EGS" | "TICKETING" | "ECC";
+export type CommercialEvidenceCategory = "WEAK_OWNED_PRESENCE" | "FRAGMENTED_DIGITAL" | "DISCOVERY_GAP" | "DISCONNECTED_EVENT_PAGES" | "PROVIDER_FRAGMENTATION" | "MANUAL_OPERATIONS" | "WORKFLOW_COMPLEXITY" | "MIGRATION_CHANGE" | "PROCUREMENT_CHANGE" | "MULTI_STAGE" | "MULTI_ZONE" | "MULTI_VENUE" | "CONCURRENCY" | "ACCREDITATION" | "WORKFORCE" | "VENDOR_COORDINATION" | "PRODUCTION_SCHEDULING" | "OPERATIONAL_COORDINATION";
+export type CommercialEvidenceItem = { product: CommercialEvidenceProduct; claim: string; sourceUrl: string; evidenceCategory: CommercialEvidenceCategory; confidence: AiSalesEvidence["confidence"] };
 export type LensAssessment = { status: "ASSESSED" | "NOT_ASSESSED"; opportunityStrength: OpportunityStrength; facts: string[]; inferences: string[]; unknowns: string[] };
 export type ProspectIntelligence = {
   eventConnection: { state: EventConnectionState; reasons: string[]; evidence: string[] };
@@ -21,6 +24,21 @@ export type ProspectIntelligence = {
   commercialPriority: "HIGH" | "MEDIUM" | "LOW"; priorityReasons: string[]; accountCreationEligible: boolean; accountCreationReason: string;
   nextBestCommercialAction: { type: CommercialActionType; code: CommercialActionCode; objective: string; ctaLabel: string; targetUrlIfVerified: string | null; productDestinationUrl: string; resourceOffer: ResourceOffer; rationale: string; humanHelpFallback: string | null; evidence: string[]; confidence: "LOW" | "MEDIUM" | "HIGH"; callRecommended: boolean };
   recommendedNextAction: string; unknownsToResearch: string[]; events: Array<{ name: string; role: string; evidence: string }>;
+};
+
+export type OrganisationResolution = {
+  status: "RESOLVED" | "UNRESOLVED" | "NOT_REQUIRED";
+  canonicalOrganisationName: string | null;
+  officialWebsite: string | null;
+  aliases: string[];
+  confidence: AiSalesEvidence["confidence"];
+  evidence: Array<{ claim: string; sourceUrl: string; sourceTitle: string | null; confidence: AiSalesEvidence["confidence"] }>;
+};
+
+export type ProspectResearchOutcome = {
+  resolutionOutcome: "NOT_REQUIRED" | "RESOLVED" | "UNRESOLVED";
+  commercialOutcome: "PRODUCT_SIGNAL_FOUND" | "VALIDATION_ONLY" | "NO_COMMERCIAL_SIGNAL" | "NOT_RUN";
+  commerciallyAdvanced: boolean;
 };
 
 const EVENT_PATTERN = /\b(?:event|conference|symposium|festival|programme|tournament|exhibition|performance|summit|workshop|concert)\w*\b/i;
@@ -66,7 +84,7 @@ function selectCommercialAction(input: { eligible: boolean; primary: ProspectOpp
   return { type: "PRODUCT_EXPLORATION", code: "EXPLORE_EVENTSUITE", objective: "Invite the organiser to explore EventSuite before choosing a product or setup path.", ctaLabel: "Explore EventSuite", targetUrlIfVerified: EVENTSUITE_LANDING_URL, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "Cold prospects should start at the public EventSuite landing page.", humanHelpFallback: "Reply if help would be useful.", evidence: input.primary === "EGS" ? input.egs.facts : input.primary === "TICKETING" ? input.ticketing.facts : input.ecc.facts, confidence: "HIGH", callRecommended: false };
 }
 
-export function evaluateProspectIntelligence(input: { relationship: AccountRelationship; territory: ProspectIntelligence["territory"]; facts: AiSalesEvidence[]; inferences: AiSalesEvidence[]; unknowns?: string[] }): ProspectIntelligence {
+export function evaluateProspectIntelligence(input: { relationship: AccountRelationship; territory: ProspectIntelligence["territory"]; facts: AiSalesEvidence[]; inferences: AiSalesEvidence[]; unknowns?: string[]; commercialEvidence?: CommercialEvidenceItem[] }): ProspectIntelligence {
   const facts = factsOnly(input.facts); const claims = facts.map((item) => item.claim); const freshness = freshnessOf(facts);
   const validationFacts = facts.filter((item) => item.sourceRoles?.includes("VALIDATION") || RESPONSIBILITY_PATTERN.test(item.claim));
   const eventFacts = validationFacts.filter((item) => EVENT_PATTERN.test(item.claim) && (RESPONSIBILITY_PATTERN.test(item.claim) || item.sourceRoles?.includes("VALIDATION")));
@@ -75,13 +93,18 @@ export function evaluateProspectIntelligence(input: { relationship: AccountRelat
   const eventConnection: ProspectIntelligence["eventConnection"] = eventFacts.length && current ? { state: eventFacts.some((item) => item.sourceRoles?.includes("VALIDATION") || /\b(?:organis\w*|operates?|promotes?|produces?|owns?)\b/i.test(item.claim)) ? "CONFIRMED" : "STRONG", reasons: ["Source-grounded evidence connects the organisation to current or recurring event activity."], evidence: eventFacts.map((item) => item.claim) } : eventMentionFacts.length ? { state: "WEAK", reasons: [current ? "Event activity is mentioned, but organiser responsibility is not established." : "Event evidence is not current enough to establish a live commercial relationship."], evidence: eventMentionFacts.map((item) => item.claim) } : { state: "NONE", reasons: ["No source-grounded organiser/event relationship was established."], evidence: [] };
   const eligibleEvent = ["CONFIRMED", "STRONG"].includes(eventConnection.state) && current;
   const commerciallyTrusted = facts.filter((item) => ["HIGH", "MEDIUM"].includes(item.confidence) && (item.sourceRoles?.includes("VALIDATION") || item.sourceRoles?.includes("COMMERCIAL_EVIDENCE") || item.sourceRoles?.includes("SIGNAL")));
+  const structured = input.commercialEvidence ?? [];
+  const structuredClaims = (product: CommercialEvidenceProduct) => structured.filter((item) => item.product === product).map((item) => item.claim);
   const egsFacts = facts.filter((item) => DIGITAL_GAP_PATTERN.test(item.claim));
+  const egsClaims = [...new Set([...egsFacts.map((item) => item.claim), ...structuredClaims("EGS")])];
   const providerFacts = facts.filter((item) => PROVIDER_PATTERN.test(item.claim));
   const ticketProblemFacts = facts.filter((item) => TICKETING_PROBLEM_PATTERN.test(item.claim));
+  const ticketClaims = [...new Set([...ticketProblemFacts.map((item) => item.claim), ...structuredClaims("TICKETING")])];
   const eccFacts = facts.filter((item) => COMPLEXITY_PATTERN.test(item.claim));
-  const egs = eligibleEvent && egsFacts.length ? assessment("STRONG_HYPOTHESIS", egsFacts.map((item) => item.claim), ["A weak or fragmented owned event presence is evidenced."], ["Validate the organisation's preferred canonical event destination."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No observable owned-digital problem is evidenced."] : ["Establish current organiser/event responsibility first."]);
-  const ticketing = eligibleEvent && ticketProblemFacts.length ? assessment("STRONG_HYPOTHESIS", ticketProblemFacts.map((item) => item.claim), ["A specific ticketing or commerce problem is evidenced."], ["Validate current provider and purchasing workflow."]) : assessment(eligibleEvent ? (providerFacts.length ? "POSSIBLE" : "NO_EVIDENCE") : "NOT_APPLICABLE", providerFacts.map((item) => item.claim), providerFacts.length ? ["Provider use is commercial intelligence, not switching intent."] : [], providerFacts.length ? ["Validate a switching, reconciliation or purchasing problem before treating Ticketing as an opportunity."] : ["No ticketing problem is publicly evidenced."]);
-  const ecc = eligibleEvent && eccFacts.length ? assessment("STRONG_HYPOTHESIS", eccFacts.map((item) => item.claim), ["Observed structure indicates meaningful coordination complexity."], ["Validate operating teams and current event operations workflow."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No defensible operational complexity signal is evidenced."] : ["Establish current organiser/event responsibility first."]);
+  const eccClaims = [...new Set([...eccFacts.map((item) => item.claim), ...structuredClaims("ECC")])];
+  const egs = eligibleEvent && egsClaims.length ? assessment("STRONG_HYPOTHESIS", egsClaims, ["A weak or fragmented owned event presence is evidenced."], ["Validate the organisation's preferred canonical event destination."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No observable owned-digital problem is evidenced."] : ["Establish current organiser/event responsibility first."]);
+  const ticketing = eligibleEvent && ticketClaims.length ? assessment("STRONG_HYPOTHESIS", ticketClaims, ["A specific ticketing or commerce problem is evidenced."], ["Validate current provider and purchasing workflow."]) : assessment(eligibleEvent ? (providerFacts.length ? "POSSIBLE" : "NO_EVIDENCE") : "NOT_APPLICABLE", providerFacts.map((item) => item.claim), providerFacts.length ? ["Provider use is commercial intelligence, not switching intent."] : [], providerFacts.length ? ["Validate a switching, reconciliation or purchasing problem before treating Ticketing as an opportunity."] : ["No ticketing problem is publicly evidenced."]);
+  const ecc = eligibleEvent && eccClaims.length ? assessment("STRONG_HYPOTHESIS", eccClaims, ["Observed structure indicates meaningful coordination complexity."], ["Validate operating teams and current event operations workflow."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No defensible operational complexity signal is evidenced."] : ["Establish current organiser/event responsibility first."]);
   const lenses: Array<[ProspectOpportunity, LensAssessment]> = [["EGS", egs], ["TICKETING", ticketing], ["ECC", ecc]]; const strong = lenses.filter(([, item]) => ["CONFIRMED_NEED", "STRONG_HYPOTHESIS"].includes(item.opportunityStrength));
   const primaryEntryOpportunity = strong.length ? strong.sort((a, b) => ["EGS", "TICKETING", "ECC"].indexOf(a[0]) - ["EGS", "TICKETING", "ECC"].indexOf(b[0]))[0][0] : "UNKNOWN";
   const secondaryOpportunities = strong.filter(([engine]) => engine !== primaryEntryOpportunity).map(([engine]) => engine);
