@@ -27,7 +27,7 @@ test("a university with actual conferences can qualify from event evidence", () 
 });
 
 test("small Afrikaans festival keeps EGS primary without a size penalty", () => {
-  const result = assess("Example Festival", ["Annual regional festival with a strong audience and recurring paid tickets.", "Public communications are predominantly Afrikaans and event information is fragmented across social channels and a ticket-provider page.", "The event is multi-day with multiple stages, vendors and performers."]);
+  const result = assess("Example Festival", ["The organiser runs an annual regional festival with a strong audience and recurring paid tickets.", "Public communications are predominantly Afrikaans and event information is fragmented across social channels and a ticket-provider page.", "The event is multi-day with multiple stages, vendors and performers."]);
   assert.equal(result.eventConnection.state, "CONFIRMED");
   assert.equal(result.primaryEntryOpportunity, "EGS");
   assert.equal(result.egs.opportunityStrength, "STRONG_HYPOTHESIS");

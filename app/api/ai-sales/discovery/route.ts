@@ -35,9 +35,11 @@ export async function POST(request: Request) {
       if (prior.error) throw prior.error;
       const accountName = candidate.organiserName || candidate.canonicalName;
       let accountId = prior.data?.account_id ?? null;
-      const shouldCreateAccount = candidate.status === "QUALIFIED" || candidate.status === "REVIEW_REQUIRED";
+      const shouldCreateAccount = candidate.prospectIntelligence.accountCreationEligible;
       if (!accountId && shouldCreateAccount) {
-        const existing = await state.client.from("accounts").select("id, website").eq("name", accountName).limit(1).maybeSingle();
+        const existing = candidate.website
+          ? await state.client.from("accounts").select("id, website").eq("website", candidate.website).limit(1).maybeSingle()
+          : await state.client.from("accounts").select("id, website").eq("name", accountName).limit(1).maybeSingle();
         if (existing.error) throw existing.error;
         if (existing.data) accountId = existing.data.id;
         else {
@@ -46,8 +48,8 @@ export async function POST(request: Request) {
           accountId = created.id;
         }
       }
-      if (accountId && candidate.status === "QUALIFIED") {
-        const evidence = candidate.facts.map((item) => ({ account_id: accountId, evidence_type: item.sourceUrl ? "WEBSITE" : "OTHER", claim: item.claim, source_url: item.sourceUrl, source_title: item.sourceTitle, source_reference: item.sourceUrl ?? "autonomous-discovery", observed_at: new Date().toISOString(), evidence_kind: "FACT", qualitative_confidence: item.confidence, metadata: { discoveryRunId: run.id, origin: candidate.origin } }));
+      if (accountId && candidate.prospectIntelligence.accountCreationEligible) {
+        const evidence = candidate.facts.map((item) => ({ account_id: accountId, evidence_type: item.sourceUrl ? "WEBSITE" : "OTHER", claim: item.claim, source_url: item.sourceUrl, source_title: item.sourceTitle, source_reference: item.sourceUrl ?? "autonomous-discovery", observed_at: new Date().toISOString(), evidence_kind: "FACT", qualitative_confidence: item.confidence, metadata: { discoveryRunId: run.id, origin: candidate.origin, sourceRoles: item.sourceRoles ?? ["DISCOVERY"], eventFreshness: item.eventFreshness ?? "UNKNOWN" } }));
         const existingEvidence = await state.client.from("research_evidence").select("claim, source_url").eq("account_id", accountId);
         if (existingEvidence.error) throw existingEvidence.error;
         const knownEvidence = new Set((existingEvidence.data ?? []).map((item) => `${item.claim}::${item.source_url ?? ""}`));

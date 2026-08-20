@@ -7,103 +7,94 @@ export type OpportunityStrength = "CONFIRMED_NEED" | "STRONG_HYPOTHESIS" | "POSS
 export type ProspectOpportunity = "EGS" | "TICKETING" | "ECC" | "UNKNOWN";
 export type OutreachDecision = "ELIGIBLE" | "REVIEW_REQUIRED" | "BLOCKED";
 export type OutreachMotion = "DIRECT" | "PARTNER" | "UNKNOWN";
+export type EventFreshness = "ACTIVE_UPCOMING" | "RECENT_RECURRING_EVIDENCE" | "HISTORICAL" | "CANCELLED_DEAD_UNSUPPORTED" | "UNKNOWN";
 export type CommercialActionType = "PRODUCT_EXPLORATION" | "VALUE_RESOURCE" | "LOW_COMMITMENT_REPLY" | "HUMAN_ASSISTED" | "NONE";
 export type CommercialActionCode = "EXPLORE_EVENTSUITE" | "VIEW_RESOURCE" | "REPLY_FOR_MORE_INFO" | "BOOK_WALKTHROUGH" | "NONE";
-
-export type LensAssessment = {
-  status: "ASSESSED" | "NOT_ASSESSED";
-  opportunityStrength: OpportunityStrength;
-  facts: string[];
-  inferences: string[];
-  unknowns: string[];
-};
-
+export type LensAssessment = { status: "ASSESSED" | "NOT_ASSESSED"; opportunityStrength: OpportunityStrength; facts: string[]; inferences: string[]; unknowns: string[] };
 export type ProspectIntelligence = {
   eventConnection: { state: EventConnectionState; reasons: string[]; evidence: string[] };
-  relationship: AccountRelationship;
-  territory: "ZA" | "GB" | "UNKNOWN";
-  preferredOutreachLanguage: "EN" | "AF" | "OTHER" | "UNKNOWN";
-  languageEvidence: AiSalesEvidence[];
-  egs: LensAssessment;
-  ticketing: LensAssessment;
-  ecc: LensAssessment;
-  primaryEntryOpportunity: ProspectOpportunity;
-  secondaryOpportunities: ProspectOpportunity[];
-  buyerProblemOwner: { likelyRoles: string[]; evidence: string[] };
-  outreachEligibility: OutreachDecision;
-  outreachBlockOrReviewReason: string | null;
-  salesMotion: OutreachMotion;
-  commercialPriority: "HIGH" | "MEDIUM" | "LOW";
-  priorityReasons: string[];
+  eventFreshness: { state: EventFreshness; reasons: string[] };
+  sourceSummary: { roles: string[]; highOrMediumConfidenceFacts: number; discoveryOnlyFacts: number };
+  relationship: AccountRelationship; territory: "ZA" | "GB" | "UNKNOWN"; preferredOutreachLanguage: "EN" | "AF" | "OTHER" | "UNKNOWN"; languageEvidence: AiSalesEvidence[];
+  egs: LensAssessment; ticketing: LensAssessment; ecc: LensAssessment; primaryEntryOpportunity: ProspectOpportunity; secondaryOpportunities: ProspectOpportunity[];
+  buyerProblemOwner: { likelyRoles: string[]; evidence: string[] }; outreachEligibility: OutreachDecision; outreachBlockOrReviewReason: string | null; salesMotion: OutreachMotion;
+  commercialPriority: "HIGH" | "MEDIUM" | "LOW"; priorityReasons: string[]; accountCreationEligible: boolean; accountCreationReason: string;
   nextBestCommercialAction: { type: CommercialActionType; code: CommercialActionCode; objective: string; ctaLabel: string; targetUrlIfVerified: string | null; productDestinationUrl: string; resourceOffer: ResourceOffer; rationale: string; humanHelpFallback: string | null; evidence: string[]; confidence: "LOW" | "MEDIUM" | "HIGH"; callRecommended: boolean };
-  recommendedNextAction: string;
-  unknownsToResearch: string[];
-  events: Array<{ name: string; role: string; evidence: string }>;
+  recommendedNextAction: string; unknownsToResearch: string[]; events: Array<{ name: string; role: string; evidence: string }>;
 };
 
-const EVENT_PATTERN = /\b(?:event|events|conference|conferences|symposium|symposiums|festival|festivals|graduation|graduations|lecture|lectures|programme|programmes|tournament|tournaments|exhibition|exhibitions|performance|performances|summit|summits|workshop|workshops|concert|concerts)\b/i;
-const ACTIVITY_PATTERN = /\b(?:hosts?|organis(?:e|es|ed|ing)|runs?|owns?|operates?|produces?|presents?|annual|recurring|edition|programme|programmes|dates?|multi-day|multi-stage|multiple venues?|multiple rooms?|suppliers?|exhibitors?|vendors?|workforce|teams?)\b/i;
-const PAID_PATTERN = /\b(?:paid|ticket(?:ed|ing|s)?|registration|admission|ticket tiers?|scanning|box office|orders?|upsell|reconciliation|guest(?:s| list)?|comps?)\b/i;
-const DIGITAL_GAP_PATTERN = /\b(?:no meaningful owned|weak owned|poor owned|fragmented|thin|social channels? .*site|ticket-provider page .*site|missing .*programme|weak .*digital|poor .*presence|discoverab(?:ility|le)|public information .*spread)\b/i;
-const COMPLEXITY_PATTERN = /\b(?:multi-day|multi-stage|multi-room|multiple venues?|multiple locations?|suppliers?|exhibitors?|vendors?|workforce|production schedule|technical dependencies|guest operations|complex programme|concurrent|simultaneous)\b/i;
+const EVENT_PATTERN = /\b(?:event|conference|symposium|festival|programme|tournament|exhibition|performance|summit|workshop|concert)\w*\b/i;
+const RESPONSIBILITY_PATTERN = /\b(?:organis(?:e|es|ed|ing)|promotes?|operates?|produces?|presents?|runs?|owns?|host(?:s|ed|ing))\b/i;
+const ACTIVITY_PATTERN = /\b(?:upcoming|next edition|tickets? on sale|annual|recurring|returns?|edition|programme|dates?|current|announced)\b/i;
+const DIGITAL_GAP_PATTERN = /\b(?:no meaningful owned|weak owned|poor owned|fragmented|thin|social[- ]first|ticket(?:ing| provider)? page (?:as|is) (?:the )?primary|missing .*programme|weak .*digital|poor .*presence|discoverab(?:ility|le)|public information .*spread)\b/i;
+const PROVIDER_PATTERN = /\b(?:quicket|ticketmaster|eventbrite|howler|webtickets|tickets? (?:sold|available) (?:through|via)|powered by)\b/i;
+const TICKETING_PROBLEM_PATTERN = /\b(?:multiple (?:ticket|registration|sales) arrangements|manual (?:registration|reconciliation|ticket)|switch(?:ing|ing provider)|procurement|evaluation|settlement|fragmented (?:purchasing|registration)|admission scanning|ticket tiers?|box office|reconciliation|paid (?:tickets?|registration)|registration)\b/i;
+const COMPLEXITY_PATTERN = /\b(?:multi-day|multi-stage|multi-zone|multiple venues?|multiple locations?|concurrent|simultaneous|suppliers?|exhibitors?|vendors?|workforce|volunteers?|accreditation|production schedule|technical dependencies|guest operations|complex programme)\b/i;
 const AFRIKAANS_PATTERN = /\b(?:afrikaans|afrikaans-language|predominantly afrikaans)\b/i;
 const HIGH_TOUCH_PATTERN = /\b(?:enterprise|procurement|migration|settlement|security|multiple departments?|multiple events?|multi-event)\b/i;
+type SourceRole = NonNullable<AiSalesEvidence["sourceRoles"]>[number];
 
-function materialEvidence(items: AiSalesEvidence[]) {
-  return items.filter((item) => item.kind === "FACT" && item.claim.trim());
+function inferredFreshness(claim: string): EventFreshness {
+  if (/\b(?:cancelled|canceled|defunct|no longer operating)\b/i.test(claim)) return "CANCELLED_DEAD_UNSUPPORTED";
+  const year = new Date().getUTCFullYear();
+  const years = [...claim.matchAll(/\b(20\d{2})\b/g)].map((match) => Number(match[1]));
+  if (/\b(?:upcoming|next edition|tickets? on sale|this year|current|announced)\b/i.test(claim) || years.some((value) => value >= year)) return "ACTIVE_UPCOMING";
+  if (/\b(?:annual|recurring|returns?|returning|edition)\b/i.test(claim)) return "RECENT_RECURRING_EVIDENCE";
+  if (/\b(?:historic|historical|archive|archived|took place|was held)\b/i.test(claim) || years.some((value) => value < year)) return "HISTORICAL";
+  return "UNKNOWN";
 }
-
-function assessment(strength: OpportunityStrength, facts: string[], inferences: string[], unknowns: string[]): LensAssessment {
-  return { status: "ASSESSED", opportunityStrength: strength, facts, inferences, unknowns };
+function factsOnly(items: AiSalesEvidence[]) {
+  return items.filter((item) => item.kind === "FACT" && item.claim.trim()).map((item) => {
+    const roles: SourceRole[] = item.sourceRoles?.length ? item.sourceRoles : [RESPONSIBILITY_PATTERN.test(item.claim) ? "VALIDATION" : DIGITAL_GAP_PATTERN.test(item.claim) || TICKETING_PROBLEM_PATTERN.test(item.claim) || COMPLEXITY_PATTERN.test(item.claim) ? "COMMERCIAL_EVIDENCE" : "DISCOVERY"];
+    return { ...item, sourceRoles: roles, eventFreshness: item.eventFreshness ?? inferredFreshness(item.claim) };
+  });
 }
-
-function selectCommercialAction(input: { eligible: boolean; primary: ProspectOpportunity; ticketing: LensAssessment; egs: LensAssessment; ecc: LensAssessment; claims: string[]; buyerRoles: string[] }) : ProspectIntelligence["nextBestCommercialAction"] {
+function assessment(strength: OpportunityStrength, facts: string[] = [], inferences: string[] = [], unknowns: string[] = []): LensAssessment { return { status: "ASSESSED", opportunityStrength: strength, facts, inferences, unknowns }; }
+function freshnessOf(facts: AiSalesEvidence[]): ProspectIntelligence["eventFreshness"] {
+  const states = facts.map((fact) => fact.eventFreshness ?? "UNKNOWN");
+  if (states.includes("CANCELLED_DEAD_UNSUPPORTED")) return { state: "CANCELLED_DEAD_UNSUPPORTED", reasons: ["Public evidence marks the event or organisation as cancelled, dead or unsupported."] };
+  if (states.includes("ACTIVE_UPCOMING")) return { state: "ACTIVE_UPCOMING", reasons: ["Public evidence supports a current or upcoming event."] };
+  if (states.includes("RECENT_RECURRING_EVIDENCE")) return { state: "RECENT_RECURRING_EVIDENCE", reasons: ["A recent recurring event supports organisation intelligence but not an invented upcoming edition."] };
+  if (states.includes("HISTORICAL")) return { state: "HISTORICAL", reasons: ["Only historical event evidence was found."] };
+  return { state: "UNKNOWN", reasons: ["Event freshness has not been established."] };
+}
+function selectCommercialAction(input: { eligible: boolean; primary: ProspectOpportunity; ticketing: LensAssessment; egs: LensAssessment; ecc: LensAssessment; claims: string[]; buyerRoles: string[] }): ProspectIntelligence["nextBestCommercialAction"] {
   const resourceOffer = selectResourceOffer({ primary: input.primary, claims: input.claims, buyerRoles: input.buyerRoles });
-  if (!input.eligible || input.primary === "UNKNOWN") return { type: "NONE", code: "NONE", objective: "Do not advance ordinary Direct outreach until Prospect Intelligence is eligible.", ctaLabel: "No outreach CTA", targetUrlIfVerified: null, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "The event connection or evidence-backed opportunity is not sufficient for normal Direct outreach.", humanHelpFallback: null, evidence: [], confidence: "HIGH", callRecommended: false };
+  if (!input.eligible || input.primary === "UNKNOWN") return { type: "NONE", code: "NONE", objective: "Do not advance ordinary Direct outreach until Prospect Intelligence is eligible.", ctaLabel: "No outreach CTA", targetUrlIfVerified: null, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "The event connection, current activity or evidence-backed opportunity is not sufficient for normal Direct outreach.", humanHelpFallback: null, evidence: [], confidence: "HIGH", callRecommended: false };
   const highTouch = HIGH_TOUCH_PATTERN.test(input.claims.join(" ")) || (input.primary === "ECC" && input.ecc.opportunityStrength === "STRONG_HYPOTHESIS");
   if (highTouch) return { type: "HUMAN_ASSISTED", code: "BOOK_WALKTHROUGH", objective: "Offer a guided walkthrough only because the evidenced event complexity warrants it.", ctaLabel: "Reply to arrange a walkthrough", targetUrlIfVerified: null, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "Observed event-operating, migration, procurement or enterprise complexity makes a guided conversation materially useful.", humanHelpFallback: "Explore EventSuite first if a lighter-weight route is easier.", evidence: input.primary === "ECC" ? input.ecc.facts : input.claims.filter((claim) => HIGH_TOUCH_PATTERN.test(claim)), confidence: "MEDIUM", callRecommended: true };
-  return { type: "PRODUCT_EXPLORATION", code: "EXPLORE_EVENTSUITE", objective: "Invite the organiser to explore EventSuite before choosing a product or setup path.", ctaLabel: "Explore EventSuite", targetUrlIfVerified: EVENTSUITE_LANDING_URL, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "Cold prospects should start at the public EventSuite landing page, which explains the connected platform and routes first-time evaluators to the right path.", humanHelpFallback: "Reply if help would be useful.", evidence: input.primary === "EGS" ? input.egs.facts : input.primary === "TICKETING" ? input.ticketing.facts : input.ecc.facts, confidence: "HIGH", callRecommended: false };
+  return { type: "PRODUCT_EXPLORATION", code: "EXPLORE_EVENTSUITE", objective: "Invite the organiser to explore EventSuite before choosing a product or setup path.", ctaLabel: "Explore EventSuite", targetUrlIfVerified: EVENTSUITE_LANDING_URL, productDestinationUrl: EVENTSUITE_LANDING_URL, resourceOffer, rationale: "Cold prospects should start at the public EventSuite landing page.", humanHelpFallback: "Reply if help would be useful.", evidence: input.primary === "EGS" ? input.egs.facts : input.primary === "TICKETING" ? input.ticketing.facts : input.ecc.facts, confidence: "HIGH", callRecommended: false };
 }
 
-export function evaluateProspectIntelligence(input: {
-  relationship: AccountRelationship;
-  territory: ProspectIntelligence["territory"];
-  facts: AiSalesEvidence[];
-  inferences: AiSalesEvidence[];
-  unknowns?: string[];
-}): ProspectIntelligence {
-  const facts = materialEvidence(input.facts);
-  const claims = facts.map((item) => item.claim);
-  const eventFacts = facts.filter((item) => EVENT_PATTERN.test(item.claim) && ACTIVITY_PATTERN.test(item.claim));
+export function evaluateProspectIntelligence(input: { relationship: AccountRelationship; territory: ProspectIntelligence["territory"]; facts: AiSalesEvidence[]; inferences: AiSalesEvidence[]; unknowns?: string[] }): ProspectIntelligence {
+  const facts = factsOnly(input.facts); const claims = facts.map((item) => item.claim); const freshness = freshnessOf(facts);
+  const validationFacts = facts.filter((item) => item.sourceRoles?.includes("VALIDATION") || RESPONSIBILITY_PATTERN.test(item.claim));
+  const eventFacts = validationFacts.filter((item) => EVENT_PATTERN.test(item.claim) && (RESPONSIBILITY_PATTERN.test(item.claim) || item.sourceRoles?.includes("VALIDATION")));
   const eventMentionFacts = facts.filter((item) => EVENT_PATTERN.test(item.claim));
-  const eventConnection: ProspectIntelligence["eventConnection"] = eventFacts.length
-    ? { state: eventFacts.some((item) => /\b(?:annual|recurring|edition|multi-day|multi-stage|programme|programmes)\b/i.test(item.claim)) ? "CONFIRMED" : "STRONG", reasons: ["Source-grounded evidence identifies actual event activity or an event programme."], evidence: eventFacts.map((item) => item.claim) }
-    : eventMentionFacts.length
-      ? { state: "WEAK", reasons: ["Events are mentioned, but the supplied evidence does not establish a concrete organiser/event opportunity."], evidence: eventMentionFacts.map((item) => item.claim) }
-      : { state: "NONE", reasons: ["No source-grounded EventSuite-relevant event activity was established."], evidence: [] };
-
-  const eventEligible = eventConnection.state === "CONFIRMED" || eventConnection.state === "STRONG";
-  const egsFacts = claims.filter((claim) => DIGITAL_GAP_PATTERN.test(claim));
-  const ticketFacts = claims.filter((claim) => PAID_PATTERN.test(claim));
-  const eccFacts = claims.filter((claim) => COMPLEXITY_PATTERN.test(claim));
-  const egs = eventEligible && egsFacts.length ? assessment("STRONG_HYPOTHESIS", egsFacts, ["The event has audience or activity evidence alongside a weak or fragmented owned presence."], ["Validate the organiser's preferred canonical event information path."]) : eventEligible ? assessment("POSSIBLE", [], ["An event is established, but a specific owned-digital problem is not yet evidenced."], ["Research event discoverability and owned digital presence."]) : assessment(eventConnection.state === "NONE" ? "NO_EVIDENCE" : "POSSIBLE", [], [], ["Establish an actual event connection before assessing EGS."]);
-  const ticketing = eventEligible && ticketFacts.length ? assessment("STRONG_HYPOTHESIS", ticketFacts, ["The event evidence indicates ticketing, registration or admission operations that may warrant review."], ["Validate the organiser's current ticketing and reconciliation workflow."]) : eventEligible ? assessment("POSSIBLE", [], ["An event is established, but ticketing need is not confirmed."], ["Research paid admission, registration and event commerce details."]) : assessment(eventConnection.state === "NONE" ? "NO_EVIDENCE" : "POSSIBLE", [], [], ["Establish an actual event connection before assessing Ticketing."]);
-  const ecc = eventEligible && eccFacts.length ? assessment("STRONG_HYPOTHESIS", eccFacts, ["Observed event structure indicates meaningful coordination complexity."], ["Validate teams, suppliers and next-best-action ownership."]) : eventEligible ? assessment("POSSIBLE", [], ["An event is established, but operational complexity is not confirmed."], ["Research event scale, programme structure and operating stakeholders."]) : assessment(eventConnection.state === "NONE" ? "NO_EVIDENCE" : "POSSIBLE", [], [], ["Establish an actual event connection before assessing ECC."]);
-
-  const candidates: Array<[ProspectOpportunity, LensAssessment]> = [["EGS", egs], ["TICKETING", ticketing], ["ECC", ecc]];
-  const strong = candidates.filter(([, item]) => item.opportunityStrength === "CONFIRMED_NEED" || item.opportunityStrength === "STRONG_HYPOTHESIS");
-  const primaryEntryOpportunity = strong.length ? strong.sort((a, b) => (["EGS", "TICKETING", "ECC"].indexOf(a[0]) - ["EGS", "TICKETING", "ECC"].indexOf(b[0])))[0][0] : "UNKNOWN";
+  const current = freshness.state === "ACTIVE_UPCOMING" || freshness.state === "RECENT_RECURRING_EVIDENCE";
+  const eventConnection: ProspectIntelligence["eventConnection"] = eventFacts.length && current ? { state: eventFacts.some((item) => item.sourceRoles?.includes("VALIDATION") || /\b(?:organis\w*|operates?|promotes?|produces?|owns?)\b/i.test(item.claim)) ? "CONFIRMED" : "STRONG", reasons: ["Source-grounded evidence connects the organisation to current or recurring event activity."], evidence: eventFacts.map((item) => item.claim) } : eventMentionFacts.length ? { state: "WEAK", reasons: [current ? "Event activity is mentioned, but organiser responsibility is not established." : "Event evidence is not current enough to establish a live commercial relationship."], evidence: eventMentionFacts.map((item) => item.claim) } : { state: "NONE", reasons: ["No source-grounded organiser/event relationship was established."], evidence: [] };
+  const eligibleEvent = ["CONFIRMED", "STRONG"].includes(eventConnection.state) && current;
+  const commerciallyTrusted = facts.filter((item) => ["HIGH", "MEDIUM"].includes(item.confidence) && (item.sourceRoles?.includes("VALIDATION") || item.sourceRoles?.includes("COMMERCIAL_EVIDENCE") || item.sourceRoles?.includes("SIGNAL")));
+  const egsFacts = facts.filter((item) => DIGITAL_GAP_PATTERN.test(item.claim));
+  const providerFacts = facts.filter((item) => PROVIDER_PATTERN.test(item.claim));
+  const ticketProblemFacts = facts.filter((item) => TICKETING_PROBLEM_PATTERN.test(item.claim));
+  const eccFacts = facts.filter((item) => COMPLEXITY_PATTERN.test(item.claim));
+  const egs = eligibleEvent && egsFacts.length ? assessment("STRONG_HYPOTHESIS", egsFacts.map((item) => item.claim), ["A weak or fragmented owned event presence is evidenced."], ["Validate the organisation's preferred canonical event destination."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No observable owned-digital problem is evidenced."] : ["Establish current organiser/event responsibility first."]);
+  const ticketing = eligibleEvent && ticketProblemFacts.length ? assessment("STRONG_HYPOTHESIS", ticketProblemFacts.map((item) => item.claim), ["A specific ticketing or commerce problem is evidenced."], ["Validate current provider and purchasing workflow."]) : assessment(eligibleEvent ? (providerFacts.length ? "POSSIBLE" : "NO_EVIDENCE") : "NOT_APPLICABLE", providerFacts.map((item) => item.claim), providerFacts.length ? ["Provider use is commercial intelligence, not switching intent."] : [], providerFacts.length ? ["Validate a switching, reconciliation or purchasing problem before treating Ticketing as an opportunity."] : ["No ticketing problem is publicly evidenced."]);
+  const ecc = eligibleEvent && eccFacts.length ? assessment("STRONG_HYPOTHESIS", eccFacts.map((item) => item.claim), ["Observed structure indicates meaningful coordination complexity."], ["Validate operating teams and current event operations workflow."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No defensible operational complexity signal is evidenced."] : ["Establish current organiser/event responsibility first."]);
+  const lenses: Array<[ProspectOpportunity, LensAssessment]> = [["EGS", egs], ["TICKETING", ticketing], ["ECC", ecc]]; const strong = lenses.filter(([, item]) => ["CONFIRMED_NEED", "STRONG_HYPOTHESIS"].includes(item.opportunityStrength));
+  const primaryEntryOpportunity = strong.length ? strong.sort((a, b) => ["EGS", "TICKETING", "ECC"].indexOf(a[0]) - ["EGS", "TICKETING", "ECC"].indexOf(b[0]))[0][0] : "UNKNOWN";
   const secondaryOpportunities = strong.filter(([engine]) => engine !== primaryEntryOpportunity).map(([engine]) => engine);
   const likelyRoles = primaryEntryOpportunity === "EGS" ? ["Event Director", "Marketing Lead", "Organiser"] : primaryEntryOpportunity === "TICKETING" ? ["Ticketing Lead", "Commercial Lead", "Event Director"] : primaryEntryOpportunity === "ECC" ? ["Event Operations Lead", "Production Lead", "Event Director"] : [];
-  const buyerProblemOwner = { likelyRoles, evidence: primaryEntryOpportunity === "UNKNOWN" ? [] : [`Roles follow the evidenced ${primaryEntryOpportunity} event problem; no person is invented.`] };
-  const languageEvidence = facts.filter((item) => AFRIKAANS_PATTERN.test(item.claim));
-  const preferredOutreachLanguage = languageEvidence.length ? "AF" : input.territory === "UNKNOWN" ? "UNKNOWN" : "EN";
-  const relationshipBlocked = input.relationship === "COMPETITOR";
-  const sufficient = eventEligible && primaryEntryOpportunity !== "UNKNOWN" && strong.length > 0 && facts.length > 0 && likelyRoles.length > 0;
-  const outreachEligibility: OutreachDecision = relationshipBlocked ? "BLOCKED" : input.relationship !== "PROSPECT" ? "REVIEW_REQUIRED" : sufficient ? "ELIGIBLE" : eventConnection.state === "NONE" ? "BLOCKED" : "REVIEW_REQUIRED";
-  const reason = relationshipBlocked ? "Competitor — standard sales outreach not recommended" : outreachEligibility === "ELIGIBLE" ? null : eventConnection.state === "NONE" ? "No EventSuite-relevant event connection; ordinary Direct outreach is blocked." : "Prospect Intelligence requires further event or opportunity evidence before ordinary Direct outreach.";
-  const priority: ProspectIntelligence["commercialPriority"] = primaryEntryOpportunity === "UNKNOWN" ? "LOW" : egs.opportunityStrength === "STRONG_HYPOTHESIS" && DIGITAL_GAP_PATTERN.test(claims.join(" ")) ? "HIGH" : "MEDIUM";
-  const unknowns = [...(input.unknowns ?? []), ...(primaryEntryOpportunity === "UNKNOWN" ? ["Actual event activity and EventSuite-relevant problem owner"] : [])];
+  const languageEvidence = facts.filter((item) => AFRIKAANS_PATTERN.test(item.claim)); const preferredOutreachLanguage = languageEvidence.length ? "AF" : input.territory === "UNKNOWN" ? "UNKNOWN" : "EN";
+  const relationshipBlocked = input.relationship === "COMPETITOR"; const enoughCommercialEvidence = commerciallyTrusted.length > 0 && primaryEntryOpportunity !== "UNKNOWN";
+  const accountCreationEligible = input.relationship === "PROSPECT" && eligibleEvent && enoughCommercialEvidence;
+  const accountCreationReason = relationshipBlocked ? "Actual competitor remains blocked from commercial memory." : !eligibleEvent ? eventConnection.state === "WEAK" ? "Organiser responsibility or current activity needs human resolution before account creation." : "No current, defensible organiser/event relationship is available for commercial memory." : primaryEntryOpportunity === "UNKNOWN" ? "Current organisation activity is credible, but no EventSuite commercial signal has crossed the account-creation gate." : !commerciallyTrusted.length ? "Commercial evidence is discovery-only and needs stronger source confidence." : "Credible organisation identity, current activity and EventSuite commercial evidence justify commercial memory.";
+  const outreachEligibility: OutreachDecision = relationshipBlocked || eventConnection.state === "NONE" ? "BLOCKED" : input.relationship !== "PROSPECT" ? "REVIEW_REQUIRED" : accountCreationEligible ? "ELIGIBLE" : "REVIEW_REQUIRED";
+  const reason = relationshipBlocked ? "Competitor — standard sales outreach not recommended" : accountCreationEligible ? null : accountCreationReason;
+  const priority: ProspectIntelligence["commercialPriority"] = !accountCreationEligible ? "LOW" : egs.opportunityStrength === "STRONG_HYPOTHESIS" || (freshness.state === "ACTIVE_UPCOMING" && strong.length > 0 && commerciallyTrusted.length > 1) ? "HIGH" : "MEDIUM";
+  const priorityReasons = priority === "HIGH" ? ["Current activity, strong commercial need and multiple credible evidence signals are present."] : priority === "MEDIUM" ? ["A credible current organisation and lens-specific commercial hypothesis are present."] : [accountCreationReason];
+  const unknowns = [...(input.unknowns ?? []), ...(primaryEntryOpportunity === "UNKNOWN" && eligibleEvent ? ["Which EventSuite problem, if any, is commercially material for this organisation?"] : [])];
   const nextBestCommercialAction = selectCommercialAction({ eligible: outreachEligibility === "ELIGIBLE", primary: primaryEntryOpportunity, ticketing, egs, ecc, claims, buyerRoles: likelyRoles });
-  return { eventConnection, relationship: input.relationship, territory: input.territory, preferredOutreachLanguage, languageEvidence, egs, ticketing, ecc, primaryEntryOpportunity, secondaryOpportunities, buyerProblemOwner, outreachEligibility, outreachBlockOrReviewReason: reason, salesMotion: input.relationship === "PROSPECT" ? "DIRECT" : input.relationship === "PARTNER" ? "PARTNER" : "UNKNOWN", commercialPriority: priority, priorityReasons: priority === "HIGH" ? ["Strong event activity and weak owned digital presence are evidenced; small size is not penalised."] : primaryEntryOpportunity === "UNKNOWN" ? ["No event connection or primary opportunity is established."] : ["Event activity is evidenced; lens-specific problem strength remains subject to review."], nextBestCommercialAction, recommendedNextAction: nextBestCommercialAction.objective, unknownsToResearch: unknowns, events: eventFacts.map((item) => ({ name: item.sourceTitle ?? "Event activity", role: "organised or operated by the account", evidence: item.claim })) };
+  return { eventConnection, eventFreshness: freshness, sourceSummary: { roles: [...new Set(facts.flatMap((item) => item.sourceRoles ?? []))], highOrMediumConfidenceFacts: facts.filter((item) => ["HIGH", "MEDIUM"].includes(item.confidence)).length, discoveryOnlyFacts: facts.filter((item) => (item.sourceRoles ?? []).every((role) => role === "DISCOVERY")).length }, relationship: input.relationship, territory: input.territory, preferredOutreachLanguage, languageEvidence, egs, ticketing, ecc, primaryEntryOpportunity, secondaryOpportunities, buyerProblemOwner: { likelyRoles, evidence: primaryEntryOpportunity === "UNKNOWN" ? [] : [`Roles follow the evidenced ${primaryEntryOpportunity} problem; no person is invented.`] }, outreachEligibility, outreachBlockOrReviewReason: reason, salesMotion: input.relationship === "PROSPECT" ? "DIRECT" : input.relationship === "PARTNER" ? "PARTNER" : "UNKNOWN", commercialPriority: priority, priorityReasons, accountCreationEligible, accountCreationReason, nextBestCommercialAction, recommendedNextAction: nextBestCommercialAction.objective, unknownsToResearch: unknowns, events: eventFacts.map((item) => ({ name: item.sourceTitle ?? "Event activity", role: "organised or operated by the account", evidence: item.claim })) };
 }

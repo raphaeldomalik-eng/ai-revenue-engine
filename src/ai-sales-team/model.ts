@@ -4,6 +4,8 @@ export type AiSalesEvidence = {
   sourceTitle: string | null;
   kind: "FACT" | "INFERENCE";
   confidence: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+  sourceRoles?: Array<"DISCOVERY" | "VALIDATION" | "COMMERCIAL_EVIDENCE" | "CONTACT" | "SIGNAL">;
+  eventFreshness?: "ACTIVE_UPCOMING" | "RECENT_RECURRING_EVIDENCE" | "HISTORICAL" | "CANCELLED_DEAD_UNSUPPORTED" | "UNKNOWN";
 };
 
 import type { ProspectIntelligence } from "./prospect-intelligence.ts";
