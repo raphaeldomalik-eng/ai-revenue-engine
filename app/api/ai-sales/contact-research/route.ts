@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { contactPersistenceTargets, isContactResearchEligible, researchProspectContact } from "../../../../src/ai-sales-team/contact-research";
+import { contactPersistenceTargets, researchEligibleProspectContact } from "../../../../src/ai-sales-team/contact-research";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 
 async function operatorClient() {
@@ -19,17 +19,29 @@ export async function POST(request: Request) {
   if (!body.candidateId) return NextResponse.json({ message: "A discovery candidate is required." }, { status: 400 });
   const { data: candidate, error } = await state.client.from("ai_prospect_candidates").select("id, status, relationship, account_id, candidate_name, organiser_name, website, facts, prospect_intelligence").eq("id", body.candidateId).maybeSingle();
   if (error || !candidate) return NextResponse.json({ message: "Discovery candidate not found." }, { status: 404 });
-  if (!isContactResearchEligible(candidate)) return NextResponse.json({ message: "Only an active, event-connected prospect with an account may receive public contact research." }, { status: 409 });
+  const { data: account, error: accountError } = candidate.account_id
+    ? await state.client.from("accounts").select("name, website").eq("id", candidate.account_id).maybeSingle()
+    : { data: null, error: null };
+  if (accountError) return NextResponse.json({ message: "The prospect account could not be verified." }, { status: 502 });
 
   try {
     const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { buyerProblemOwner?: { likelyRoles?: string[] } } : {};
     const facts = Array.isArray(candidate.facts) ? candidate.facts as Array<{ claim?: string }> : [];
-    const researched = await researchProspectContact({
-      accountName: candidate.organiser_name || candidate.candidate_name,
-      website: candidate.website,
-      eventEvidence: facts.map((fact) => fact.claim).filter((claim): claim is string => typeof claim === "string").slice(0, 6),
-      likelyBuyerRoles: intelligence.buyerProblemOwner?.likelyRoles ?? [],
+    const outcome = await researchEligibleProspectContact({
+      candidate,
+      identity: { accountName: account?.name, accountWebsite: account?.website, candidateName: candidate.organiser_name || candidate.candidate_name, candidateWebsite: candidate.website },
+      researchInput: {
+        accountName: account?.name || candidate.organiser_name || candidate.candidate_name,
+        website: account?.website || candidate.website,
+        eventEvidence: facts.map((fact) => fact.claim).filter((claim): claim is string => typeof claim === "string").slice(0, 6),
+        likelyBuyerRoles: intelligence.buyerProblemOwner?.likelyRoles ?? [],
+      },
     });
+    if (outcome.blocked) {
+      const message = outcome.reason === "FIRST_PARTY_SELF" ? "FIRST_PARTY_SELF — EventSuite first-party identity is not eligible for Contact Discovery." : "Only an active, event-connected prospect with an account may receive public contact research.";
+      return NextResponse.json({ code: outcome.reason, message }, { status: 409 });
+    }
+    const researched = outcome.researched;
     const targets = contactPersistenceTargets(researched.result);
     const contactIds: string[] = [];
     for (const target of targets) {

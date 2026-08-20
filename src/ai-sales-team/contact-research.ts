@@ -1,4 +1,5 @@
 import type { AiSalesEvidence } from "./model.ts";
+import { isEventSuiteFirstPartyTarget } from "./first-party.ts";
 
 export type ContactResearchStatus = "CONTACT_FOUND" | "CONTACT_ROUTE_FOUND" | "CONTACT_RESEARCH_REQUIRED";
 
@@ -144,9 +145,19 @@ export function normaliseContactResearch(value: ContactResearchInput): ContactRe
   };
 }
 
-export function isContactResearchEligible(candidate: { status: string; relationship: string; account_id: string | null; prospect_intelligence: unknown }) {
+export type ContactResearchCandidateState = { status: string; relationship: string; account_id: string | null; prospect_intelligence: unknown };
+export type ContactResearchTargetIdentity = { accountName?: string | null; accountWebsite?: string | null; candidateName?: string | null; candidateWebsite?: string | null };
+
+export function isContactResearchEligible(candidate: ContactResearchCandidateState) {
   const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { eventConnection?: { state?: string }; accountCreationEligible?: boolean; firstPartyStatus?: string } : {};
   return Boolean(candidate.account_id) && candidate.status === "QUALIFIED" && candidate.relationship === "PROSPECT" && intelligence.firstPartyStatus !== "FIRST_PARTY_SELF" && intelligence.accountCreationEligible === true && ["CONFIRMED", "STRONG"].includes(intelligence.eventConnection?.state ?? "");
+}
+
+export function contactResearchEligibility(candidate: ContactResearchCandidateState, identity: ContactResearchTargetIdentity) {
+  if (isEventSuiteFirstPartyTarget(identity)) return { eligible: false as const, reason: "FIRST_PARTY_SELF" as const };
+  return isContactResearchEligible(candidate)
+    ? { eligible: true as const }
+    : { eligible: false as const, reason: "CONTACT_RESEARCH_NOT_ELIGIBLE" as const };
 }
 
 export function contactPersistenceTargets(result: ContactResearchResult): ContactPersistenceTarget[] {
@@ -179,4 +190,17 @@ export async function researchProspectContact(input: { accountName: string; webs
   const output = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("");
   if (!output) throw new Error("AI contact research provider returned no structured output.");
   return { result: normaliseContactResearch(JSON.parse(output) as ContactResearchInput), provider: "openai", model };
+}
+
+export async function researchEligibleProspectContact(
+  input: {
+    candidate: ContactResearchCandidateState;
+    identity: ContactResearchTargetIdentity;
+    researchInput: Parameters<typeof researchProspectContact>[0];
+  },
+  provider: typeof researchProspectContact = researchProspectContact,
+) {
+  const eligibility = contactResearchEligibility(input.candidate, input.identity);
+  if (!eligibility.eligible) return { blocked: true as const, reason: eligibility.reason };
+  return { blocked: false as const, researched: await provider(input.researchInput) };
 }

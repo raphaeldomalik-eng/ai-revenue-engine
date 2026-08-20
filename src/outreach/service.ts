@@ -1,17 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { canSendMessage, knownRecipient, sanitizeOutboundContent } from "../ai-sales-team/outreach-model.ts";
 import { sendEmail } from "./provider.ts";
+import { isEventSuiteFirstPartyTarget } from "../ai-sales-team/first-party.ts";
+
+export type OutreachAccountState = { name?: string | null; website?: string | null; metadata?: Record<string, any> | null };
+
+export function assertOutreachAccountEligible(account: OutreachAccountState | null | undefined) {
+  if (isEventSuiteFirstPartyTarget({ accountName: account?.name, accountWebsite: account?.website })) throw new Error("FIRST_PARTY_SELF");
+  const eligibility = account?.metadata?.outreachEligibility ?? "REVIEW_REQUIRED";
+  const prospectIntelligence = account?.metadata?.prospectIntelligence;
+  if (prospectIntelligence?.firstPartyStatus === "FIRST_PARTY_SELF" || eligibility !== "ELIGIBLE" || prospectIntelligence?.outreachEligibility !== "ELIGIBLE" || prospectIntelligence?.salesMotion !== "DIRECT" || !prospectIntelligence?.nextBestCommercialAction || prospectIntelligence.nextBestCommercialAction.type === "NONE" || !prospectIntelligence.nextBestCommercialAction.resourceOffer || !prospectIntelligence.nextBestCommercialAction.productDestinationUrl) throw new Error(account?.metadata?.outreachEligibilityReason ?? "OUTREACH_REVIEW_REQUIRED");
+  return { eligibility, prospectIntelligence };
+}
 
 export async function sendApprovedOutreachMessage(client: SupabaseClient, messageId: string, actorId: string) {
   const { data: message, error: messageError } = await client.from("outreach_messages").select("*").eq("id", messageId).maybeSingle();
   if (messageError) throw messageError;
   if (!message) throw new Error("OUTREACH_MESSAGE_NOT_FOUND");
   if (message.status === "SENT") return { alreadySent: true, providerMessageId: message.provider_message_id };
-  const { data: account, error: accountError } = await client.from("accounts").select("metadata").eq("id", message.account_id).single();
+  const { data: account, error: accountError } = await client.from("accounts").select("name, website, metadata").eq("id", message.account_id).single();
   if (accountError) throw accountError;
-  const eligibility = account?.metadata?.outreachEligibility ?? "REVIEW_REQUIRED";
-  const prospectIntelligence = account?.metadata?.prospectIntelligence;
-  if (prospectIntelligence?.firstPartyStatus === "FIRST_PARTY_SELF" || eligibility !== "ELIGIBLE" || prospectIntelligence?.outreachEligibility !== "ELIGIBLE" || prospectIntelligence?.salesMotion !== "DIRECT" || !prospectIntelligence?.nextBestCommercialAction || prospectIntelligence.nextBestCommercialAction.type === "NONE" || !prospectIntelligence.nextBestCommercialAction.resourceOffer || !prospectIntelligence.nextBestCommercialAction.productDestinationUrl) throw new Error(account?.metadata?.outreachEligibilityReason ?? "OUTREACH_REVIEW_REQUIRED");
+  const { eligibility, prospectIntelligence } = assertOutreachAccountEligible(account);
   const { data: sequence, error: sequenceError } = await client.from("outreach_sequences").select("status").eq("id", message.sequence_id).single();
   if (sequenceError) throw sequenceError;
   const { data: suppression } = await client.from("outreach_suppressions").select("id").eq("account_id", message.account_id).eq("active", true).or(`contact_id.is.null,contact_id.eq.${message.contact_id ?? "00000000-0000-0000-0000-000000000000"}`).limit(1).maybeSingle();

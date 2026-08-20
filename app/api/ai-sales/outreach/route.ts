@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import { generateOutreachSequence } from "../../../../src/ai-sales-team/outreach";
-import { sendApprovedOutreachMessage } from "../../../../src/outreach/service";
+import { assertOutreachAccountEligible, sendApprovedOutreachMessage } from "../../../../src/outreach/service";
 import { classifyAccountRelationship, knownRecipient } from "../../../../src/ai-sales-team/outreach-model";
 
 async function actor() {
@@ -36,12 +36,11 @@ export async function POST(request: Request) {
   try {
     if (body.action === "prepare") {
       if (!body.accountId || !body.briefId) return NextResponse.json({ message: "Account and AI Sales Brief are required." }, { status: 400 });
+      const { data: accountState, error: accountStateError } = await client.from("accounts").select("name, website, metadata").eq("id", body.accountId).single();
+      if (accountStateError) throw accountStateError;
+      assertOutreachAccountEligible(accountState);
       const { data: existing } = await client.from("outreach_sequences").select("id").eq("account_id", body.accountId).eq("ai_sales_brief_id", body.briefId).eq("status", "ACTIVE").maybeSingle();
       if (existing) return NextResponse.json({ sequenceId: existing.id, reused: true });
-      const { data: accountState, error: accountStateError } = await client.from("accounts").select("metadata").eq("id", body.accountId).single();
-      if (accountStateError) throw accountStateError;
-      const prospectIntelligence = accountState?.metadata?.prospectIntelligence;
-      if (prospectIntelligence?.firstPartyStatus === "FIRST_PARTY_SELF" || accountState?.metadata?.outreachEligibility !== "ELIGIBLE" || prospectIntelligence?.outreachEligibility !== "ELIGIBLE" || prospectIntelligence?.salesMotion !== "DIRECT" || !prospectIntelligence?.nextBestCommercialAction || prospectIntelligence.nextBestCommercialAction.type === "NONE" || !prospectIntelligence.nextBestCommercialAction.resourceOffer || !prospectIntelligence.nextBestCommercialAction.productDestinationUrl) throw new Error(accountState?.metadata?.outreachEligibilityReason || "OUTREACH_REVIEW_REQUIRED");
       const [{ data: brief, error: briefError }, { data: contacts, error: contactsError }] = await Promise.all([
         client.from("ai_sales_briefs").select("*").eq("id", body.briefId).eq("account_id", body.accountId).single(),
         client.from("contacts").select("id, full_name, role_title, email").eq("account_id", body.accountId).order("created_at"),
@@ -90,7 +89,7 @@ export async function POST(request: Request) {
     throw new Error("OUTREACH_ACTION_INVALID");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Outreach action failed.";
-    const status = message.includes("NOT_CONFIGURED") ? 503 : message.includes("REQUIRED") || message.includes("INVALID") ? 400 : message.includes("OUTREACH_RECIPIENT_UNKNOWN") || message.includes("OUTREACH_APPROVAL_REQUIRED") || message.includes("OUTREACH_STOPPED") || message.includes("OUTREACH_REVIEW_REQUIRED") || message.includes("Competitor") ? 409 : 502;
+    const status = message.includes("NOT_CONFIGURED") ? 503 : message.includes("REQUIRED") || message.includes("INVALID") ? 400 : message.includes("FIRST_PARTY_SELF") || message.includes("OUTREACH_RECIPIENT_UNKNOWN") || message.includes("OUTREACH_APPROVAL_REQUIRED") || message.includes("OUTREACH_STOPPED") || message.includes("OUTREACH_REVIEW_REQUIRED") || message.includes("Competitor") ? 409 : 502;
     return NextResponse.json({ code: message.split(":")[0], message }, { status });
   }
 }
