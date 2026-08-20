@@ -85,6 +85,23 @@ export function lensLabel(focus?: string | null) { return focus ? lensLabels[foc
 export function statusLabel(status?: string | null) { return status ? statusLabels[status] ?? status.replaceAll("_", " ") : "Status not recorded"; }
 export function siteTypeLabel(type?: string | null) { return type ? siteTypeLabels[type] ?? type.replaceAll("_", " ") : "Source type not established"; }
 
+export function organisationName(candidate: OperatorCandidate) { return candidate.organiser_name || candidate.account?.name || "ORGANISATION NOT YET RESOLVED"; }
+export function resolutionLabel(candidate: OperatorCandidate) {
+  const resolution = asObject(intelligence(candidate).organisationResolution);
+  const status = String(resolution.status ?? "UNRESOLVED").toUpperCase();
+  if (status !== "RESOLVED") return status === "CONFLICTING" ? "Conflicting evidence" : "Unresolved";
+  return `Resolved · ${String(resolution.confidence ?? "not recorded").replaceAll("_", " ")}`;
+}
+export function discoverySignal(candidate: OperatorCandidate) { return candidate.candidate_name || "Discovery signal not recorded"; }
+export function contactShortLabel(candidate: OperatorCandidate) {
+  const state = contactState(candidate);
+  if (state === "Verified route available") return "Verified target contact";
+  if (state === "Research required") return "Research not completed";
+  return "No verified target contact";
+}
+export function reviewReason(candidate: OperatorCandidate) { return reviewDecision(candidate) || "Decision context not recorded"; }
+export function runDateLabel(run?: OperatorRun | null) { return formatDate(run?.created_at ?? run?.started_at, "Date not recorded"); }
+
 export function formatDate(value?: string | null, fallback = "Not recorded") {
   if (!value) return fallback;
   const date = new Date(value);

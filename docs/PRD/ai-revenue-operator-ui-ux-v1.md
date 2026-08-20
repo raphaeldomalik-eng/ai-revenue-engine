@@ -104,6 +104,18 @@ The operator can filter within the run by resolution, product outcome, qualifica
 
 ## 7. Current versus historical
 
+### Collection interaction model
+
+The Operator UI uses one coherent collection interaction model:
+
+**OVERVIEW FOR ORIENTATION. TABLES FOR COLLECTIONS. INSPECTOR FOR RAPID EVALUATION. DETAIL PAGES FOR EVIDENCE AND NARRATIVE.**
+
+The operator should be able to scan approximately 50 records, compare records, spot anomalies and inspect several prospects without repeatedly losing table position. Desktop collection screens optimise for **SCAN, COMPARE, FILTER, SORT and INSPECT**; they do not present each record as a standalone card.
+
+Runs, run-detail candidates, Prospects, Needs Review and Historical / Calibration use compact, readable tables with a shared treatment: sticky headers where practical, clear column hierarchy, subtle row separators, keyboard-accessible row selection, restrained status text/badges, sensible widths and explicit empty/filter-zero states. Long names may wrap to two lines and secondary context may use a muted second line. Cards remain appropriate for small Overview summaries, commercial-intelligence sections, evidence groups, contact provenance and individual record/detail narrative.
+
+Prospects default to current actionable work while keeping Historical / All explicitly available. Collections support simple client-side pagination after filtering, with 25, 50 and 100 row options and a default page size of 50. A read-only Quick Inspector may summarise a selected prospect and link to the full narrative detail without replacing the detail page or exposing raw JSON.
+
 Every result has a visible recency/context label:
 
 - `NEW` — first seen in the latest run;
