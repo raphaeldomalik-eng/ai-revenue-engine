@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { canonicalDiscoveryKey, evaluateDiscoveryCandidate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
+import { applyDiscoveryEnrichment, canonicalDiscoveryKey, evaluateDiscoveryCandidate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
 
 const fact = (claim: string, roles: Array<"DISCOVERY" | "VALIDATION" | "COMMERCIAL_EVIDENCE" | "CONTACT" | "SIGNAL">, freshness: "ACTIVE_UPCOMING" | "RECENT_RECURRING_EVIDENCE" | "HISTORICAL" | "CANCELLED_DEAD_UNSUPPORTED" | "UNKNOWN" = "ACTIVE_UPCOMING") => ({ claim, sourceUrl: "https://official.example.org/event", sourceTitle: "Official organiser", kind: "FACT" as const, confidence: "HIGH" as const, sourceRoles: roles, eventFreshness: freshness });
@@ -70,4 +70,29 @@ test("facts, inferences and unknowns remain distinct and contact/outreach remain
   assert.match(route, /candidate\.prospectIntelligence\.accountCreationEligible/);
   assert.match(contact, /candidate\.status === "QUALIFIED"/);
   assert.doesNotMatch(route, /outreach_messages\)\.insert/);
+});
+
+test("provider and service noise without organiser evidence is rejected before enrichment", () => {
+  const noise = evaluateDiscoveryCandidate(candidate({ canonicalName: "Noise Tickets", organiserName: "Noise Tickets", facts: [fact("Noise Tickets is a South African ticketing platform offering online ticketing software for events.", ["DISCOVERY"])] }), "ZA");
+  const organiser = evaluateDiscoveryCandidate(candidate({ facts: [fact("Quality Events organises an upcoming festival and uses a ticketing platform for paid admissions.", ["VALIDATION", "COMMERCIAL_EVIDENCE"])] }), "ZA");
+  assert.equal(noise.status, "REJECTED");
+  assert.equal(organiser.relationship, "PROSPECT");
+  assert.notEqual(organiser.status, "REJECTED");
+});
+
+test("bounded enrichment adds validation and commercial roles without inflating discovery confidence", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ facts: [fact("A directory lists Quality Festival.", ["DISCOVERY"])] }), "ZA");
+  const enriched = applyDiscoveryEnrichment(initial, {
+    facts: [fact("Quality Events is the official organiser of the upcoming festival and its event information is fragmented across social and ticketing pages.", ["VALIDATION", "COMMERCIAL_EVIDENCE"])],
+    inferences: [{ claim: "The fragmented owned destination may limit event discoverability.", sourceUrl: null, sourceTitle: null, kind: "INFERENCE", confidence: "MEDIUM" }],
+    unknowns: ["Whether the organiser has a central operations workflow remains unknown."],
+  }, "ZA");
+  assert.equal(initial.facts[0].confidence, "MEDIUM");
+  assert.ok(enriched.facts.some((item) => item.sourceRoles?.includes("VALIDATION")));
+  assert.ok(enriched.facts.some((item) => item.sourceRoles?.includes("COMMERCIAL_EVIDENCE")));
+  assert.equal(enriched.prospectIntelligence.egs.opportunityStrength, "STRONG_HYPOTHESIS");
+  assert.equal(enriched.prospectIntelligence.primaryEntryOpportunity, "EGS");
+  assert.equal(enriched.prospectIntelligence.accountCreationEligible, true);
+  assert.ok(enriched.inferences.length > 0);
+  assert.ok(enriched.prospectIntelligence.unknownsToResearch.some((item) => /operations workflow/i.test(item)));
 });
