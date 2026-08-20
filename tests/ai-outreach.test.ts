@@ -4,6 +4,8 @@ import { boundedFollowUps, canSendMessage, classifyAccountRelationship, knownRec
 import { assertCommercialActionContract } from "../src/ai-sales-team/outreach.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
 import type { AiSalesEvidence } from "../src/ai-sales-team/model.ts";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertOutreachAccountEligible, sendApprovedOutreachMessage } from "../src/outreach/service.ts";
 
 const prospectFact = (claim: string): AiSalesEvidence => ({ claim, sourceUrl: "https://example.org", sourceTitle: "Example", kind: "FACT", confidence: "HIGH" });
 
@@ -75,4 +77,39 @@ test("outreach migration keeps message identity and approval states durable", as
   assert.match(sql, /SENDING/);
   assert.match(sql, /SUPPRESSIONS|outreach_suppressions/i);
   assert.match(sql, /enable row level security/);
+});
+
+const staleLegacySelfAccount = {
+  name: "EventSuite",
+  website: "https://www.eventsuite.pro/",
+  metadata: {
+    outreachEligibility: "ELIGIBLE",
+    prospectIntelligence: {
+      outreachEligibility: "ELIGIBLE",
+      salesMotion: "DIRECT",
+      nextBestCommercialAction: { type: "RESOURCE", productDestinationUrl: "https://eventsuite.pro", resourceOffer: { canonicalUrl: "https://eventsuite.pro/resource" } },
+    },
+  },
+};
+
+test("outreach preparation rejects a stale eligible legacy self account from authoritative identity", () => {
+  assert.throws(() => assertOutreachAccountEligible(staleLegacySelfAccount), /FIRST_PARTY_SELF/);
+});
+
+test("outreach send rejects a stale eligible legacy self account before sequence or provider work", async () => {
+  const reads: string[] = [];
+  const message = { id: "message-id", account_id: "self-account", sequence_id: "sequence-id", status: "APPROVED", provider_message_id: null };
+  const client = {
+    from(table: string) {
+      reads.push(table);
+      return {
+        select() { return this; },
+        eq() { return this; },
+        maybeSingle: async () => ({ data: table === "outreach_messages" ? message : null, error: null }),
+        single: async () => ({ data: table === "accounts" ? staleLegacySelfAccount : null, error: null }),
+      };
+    },
+  } as unknown as SupabaseClient;
+  await assert.rejects(sendApprovedOutreachMessage(client, "message-id", "operator-id"), /FIRST_PARTY_SELF/);
+  assert.deepEqual(reads, ["outreach_messages", "accounts"]);
 });

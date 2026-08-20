@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { canPersistCommercialMemory, enrichDiscoveryCandidates, evaluateDiscoveryCandidate } from "../src/ai-sales-team/discovery.ts";
 import { isEventSuiteFirstPartyUrl } from "../src/ai-sales-team/first-party.ts";
-import { isContactResearchEligible } from "../src/ai-sales-team/contact-research.ts";
+import { isContactResearchEligible, normaliseContactResearch, researchEligibleProspectContact } from "../src/ai-sales-team/contact-research.ts";
+import { assertOutreachAccountEligible } from "../src/outreach/service.ts";
 
 const fact = (claim: string, sourceUrl = "https://example.org/event") => ({ claim, sourceUrl, sourceTitle: "Public event page", kind: "FACT" as const, confidence: "HIGH" as const });
 const prospect = (overrides: Record<string, unknown> = {}) => ({ canonicalName: "Regional Festival", organiserName: "Regional Events", website: "https://regional.example.org", origin: "EVENT_FIRST" as const, relationshipHint: "PROSPECT" as const, facts: [fact("Regional Events organises an annual public festival.")], inferences: [], unknowns: [], ...overrides });
@@ -84,4 +85,52 @@ test("competitors remain blocked and ordinary prospects remain eligible", () => 
   assert.equal(competitor.status, "BLOCKED");
   assert.equal(ordinary.relationship, "PROSPECT");
   assert.equal(ordinary.status, "QUALIFIED");
+});
+
+const legacyEligibleCandidate = {
+  status: "QUALIFIED",
+  relationship: "PROSPECT",
+  account_id: "853ace7e-bbbf-4ddb-92a2-927eda81a284",
+  prospect_intelligence: { eventConnection: { state: "CONFIRMED" }, accountCreationEligible: true, outreachEligibility: "ELIGIBLE" },
+};
+
+const externalContactResult = normaliseContactResearch({
+  likelyBuyerRole: "Festival Director",
+  buyerRoleRationale: "The role owns the programme.",
+  namedContact: null,
+  organisationRoute: null,
+  facts: [],
+  unknowns: ["No public route found."],
+});
+
+test("legacy qualified self account is blocked by current authoritative identity before contact research", async () => {
+  let providerCalls = 0;
+  const provider = async () => {
+    providerCalls += 1;
+    return { result: externalContactResult, provider: "openai", model: "test-model" };
+  };
+  const outcome = await researchEligibleProspectContact({
+    candidate: legacyEligibleCandidate,
+    identity: { accountName: "EventSuite", accountWebsite: "https://www.eventsuite.pro/", candidateName: "EventSuite", candidateWebsite: "https://www.eventsuite.pro/" },
+    researchInput: { accountName: "EventSuite", website: "https://www.eventsuite.pro/", eventEvidence: [], likelyBuyerRoles: ["Organisation contact route"] },
+  }, provider);
+  assert.deepEqual(outcome, { blocked: true, reason: "FIRST_PARTY_SELF" });
+  assert.equal(providerCalls, 0);
+  assert.throws(() => assertOutreachAccountEligible({ name: "EventSuite", website: "https://www.eventsuite.pro/", metadata: { outreachEligibility: "ELIGIBLE", prospectIntelligence: { outreachEligibility: "ELIGIBLE", salesMotion: "DIRECT", nextBestCommercialAction: { type: "RESOURCE", resourceOffer: { canonicalUrl: "https://eventsuite.pro/resource" }, productDestinationUrl: "https://eventsuite.pro" } } } }), /FIRST_PARTY_SELF/);
+});
+
+test("external targets remain contact-eligible despite incidental EventSuite references or similar domains", async () => {
+  let providerCalls = 0;
+  const provider = async () => {
+    providerCalls += 1;
+    return { result: externalContactResult, provider: "openai", model: "test-model" };
+  };
+  const outcome = await researchEligibleProspectContact({
+    candidate: legacyEligibleCandidate,
+    identity: { accountName: "Regional Events", accountWebsite: "https://eventsuite.pro.example.org", candidateName: "Regional Festival", candidateWebsite: "https://regional.example.org" },
+    researchInput: { accountName: "Regional Events", website: "https://regional.example.org", eventEvidence: ["The prospect references https://eventsuite.pro/resources/event-planning."], likelyBuyerRoles: ["Festival Director"] },
+  }, provider);
+  assert.equal(outcome.blocked, false);
+  assert.equal(providerCalls, 1);
+  if (!outcome.blocked) assert.deepEqual(outcome.researched.result, externalContactResult);
 });
