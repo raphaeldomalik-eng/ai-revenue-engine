@@ -13,6 +13,8 @@ export type CommercialActionCode = "EXPLORE_EVENTSUITE" | "VIEW_RESOURCE" | "REP
 export type CommercialEvidenceProduct = "EGS" | "TICKETING" | "ECC";
 export type CommercialEvidenceCategory = "WEAK_OWNED_PRESENCE" | "FRAGMENTED_DIGITAL" | "DISCOVERY_GAP" | "DISCONNECTED_EVENT_PAGES" | "PROVIDER_FRAGMENTATION" | "MANUAL_OPERATIONS" | "WORKFLOW_COMPLEXITY" | "MIGRATION_CHANGE" | "PROCUREMENT_CHANGE" | "MULTI_STAGE" | "MULTI_ZONE" | "MULTI_VENUE" | "CONCURRENCY" | "ACCREDITATION" | "WORKFORCE" | "VENDOR_COORDINATION" | "PRODUCTION_SCHEDULING" | "OPERATIONAL_COORDINATION";
 export type CommercialEvidenceItem = { product: CommercialEvidenceProduct; claim: string; sourceUrl: string; evidenceCategory: CommercialEvidenceCategory; confidence: AiSalesEvidence["confidence"] };
+export type SourceSiteType = "ORGANISATION_OFFICIAL" | "EVENT_OFFICIAL" | "TICKETING_PROVIDER" | "EVENT_LISTING_DIRECTORY" | "VENUE_OFFICIAL" | "VENUE_CALENDAR" | "ARTIST_OFFICIAL" | "NEWS_EDITORIAL" | "SOCIAL_COMMUNITY" | "UNKNOWN";
+export type SourceSiteClassification = { url: string; siteType: SourceSiteType; siteTypeConfidence: AiSalesEvidence["confidence"]; siteTypeEvidence: string[] };
 export type LensAssessment = { status: "ASSESSED" | "NOT_ASSESSED"; opportunityStrength: OpportunityStrength; facts: string[]; inferences: string[]; unknowns: string[] };
 export type ProspectIntelligence = {
   eventConnection: { state: EventConnectionState; reasons: string[]; evidence: string[] };
@@ -33,6 +35,8 @@ export type OrganisationResolution = {
   aliases: string[];
   confidence: AiSalesEvidence["confidence"];
   evidence: Array<{ claim: string; sourceUrl: string; sourceTitle: string | null; confidence: AiSalesEvidence["confidence"] }>;
+  officialWebsiteSiteType?: SourceSiteType;
+  siteClassifications?: SourceSiteClassification[];
 };
 
 export type ProspectResearchOutcome = {

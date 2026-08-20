@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { applyDiscoveryEnrichment, canonicalDiscoveryKey, evaluateDiscoveryCandidate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
+import { applyDiscoveryEnrichment, canonicalDiscoveryKey, classifySourceSite, evaluateDiscoveryCandidate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
 import { isContactResearchEligible } from "../src/ai-sales-team/contact-research.ts";
 
@@ -183,4 +183,49 @@ test("commercial advancement telemetry distinguishes resolution/product progress
   assert.equal(JSON.stringify(result).includes("reasoning"), false);
   process.env.OPENAI_API_KEY = originalKey;
   globalThis.fetch = originalFetch;
+});
+
+test("source-site classification keeps provider and directory evidence out of commercial identity", () => {
+  assert.equal(classifySourceSite({ url: "https://www.ticketsza.co.za/events/example", claims: ["TicketsZA sells tickets for multiple unrelated events."] }).siteType, "TICKETING_PROVIDER");
+  assert.equal(classifySourceSite({ url: "https://www.tixsa.co.za/events/example", claims: ["Tixsa is a ticketing platform."] }).siteType, "TICKETING_PROVIDER");
+  assert.equal(classifySourceSite({ url: "https://events.example.org/festival", claims: ["The directory lists events from multiple unrelated organisers."] }).siteType, "EVENT_LISTING_DIRECTORY");
+});
+
+test("official event sites are authoritative event evidence but do not automatically become organisation identity", () => {
+  const eventSite = classifySourceSite({ url: "https://festival.example.org", claims: ["This is the official event website for Festival X."] });
+  assert.equal(eventSite.siteType, "EVENT_OFFICIAL");
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Festival X", organiserName: null, website: "https://festival.example.org", facts: [fact("This is the official event website for Festival X.", ["DISCOVERY"])] }), "GB");
+  const unresolved = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Festival X", officialWebsite: "https://festival.example.org", officialWebsiteSiteType: "EVENT_OFFICIAL", aliases: [], confidence: "HIGH", evidence: [{ claim: "This is the official event website for Festival X.", sourceUrl: "https://festival.example.org", sourceTitle: "Official event site", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(unresolved.organisationResolution?.status, "UNRESOLVED");
+  assert.equal(unresolved.siteClassifications?.find((item) => item.url === "https://festival.example.org")?.siteType, "EVENT_OFFICIAL");
+});
+
+test("separate organiser official site is promoted while the event official site remains evidence", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Festival X", organiserName: null, website: "https://festival.example.org", facts: [fact("This is the official event website for Festival X.", ["DISCOVERY"])] }), "GB");
+  const resolved = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Promoter Group", officialWebsite: "https://promotergroup.example.org", officialWebsiteSiteType: "ORGANISATION_OFFICIAL", aliases: ["Festival X"], confidence: "HIGH", evidence: [{ claim: "Promoter Group is the organiser of Festival X.", sourceUrl: "https://festival.example.org/about", sourceTitle: "About the event", confidence: "HIGH" }], siteClassifications: [{ url: "https://festival.example.org", siteType: "EVENT_OFFICIAL", siteTypeConfidence: "HIGH", siteTypeEvidence: ["This is the official event website."] }, { url: "https://promotergroup.example.org", siteType: "ORGANISATION_OFFICIAL", siteTypeConfidence: "HIGH", siteTypeEvidence: ["Promoter Group official organisation website."] }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(resolved.organisationResolution?.status, "RESOLVED");
+  assert.equal(resolved.website, "https://promotergroup.example.org");
+  assert.equal(resolved.siteClassifications?.find((item) => item.url === "https://festival.example.org")?.siteType, "EVENT_OFFICIAL");
+  assert.equal(resolved.siteClassifications?.find((item) => item.url === "https://promotergroup.example.org")?.siteType, "ORGANISATION_OFFICIAL");
+});
+
+test("event brand can remain the target only with explicit operating-entity evidence", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Festival X", organiserName: null, website: "https://festival.example.org", facts: [fact("This is the official event website for Festival X.", ["DISCOVERY"])] }), "GB");
+  const resolved = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Festival X", officialWebsite: "https://festival.example.org", officialWebsiteSiteType: "EVENT_OFFICIAL", aliases: [], confidence: "HIGH", evidence: [{ claim: "Festival X is itself the operating entity for the event.", sourceUrl: "https://festival.example.org/legal", sourceTitle: "Legal notice", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(resolved.organisationResolution?.status, "RESOLVED");
+  assert.equal(resolved.website, "https://festival.example.org");
+});
+
+test("venue context does not infer organiser responsibility without authoritative evidence", () => {
+  assert.equal(classifySourceSite({ url: "https://venue.example.org/whats-on", claims: ["The venue calendar lists events at the venue."] }).siteType, "VENUE_CALENDAR");
+  assert.equal(classifySourceSite({ url: "https://venue.example.org", claims: ["The official venue presents its own programmed event."] }).siteType, "VENUE_OFFICIAL");
+});
+
+test("unknown source classification cannot silently become a commercial website", () => {
+  const unknown = classifySourceSite({ url: "https://unknown.example.org/page", claims: ["The page contains event information."] });
+  assert.equal(unknown.siteType, "UNKNOWN");
+  const initial = evaluateDiscoveryCandidate(candidate({ website: "https://unknown.example.org/page", facts: [fact("The page contains event information.", ["DISCOVERY"])] }), "GB");
+  const result = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Unknown Target", officialWebsite: "https://unknown.example.org/page", officialWebsiteSiteType: "UNKNOWN", aliases: [], confidence: "HIGH", evidence: [{ claim: "Unknown Target is the organiser of the event.", sourceUrl: "https://unknown.example.org/page", sourceTitle: "Event page", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(result.organisationResolution?.status, "UNRESOLVED");
+  assert.equal(result.website, null);
 });

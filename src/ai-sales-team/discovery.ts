@@ -1,6 +1,6 @@
 import type { AiSalesEvidence } from "./model.ts";
 import { classifyAccountRelationship, type AccountRelationship } from "./outreach-model.ts";
-import { evaluateProspectIntelligence, type CommercialEvidenceCategory, type CommercialEvidenceItem, type OrganisationResolution, type ProspectIntelligence } from "./prospect-intelligence.ts";
+import { evaluateProspectIntelligence, type CommercialEvidenceCategory, type CommercialEvidenceItem, type OrganisationResolution, type ProspectIntelligence, type SourceSiteClassification, type SourceSiteType } from "./prospect-intelligence.ts";
 import { FIRST_PARTY_SELF, isEventSuiteFirstPartyIdentity } from "./first-party.ts";
 
 export type DiscoveryTerritory = "ZA" | "GB";
@@ -15,7 +15,7 @@ export type EnrichmentSkipReason = "BLOCKED" | "REJECTED" | "DUPLICATE" | "FIRST
 export type EnrichmentCandidateTelemetry = { status: "SKIPPED" | "ATTEMPTED" | "SUCCEEDED" | "FAILED"; attempted: boolean; succeeded: boolean; materiallyChanged: boolean; skipReason?: EnrichmentSkipReason; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; resolutionOutcome?: "NOT_REQUIRED" | "RESOLVED" | "UNRESOLVED"; commercialOutcome?: "PRODUCT_SIGNAL_FOUND" | "VALIDATION_ONLY" | "NO_COMMERCIAL_SIGNAL" | "NOT_RUN"; commerciallyAdvanced?: boolean };
 export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number };
 
-export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[] };
+export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; siteClassifications?: SourceSiteClassification[] };
 export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence & { firstPartyStatus?: typeof FIRST_PARTY_SELF }; sourceUrls: string[]; firstPartyStatus?: typeof FIRST_PARTY_SELF; enrichment: EnrichmentCandidateTelemetry };
 
 export function isFirstPartyCandidate(candidate: Pick<EvaluatedDiscoveryCandidate, "website" | "sourceUrls" | "firstPartyStatus" | "canonicalName" | "organiserName">) {
@@ -30,8 +30,9 @@ const sourceRoles = ["DISCOVERY", "VALIDATION", "COMMERCIAL_EVIDENCE", "CONTACT"
 const freshnessStates = ["ACTIVE_UPCOMING", "RECENT_RECURRING_EVIDENCE", "HISTORICAL", "CANCELLED_DEAD_UNSUPPORTED", "UNKNOWN"] as const;
 const SERVICE_NOISE_PATTERN = /\b(?:ticketing platform|ticketing software|ticketing provider|event technology|event[- ]tech|recruitment solutions?|recruitment business)\b/i;
 const PROVIDER_HOST_PATTERN = /(?:^|\.)(?:ticketsza|tixsa)\.(?:co\.za|co\.uk|com|org)(?:$|\.)/i;
+const SITE_TYPES = ["ORGANISATION_OFFICIAL", "EVENT_OFFICIAL", "TICKETING_PROVIDER", "EVENT_LISTING_DIRECTORY", "VENUE_OFFICIAL", "VENUE_CALENDAR", "ARTIST_OFFICIAL", "NEWS_EDITORIAL", "SOCIAL_COMMUNITY", "UNKNOWN"] as const;
 const EVENT_CONTEXT_PATTERN = /\b(?:event|conference|symposium|festival|programme|tournament|exhibition|performance|summit|workshop|concert)\w*\b/i;
-const ORGANISER_PATTERN = /\b(?:organis(?:e|es|ed|er|ers|ing)|promotes?|operates?|produces?|presents?|runs?|owns?|host(?:s|ed|ing)|is\s+(?:the\s+)?organis(?:er|or)|organis(?:ed|zed)\s+by|promoted\s+by|produced\s+by|operated\s+by)\b/i;
+const ORGANISER_PATTERN = /\b(?:organis(?:e|es|ed|er|ers|ing)|promotes?|operat(?:e|es|ed|ing)|produces?|presents?|runs?|owns?|host(?:s|ed|ing)|is\s+(?:the\s+)?organis(?:er|or)|organis(?:ed|zed)\s+by|promoted\s+by|produced\s+by|operated\s+by)\b/i;
 const DIGITAL_GAP_PATTERN = /\b(?:no meaningful owned|weak owned|poor owned|fragmented|thin|social[- ]first|ticket(?:ing| provider)? page (?:as|is) (?:the )?primary|missing .*programme|weak .*digital|poor .*presence|discoverab(?:ility|le)|public information .*spread)\b/i;
 const TICKETING_PROBLEM_PATTERN = /\b(?:multiple (?:ticket|registration|sales) arrangements|manual (?:registration|reconciliation|ticket)|switch(?:ing|ed)?(?: provider)?|procurement|evaluation|settlement|fragmented (?:purchasing|registration)|admission scanning|ticket tiers?|box office|reconciliation|paid (?:tickets?|registration)|registration|workflow complexity)\b/i;
 const COMPLEXITY_PATTERN = /\b(?:multi-day|multi-stage|multi-zone|multiple venues?|multiple locations?|concurrent|simultaneous|suppliers?|exhibitors?|vendors?|workforce|volunteers?|accreditation|production schedule|technical dependencies|guest operations|complex programme|operational coordination)\b/i;
@@ -40,8 +41,9 @@ const TICKETING_CATEGORIES = new Set<CommercialEvidenceCategory>(["PROVIDER_FRAG
 const ECC_CATEGORIES = new Set<CommercialEvidenceCategory>(["MULTI_STAGE", "MULTI_ZONE", "MULTI_VENUE", "CONCURRENCY", "ACCREDITATION", "WORKFORCE", "VENDOR_COORDINATION", "PRODUCTION_SCHEDULING", "OPERATIONAL_COORDINATION"]);
 const candidateSchema = {
   type: "object", additionalProperties: false, required: ["candidates"], properties: {
-    candidates: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["canonicalName", "organiserName", "website", "origin", "relationshipHint", "facts", "inferences", "unknowns"], properties: {
+    candidates: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["canonicalName", "organiserName", "website", "origin", "relationshipHint", "facts", "inferences", "unknowns", "siteClassifications"], properties: {
       canonicalName: { type: "string" }, organiserName: { type: ["string", "null"] }, website: { type: ["string", "null"] }, origin: { type: "string", enum: ["EVENT_FIRST", "ORGANISATION_FIRST"] }, relationshipHint: { type: "string", enum: ["PROSPECT", "CUSTOMER", "PARTNER", "COMPETITOR", "UNKNOWN"] },
+      siteClassifications: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "siteType", "siteTypeConfidence", "siteTypeEvidence"], properties: { url: { type: "string" }, siteType: { type: "string", enum: SITE_TYPES }, siteTypeConfidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }, siteTypeEvidence: { type: "array", items: { type: "string" } } } } },
       facts: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "kind", "confidence", "sourceRoles", "eventFreshness"], properties: { claim: { type: "string" }, sourceUrl: { type: ["string", "null"] }, sourceTitle: { type: ["string", "null"] }, kind: { type: "string", const: "FACT" }, confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }, sourceRoles: { type: "array", items: { type: "string", enum: sourceRoles } }, eventFreshness: { type: "string", enum: freshnessStates } } } },
       inferences: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "kind", "confidence"], properties: { claim: { type: "string" }, sourceUrl: { type: ["string", "null"] }, sourceTitle: { type: ["string", "null"] }, kind: { type: "string", const: "INFERENCE" }, confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] } } } }, unknowns: { type: "array", items: { type: "string" } },
     } } },
@@ -52,8 +54,8 @@ const enrichmentSchema = {
   type: "object", additionalProperties: false, required: ["candidates"], properties: {
     candidates: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["candidateRef", "organisationResolution", "commercialEvidence", "facts", "inferences", "unknowns"], properties: {
       candidateRef: { type: "string" },
-      organisationResolution: { type: "object", additionalProperties: false, required: ["status", "canonicalOrganisationName", "officialWebsite", "aliases", "confidence", "evidence"], properties: {
-        status: { type: "string", enum: ["RESOLVED", "UNRESOLVED", "NOT_REQUIRED"] }, canonicalOrganisationName: { type: ["string", "null"] }, officialWebsite: { type: ["string", "null"] }, aliases: { type: "array", items: { type: "string" } }, confidence: { type: "string", enum: ["NONE", "LOW", "MEDIUM", "HIGH"] }, evidence: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "confidence"], properties: { claim: { type: "string" }, sourceUrl: { type: "string" }, sourceTitle: { type: ["string", "null"] }, confidence: { type: "string", enum: ["NONE", "LOW", "MEDIUM", "HIGH"] } } } },
+      organisationResolution: { type: "object", additionalProperties: false, required: ["status", "canonicalOrganisationName", "officialWebsite", "officialWebsiteSiteType", "aliases", "confidence", "evidence", "siteClassifications"], properties: {
+        status: { type: "string", enum: ["RESOLVED", "UNRESOLVED", "NOT_REQUIRED"] }, canonicalOrganisationName: { type: ["string", "null"] }, officialWebsite: { type: ["string", "null"] }, officialWebsiteSiteType: { type: "string", enum: SITE_TYPES }, aliases: { type: "array", items: { type: "string" } }, confidence: { type: "string", enum: ["NONE", "LOW", "MEDIUM", "HIGH"] }, evidence: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "confidence"], properties: { claim: { type: "string" }, sourceUrl: { type: "string" }, sourceTitle: { type: ["string", "null"] }, confidence: { type: "string", enum: ["NONE", "LOW", "MEDIUM", "HIGH"] } } } }, siteClassifications: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "siteType", "siteTypeConfidence", "siteTypeEvidence"], properties: { url: { type: "string" }, siteType: { type: "string", enum: SITE_TYPES }, siteTypeConfidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }, siteTypeEvidence: { type: "array", items: { type: "string" } } } } },
       } },
       commercialEvidence: { type: "array", items: { type: "object", additionalProperties: false, required: ["product", "claim", "sourceUrl", "evidenceCategory", "confidence"], properties: { product: { type: "string", enum: ["EGS", "TICKETING", "ECC"] }, claim: { type: "string" }, sourceUrl: { type: "string" }, evidenceCategory: { type: "string", enum: [...EGS_CATEGORIES, ...TICKETING_CATEGORIES, ...ECC_CATEGORIES] }, confidence: { type: "string", enum: ["NONE", "LOW", "MEDIUM", "HIGH"] } } } },
       facts: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "kind", "confidence", "sourceRoles", "eventFreshness"], properties: { claim: { type: "string" }, sourceUrl: { type: ["string", "null"] }, sourceTitle: { type: ["string", "null"] }, kind: { type: "string", const: "FACT" }, confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }, sourceRoles: { type: "array", items: { type: "string", enum: sourceRoles } }, eventFreshness: { type: "string", enum: freshnessStates } } } },
@@ -93,14 +95,52 @@ function normaliseFact(value: DiscoveryEvidence): DiscoveryEvidence {
 }
 
 function validUrl(value: unknown): value is string { return typeof value === "string" && /^https?:\/\/[^\s]+$/i.test(value.trim()); }
+const SITE_SIGNAL_PATTERNS: Array<[SourceSiteType, RegExp]> = [
+  ["VENUE_CALENDAR", /\b(?:venue calendar|what's on at|what.s on at|events at the venue)\b/i],
+  ["VENUE_OFFICIAL", /\b(?:official venue|venue website|venue operator|the venue presents)\b/i],
+  ["EVENT_LISTING_DIRECTORY", /\b(?:directory|event listing|lists? events|calendar of events|events from multiple|multiple unrelated organisers)\b/i],
+  ["ARTIST_OFFICIAL", /\b(?:official artist|artist website|band website|performer website)\b/i],
+  ["NEWS_EDITORIAL", /\b(?:news report|editorial|journalist|press article|news outlet)\b/i],
+  ["SOCIAL_COMMUNITY", /\b(?:social page|community page|facebook event|instagram|social media)\b/i],
+  ["EVENT_OFFICIAL", /\b(?:official event website|official event site|event domain|event.s own website|about the event|event contact)\b/i],
+  ["ORGANISATION_OFFICIAL", /\b(?:official organisation|official organization|company website|organiser.s website|organisation.s website|organisation official|organizer.s website)\b/i],
+];
+
+export function classifySourceSite(input: { url: string; claims?: string[]; sourceTitle?: string | null; candidateOrigin?: DiscoveryOrigin; }): SourceSiteClassification {
+  const claims = [...(input.claims ?? []), input.sourceTitle ?? ""].filter(Boolean);
+  const evidence = claims.find((claim) => PROVIDER_HOST_PATTERN.test(domainOf(input.url) ?? "") && /\b(?:ticket|provider|checkout|platform|multiple events?)\b/i.test(claim))
+    ? "The URL is identified as a ticketing provider or ticket platform."
+    : null;
+  if (PROVIDER_HOST_PATTERN.test(domainOf(input.url) ?? "") || evidence) return { url: input.url, siteType: "TICKETING_PROVIDER", siteTypeConfidence: "HIGH", siteTypeEvidence: [evidence ?? "The host matches a known ticketing-provider pattern and is retained as discovery evidence."] };
+  for (const [siteType, pattern] of SITE_SIGNAL_PATTERNS) {
+    const claim = claims.find((value) => pattern.test(value));
+    if (claim) return { url: input.url, siteType, siteTypeConfidence: "HIGH", siteTypeEvidence: [claim] };
+  }
+  return { url: input.url, siteType: "UNKNOWN", siteTypeConfidence: "LOW", siteTypeEvidence: ["The available page evidence does not establish an authoritative site role."] };
+}
+
+function normaliseSiteClassifications(value: unknown, candidate: DiscoveredCandidate): SourceSiteClassification[] {
+  const supplied = Array.isArray(value) ? value.filter((item): item is Partial<SourceSiteClassification> => Boolean(item && typeof item === "object" && validUrl((item as { url?: unknown }).url))) : [];
+  return supplied.map((item) => {
+    const url = String(item.url).trim();
+    const siteType = SITE_TYPES.includes(item.siteType as SourceSiteType) ? item.siteType as SourceSiteType : classifySourceSite({ url, candidateOrigin: candidate.origin }).siteType;
+    const confidence = ["LOW", "MEDIUM", "HIGH"].includes(item.siteTypeConfidence as string) ? item.siteTypeConfidence as SourceSiteClassification["siteTypeConfidence"] : "LOW";
+    const evidence = Array.isArray(item.siteTypeEvidence) ? item.siteTypeEvidence.filter((text): text is string => typeof text === "string" && Boolean(text.trim())).slice(0, 3) : [];
+    return { url, siteType, siteTypeConfidence: confidence, siteTypeEvidence: evidence.length ? evidence : classifySourceSite({ url, candidateOrigin: candidate.origin }).siteTypeEvidence };
+  }).slice(0, 24);
+}
 function normaliseOrganisationResolution(value: unknown, candidate: DiscoveredCandidate): OrganisationResolution {
   const raw = value && typeof value === "object" ? value as Partial<OrganisationResolution> : {};
   const status = raw.status === "RESOLVED" || raw.status === "NOT_REQUIRED" ? raw.status : "UNRESOLVED";
   const evidence = Array.isArray(raw.evidence) ? raw.evidence.filter((item): item is OrganisationResolution["evidence"][number] => Boolean(item && typeof item === "object" && typeof item.claim === "string" && validUrl(item.sourceUrl) && ORGANISER_PATTERN.test(item.claim) && ["LOW", "MEDIUM", "HIGH"].includes(item.confidence))) : [];
   const canonicalOrganisationName = typeof raw.canonicalOrganisationName === "string" && raw.canonicalOrganisationName.trim() ? raw.canonicalOrganisationName.trim() : null;
   const officialWebsite = validUrl(raw.officialWebsite) && !PROVIDER_HOST_PATTERN.test(domainOf(raw.officialWebsite) ?? "") ? raw.officialWebsite.trim() : null;
-  const resolved = status === "RESOLVED" && Boolean(canonicalOrganisationName && officialWebsite && evidence.length && raw.confidence && raw.confidence !== "NONE");
-  return { status: resolved ? "RESOLVED" : candidate.origin === "ORGANISATION_FIRST" ? "NOT_REQUIRED" : "UNRESOLVED", canonicalOrganisationName: resolved ? canonicalOrganisationName : null, officialWebsite: resolved ? officialWebsite : null, aliases: Array.isArray(raw.aliases) ? raw.aliases.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()).slice(0, 8) : [], confidence: ["LOW", "MEDIUM", "HIGH"].includes(raw.confidence as string) ? raw.confidence as OrganisationResolution["confidence"] : "NONE", evidence };
+  const siteClassifications = normaliseSiteClassifications(raw.siteClassifications, candidate);
+  const officialWebsiteSiteType = SITE_TYPES.includes(raw.officialWebsiteSiteType as SourceSiteType) ? raw.officialWebsiteSiteType as SourceSiteType : siteClassifications.find((item) => item.url === officialWebsite)?.siteType ?? (candidate.origin === "EVENT_FIRST" && officialWebsite === candidate.website ? "UNKNOWN" : "ORGANISATION_OFFICIAL");
+  const targetIsAuthoritative = officialWebsiteSiteType === "ORGANISATION_OFFICIAL" || (officialWebsiteSiteType === "EVENT_OFFICIAL" && evidence.some((item) => /\b(?:event brand|event itself|operating entity|organising entity|organizer is the event|organiser is the event)\b/i.test(item.claim)));
+  const resolved = status === "RESOLVED" && Boolean(canonicalOrganisationName && officialWebsite && evidence.length && raw.confidence && raw.confidence !== "NONE" && targetIsAuthoritative);
+  const finalStatus = resolved ? "RESOLVED" : candidate.origin === "ORGANISATION_FIRST" ? "NOT_REQUIRED" : "UNRESOLVED";
+  return { status: finalStatus, canonicalOrganisationName: resolved ? canonicalOrganisationName : null, officialWebsite: resolved ? officialWebsite : null, aliases: Array.isArray(raw.aliases) ? raw.aliases.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()).slice(0, 8) : [], confidence: ["LOW", "MEDIUM", "HIGH"].includes(raw.confidence as string) ? raw.confidence as OrganisationResolution["confidence"] : "NONE", evidence, officialWebsiteSiteType, siteClassifications };
 }
 
 function validCommercialEvidence(value: unknown): value is CommercialEvidenceItem {
@@ -127,14 +167,15 @@ function parseProviderText(payload: { output_text?: string; output?: Array<{ con
 export function applyDiscoveryEnrichment(candidate: EvaluatedDiscoveryCandidate, update: { organisationResolution?: unknown; commercialEvidence?: unknown; facts: EnrichmentEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[] }, territory: DiscoveryTerritory) {
   const organisationResolution = normaliseOrganisationResolution(update.organisationResolution, candidate);
   const commercialEvidence = normaliseCommercialEvidence(update.commercialEvidence);
-  const promoted = organisationResolution.status === "RESOLVED" ? { ...candidate, canonicalName: organisationResolution.canonicalOrganisationName ?? candidate.canonicalName, organiserName: organisationResolution.canonicalOrganisationName ?? candidate.organiserName, website: organisationResolution.officialWebsite } : { ...candidate, website: candidate.origin === "EVENT_FIRST" && PROVIDER_HOST_PATTERN.test(domainOf(candidate.website) ?? "") ? null : candidate.website };
+  const currentSite = candidate.siteClassifications?.find((item) => item.url === candidate.website);
+  const promoted = organisationResolution.status === "RESOLVED" ? { ...candidate, canonicalName: organisationResolution.canonicalOrganisationName ?? candidate.canonicalName, organiserName: organisationResolution.canonicalOrganisationName ?? candidate.organiserName, website: organisationResolution.officialWebsite } : { ...candidate, website: candidate.origin === "EVENT_FIRST" && (!currentSite || currentSite.siteType !== "ORGANISATION_OFFICIAL") ? null : candidate.website };
   const factKeys = new Set(candidate.facts.map((item) => `${item.claim}::${item.sourceUrl ?? ""}`));
   const resolutionFacts: DiscoveryEvidence[] = organisationResolution.evidence.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, sourceTitle: item.sourceTitle, kind: "FACT", confidence: item.confidence, sourceRoles: ["VALIDATION"], eventFreshness: inferFreshness(item.claim) }));
   const commercialFacts: DiscoveryEvidence[] = commercialEvidence.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, sourceTitle: null, kind: "FACT", confidence: item.confidence, sourceRoles: ["COMMERCIAL_EVIDENCE"], eventFreshness: inferFreshness(item.claim) }));
   const facts = [...candidate.facts, ...resolutionFacts, ...commercialFacts, ...update.facts.filter((item) => item.kind === "FACT" && item.claim.trim() && (item.sourceUrl || item.sourceTitle) && !factKeys.has(`${item.claim}::${item.sourceUrl ?? ""}`))];
   const inferenceKeys = new Set(candidate.inferences.map((item) => item.claim));
   const inferences = [...candidate.inferences, ...update.inferences.filter((item) => item.kind === "INFERENCE" && item.claim.trim() && !inferenceKeys.has(item.claim))];
-  return evaluateDiscoveryCandidate({ ...promoted, facts, inferences, commercialEvidence, organisationResolution, unknowns: [...new Set([...candidate.unknowns, ...update.unknowns.filter((item) => item.trim())])] }, territory);
+  return evaluateDiscoveryCandidate({ ...promoted, facts, inferences, commercialEvidence, organisationResolution, siteClassifications: [...(candidate.siteClassifications ?? []), ...(organisationResolution.siteClassifications ?? [])], unknowns: [...new Set([...candidate.unknowns, ...update.unknowns.filter((item) => item.trim())])] }, territory);
 }
 
 function materialSnapshot(candidate: EvaluatedDiscoveryCandidate) {
@@ -206,7 +247,10 @@ export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, terri
   const providerNoise = relationship !== "COMPETITOR" && facts.some((item) => SERVICE_NOISE_PATTERN.test(item.claim)) && !hasOrganiserEvidence;
   const status: DiscoveryCandidateStatus = firstPartyStatus ? "REJECTED" : relationship === "COMPETITOR" ? "BLOCKED" : providerNoise ? "REJECTED" : freshness === "HISTORICAL" || freshness === "CANCELLED_DEAD_UNSUPPORTED" || prospectIntelligence.eventConnection.state === "NONE" ? "REJECTED" : prospectIntelligence.accountCreationEligible ? "QUALIFIED" : "REVIEW_REQUIRED";
   const organisationResolution = candidate.organisationResolution ?? { status: candidate.origin === "ORGANISATION_FIRST" ? "NOT_REQUIRED" as const : "UNRESOLVED" as const, canonicalOrganisationName: null, officialWebsite: null, aliases: [], confidence: "NONE" as const, evidence: [] };
-  return { ...candidate, facts, canonicalKey: canonicalDiscoveryKey(candidate.organiserName || candidate.canonicalName, candidate.website), relationship, status, prospectIntelligence, organisationResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, sourceUrls: [...new Set(facts.map((item) => item.sourceUrl).filter((url): url is string => Boolean(url)))], enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, resolutionOutcome: organisationResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
+  const sourceUrls = [...new Set(facts.map((item) => item.sourceUrl).filter((url): url is string => Boolean(url)))];
+  const siteClassifications = [...(candidate.siteClassifications ?? []), ...(candidate.website ? [classifySourceSite({ url: candidate.website, claims: facts.map((item) => item.claim), candidateOrigin: candidate.origin })] : []), ...facts.filter((item) => item.sourceUrl).map((item) => classifySourceSite({ url: item.sourceUrl as string, claims: [item.claim], sourceTitle: item.sourceTitle, candidateOrigin: candidate.origin }))].filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index);
+  const persistedResolution = { ...organisationResolution, siteClassifications: [...(organisationResolution.siteClassifications ?? []), ...siteClassifications].filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index) };
+  return { ...candidate, facts, canonicalKey: canonicalDiscoveryKey(candidate.organiserName || candidate.canonicalName, candidate.website), relationship, status, prospectIntelligence, organisationResolution: persistedResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, siteClassifications, sourceUrls, enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, resolutionOutcome: persistedResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
 }
 
 export function parseDiscovery(value: unknown, territory: DiscoveryTerritory) {
