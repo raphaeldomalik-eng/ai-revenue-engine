@@ -1,0 +1,81 @@
+import { NextResponse } from "next/server";
+import { contactPersistenceTargets, isContactResearchEligible, researchProspectContact } from "../../../../src/ai-sales-team/contact-research";
+import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
+
+async function operatorClient() {
+  const client = await createServerSupabaseClient();
+  const { data: auth } = await client.auth.getUser();
+  if (!auth.user) return { client, error: NextResponse.json({ message: "Sign in is required." }, { status: 401 }) };
+  const { data: member } = await client.from("revenue_members").select("member_role, active").eq("user_id", auth.user.id).maybeSingle();
+  if (!member?.active) return { client, error: NextResponse.json({ message: "Active membership is required." }, { status: 403 }) };
+  if (!["operator", "admin"].includes(member.member_role)) return { client, error: NextResponse.json({ message: "Active operator access is required." }, { status: 403 }) };
+  return { client };
+}
+
+export async function POST(request: Request) {
+  const state = await operatorClient();
+  if (state.error) return state.error;
+  const body = await request.json() as { candidateId?: string };
+  if (!body.candidateId) return NextResponse.json({ message: "A discovery candidate is required." }, { status: 400 });
+  const { data: candidate, error } = await state.client.from("ai_prospect_candidates").select("id, status, relationship, account_id, candidate_name, organiser_name, website, facts, prospect_intelligence").eq("id", body.candidateId).maybeSingle();
+  if (error || !candidate) return NextResponse.json({ message: "Discovery candidate not found." }, { status: 404 });
+  if (!isContactResearchEligible(candidate)) return NextResponse.json({ message: "Only an active, event-connected prospect with an account may receive public contact research." }, { status: 409 });
+
+  try {
+    const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { buyerProblemOwner?: { likelyRoles?: string[] } } : {};
+    const facts = Array.isArray(candidate.facts) ? candidate.facts as Array<{ claim?: string }> : [];
+    const researched = await researchProspectContact({
+      accountName: candidate.organiser_name || candidate.candidate_name,
+      website: candidate.website,
+      eventEvidence: facts.map((fact) => fact.claim).filter((claim): claim is string => typeof claim === "string").slice(0, 6),
+      likelyBuyerRoles: intelligence.buyerProblemOwner?.likelyRoles ?? [],
+    });
+    const targets = contactPersistenceTargets(researched.result);
+    const contactIds: string[] = [];
+    for (const target of targets) {
+      const existing = target.fullName
+        ? await state.client.from("contacts").select("id").eq("account_id", candidate.account_id).eq("full_name", target.fullName).maybeSingle()
+        : target.email
+          ? await state.client.from("contacts").select("id").eq("account_id", candidate.account_id).eq("email", target.email).maybeSingle()
+          : target.phone
+            ? await state.client.from("contacts").select("id").eq("account_id", candidate.account_id).eq("phone", target.phone).maybeSingle()
+            : await state.client.from("contacts").select("id").eq("account_id", candidate.account_id).contains("metadata", { contactUrl: target.contactUrl }).maybeSingle();
+      if (existing.error) throw existing.error;
+      const values = {
+        account_id: candidate.account_id,
+        full_name: target.fullName,
+        role_title: target.roleTitle,
+        email: target.email,
+        phone: target.phone,
+        linkedin_url: target.linkedinUrl,
+        decision_role: target.kind === "NAMED" ? researched.result.likelyBuyerRole : "Organisation contact route",
+        verification_status: "VERIFIED",
+        source: "prospect_contact_discovery",
+        metadata: { contactResearch: true, sourceUrl: target.sourceUrl, sourceTitle: target.sourceTitle, publicEvidence: target.evidence, confidence: target.confidence, contactUrl: target.contactUrl },
+      };
+      const query = existing.data ? state.client.from("contacts").update(values).eq("id", existing.data.id) : state.client.from("contacts").insert(values).select("id").single();
+      const saved = await query;
+      if (saved.error) throw saved.error;
+      const id = existing.data?.id ?? saved.data?.id;
+      if (id) contactIds.push(id);
+    }
+
+    const directFacts = [...researched.result.facts, ...targets.map((target) => ({ claim: target.evidence, sourceUrl: target.sourceUrl, sourceTitle: target.sourceTitle, kind: "FACT" as const, confidence: target.confidence }))];
+    const { data: existingEvidence, error: evidenceReadError } = await state.client.from("research_evidence").select("claim, source_url").eq("account_id", candidate.account_id);
+    if (evidenceReadError) throw evidenceReadError;
+    const known = new Set((existingEvidence ?? []).map((item) => `${item.claim}::${item.source_url ?? ""}`));
+    const unseen = directFacts.filter((fact) => fact.sourceUrl && !known.has(`${fact.claim}::${fact.sourceUrl}`)).map((fact) => ({ account_id: candidate.account_id, evidence_type: "WEBSITE", claim: fact.claim, source_url: fact.sourceUrl, source_title: fact.sourceTitle, source_reference: fact.sourceUrl, observed_at: new Date().toISOString(), evidence_kind: "FACT", qualitative_confidence: fact.confidence, metadata: { prospectContactDiscovery: true, discoveryCandidateId: candidate.id } }));
+    if (unseen.length) {
+      const { error: evidenceWriteError } = await state.client.from("research_evidence").insert(unseen);
+      if (evidenceWriteError) throw evidenceWriteError;
+    }
+
+    const snapshot = { status: researched.result.status, likelyBuyerRole: researched.result.likelyBuyerRole, buyerRoleRationale: researched.result.buyerRoleRationale, contactIds, sourceUrls: [...new Set(directFacts.map((fact) => fact.sourceUrl).filter(Boolean))], unknowns: researched.result.unknowns, researchedAt: new Date().toISOString(), provider: researched.provider, model: researched.model };
+    const { data: savedCandidate, error: candidateWriteError } = await state.client.from("ai_prospect_candidates").update({ contact_research: snapshot }).eq("id", candidate.id).select("*").single();
+    if (candidateWriteError) throw candidateWriteError;
+    return NextResponse.json({ candidate: savedCandidate, contactResearch: { status: researched.result.status, likelyBuyerRole: researched.result.likelyBuyerRole, namedContact: researched.result.namedContact, organisationRoute: researched.result.organisationRoute } });
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : "Public contact research failed.";
+    return NextResponse.json({ message }, { status: message.startsWith("AI_RESEARCH_NOT_CONFIGURED") ? 503 : 502 });
+  }
+}
