@@ -31,9 +31,11 @@ export async function POST(request: Request) {
   try {
     const result = await discoverProspects({ territory: body.territory, focus: body.focus });
     const saved = [];
+    let sameRunDuplicateCount = 0;
     for (const candidate of result.candidates) {
-      const prior = await state.client.from("ai_prospect_candidates").select("id, account_id").eq("canonical_key", candidate.canonicalKey).order("created_at", { ascending: true }).limit(1).maybeSingle();
+      const prior = await state.client.from("ai_prospect_candidates").select("id, account_id, discovery_run_id").eq("canonical_key", candidate.canonicalKey).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (prior.error) throw prior.error;
+      if (prior.data?.discovery_run_id === run.id) { sameRunDuplicateCount += 1; continue; }
       const accountName = candidate.organiserName || candidate.canonicalName;
       const firstPartySelf = isFirstPartyCandidate(candidate);
       let accountId = firstPartySelf ? null : prior.data?.account_id ?? null;
@@ -73,13 +75,13 @@ export async function POST(request: Request) {
       }
       const status = firstPartySelf ? "REJECTED" : prior.data ? "DUPLICATE" : candidate.status;
       const relationship = firstPartySelf ? "UNKNOWN" : candidate.relationship;
-      const prospectIntelligence = { ...candidate.prospectIntelligence, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, enrichment: candidate.enrichment };
+      const prospectIntelligence = { ...candidate.prospectIntelligence, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, organisationResolution: candidate.organisationResolution, commercialEvidence: candidate.commercialEvidence, enrichment: candidate.enrichment };
       const values = { discovery_run_id: run.id, canonical_key: candidate.canonicalKey, candidate_name: candidate.canonicalName, organiser_name: candidate.organiserName, website: candidate.website, territory_code: body.territory, origin: candidate.origin, status, account_id: accountId, relationship, facts: candidate.facts, inferences: candidate.inferences, unknowns: candidate.unknowns, prospect_intelligence: prospectIntelligence, source_urls: candidate.sourceUrls, dedupe_of_candidate_id: prior.data?.id ?? null, last_seen_at: new Date().toISOString() };
       const { data, error } = await state.client.from("ai_prospect_candidates").insert(values).select("*").single();
       if (error) throw error;
       saved.push(data);
     }
-    const counts = { discovered: saved.length, qualified: saved.filter((item) => item.status === "QUALIFIED").length, reviewRequired: saved.filter((item) => item.status === "REVIEW_REQUIRED").length, blockedOrRejected: saved.filter((item) => item.status === "BLOCKED" || item.status === "REJECTED").length, duplicates: saved.filter((item) => item.status === "DUPLICATE").length, ...result.enrichment };
+    const counts = { discovered: result.candidates.length, qualified: saved.filter((item) => item.status === "QUALIFIED").length, reviewRequired: saved.filter((item) => item.status === "REVIEW_REQUIRED").length, blockedOrRejected: saved.filter((item) => item.status === "BLOCKED" || item.status === "REJECTED").length, duplicates: saved.filter((item) => item.status === "DUPLICATE").length + sameRunDuplicateCount, ...result.enrichment };
     await state.client.from("ai_prospect_discovery_runs").update({ status: "COMPLETED", provider: result.provider, model: result.model, summary: counts, completed_at: new Date().toISOString() }).eq("id", run.id);
     return NextResponse.json({ run: { id: run.id, territory_code: body.territory, focus: body.focus, status: "COMPLETED", summary: counts, ai_prospect_candidates: saved } });
   } catch (error) {
