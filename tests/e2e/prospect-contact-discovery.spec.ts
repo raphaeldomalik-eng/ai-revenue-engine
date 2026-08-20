@@ -23,23 +23,27 @@ test("public contact research uses the authenticated preview path without outrea
   await signInInBrowser(page);
   const discovery = await page.evaluate(async () => (await fetch("/api/ai-sales/discovery")).json());
   const candidates = discovery.runs.flatMap((run: { ai_prospect_candidates?: any[] }) => run.ai_prospect_candidates ?? []);
-  const prospect = candidates.find((candidate: any) => ["QUALIFIED", "REVIEW_REQUIRED"].includes(candidate.status) && candidate.relationship === "PROSPECT" && candidate.account_id && ["CONFIRMED", "STRONG"].includes(candidate.prospect_intelligence?.eventConnection?.state));
-  expect(prospect).toBeTruthy();
-
-  const first = await page.evaluate(async (candidateId) => {
-    const response = await fetch("/api/ai-sales/contact-research", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ candidateId }) });
-    const body = await response.json();
-    return { status: response.status, result: body.contactResearch?.status ?? null, message: body.message ?? null };
-  }, prospect.id);
-  expect(first.status, first.message ?? "contact research request failed").toBe(200);
-  expect(["CONTACT_FOUND", "CONTACT_ROUTE_FOUND", "CONTACT_RESEARCH_REQUIRED"]).toContain(first.result);
+  const prospects = candidates.filter((candidate: any) => ["QUALIFIED", "REVIEW_REQUIRED"].includes(candidate.status) && candidate.relationship === "PROSPECT" && candidate.account_id && ["CONFIRMED", "STRONG"].includes(candidate.prospect_intelligence?.eventConnection?.state)).slice(0, 3);
+  expect(prospects.length).toBeGreaterThan(0);
+  const results = [] as string[];
+  for (const prospect of prospects) {
+    const result = await page.evaluate(async (candidateId) => {
+      const response = await fetch("/api/ai-sales/contact-research", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ candidateId }) });
+      const body = await response.json();
+      return { status: response.status, result: body.contactResearch?.status ?? null, message: body.message ?? null };
+    }, prospect.id);
+    expect(result.status, result.message ?? "contact research request failed").toBe(200);
+    expect(["CONTACT_FOUND", "CONTACT_ROUTE_FOUND", "CONTACT_RESEARCH_REQUIRED"]).toContain(result.result);
+    results.push(result.result);
+  }
+  expect(results.length).toBe(prospects.length);
 
   const repeat = await page.evaluate(async (candidateId) => {
     const response = await fetch("/api/ai-sales/contact-research", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ candidateId }) });
     return response.status;
-  }, prospect.id);
+  }, prospects[0].id);
   expect(repeat).toBe(200);
   await page.reload();
-  await expect(page.getByText(/CONTACT RESEARCH · (CONTACT_FOUND|CONTACT_ROUTE_FOUND|CONTACT_RESEARCH_REQUIRED)/)).toBeVisible();
+  await expect(page.getByText(/CONTACT RESEARCH · (CONTACT_FOUND|CONTACT_ROUTE_FOUND|CONTACT_RESEARCH_REQUIRED)/).first()).toBeVisible();
   await expect(page.getByText(/no sequence is created or sent automatically/).first()).toBeVisible();
 });
