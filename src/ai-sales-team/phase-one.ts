@@ -1,6 +1,6 @@
 import type { DiscoveryLane } from "./prospect-intelligence.ts";
 
-export const PHASE_ONE_CLASSIFICATIONS = ["PHASE_ONE_SME", "ENTERPRISE_DEFERRED", "SIZE_UNRESOLVED"] as const;
+export const PHASE_ONE_CLASSIFICATIONS = ["PHASE_ONE_PRIORITY", "STANDARD_PRIORITY", "ENTERPRISE_DEFERRED"] as const;
 export type PhaseOneClassification = typeof PHASE_ONE_CLASSIFICATIONS[number];
 export type PhaseOneEvidenceKind = "INDEPENDENT_ORGANISER" | "REGIONAL_SCOPE" | "SMALLER_EVENT_AGENCY" | "ENTERPRISE_GROUP" | "COMPANIES_HOUSE_ACCOUNT_CATEGORY" | "VENUE_CAPACITY";
 export type PhaseOneEvidence = { kind: PhaseOneEvidenceKind; value: string; sourceUrl: string | null; confidence: "LOW" | "MEDIUM" | "HIGH" };
@@ -21,10 +21,10 @@ function supported(evidence: PhaseOneEvidence[], kind: PhaseOneEvidenceKind) {
 export function assessPhaseOneCandidate(input: PhaseOneCandidate): PhaseOneAssessment {
   const evidence = input.evidence ?? [];
   if (supported(evidence, "ENTERPRISE_GROUP")) return { classification: "ENTERPRISE_DEFERRED", priorityScore: 0, reason: "Strong public evidence identifies an enterprise or enterprise group; retain for later sequencing rather than reject.", evidence };
-  if (input.territory === "GB" && (supported(evidence, "INDEPENDENT_ORGANISER") || supported(evidence, "REGIONAL_SCOPE") || supported(evidence, "SMALLER_EVENT_AGENCY"))) return { classification: "PHASE_ONE_SME", priorityScore: 100, reason: "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.", evidence };
-  if (supported(evidence, "COMPANIES_HOUSE_ACCOUNT_CATEGORY")) return { classification: "SIZE_UNRESOLVED", priorityScore: 50, reason: "Companies House account category is only a size indicator and is insufficient for a definitive commercial size classification.", evidence };
-  if (supported(evidence, "VENUE_CAPACITY")) return { classification: "SIZE_UNRESOLVED", priorityScore: 50, reason: "Venue capacity or attendance does not establish the operator's enterprise size.", evidence };
-  return { classification: "SIZE_UNRESOLVED", priorityScore: 50, reason: "Available evidence does not establish company size; size is not guessed.", evidence };
+  if (input.territory === "GB" && (supported(evidence, "INDEPENDENT_ORGANISER") || supported(evidence, "REGIONAL_SCOPE") || supported(evidence, "SMALLER_EVENT_AGENCY"))) return { classification: "PHASE_ONE_PRIORITY", priorityScore: 100, reason: "A documented Phase One focus signal supports priority routing; it is not a proof of company size and does not require SME verification.", evidence };
+  if (supported(evidence, "COMPANIES_HOUSE_ACCOUNT_CATEGORY")) return { classification: "STANDARD_PRIORITY", priorityScore: 50, reason: "Companies House account category is informative evidence only; unknown size remains eligible and research is not blocked.", evidence };
+  if (supported(evidence, "VENUE_CAPACITY")) return { classification: "STANDARD_PRIORITY", priorityScore: 50, reason: "Venue capacity or attendance is informative only and does not establish operator size; research remains eligible.", evidence };
+  return { classification: "STANDARD_PRIORITY", priorityScore: 50, reason: "Company size is unknown and optional; do not guess or spend research calls proving it.", evidence };
 }
 
 export function rankPhaseOneCandidates<T extends { phaseOneAssessment: PhaseOneAssessment }>(candidates: T[]) {

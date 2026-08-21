@@ -203,6 +203,15 @@ test("the four discovery lanes independently reach identity handoff", () => {
   assert.deepEqual(identityHandoffGate(venueFirst), { eligible: true, reason: "VENUE_FIRST_IDENTITY_CONFIRMATION" });
 });
 
+test("venue-first remains eligible from confirmed operational venue evidence without an operator", () => {
+  const venue = evaluateDiscoveryCandidate(candidate({ canonicalName: "The Piece Hall", organiserName: null, website: "https://piecehall.co.uk", origin: "VENUE_FIRST", laneContext: { organisation: null, person: null, venue: { name: "The Piece Hall", website: "https://piecehall.co.uk", operatorName: null, operatorWebsite: null } }, facts: [fact("Google Places identity evidence lists The Piece Hall as the target venue at Halifax HX1 1RE, UK with website domain piecehall.co.uk. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.", ["VALIDATION"])]}), "GB");
+  assert.deepEqual(identityHandoffGate(venue), { eligible: true, reason: "VENUE_FIRST_IDENTITY_CONFIRMATION" });
+  assert.equal(venue.laneContext?.venue?.name, "The Piece Hall");
+  assert.equal(venue.laneContext?.venue?.operatorName, null);
+  assert.equal(venue.organiserName, null);
+  assert.equal(venue.prospectIntelligence.accountCreationEligible, true);
+});
+
 test("person-first preserves person relationships without claiming event ownership", () => {
   const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Alex Morgan", organiserName: null, website: null, origin: "PERSON_FIRST", laneContext: { organisation: null, person: { name: "Alex Morgan", role: "Freelance Event Producer", organisationName: "Alex Morgan Events", organisationWebsite: "https://alexmorgan.example.org" }, venue: null }, facts: [fact("Alex Morgan is a freelance event producer who works on public conferences.", ["VALIDATION"])] }), "GB");
   const resolved = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Alex Morgan Events", officialWebsite: "https://alexmorgan.example.org", aliases: [], confidence: "HIGH", evidence: [{ claim: "Alex Morgan Events employs Alex Morgan as a freelance event producer.", sourceUrl: "https://alexmorgan.example.org/about", sourceTitle: "Team", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");

@@ -44,7 +44,7 @@
       "lane": "EVENT_FIRST",
       "signal": "ArcTanGent Festival",
       "phaseOne": {
-        "classification": "PHASE_ONE_SME",
+        "classification": "PHASE_ONE_PRIORITY",
         "reason": "Frozen official-source evidence identifies an independent UK festival organiser; SME priority is applied without guessing from registrar conflict."
       },
       "lanePreserved": true,
@@ -95,7 +95,7 @@
       "lane": "VENUE_FIRST",
       "signal": "The Piece Hall",
       "phaseOne": {
-        "classification": "PHASE_ONE_SME",
+        "classification": "PHASE_ONE_PRIORITY",
         "reason": "Frozen official-source evidence identifies a UK independent or regional event-sector target; SME priority is applied without guessing from capacity or account category."
       },
       "lanePreserved": true,

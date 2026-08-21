@@ -163,6 +163,16 @@ test("Apollo primary people search blocks unresolved canonical identity before p
   assert.equal(calls, 0);
 });
 
+test("confirmed venue identity may run one official-domain search without implicit enrichment", async () => {
+  const seen: Request[] = [];
+  const result = await searchApolloBuyers({ organisationName: "The Piece Hall", organisationDomain: "https://piecehall.co.uk", discoveryLane: "VENUE_FIRST", roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 5 }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [] }, 200, {}, seen) });
+  assert.equal(seen.length, 1);
+  const body = await seen[0].clone().json() as Record<string, unknown>;
+  assert.deepEqual(body.q_organization_domains_list, ["piecehall.co.uk"]);
+  assert.equal(body.email, undefined);
+  assert.equal(body.phone, undefined);
+});
+
 test("missing key, authentication failure, rate limiting, provider error and malformed response are safe", async () => {
   await assert.rejects(() => searchApolloBuyers(searchInput, { mode: "search_only", fetchImpl: fetchMock({ people: [] }) }), (error: unknown) => error instanceof ApolloProviderError && error.telemetry.rejectionReasons[0] === "MISSING_API_KEY");
   await assert.rejects(() => apolloAuthenticationHealth({ apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ error: "unauthorized" }, 401) }), (error: unknown) => error instanceof ApolloProviderError && error.telemetry.rejectionReasons[0] === "AUTHENTICATION_FAILED");

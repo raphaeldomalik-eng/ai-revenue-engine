@@ -52,7 +52,7 @@
       },
       "conflicts": [],
       "phaseOne": {
-        "classification": "PHASE_ONE_SME",
+        "classification": "PHASE_ONE_PRIORITY",
         "priorityScore": 100,
         "reason": "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.",
         "evidence": [
@@ -138,7 +138,7 @@
       },
       "conflicts": [],
       "phaseOne": {
-        "classification": "PHASE_ONE_SME",
+        "classification": "PHASE_ONE_PRIORITY",
         "priorityScore": 100,
         "reason": "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.",
         "evidence": [
@@ -254,7 +254,7 @@
       },
       "conflicts": [],
       "phaseOne": {
-        "classification": "PHASE_ONE_SME",
+        "classification": "PHASE_ONE_PRIORITY",
         "priorityScore": 100,
         "reason": "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.",
         "evidence": [
@@ -356,7 +356,7 @@
       },
       "conflicts": [],
       "phaseOne": {
-        "classification": "PHASE_ONE_SME",
+        "classification": "PHASE_ONE_PRIORITY",
         "priorityScore": 100,
         "reason": "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.",
         "evidence": [
