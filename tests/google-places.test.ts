@@ -1,14 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { enrichDiscoveryCandidatesWithGooglePlaces, evaluateDiscoveryCandidate } from "../src/ai-sales-team/discovery.ts";
-import { GOOGLE_PLACES_DETAILS_FIELD_MASK, GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, GooglePlacesProviderError, getGooglePlaceDetails, searchGooglePlaces } from "../src/ai-sales-team/google-places.ts";
+import { GOOGLE_PLACES_DETAILS_FIELD_MASK, GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, GooglePlacesProviderError, getGooglePlaceDetails, resolveGooglePlacesVenueComplex, searchGooglePlaces } from "../src/ai-sales-team/google-places.ts";
 
 const searchInput = { targetName: "CTICC", targetWebsite: "https://www.cticc.co.za", locality: "Cape Town", lane: "VENUE_FIRST" as const, targetType: "VENUE" as const, limit: 3 };
 const organisationInput = { targetName: "Hyve Group", targetWebsite: null, locality: "London", lane: "ORGANISATION_FIRST" as const, targetType: "ORGANISATION" as const, limit: 3 };
+const cticcVenueInput = { targetName: "Cape Town International Convention Centre", targetWebsite: "https://www.cticc.co.za", locality: "Cape Town, South Africa", lane: "VENUE_FIRST" as const, targetType: "VENUE" as const, limit: 3 };
 const place = (overrides: Record<string, unknown> = {}) => ({ id: "place-1", displayName: { text: "CTICC" }, formattedAddress: "Convention Square, Cape Town", types: ["convention_center"], websiteUri: "https://www.cticc.co.za", businessStatus: "OPERATIONAL", ...overrides });
 const response = (payload: unknown, status = 200) => new Response(typeof payload === "string" ? payload : JSON.stringify(payload), { status, headers: { "content-type": "application/json" } });
 const fetchMock = (payload: unknown, status = 200, calls: Array<{ url: string; init?: RequestInit }> = []) => async (url: RequestInfo | URL, init?: RequestInit) => { calls.push({ url: String(url), init }); return response(payload, status); };
 const candidate = (overrides: Record<string, unknown> = {}) => evaluateDiscoveryCandidate({ canonicalName: "CTICC", organiserName: null, website: null, origin: "VENUE_FIRST", relationshipHint: "PROSPECT", laneContext: { organisation: null, person: null, venue: { name: "CTICC", website: null, operatorName: "Convenco", operatorWebsite: null } }, facts: [{ claim: "CTICC hosts an annual conference and exhibition programme.", sourceUrl: "https://cticc.co.za/events", sourceTitle: "Venue events", kind: "FACT", confidence: "HIGH" }], inferences: [], unknowns: [], ...overrides }, "ZA");
+const cticc = (overrides: Record<string, unknown> = {}) => place({ id: "cticc", displayName: { text: "CTICC (Cape Town International Convention Centre)" }, formattedAddress: "Convention Square, 1 Lower Long St, Cape Town City Centre, Cape Town, 8001, South Africa", types: ["convention_center", "event_venue", "point_of_interest"], websiteUri: "https://www.cticc.co.za", ...overrides });
+const cticc2 = (overrides: Record<string, unknown> = {}) => place({ id: "cticc-2", displayName: { text: "CTICC 2 (Cape Town International Convention Centre 2)" }, formattedAddress: "Corner of Heerengracht & Rua Bartholomeu Dias, Foreshore, Cape Town, 8001, South Africa", types: ["convention_center", "event_venue", "point_of_interest"], websiteUri: "https://www.cticc.co.za", ...overrides });
+const lodging = (overrides: Record<string, unknown> = {}) => place({ id: "hotel", displayName: { text: "Cape Town International Convention Hotel" }, formattedAddress: "2 Lower Loop St, Cape Town City Centre, Cape Town, 8001, South Africa", types: ["hotel", "lodging", "point_of_interest"], websiteUri: "https://hotel.example", ...overrides });
+const venueSequenceFetch = (searchPlaces: unknown[], detailsById: Record<string, unknown>, calls: Array<{ url: string; init?: RequestInit }>) => async (url: RequestInfo | URL, init?: RequestInit) => { calls.push({ url: String(url), init }); const id = String(url).split("/").pop() ?? ""; return response(String(url).includes(":searchText") ? { places: searchPlaces } : detailsById[id]); };
 
 test("Google Places is disabled by default and does not fetch", async () => {
   let calls = 0;
@@ -148,4 +153,62 @@ test("details mode is explicit and never invokes Apollo, persistence or outreach
   assert.deepEqual(calls, ["https://places.googleapis.com/v1/places/place-1"]);
   assert.equal(result.telemetry.endpointCategory, "PLACE_DETAILS");
   assert.equal(calls.some((url) => /apollo|supabase|outreach|people\/match/i.test(url)), false);
+});
+
+test("same-brand CTICC facilities resolve as one venue family with children preserved", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const result = await resolveGooglePlacesVenueComplex(cticcVenueInput, { mode: "details_selected", apiKey: "test-key", fetchImpl: venueSequenceFetch([cticc(), cticc2(), lodging()], { cticc: cticc(), "cticc-2": cticc2() }, calls) });
+  assert.equal(calls.length, 3);
+  assert.equal(result.resolution.status, "PLACES_IDENTITY_SUFFICIENT");
+  assert.equal(result.resolution.canonicalVenueName, "CTICC");
+  assert.deepEqual(result.resolution.relatedFacilities.map((item) => item.googlePlaceId), ["cticc", "cticc-2"]);
+  assert.equal(result.resolution.officialWebsiteDomain, "cticc.co.za");
+  assert.match(result.resolution.groupingReason ?? "", /SHARED_OFFICIAL_DOMAIN/);
+  assert.equal(result.resolution.excludedBeforeDetails.some((item) => item.googlePlaceId === "hotel" && ["BASE_BRAND_NOT_ALIGNED", "VENUE_TYPE_NOT_RELEVANT"].includes(item.reason)), true);
+  assert.equal(result.telemetry.every((item) => item.retryCount === 0), true);
+  assert.equal(result.telemetry.filter((item) => item.endpointCategory === "PLACE_DETAILS").length, 2);
+  assert.equal(Object.hasOwn(result.resolution, "organiserName"), false);
+  assert.equal(Object.hasOwn(result.resolution, "operatorName"), false);
+});
+
+test("conflicting facility domains prevent venue-family grouping", async () => {
+  const result = await resolveGooglePlacesVenueComplex(cticcVenueInput, { mode: "details_selected", apiKey: "test-key", fetchImpl: venueSequenceFetch([cticc(), cticc2()], { cticc: cticc(), "cticc-2": cticc2({ websiteUri: "https://other.example" }) }, []) });
+  assert.equal(result.resolution.status, "AI_IDENTITY_REQUIRED");
+  assert.equal(result.resolution.groupingReason, null);
+  assert.equal(result.resolution.relatedFacilities.length, 2);
+});
+
+test("missing facility website prevents venue-family grouping", async () => {
+  const result = await resolveGooglePlacesVenueComplex(cticcVenueInput, { mode: "details_selected", apiKey: "test-key", fetchImpl: venueSequenceFetch([cticc(), cticc2()], { cticc: cticc(), "cticc-2": cticc2({ websiteUri: null }) }, []) });
+  assert.equal(result.resolution.status, "AI_IDENTITY_REQUIRED");
+  assert.equal(result.resolution.officialWebsiteDomain, null);
+});
+
+test("different locality prevents grouping and is excluded before details", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const result = await resolveGooglePlacesVenueComplex(cticcVenueInput, { mode: "details_selected", apiKey: "test-key", fetchImpl: venueSequenceFetch([cticc(), cticc2({ formattedAddress: "1 Main Road, Johannesburg, South Africa" })], { cticc: cticc() }, calls) });
+  assert.equal(result.resolution.status, "PLACES_IDENTITY_SUFFICIENT");
+  assert.deepEqual(result.resolution.selectedPlaceIds, ["cticc"]);
+  assert.equal(result.resolution.excludedBeforeDetails.some((item) => item.googlePlaceId === "cticc-2" && item.reason === "LOCALITY_NOT_ALIGNED"), true);
+  assert.equal(calls.length, 2);
+});
+
+test("irrelevant lodging is excluded before Place Details and request bounds remain fixed", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const result = await resolveGooglePlacesVenueComplex(cticcVenueInput, { mode: "details_selected", apiKey: "test-key", fetchImpl: venueSequenceFetch([cticc(), cticc2(), lodging()], { cticc: cticc(), "cticc-2": cticc2() }, calls) });
+  assert.equal(calls.filter((call) => String(call.url).includes("/places/")).some((call) => String(call.url).endsWith("/hotel")), false);
+  assert.equal(calls.filter((call) => String(call.url).includes("/places/")).length, 2);
+  assert.equal(result.telemetry.length, 3);
+  assert.equal(result.telemetry.every((item) => item.retryCount === 0), true);
+  assert.equal(result.telemetry.filter((item) => item.endpointCategory === "TEXT_SEARCH").length, 1);
+});
+
+test("venue-first family evidence cannot create an organiser or operator claim", async () => {
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const result = await enrichDiscoveryCandidatesWithGooglePlaces([candidate()], "ZA", { mode: "details_selected", apiKey: "test-key", fetchImpl: venueSequenceFetch([cticc(), cticc2(), lodging()], { cticc: cticc(), "cticc-2": cticc2() }, calls) });
+  const enriched = result.candidates[0];
+  assert.equal(enriched.organiserName, null);
+  assert.equal(enriched.laneContext?.venue?.operatorName, "Convenco");
+  assert.equal(enriched.facts.filter((item) => item.sourceTitle === "Google Places (New)").length, 2);
+  assert.equal(calls.every((call) => /places\.googleapis\.com/.test(String(call.url))), true);
 });

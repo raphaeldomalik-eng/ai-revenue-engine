@@ -51,6 +51,25 @@ export type GooglePlacesDetailsInput = GooglePlacesSearchInput & { googlePlaceId
 export type GooglePlacesFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 export type GooglePlacesOptions = { apiKey?: string; mode?: GooglePlacesMode; fetchImpl?: GooglePlacesFetch; now?: () => string; timeoutMs?: number };
 
+export type GooglePlacesVenueComplexResolution = {
+  status: "PLACES_IDENTITY_SUFFICIENT" | "AI_IDENTITY_REQUIRED" | "SAFE_UNRESOLVED";
+  canonicalVenueName: string | null;
+  canonicalVenue: GooglePlacesEvidence | null;
+  relatedFacilities: GooglePlacesEvidence[];
+  officialWebsiteDomain: string | null;
+  groupingReason: string | null;
+  groupingEvidence: string[];
+  selectedPlaceIds: string[];
+  excludedBeforeDetails: Array<{ googlePlaceId: string; displayName: string | null; reason: string }>;
+};
+
+export type GooglePlacesVenueComplexRun = {
+  search: { results: GooglePlacesEvidence[]; telemetry: GooglePlacesTelemetry };
+  details: GooglePlacesEvidence[];
+  resolution: GooglePlacesVenueComplexResolution;
+  telemetry: GooglePlacesTelemetry[];
+};
+
 type RawPlace = { id?: unknown; displayName?: { text?: unknown } | null; formattedAddress?: unknown; types?: unknown; websiteUri?: unknown; businessStatus?: unknown };
 
 function modeOf(value: string | undefined): GooglePlacesMode { return GOOGLE_PLACES_MODES.includes(value as GooglePlacesMode) ? value as GooglePlacesMode : "disabled"; }
@@ -67,6 +86,13 @@ function matchName(target: string, actual: string | null) {
   const expectedTokens = new Set(expected.split(" ")); const receivedTokens = new Set(received.split(" ")); const overlap = [...expectedTokens].filter((token) => receivedTokens.has(token)).length;
   return overlap >= 2 && overlap / Math.max(expectedTokens.size, receivedTokens.size) >= 0.5;
 }
+function venueBrand(value: string | null | undefined) {
+  return canonicalText(value).replace(/\b(?:[0-9]+|ii|iii|iv|v|vi)\b/g, " ").replace(/\s+/g, " ").trim();
+}
+function venueBrandAligned(target: string, actual: string | null) {
+  const expected = venueBrand(target); const received = venueBrand(actual);
+  return Boolean(expected && received && (expected === received || expected.includes(received) || received.includes(expected)));
+}
 function localityMatches(locality: string | null | undefined, address: string | null) {
   if (!locality || !address) return false;
   const expectedTokens = canonicalText(locality).split(" ").filter((token) => token.length > 2);
@@ -79,6 +105,8 @@ function typeMatches(targetType: GooglePlacesTargetType, types: string[]) {
   const expected = targetType === "VENUE" ? venueTypes : organisationTypes;
   return types.some((type) => expected.includes(type));
 }
+function operationalPlace(evidence: GooglePlacesEvidence) { return evidence.businessStatus?.toUpperCase() === "OPERATIONAL"; }
+function venueRelevantPlace(evidence: GooglePlacesEvidence) { return typeMatches("VENUE", evidence.types); }
 function sourceUrl(id: string) { return `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}`; }
 function telemetry(endpointCategory: GooglePlacesEndpointCategory, mode: GooglePlacesMode, fieldMask: string | null, candidateCount: number, matchStatus: GooglePlacesMatchStatus, httpStatus: number | null, errorCategory: GooglePlacesErrorCategory = null): GooglePlacesTelemetry { return { endpointCategory, mode, fieldMask, candidateCount, matchStatus, httpStatus, errorCategory, retryCount: 0 }; }
 
@@ -126,6 +154,73 @@ function finaliseMatches(results: GooglePlacesEvidence[]) {
     return results.map((item) => plausible.includes(item) ? { ...item, matchStatus: "REVIEW_REQUIRED" as const, identityConfidence: "MEDIUM" as const, rejectionReasons: [...new Set([...item.rejectionReasons, "MULTIPLE_PLAUSIBLE_MATCHES"])] } : item);
   }
   return results;
+}
+
+function venueCandidateReason(input: GooglePlacesSearchInput, evidence: GooglePlacesEvidence) {
+  if (evidence.matchStatus === "CONFLICTING" || evidence.rejectionReasons.includes("WEBSITE_DOMAIN_CONFLICT")) return "CONFLICTING_WEBSITE_DOMAIN";
+  if (!venueBrandAligned(input.targetName, evidence.displayName)) return "BASE_BRAND_NOT_ALIGNED";
+  if (input.locality && !localityMatches(input.locality, evidence.formattedAddress)) return "LOCALITY_NOT_ALIGNED";
+  if (!venueRelevantPlace(evidence)) return "VENUE_TYPE_NOT_RELEVANT";
+  if (!operationalPlace(evidence)) return "NOT_OPERATIONAL";
+  return null;
+}
+
+function venueCandidateScore(input: GooglePlacesSearchInput, evidence: GooglePlacesEvidence) {
+  let score = 0;
+  if (matchName(input.targetName, evidence.displayName)) score += 4;
+  if (venueBrand(input.targetName) === venueBrand(evidence.displayName)) score += 4;
+  if (localityMatches(input.locality, evidence.formattedAddress)) score += 2;
+  if (venueRelevantPlace(evidence)) score += 2;
+  if (operationalPlace(evidence)) score += 1;
+  return score;
+}
+
+export function selectGooglePlacesVenueComplexCandidates(input: GooglePlacesSearchInput, results: GooglePlacesEvidence[]) {
+  const ranked = results.map((evidence, index) => ({ evidence, index, reason: venueCandidateReason(input, evidence), score: venueCandidateScore(input, evidence) }));
+  const selected = ranked.filter((item) => !item.reason).sort((left, right) => right.score - left.score || left.index - right.index).slice(0, 2);
+  const selectedIds = new Set(selected.map((item) => item.evidence.googlePlaceId));
+  return {
+    selected: selected.map((item) => item.evidence),
+    excluded: ranked.filter((item) => !selectedIds.has(item.evidence.googlePlaceId)).map((item) => ({ googlePlaceId: item.evidence.googlePlaceId, displayName: item.evidence.displayName, reason: item.reason ?? "DETAIL_SELECTION_LIMIT" })),
+  };
+}
+
+function familyName(value: string | null) { return value?.replace(/\s*\([^)]*\)\s*$/, "").replace(/\s+(?:[0-9]+|ii|iii|iv|v|vi)\s*$/i, "").trim() || null; }
+
+export function resolveGooglePlacesVenueComplexEvidence(input: GooglePlacesSearchInput, searchResults: GooglePlacesEvidence[], detailResults: GooglePlacesEvidence[], excludedBeforeDetails = selectGooglePlacesVenueComplexCandidates(input, searchResults).excluded): GooglePlacesVenueComplexResolution {
+  const selection = selectGooglePlacesVenueComplexCandidates(input, searchResults);
+  const selectedPlaceIds = selection.selected.map((item) => item.googlePlaceId);
+  const details = detailResults.filter((item) => selectedPlaceIds.includes(item.googlePlaceId));
+  const canonicalVenue = details.find((item) => item.matchStatus === "EXACT_OR_STRONG" && !item.rejectionReasons.includes("CLOSED_PLACE_COUNTER_EVIDENCE")) ?? null;
+  const sharedDomain = details.length === 2 && details.every((item) => Boolean(item.websiteDomain)) && details.every((item) => item.websiteDomain === details[0].websiteDomain) ? details[0].websiteDomain : null;
+  const sameFamily = details.length === 2 && details.every((item) => venueBrandAligned(input.targetName, item.displayName)) && venueBrand(details[0].displayName) === venueBrand(details[1].displayName);
+  const sameLocality = details.length === 2 && details.every((item) => localityMatches(input.locality, item.formattedAddress));
+  const relevantTypes = details.length === 2 && details.every(venueRelevantPlace);
+  const operating = details.length === 2 && details.every(operationalPlace);
+  const individualMatch = details.length === 1 && canonicalVenue === details[0] && selection.selected.length === 1;
+  if (details.length === 0 || (!individualMatch && details.length < selection.selected.length)) {
+    return { status: "SAFE_UNRESOLVED", canonicalVenueName: null, canonicalVenue: null, relatedFacilities: [], officialWebsiteDomain: null, groupingReason: null, groupingEvidence: [], selectedPlaceIds, excludedBeforeDetails };
+  }
+  if (individualMatch) {
+    return { status: "PLACES_IDENTITY_SUFFICIENT", canonicalVenueName: familyName(canonicalVenue.displayName) ?? input.targetName, canonicalVenue, relatedFacilities: details, officialWebsiteDomain: canonicalVenue.websiteDomain, groupingReason: "ONE_DETERMINISTIC_VENUE_MATCH", groupingEvidence: ["name/locality/type/operational checks passed", "selected details supplied venue identity"], selectedPlaceIds, excludedBeforeDetails };
+  }
+  if (details.length === 2 && details.every((item) => item.matchStatus === "EXACT_OR_STRONG") && sameFamily && sameLocality && relevantTypes && operating && sharedDomain) {
+    return { status: "PLACES_IDENTITY_SUFFICIENT", canonicalVenueName: familyName(canonicalVenue?.displayName ?? details[0].displayName) ?? input.targetName, canonicalVenue, relatedFacilities: details, officialWebsiteDomain: sharedDomain, groupingReason: "SAME_BRAND_LOCALITY_TYPE_OPERATIONAL_AND_SHARED_OFFICIAL_DOMAIN", groupingEvidence: ["strong normalized base-brand alignment", "same relevant locality", "both venue-relevant types", "both places operational", `same official website domain: ${sharedDomain}`, "related facilities preserved as separate Places evidence"], selectedPlaceIds, excludedBeforeDetails };
+  }
+  return { status: "AI_IDENTITY_REQUIRED", canonicalVenueName: null, canonicalVenue: null, relatedFacilities: details, officialWebsiteDomain: null, groupingReason: null, groupingEvidence: ["venue-family tie-breaker conditions were not all satisfied"], selectedPlaceIds, excludedBeforeDetails };
+}
+
+export async function resolveGooglePlacesVenueComplex(input: GooglePlacesSearchInput, options: GooglePlacesOptions = {}): Promise<GooglePlacesVenueComplexRun> {
+  const search = await searchGooglePlaces(input, options);
+  const selection = selectGooglePlacesVenueComplexCandidates(input, search.results);
+  const details: GooglePlacesEvidence[] = [];
+  const detailTelemetry: GooglePlacesTelemetry[] = [];
+  for (const candidate of selection.selected) {
+    const detail = await getGooglePlaceDetails({ ...input, googlePlaceId: candidate.googlePlaceId }, options);
+    detailTelemetry.push(detail.telemetry);
+    if (detail.result) details.push(detail.result);
+  }
+  return { search, details, resolution: resolveGooglePlacesVenueComplexEvidence(input, search.results, details, selection.excluded), telemetry: [search.telemetry, ...detailTelemetry] };
 }
 
 export async function searchGooglePlaces(input: GooglePlacesSearchInput, options: GooglePlacesOptions = {}): Promise<{ results: GooglePlacesEvidence[]; telemetry: GooglePlacesTelemetry }> {
