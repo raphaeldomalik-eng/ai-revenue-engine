@@ -270,7 +270,7 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
   if (!targets.length) return { candidates: prepared, telemetry: telemetryFor(prepared, eligible.length, 0, 0, 0, 0) };
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-  const reasoning = model === "gpt-5.6-terra" && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined;
+  const reasoning = ["gpt-5.6-terra", "gpt-5.6-luna"].includes(model) && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined;
   const failed = () => ({ candidates: prepared.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const, gateReason: identityHandoffGate(candidate).reason, promptVersions: AGENT_PROMPT_VERSIONS } } : candidate), telemetry: telemetryFor(prepared, eligible.length, targets.length, 0, targets.length, 0) });
   if (!apiKey) return failed();
   const dossier = targets.map((candidate, index) => ({ candidateRef: String(index + 1), discoverySignal: candidate.canonicalName, currentCommercialTarget: { name: laneTargetName(candidate), website: candidate.website }, laneContext: candidate.laneContext ?? null, origin: candidate.origin, facts: candidate.facts.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, roles: item.sourceRoles, confidence: item.confidence })), unresolved: candidate.prospectIntelligence.accountCreationReason }));
@@ -329,7 +329,7 @@ export function parseDiscovery(value: unknown, territory: DiscoveryTerritory, la
 export async function discoverProspects(input: { territory: DiscoveryTerritory; focus: DiscoveryFocus; caseHint?: string; discoveryLane?: DiscoveryLane }) {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-  const reasoning = model === "gpt-5.6-terra" && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined;
+  const reasoning = ["gpt-5.6-terra", "gpt-5.6-luna"].includes(model) && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined;
   if (!apiKey) throw new Error("AI_RESEARCH_NOT_CONFIGURED: OPENAI_API_KEY is required for real public discovery.");
   const territory = input.territory === "ZA" ? "South Africa" : "United Kingdom";
   const focus = input.focus === "ALL" ? "EGS, Ticketing and ECC" : input.focus;
