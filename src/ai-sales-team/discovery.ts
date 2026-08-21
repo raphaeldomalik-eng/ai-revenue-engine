@@ -13,7 +13,7 @@ export type EventFreshness = NonNullable<AiSalesEvidence["eventFreshness"]>;
 export type DiscoveryEvidence = AiSalesEvidence & { sourceRoles?: DiscoverySourceRole[]; eventFreshness?: EventFreshness };
 export type EnrichmentEvidence = DiscoveryEvidence;
 export type EnrichmentSkipReason = "BLOCKED" | "REJECTED" | "DUPLICATE" | "FIRST_PARTY_SELF" | "NONE_EVENT_CONNECTION" | "NOT_PLAUSIBLE" | "BUDGET_LIMIT" | "OTHER_SAFE_REASON";
-export type EnrichmentCandidateTelemetry = { status: "SKIPPED" | "ATTEMPTED" | "SUCCEEDED" | "FAILED"; attempted: boolean; succeeded: boolean; materiallyChanged: boolean; skipReason?: EnrichmentSkipReason; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; resolutionOutcome?: "NOT_REQUIRED" | "RESOLVED" | "UNRESOLVED"; commercialOutcome?: "PRODUCT_SIGNAL_FOUND" | "VALIDATION_ONLY" | "NO_COMMERCIAL_SIGNAL" | "NOT_RUN"; commerciallyAdvanced?: boolean; promptVersions?: typeof AGENT_PROMPT_VERSIONS };
+export type EnrichmentCandidateTelemetry = { status: "SKIPPED" | "ATTEMPTED" | "SUCCEEDED" | "FAILED"; attempted: boolean; succeeded: boolean; materiallyChanged: boolean; skipReason?: EnrichmentSkipReason; gateReason?: string; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; resolutionOutcome?: "NOT_REQUIRED" | "RESOLVED" | "UNRESOLVED"; commercialOutcome?: "PRODUCT_SIGNAL_FOUND" | "VALIDATION_ONLY" | "NO_COMMERCIAL_SIGNAL" | "NOT_RUN"; commerciallyAdvanced?: boolean; promptVersions?: typeof AGENT_PROMPT_VERSIONS };
 export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number };
 
 export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; siteClassifications?: SourceSiteClassification[] };
@@ -32,7 +32,7 @@ const freshnessStates = ["ACTIVE_UPCOMING", "RECENT_RECURRING_EVIDENCE", "HISTOR
 const SERVICE_NOISE_PATTERN = /\b(?:ticketing platform|ticketing software|ticketing provider|event technology|event[- ]tech|recruitment solutions?|recruitment business)\b/i;
 const PROVIDER_HOST_PATTERN = /(?:^|\.)(?:ticketsza|tixsa)\.(?:co\.za|co\.uk|com|org)(?:$|\.)/i;
 const SITE_TYPES = ["ORGANISATION_OFFICIAL", "EVENT_OFFICIAL", "TICKETING_PROVIDER", "EVENT_LISTING_DIRECTORY", "VENUE_OFFICIAL", "VENUE_CALENDAR", "ARTIST_OFFICIAL", "NEWS_EDITORIAL", "SOCIAL_COMMUNITY", "PROFESSIONAL_COMPANY", "INSTITUTIONAL_PROCUREMENT", "UNKNOWN"] as const;
-const EVENT_CONTEXT_PATTERN = /\b(?:event|conference|symposium|festival|programme|tournament|exhibition|performance|summit|workshop|concert)\w*\b/i;
+const EVENT_CONTEXT_PATTERN = /\b(?:event|expo|exhibition|conference|symposium|festival|programme|tournament|performance|summit|workshop|concert)\w*\b/i;
 const ORGANISER_PATTERN = /\b(?:organis(?:e|es|ed|er|ers|ing)|promotes?|operat(?:e|es|ed|ing)|produces?|presents?|runs?|owns?|host(?:s|ed|ing)|is\s+(?:the\s+)?organis(?:er|or)|organis(?:ed|zed)\s+by|promoted\s+by|produced\s+by|operated\s+by)\b/i;
 const DIGITAL_GAP_PATTERN = /\b(?:no meaningful owned|weak owned|poor owned|fragmented|thin|social[- ]first|ticket(?:ing| provider)? page (?:as|is) (?:the )?primary|missing .*programme|weak .*digital|poor .*presence|discoverab(?:ility|le)|public information .*spread)\b/i;
 const TICKETING_PROBLEM_PATTERN = /\b(?:multiple (?:ticket|registration|sales) arrangements|manual (?:registration|reconciliation|ticket)|switch(?:ing|ed)?(?: provider)?|procurement|evaluation|settlement|fragmented (?:purchasing|registration)|admission scanning|ticket tiers?|box office|reconciliation|paid (?:tickets?|registration)|registration|workflow complexity)\b/i;
@@ -203,19 +203,35 @@ function skipReason(candidate: EvaluatedDiscoveryCandidate): EnrichmentSkipReaso
   return "NOT_PLAUSIBLE";
 }
 
+function hasEventSignal(candidate: Pick<EvaluatedDiscoveryCandidate, "canonicalName" | "facts">) {
+  return candidate.facts.some((item) => EVENT_CONTEXT_PATTERN.test(item.claim) || item.claim.toLowerCase().includes(candidate.canonicalName.toLowerCase()));
+}
+
+export function identityHandoffGate(candidate: Pick<EvaluatedDiscoveryCandidate, "canonicalName" | "origin" | "organiserName" | "facts" | "relationship" | "firstPartyStatus" | "status" | "prospectIntelligence">) {
+  if (candidate.firstPartyStatus === FIRST_PARTY_SELF) return { eligible: false, reason: "FIRST_PARTY_SELF" };
+  if (candidate.relationship === "COMPETITOR") return { eligible: false, reason: "COMPETITOR_BLOCKED" };
+  if (!["PROSPECT", "UNKNOWN"].includes(candidate.relationship)) return { eligible: false, reason: "RELATIONSHIP_NOT_PROSPECT" };
+  if (candidate.status !== "REVIEW_REQUIRED") return { eligible: false, reason: `STATUS_${candidate.status}` };
+  if (candidate.origin !== "EVENT_FIRST") return { eligible: false, reason: "NOT_EVENT_FIRST" };
+  if (candidate.prospectIntelligence.eventConnection.state !== "NONE") return { eligible: true, reason: "EVENT_CONNECTION_REQUIRES_ENRICHMENT" };
+  if (!candidate.organiserName?.trim()) return { eligible: false, reason: "NO_ORGANISER_HINT" };
+  if (!hasEventSignal(candidate)) return { eligible: false, reason: "NO_EVENT_SIGNAL" };
+  return { eligible: true, reason: "UNVERIFIED_ORGANISER_HINT" };
+}
+
 function telemetryFor(candidates: EvaluatedDiscoveryCandidate[], eligibleCount: number, attemptedCount: number, successCount: number, failedCount: number, materialCount: number): EnrichmentRunTelemetry {
   return { firstPassCandidateCount: candidates.length, enrichmentEligibleCount: eligibleCount, enrichmentAttemptedCount: attemptedCount, enrichmentSucceededCount: successCount, enrichmentFailedCount: failedCount, enrichmentSkippedCount: candidates.length - attemptedCount, enrichmentMateriallyChangedCount: materialCount };
 }
 
 export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: EnrichmentRunTelemetry }> {
-  const eligible = candidates.filter((candidate) => candidate.status === "REVIEW_REQUIRED" && candidate.relationship === "PROSPECT" && candidate.prospectIntelligence.eventConnection.state !== "NONE" && candidate.firstPartyStatus !== FIRST_PARTY_SELF);
+  const eligible = candidates.filter((candidate) => identityHandoffGate(candidate).eligible);
   const targets = eligible.slice(0, 4);
   const targetKeys = new Set(targets.map((candidate) => candidate.canonicalKey));
-  let prepared: EvaluatedDiscoveryCandidate[] = candidates.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "ATTEMPTED" as const, attempted: true, succeeded: false, materiallyChanged: false } } : { ...candidate, enrichment: { status: "SKIPPED" as const, attempted: false, succeeded: false, materiallyChanged: false, resolutionOutcome: candidate.organisationResolution?.status ?? (candidate.origin === "EVENT_FIRST" ? "UNRESOLVED" : "NOT_REQUIRED"), commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: (eligible.includes(candidate) ? "BUDGET_LIMIT" : skipReason(candidate)) as EnrichmentSkipReason } });
+  let prepared: EvaluatedDiscoveryCandidate[] = candidates.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "ATTEMPTED" as const, attempted: true, succeeded: false, materiallyChanged: false, gateReason: identityHandoffGate(candidate).reason } } : { ...candidate, enrichment: { status: "SKIPPED" as const, attempted: false, succeeded: false, materiallyChanged: false, gateReason: identityHandoffGate(candidate).reason, resolutionOutcome: candidate.organisationResolution?.status ?? (candidate.origin === "EVENT_FIRST" ? "UNRESOLVED" : "NOT_REQUIRED"), commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: (eligible.includes(candidate) ? "BUDGET_LIMIT" : skipReason(candidate)) as EnrichmentSkipReason } });
   if (!targets.length) return { candidates: prepared, telemetry: telemetryFor(prepared, eligible.length, 0, 0, 0, 0) };
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-  const failed = () => ({ candidates: prepared.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const, promptVersions: AGENT_PROMPT_VERSIONS } } : candidate), telemetry: telemetryFor(prepared, eligible.length, targets.length, 0, targets.length, 0) });
+  const failed = () => ({ candidates: prepared.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const, gateReason: identityHandoffGate(candidate).reason, promptVersions: AGENT_PROMPT_VERSIONS } } : candidate), telemetry: telemetryFor(prepared, eligible.length, targets.length, 0, targets.length, 0) });
   if (!apiKey) return failed();
   const dossier = targets.map((candidate, index) => ({ candidateRef: String(index + 1), discoverySignal: candidate.canonicalName, currentCommercialTarget: { name: candidate.organiserName, website: candidate.website }, origin: candidate.origin, facts: candidate.facts.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, roles: item.sourceRoles, confidence: item.confidence })), unresolved: candidate.prospectIntelligence.accountCreationReason }));
   const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, tools: [{ type: "web_search" }], max_output_tokens: 10000, input: `${IDENTITY_RESOLVER_PROMPT_V1}\n${COMMERCIAL_RESEARCHER_PROMPT_V1}\nPerform one bounded handoff for these ${territory === "ZA" ? "South African" : "UK"} candidates. Resolve identity first, then research the resolved organisation and return supporting and counter-evidence for every product lens. The discovery source is never automatically the target website. Return a specific unknown when evidence is insufficient. Dossiers: ${JSON.stringify(dossier)}`, text: { format: { type: "json_schema", name: "prospecting_evidence_enrichment", strict: true, schema: enrichmentSchema } } }) });
@@ -227,7 +243,7 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
   prepared = prepared.map((candidate) => {
     const index = targets.findIndex((target) => target.canonicalKey === candidate.canonicalKey);
     const update = updates.get(String(index + 1));
-    if (!update) return targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const } } : candidate;
+    if (!update) return targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const, gateReason: identityHandoffGate(candidate).reason } } : candidate;
     const enriched = applyDiscoveryEnrichment(candidate, update, territory);
     const changed = materialSnapshot(candidate) !== materialSnapshot(enriched);
   const resolution = enriched.organisationResolution ?? { status: "UNRESOLVED" as const, canonicalOrganisationName: null, officialWebsite: null, aliases: [], confidence: "NONE" as const, evidence: [], relatedOrganisations: [] };
@@ -235,7 +251,7 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
     const outcome = commercialOutcome(candidate, enriched, resolution, evidence);
     succeeded += 1;
     if (changed) materiallyChanged += 1;
-    return { ...enriched, enrichment: { status: "SUCCEEDED" as const, attempted: true, succeeded: true, materiallyChanged: changed, organisationResolution: resolution, commercialEvidence: evidence, resolutionOutcome: resolution.status, commercialOutcome: outcome.outcome, commerciallyAdvanced: outcome.advanced, promptVersions: AGENT_PROMPT_VERSIONS } };
+    return { ...enriched, enrichment: { status: "SUCCEEDED" as const, attempted: true, succeeded: true, materiallyChanged: changed, gateReason: identityHandoffGate(candidate).reason, organisationResolution: resolution, commercialEvidence: evidence, resolutionOutcome: resolution.status, commercialOutcome: outcome.outcome, commerciallyAdvanced: outcome.advanced, promptVersions: AGENT_PROMPT_VERSIONS } };
   });
   return { candidates: prepared, telemetry: telemetryFor(prepared, eligible.length, targets.length, succeeded, targets.length - succeeded, materiallyChanged) };
 }
@@ -249,12 +265,15 @@ export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, terri
   const freshness = prospectIntelligence.eventFreshness.state;
   const hasOrganiserEvidence = facts.some((item) => EVENT_CONTEXT_PATTERN.test(item.claim) && ORGANISER_PATTERN.test(item.claim));
   const providerNoise = relationship !== "COMPETITOR" && facts.some((item) => SERVICE_NOISE_PATTERN.test(item.claim)) && !hasOrganiserEvidence;
-  const status: DiscoveryCandidateStatus = firstPartyStatus ? "REJECTED" : relationship === "COMPETITOR" ? "BLOCKED" : providerNoise ? "REJECTED" : freshness === "HISTORICAL" || freshness === "CANCELLED_DEAD_UNSUPPORTED" || prospectIntelligence.eventConnection.state === "NONE" ? "REJECTED" : prospectIntelligence.accountCreationEligible ? "QUALIFIED" : "REVIEW_REQUIRED";
+  const identityHandoffSignal = candidate.origin === "EVENT_FIRST" && Boolean(candidate.organiserName?.trim()) && facts.some((item) => EVENT_CONTEXT_PATTERN.test(item.claim) || item.claim.toLowerCase().includes(candidate.canonicalName.toLowerCase()));
+  const organiserDiffersFromEventBrand = Boolean(candidate.organiserName?.trim()) && candidate.organiserName!.trim().toLowerCase() !== candidate.canonicalName.trim().toLowerCase();
+  const allowIdentityHandoff = identityHandoffSignal && !hasOrganiserEvidence && organiserDiffersFromEventBrand;
+  const status: DiscoveryCandidateStatus = firstPartyStatus ? "REJECTED" : relationship === "COMPETITOR" ? "BLOCKED" : providerNoise ? "REJECTED" : (freshness === "HISTORICAL" || freshness === "CANCELLED_DEAD_UNSUPPORTED" || prospectIntelligence.eventConnection.state === "NONE") && !allowIdentityHandoff ? "REJECTED" : prospectIntelligence.accountCreationEligible ? "QUALIFIED" : "REVIEW_REQUIRED";
   const organisationResolution = candidate.organisationResolution ?? { status: candidate.origin === "ORGANISATION_FIRST" ? "NOT_REQUIRED" as const : "UNRESOLVED" as const, canonicalOrganisationName: null, officialWebsite: null, aliases: [], confidence: "NONE" as const, evidence: [] };
   const sourceUrls = [...new Set(facts.map((item) => item.sourceUrl).filter((url): url is string => Boolean(url)))];
   const siteClassifications = [...(candidate.siteClassifications ?? []), ...(candidate.website ? [classifySourceSite({ url: candidate.website, claims: facts.map((item) => item.claim), candidateOrigin: candidate.origin })] : []), ...facts.filter((item) => item.sourceUrl).map((item) => classifySourceSite({ url: item.sourceUrl as string, claims: [item.claim], sourceTitle: item.sourceTitle, candidateOrigin: candidate.origin }))].filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index);
   const persistedResolution = { ...organisationResolution, siteClassifications: [...(organisationResolution.siteClassifications ?? []), ...siteClassifications].filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index) };
-  return { ...candidate, facts, canonicalKey: canonicalDiscoveryKey(candidate.organiserName || candidate.canonicalName, candidate.website), relationship, status, prospectIntelligence, organisationResolution: persistedResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, siteClassifications, sourceUrls, enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, resolutionOutcome: persistedResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
+  return { ...candidate, facts, canonicalKey: canonicalDiscoveryKey(candidate.organiserName || candidate.canonicalName, candidate.website), relationship, status, prospectIntelligence, organisationResolution: persistedResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, siteClassifications, sourceUrls, enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, gateReason: allowIdentityHandoff ? "UNVERIFIED_ORGANISER_HINT" : firstPartyStatus ? "FIRST_PARTY_SELF" : "INITIAL_DISCOVERY_GATE", resolutionOutcome: persistedResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
 }
 
 export function parseDiscovery(value: unknown, territory: DiscoveryTerritory) {

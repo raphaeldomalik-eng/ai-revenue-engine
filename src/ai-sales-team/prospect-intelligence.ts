@@ -46,7 +46,7 @@ export type ProspectResearchOutcome = {
   commerciallyAdvanced: boolean;
 };
 
-const EVENT_PATTERN = /\b(?:event|conference|symposium|festival|programme|tournament|exhibition|performance|summit|workshop|concert)\w*\b/i;
+const EVENT_PATTERN = /\b(?:event|expo|exhibition|conference|symposium|festival|programme|tournament|performance|summit|workshop|concert)\w*\b/i;
 const RESPONSIBILITY_PATTERN = /\b(?:organis(?:e|es|ed|ing)|promotes?|operates?|produces?|presents?|runs?|owns?|host(?:s|ed|ing))\b/i;
 const ACTIVITY_PATTERN = /\b(?:upcoming|next edition|tickets? on sale|annual|recurring|returns?|edition|programme|dates?|current|announced)\b/i;
 const DIGITAL_GAP_PATTERN = /\b(?:no meaningful owned|weak owned|poor owned|fragmented|thin|social[- ]first|ticket(?:ing| provider)? page (?:as|is) (?:the )?primary|missing .*programme|weak .*digital|poor .*presence|discoverab(?:ility|le)|public information .*spread)\b/i;

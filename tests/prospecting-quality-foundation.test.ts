@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { applyDiscoveryEnrichment, canonicalDiscoveryKey, classifySourceSite, evaluateDiscoveryCandidate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
+import { applyDiscoveryEnrichment, canonicalDiscoveryKey, classifySourceSite, evaluateDiscoveryCandidate, identityHandoffGate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
 import { isContactResearchEligible } from "../src/ai-sales-team/contact-research.ts";
 
@@ -81,6 +81,20 @@ test("provider and service noise without organiser evidence is rejected before e
   assert.notEqual(organiser.status, "REJECTED");
 });
 
+test("unverified organiser hints enter identity handoff without becoming qualified", () => {
+  const hinted = evaluateDiscoveryCandidate(candidate({ canonicalName: "Event Production Show 2026", organiserName: "Mash Media Group", website: "https://www.eventproductionshow.co.uk/", facts: [fact("Event Production Show 2026 is scheduled for February 2026.", ["DISCOVERY"])] }), "GB");
+  assert.equal(hinted.status, "REVIEW_REQUIRED");
+  assert.deepEqual(identityHandoffGate(hinted), { eligible: true, reason: "EVENT_CONNECTION_REQUIRES_ENRICHMENT" });
+  assert.equal(hinted.prospectIntelligence.accountCreationEligible, false);
+  assert.equal(hinted.enrichment.gateReason, "UNVERIFIED_ORGANISER_HINT");
+  const unknownRelationship = evaluateDiscoveryCandidate(candidate({ relationshipHint: "UNKNOWN", organiserName: "Mash Media Group", facts: [fact("Event Production Show is scheduled for February 2026.", ["DISCOVERY"])] }), "GB");
+  assert.equal(unknownRelationship.relationship, "UNKNOWN");
+  assert.deepEqual(identityHandoffGate(unknownRelationship), { eligible: true, reason: "EVENT_CONNECTION_REQUIRES_ENRICHMENT" });
+  const unresolved = evaluateDiscoveryCandidate(candidate({ canonicalName: "Unknown Event", organiserName: null, website: null, facts: [fact("A directory mentions a generic listing without current organiser activity.", ["DISCOVERY"], "UNKNOWN")] }), "GB");
+  assert.equal(unresolved.status, "REJECTED");
+  assert.deepEqual(identityHandoffGate(unresolved), { eligible: false, reason: "STATUS_REJECTED" });
+});
+
 test("bounded enrichment adds validation and commercial roles without inflating discovery confidence", () => {
   const initial = evaluateDiscoveryCandidate(candidate({ facts: [fact("A directory lists Quality Festival.", ["DISCOVERY"])] }), "ZA");
   const enriched = applyDiscoveryEnrichment(initial, {
@@ -131,6 +145,14 @@ test("organiser noun phrasing establishes validation and resolution promotes the
   assert.equal(promoted.canonicalKey, "mash-media-group-ltd|mashmedia.co.uk");
   assert.ok(promoted.facts.some((item) => /Event Production Show/.test(item.claim)));
   assert.equal(promoted.organisationResolution?.status, "RESOLVED");
+});
+
+test("expo terminology remains event evidence after identity promotion", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "eCommerce Expo 2026", organiserName: "CloserStill Media", facts: [fact("eCommerce Expo 2026 is scheduled for September 2026.", ["DISCOVERY"])] }), "GB");
+  const promoted = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "CloserStill Media", officialWebsite: "https://www.closerstillmedia.com/", aliases: [], confidence: "HIGH", evidence: [{ claim: "CloserStill Media is the organiser of eCommerce Expo 2026.", sourceUrl: "https://www.ecommerceexpo.co.uk/", sourceTitle: "Official event website", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(promoted.organisationResolution?.status, "RESOLVED");
+  assert.equal(promoted.prospectIntelligence.eventConnection.state, "CONFIRMED");
+  assert.notEqual(promoted.status, "REJECTED");
 });
 
 test("eCommerce Expo-style resolution hands commercial research to UPTECH, not the event page", () => {
