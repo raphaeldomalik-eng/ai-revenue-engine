@@ -35,6 +35,7 @@ export async function POST(request: Request) {
         website: account?.website || candidate.website,
         eventEvidence: facts.map((fact) => fact.claim).filter((claim): claim is string => typeof claim === "string").slice(0, 6),
         likelyBuyerRoles: intelligence.buyerProblemOwner?.likelyRoles ?? [],
+        targetIdentity: { accountName: account?.name, accountWebsite: account?.website, candidateName: candidate.organiser_name || candidate.candidate_name, candidateWebsite: candidate.website },
       },
     });
     if (outcome.blocked) {
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
       if (evidenceWriteError) throw evidenceWriteError;
     }
 
-    const snapshot = { status: researched.result.status, likelyBuyerRole: researched.result.likelyBuyerRole, buyerRoleRationale: researched.result.buyerRoleRationale, contactIds, sourceUrls: [...new Set(directFacts.map((fact) => fact.sourceUrl).filter(Boolean))], unknowns: researched.result.unknowns, researchedAt: new Date().toISOString(), provider: researched.provider, model: researched.model };
+    const snapshot = { status: researched.result.status, likelyBuyerRole: researched.result.likelyBuyerRole, buyerRoleRationale: researched.result.buyerRoleRationale, buyerIdentified: researched.result.buyerIdentified, emailReady: researched.result.emailReady, targetProvenance: researched.result.targetProvenance, rejectedThirdPartyContacts: researched.result.rejectedThirdPartyContacts, contactIds, sourceUrls: [...new Set(directFacts.map((fact) => fact.sourceUrl).filter(Boolean))], unknowns: researched.result.unknowns, researchedAt: new Date().toISOString(), provider: researched.provider, model: researched.model };
     const { data: savedCandidate, error: candidateWriteError } = await state.client.from("ai_prospect_candidates").update({ contact_research: snapshot }).eq("id", candidate.id).select("*").single();
     if (candidateWriteError) throw candidateWriteError;
     return NextResponse.json({ candidate: savedCandidate, contactResearch: { status: researched.result.status, likelyBuyerRole: researched.result.likelyBuyerRole, namedContact: researched.result.namedContact, organisationRoute: researched.result.organisationRoute } });

@@ -1,7 +1,7 @@
 import type { AiSalesEvidence } from "./model.ts";
 import { isEventSuiteFirstPartyTarget } from "./first-party.ts";
 
-export type ContactResearchStatus = "CONTACT_FOUND" | "CONTACT_ROUTE_FOUND" | "CONTACT_RESEARCH_REQUIRED";
+export type ContactResearchStatus = "CONTACT_FOUND" | "CONTACT_ROUTE_FOUND" | "CONTACT_RESEARCH_REQUIRED" | "CONTACT_PAGE_ONLY" | "BUYER_IDENTIFIED_NO_ROUTE" | "THIRD_PARTY_CONTACT_REJECTED";
 
 type PublicNamedContact = {
   fullName: string;
@@ -33,6 +33,10 @@ export type ContactResearchResult = {
   facts: AiSalesEvidence[];
   unknowns: string[];
   status: ContactResearchStatus;
+  buyerIdentified: boolean;
+  emailReady: boolean;
+  targetProvenance: "ACCEPTED" | "REJECTED" | "UNKNOWN";
+  rejectedThirdPartyContacts: string[];
 };
 
 export type ContactPersistenceTarget = {
@@ -49,7 +53,7 @@ export type ContactPersistenceTarget = {
   confidence: AiSalesEvidence["confidence"];
 };
 
-type ContactResearchInput = Omit<ContactResearchResult, "status">;
+type ContactResearchInput = Omit<ContactResearchResult, "status" | "buyerIdentified" | "emailReady" | "targetProvenance" | "rejectedThirdPartyContacts"> & { targetIdentity?: ContactResearchTargetIdentity; rejectedThirdPartyContacts?: string[] };
 
 const schema = {
   type: "object", additionalProperties: false,
@@ -131,9 +135,17 @@ function validOrganisationRoute(value: ContactResearchInput["organisationRoute"]
 }
 
 export function normaliseContactResearch(value: ContactResearchInput): ContactResearchResult {
-  const namedContact = validNamedContact(value.namedContact);
-  const organisationRoute = validOrganisationRoute(value.organisationRoute);
+  const rawNamed = validNamedContact(value.namedContact);
+  const rawRoute = validOrganisationRoute(value.organisationRoute);
+  const thirdParty = /(?:ticket(?:ing)? provider|ticket platform|venue|directory|media|artist|agent|support@|powered by)/i;
+  const ownershipRejected = (item: { evidence: string; sourceUrl: string }) => thirdParty.test(`${item.evidence} ${item.sourceUrl}`) && !/for (?:the )?(?:organiser|organizer|target|organisation|organization)/i.test(item.evidence);
+  const namedContact = rawNamed && !ownershipRejected(rawNamed) ? rawNamed : null;
+  const organisationRoute = rawRoute && !ownershipRejected(rawRoute) ? rawRoute : null;
   const facts = (value.facts ?? []).filter((fact) => fact.kind === "FACT" && Boolean(text(fact.claim)) && Boolean(url(fact.sourceUrl)));
+  const rejectedThirdPartyContacts = [...(value.rejectedThirdPartyContacts ?? []), ...(rawNamed && !namedContact ? [`Rejected named contact from non-target source: ${rawNamed.sourceUrl}`] : []), ...(rawRoute && !organisationRoute ? [`Rejected organisation route from non-target source: ${rawRoute.sourceUrl}`] : [])];
+  const buyerIdentified = Boolean(namedContact);
+  const emailReady = Boolean(namedContact?.email || organisationRoute?.email);
+  const hasPageOnly = Boolean(organisationRoute?.contactUrl && !organisationRoute.email && !organisationRoute.phone);
   return {
     likelyBuyerRole: text(value.likelyBuyerRole),
     buyerRoleRationale: text(value.buyerRoleRationale),
@@ -141,7 +153,11 @@ export function normaliseContactResearch(value: ContactResearchInput): ContactRe
     organisationRoute,
     facts,
     unknowns: Array.isArray(value.unknowns) ? value.unknowns.filter((item): item is string => Boolean(text(item))) : [],
-    status: namedContact ? "CONTACT_FOUND" : organisationRoute ? "CONTACT_ROUTE_FOUND" : "CONTACT_RESEARCH_REQUIRED",
+    status: namedContact ? "CONTACT_FOUND" : organisationRoute ? (hasPageOnly ? "CONTACT_PAGE_ONLY" : "CONTACT_ROUTE_FOUND") : rawNamed || rawRoute ? "THIRD_PARTY_CONTACT_REJECTED" : "CONTACT_RESEARCH_REQUIRED",
+    buyerIdentified,
+    emailReady,
+    targetProvenance: namedContact || organisationRoute ? "ACCEPTED" : rawNamed || rawRoute ? "REJECTED" : "UNKNOWN",
+    rejectedThirdPartyContacts,
   };
 }
 
@@ -149,8 +165,10 @@ export type ContactResearchCandidateState = { status: string; relationship: stri
 export type ContactResearchTargetIdentity = { accountName?: string | null; accountWebsite?: string | null; candidateName?: string | null; candidateWebsite?: string | null };
 
 export function isContactResearchEligible(candidate: ContactResearchCandidateState) {
-  const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { eventConnection?: { state?: string }; accountCreationEligible?: boolean; firstPartyStatus?: string } : {};
-  return Boolean(candidate.account_id) && candidate.status === "QUALIFIED" && candidate.relationship === "PROSPECT" && intelligence.firstPartyStatus !== "FIRST_PARTY_SELF" && intelligence.accountCreationEligible === true && ["CONFIRMED", "STRONG"].includes(intelligence.eventConnection?.state ?? "");
+  const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { eventConnection?: { state?: string }; accountCreationEligible?: boolean; primaryEntryOpportunity?: string; firstPartyStatus?: string; organisationResolution?: { status?: string } } : {};
+  // candidate.status === "QUALIFIED" remains valid, but is intentionally not required for bounded research.
+  const eligibleStatus = candidate.status !== "REJECTED" && candidate.status !== "BLOCKED";
+  return Boolean(candidate.account_id) && eligibleStatus && candidate.relationship === "PROSPECT" && intelligence.firstPartyStatus !== "FIRST_PARTY_SELF" && intelligence.organisationResolution?.status !== "UNRESOLVED" && (intelligence.accountCreationEligible === true || Boolean(intelligence.primaryEntryOpportunity && intelligence.primaryEntryOpportunity !== "UNKNOWN")) && ["CONFIRMED", "STRONG"].includes(intelligence.eventConnection?.state ?? "");
 }
 
 export function contactResearchEligibility(candidate: ContactResearchCandidateState, identity: ContactResearchTargetIdentity) {
@@ -170,7 +188,7 @@ export function contactPersistenceTargets(result: ContactResearchResult): Contac
   return targets;
 }
 
-export async function researchProspectContact(input: { accountName: string; website: string | null; eventEvidence: string[]; likelyBuyerRoles: string[] }) {
+export async function researchProspectContact(input: { accountName: string; website: string | null; eventEvidence: string[]; likelyBuyerRoles: string[]; targetIdentity?: ContactResearchTargetIdentity }) {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   if (!apiKey) throw new Error("AI_RESEARCH_NOT_CONFIGURED: OPENAI_API_KEY is required for public contact research.");
@@ -189,7 +207,7 @@ export async function researchProspectContact(input: { accountName: string; webs
   const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
   const output = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("");
   if (!output) throw new Error("AI contact research provider returned no structured output.");
-  return { result: normaliseContactResearch(JSON.parse(output) as ContactResearchInput), provider: "openai", model };
+  return { result: normaliseContactResearch({ ...(JSON.parse(output) as ContactResearchInput), targetIdentity: input.targetIdentity }), provider: "openai", model };
 }
 
 export async function researchEligibleProspectContact(

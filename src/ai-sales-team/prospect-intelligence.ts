@@ -12,10 +12,10 @@ export type CommercialActionType = "PRODUCT_EXPLORATION" | "VALUE_RESOURCE" | "L
 export type CommercialActionCode = "EXPLORE_EVENTSUITE" | "VIEW_RESOURCE" | "REPLY_FOR_MORE_INFO" | "BOOK_WALKTHROUGH" | "NONE";
 export type CommercialEvidenceProduct = "EGS" | "TICKETING" | "ECC";
 export type CommercialEvidenceCategory = "WEAK_OWNED_PRESENCE" | "FRAGMENTED_DIGITAL" | "DISCOVERY_GAP" | "DISCONNECTED_EVENT_PAGES" | "PROVIDER_FRAGMENTATION" | "MANUAL_OPERATIONS" | "WORKFLOW_COMPLEXITY" | "MIGRATION_CHANGE" | "PROCUREMENT_CHANGE" | "MULTI_STAGE" | "MULTI_ZONE" | "MULTI_VENUE" | "CONCURRENCY" | "ACCREDITATION" | "WORKFORCE" | "VENDOR_COORDINATION" | "PRODUCTION_SCHEDULING" | "OPERATIONAL_COORDINATION";
-export type CommercialEvidenceItem = { product: CommercialEvidenceProduct; claim: string; sourceUrl: string; evidenceCategory: CommercialEvidenceCategory; confidence: AiSalesEvidence["confidence"] };
-export type SourceSiteType = "ORGANISATION_OFFICIAL" | "EVENT_OFFICIAL" | "TICKETING_PROVIDER" | "EVENT_LISTING_DIRECTORY" | "VENUE_OFFICIAL" | "VENUE_CALENDAR" | "ARTIST_OFFICIAL" | "NEWS_EDITORIAL" | "SOCIAL_COMMUNITY" | "UNKNOWN";
+export type CommercialEvidenceItem = { product: CommercialEvidenceProduct; claim: string; sourceUrl: string; evidenceCategory: CommercialEvidenceCategory; confidence: AiSalesEvidence["confidence"]; polarity?: "SUPPORTING" | "COUNTER"; existingSystem?: string | null };
+export type SourceSiteType = "ORGANISATION_OFFICIAL" | "EVENT_OFFICIAL" | "TICKETING_PROVIDER" | "EVENT_LISTING_DIRECTORY" | "VENUE_OFFICIAL" | "VENUE_CALENDAR" | "ARTIST_OFFICIAL" | "NEWS_EDITORIAL" | "SOCIAL_COMMUNITY" | "PROFESSIONAL_COMPANY" | "INSTITUTIONAL_PROCUREMENT" | "UNKNOWN";
 export type SourceSiteClassification = { url: string; siteType: SourceSiteType; siteTypeConfidence: AiSalesEvidence["confidence"]; siteTypeEvidence: string[] };
-export type LensAssessment = { status: "ASSESSED" | "NOT_ASSESSED"; opportunityStrength: OpportunityStrength; facts: string[]; inferences: string[]; unknowns: string[] };
+export type LensAssessment = { status: "ASSESSED" | "NOT_ASSESSED"; opportunityStrength: OpportunityStrength; facts: string[]; inferences: string[]; unknowns: string[]; counterEvidence?: string[]; existingSystems?: string[] };
 export type ProspectIntelligence = {
   eventConnection: { state: EventConnectionState; reasons: string[]; evidence: string[] };
   eventFreshness: { state: EventFreshness; reasons: string[] };
@@ -37,6 +37,7 @@ export type OrganisationResolution = {
   evidence: Array<{ claim: string; sourceUrl: string; sourceTitle: string | null; confidence: AiSalesEvidence["confidence"] }>;
   officialWebsiteSiteType?: SourceSiteType;
   siteClassifications?: SourceSiteClassification[];
+  relatedOrganisations?: Array<{ name: string; relationship: string; website: string | null; confidence: AiSalesEvidence["confidence"]; evidence: string[] }>;
 };
 
 export type ProspectResearchOutcome = {
@@ -98,7 +99,8 @@ export function evaluateProspectIntelligence(input: { relationship: AccountRelat
   const eligibleEvent = ["CONFIRMED", "STRONG"].includes(eventConnection.state) && current;
   const commerciallyTrusted = facts.filter((item) => ["HIGH", "MEDIUM"].includes(item.confidence) && (item.sourceRoles?.includes("VALIDATION") || item.sourceRoles?.includes("COMMERCIAL_EVIDENCE") || item.sourceRoles?.includes("SIGNAL")));
   const structured = input.commercialEvidence ?? [];
-  const structuredClaims = (product: CommercialEvidenceProduct) => structured.filter((item) => item.product === product).map((item) => item.claim);
+  const structuredClaims = (product: CommercialEvidenceProduct) => structured.filter((item) => item.product === product && item.polarity !== "COUNTER").map((item) => item.claim);
+  const structuredCounters = (product: CommercialEvidenceProduct) => structured.filter((item) => item.product === product && item.polarity === "COUNTER").map((item) => item.claim);
   const egsFacts = facts.filter((item) => DIGITAL_GAP_PATTERN.test(item.claim));
   const egsClaims = [...new Set([...egsFacts.map((item) => item.claim), ...structuredClaims("EGS")])];
   const providerFacts = facts.filter((item) => PROVIDER_PATTERN.test(item.claim));
@@ -106,9 +108,10 @@ export function evaluateProspectIntelligence(input: { relationship: AccountRelat
   const ticketClaims = [...new Set([...ticketProblemFacts.map((item) => item.claim), ...structuredClaims("TICKETING")])];
   const eccFacts = facts.filter((item) => COMPLEXITY_PATTERN.test(item.claim));
   const eccClaims = [...new Set([...eccFacts.map((item) => item.claim), ...structuredClaims("ECC")])];
-  const egs = eligibleEvent && egsClaims.length ? assessment("STRONG_HYPOTHESIS", egsClaims, ["A weak or fragmented owned event presence is evidenced."], ["Validate the organisation's preferred canonical event destination."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No observable owned-digital problem is evidenced."] : ["Establish current organiser/event responsibility first."]);
-  const ticketing = eligibleEvent && ticketClaims.length ? assessment("STRONG_HYPOTHESIS", ticketClaims, ["A specific ticketing or commerce problem is evidenced."], ["Validate current provider and purchasing workflow."]) : assessment(eligibleEvent ? (providerFacts.length ? "POSSIBLE" : "NO_EVIDENCE") : "NOT_APPLICABLE", providerFacts.map((item) => item.claim), providerFacts.length ? ["Provider use is commercial intelligence, not switching intent."] : [], providerFacts.length ? ["Validate a switching, reconciliation or purchasing problem before treating Ticketing as an opportunity."] : ["No ticketing problem is publicly evidenced."]);
-  const ecc = eligibleEvent && eccClaims.length ? assessment("STRONG_HYPOTHESIS", eccClaims, ["Observed structure indicates meaningful coordination complexity."], ["Validate operating teams and current event operations workflow."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No defensible operational complexity signal is evidenced."] : ["Establish current organiser/event responsibility first."]);
+  const egs = eligibleEvent && egsClaims.length ? assessment("STRONG_HYPOTHESIS", egsClaims, ["A weak or fragmented owned event presence is evidenced."], ["Validate the organisation's preferred canonical event destination."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No observable owned-digital problem is evidenced."] : ["Establish current organiser/event responsibility first."]); egs.counterEvidence = structuredCounters("EGS");
+  const ticketing = eligibleEvent && ticketClaims.length ? assessment("STRONG_HYPOTHESIS", ticketClaims, ["A specific ticketing or commerce problem is evidenced."], ["Validate current provider and purchasing workflow."]) : assessment(eligibleEvent ? (providerFacts.length ? "POSSIBLE" : "NO_EVIDENCE") : "NOT_APPLICABLE", providerFacts.map((item) => item.claim), providerFacts.length ? ["Provider use is commercial intelligence, not switching intent."] : [], providerFacts.length ? ["Validate a switching, reconciliation or purchasing problem before treating Ticketing as an opportunity."] : ["No ticketing problem is publicly evidenced."]); ticketing.counterEvidence = structuredCounters("TICKETING");
+  const eccCounters = structuredCounters("ECC");
+  const ecc = eligibleEvent && eccClaims.length && !eccCounters.length ? assessment("STRONG_HYPOTHESIS", eccClaims, ["Observed structure indicates meaningful coordination complexity."], ["Validate operating teams and current event operations workflow."]) : assessment(eligibleEvent ? "NO_EVIDENCE" : "NOT_APPLICABLE", [], [], eligibleEvent ? ["No defensible operational complexity signal is evidenced or mature tooling counters complexity."] : ["Establish current organiser/event responsibility first."]); ecc.counterEvidence = eccCounters;
   const lenses: Array<[ProspectOpportunity, LensAssessment]> = [["EGS", egs], ["TICKETING", ticketing], ["ECC", ecc]]; const strong = lenses.filter(([, item]) => ["CONFIRMED_NEED", "STRONG_HYPOTHESIS"].includes(item.opportunityStrength));
   const primaryEntryOpportunity = strong.length ? strong.sort((a, b) => ["EGS", "TICKETING", "ECC"].indexOf(a[0]) - ["EGS", "TICKETING", "ECC"].indexOf(b[0]))[0][0] : "UNKNOWN";
   const secondaryOpportunities = strong.filter(([engine]) => engine !== primaryEntryOpportunity).map(([engine]) => engine);
