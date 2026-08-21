@@ -4,7 +4,7 @@ import { evaluateProspectIntelligence, type CommercialEvidenceCategory, type Com
 import { FIRST_PARTY_SELF, isEventSuiteFirstPartyIdentity } from "./first-party.ts";
 import { AGENT_PROMPT_VERSIONS, COMMERCIAL_RESEARCHER_PROMPT_V1, DISCOVERY_SCOUT_PROMPT_V1, IDENTITY_RESOLVER_PROMPT_V1 } from "./agent-prompts.ts";
 import { parseStrictStructuredOutput, type StructuredOutputPayload, type StructuredOutputTelemetry } from "./structured-output.ts";
-import { searchGooglePlaces, type GooglePlacesEvidence, type GooglePlacesOptions, type GooglePlacesTelemetry } from "./google-places.ts";
+import { getGooglePlaceDetails, searchGooglePlaces, type GooglePlacesEvidence, type GooglePlacesOptions, type GooglePlacesTelemetry } from "./google-places.ts";
 
 export type DiscoveryTerritory = "ZA" | "GB";
 export type DiscoveryFocus = "ALL" | "EGS" | "TICKETING" | "ECC";
@@ -303,7 +303,13 @@ export async function enrichDiscoveryCandidatesWithGooglePlaces(candidates: Eval
     const target = googlePlacesTarget(candidate);
     if (!target) continue;
     try {
-      const result = await searchGooglePlaces(target, options);
+      const searchResult = await searchGooglePlaces(target, options);
+      let result = searchResult;
+      if (options.mode === "details_selected" && searchResult.telemetry.matchStatus === "EXACT_OR_STRONG" && searchResult.results.length === 1) {
+        const details = await getGooglePlaceDetails({ ...target, googlePlaceId: searchResult.results[0].googlePlaceId }, options);
+        telemetryValues.push(details.telemetry);
+        result = { results: details.result ? [details.result] : [], telemetry: searchResult.telemetry };
+      }
       telemetryValues.push(result.telemetry);
       updated = updated.map((item) => item.canonicalKey === candidate.canonicalKey ? applyGooglePlacesEvidence(item, result.results, territory) : item);
       succeededCount += 1;
