@@ -4,6 +4,7 @@ import { evaluateProspectIntelligence, type CommercialEvidenceCategory, type Com
 import { FIRST_PARTY_SELF, isEventSuiteFirstPartyIdentity } from "./first-party.ts";
 import { AGENT_PROMPT_VERSIONS, COMMERCIAL_RESEARCHER_PROMPT_V1, DISCOVERY_SCOUT_PROMPT_V1, IDENTITY_RESOLVER_PROMPT_V1 } from "./agent-prompts.ts";
 import { parseStrictStructuredOutput, type StructuredOutputPayload, type StructuredOutputTelemetry } from "./structured-output.ts";
+import { searchGooglePlaces, type GooglePlacesEvidence, type GooglePlacesOptions, type GooglePlacesTelemetry } from "./google-places.ts";
 
 export type DiscoveryTerritory = "ZA" | "GB";
 export type DiscoveryFocus = "ALL" | "EGS" | "TICKETING" | "ECC";
@@ -15,7 +16,7 @@ export type DiscoveryEvidence = AiSalesEvidence & { sourceRoles?: DiscoverySourc
 export type EnrichmentEvidence = DiscoveryEvidence;
 export type EnrichmentSkipReason = "BLOCKED" | "REJECTED" | "DUPLICATE" | "FIRST_PARTY_SELF" | "NONE_EVENT_CONNECTION" | "NOT_PLAUSIBLE" | "BUDGET_LIMIT" | "OTHER_SAFE_REASON";
 export type EnrichmentCandidateTelemetry = { status: "SKIPPED" | "ATTEMPTED" | "SUCCEEDED" | "FAILED"; attempted: boolean; succeeded: boolean; materiallyChanged: boolean; skipReason?: EnrichmentSkipReason; gateReason?: string; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; resolutionOutcome?: "NOT_REQUIRED" | "RESOLVED" | "UNRESOLVED"; commercialOutcome?: "PRODUCT_SIGNAL_FOUND" | "VALIDATION_ONLY" | "NO_COMMERCIAL_SIGNAL" | "NOT_RUN"; commerciallyAdvanced?: boolean; promptVersions?: typeof AGENT_PROMPT_VERSIONS };
-export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number; structuredOutputTelemetry?: StructuredOutputTelemetry };
+export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number; googlePlaces?: { attemptedCount: number; succeededCount: number; failedCount: number; skippedCount: number; telemetry: GooglePlacesTelemetry[] }; structuredOutputTelemetry?: StructuredOutputTelemetry };
 
 export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; laneContext?: DiscoveryLaneContext | null; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; siteClassifications?: SourceSiteClassification[] };
 export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence & { firstPartyStatus?: typeof FIRST_PARTY_SELF }; sourceUrls: string[]; firstPartyStatus?: typeof FIRST_PARTY_SELF; enrichment: EnrichmentCandidateTelemetry };
@@ -258,24 +259,82 @@ export function identityHandoffGate(candidate: Pick<EvaluatedDiscoveryCandidate,
   return { eligible: true, reason: `${candidate.origin}_IDENTITY_CONFIRMATION` };
 }
 
+function googlePlacesTarget(candidate: EvaluatedDiscoveryCandidate) {
+  if (candidate.origin === "ORGANISATION_FIRST") {
+    return { targetName: candidate.laneContext?.organisation?.name || candidate.canonicalName, targetWebsite: candidate.laneContext?.organisation?.website || candidate.website, lane: "ORGANISATION_FIRST" as const, targetType: "ORGANISATION" as const };
+  }
+  if (candidate.origin === "VENUE_FIRST") {
+    return { targetName: candidate.laneContext?.venue?.name || candidate.canonicalName, targetWebsite: candidate.laneContext?.venue?.website || candidate.website, lane: "VENUE_FIRST" as const, targetType: "VENUE" as const };
+  }
+  return null;
+}
+
+function googlePlacesClaim(evidence: GooglePlacesEvidence) {
+  const subject = evidence.queryContext.targetType === "VENUE" ? "venue" : "organisation";
+  const address = evidence.formattedAddress ? ` at ${evidence.formattedAddress}` : "";
+  const website = evidence.websiteDomain ? ` with website domain ${evidence.websiteDomain}` : "";
+  const status = evidence.businessStatus ? ` Business status: ${evidence.businessStatus}.` : "";
+  return `Google Places identity evidence lists ${evidence.displayName ?? "an unnamed place"} as the target ${subject}${address}${website}.${status} This supports ${subject} identity only and does not establish commercial responsibility.`;
+}
+
+function googlePlacesFact(evidence: GooglePlacesEvidence): DiscoveryEvidence {
+  return { claim: googlePlacesClaim(evidence), sourceUrl: evidence.sourceUrl, sourceTitle: "Google Places (New)", kind: "FACT", confidence: evidence.identityConfidence, sourceRoles: ["VALIDATION"], eventFreshness: "UNKNOWN" };
+}
+
+function applyGooglePlacesEvidence(candidate: EvaluatedDiscoveryCandidate, results: GooglePlacesEvidence[], territory: DiscoveryTerritory) {
+  const facts = [...candidate.facts, ...results.map(googlePlacesFact)];
+  const strong = results.length === 1 && results[0].matchStatus === "EXACT_OR_STRONG" && !results[0].rejectionReasons.includes("CLOSED_PLACE_COUNTER_EVIDENCE") ? results[0] : null;
+  const target = googlePlacesTarget(candidate);
+  const website = strong?.websiteUri ?? null;
+  const baseLaneContext: DiscoveryLaneContext = candidate.laneContext ?? { organisation: null, person: null, venue: null };
+  const laneContext = target?.targetType === "ORGANISATION" && strong && website ? { ...baseLaneContext, organisation: { name: candidate.laneContext?.organisation?.name || candidate.canonicalName, website } } : target?.targetType === "VENUE" && strong && website ? { ...baseLaneContext, venue: { name: candidate.laneContext?.venue?.name || candidate.canonicalName, website, operatorName: candidate.laneContext?.venue?.operatorName ?? null, operatorWebsite: candidate.laneContext?.venue?.operatorWebsite ?? null } } : candidate.laneContext;
+  const promotedWebsite = strong && website ? website : candidate.website;
+  return evaluateDiscoveryCandidate({ ...candidate, website: promotedWebsite, laneContext, facts }, territory);
+}
+
+export async function enrichDiscoveryCandidatesWithGooglePlaces(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory, options?: GooglePlacesOptions): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: NonNullable<EnrichmentRunTelemetry["googlePlaces"]> }> {
+  if (!options || options.mode === "disabled" || !options.mode) return { candidates, telemetry: { attemptedCount: 0, succeededCount: 0, failedCount: 0, skippedCount: candidates.length, telemetry: [] } };
+  const targets = candidates.filter((candidate) => Boolean(googlePlacesTarget(candidate)));
+  const telemetryValues: GooglePlacesTelemetry[] = [];
+  let succeededCount = 0;
+  let failedCount = 0;
+  let updated = candidates;
+  for (const candidate of targets) {
+    const target = googlePlacesTarget(candidate);
+    if (!target) continue;
+    try {
+      const result = await searchGooglePlaces(target, options);
+      telemetryValues.push(result.telemetry);
+      updated = updated.map((item) => item.canonicalKey === candidate.canonicalKey ? applyGooglePlacesEvidence(item, result.results, territory) : item);
+      succeededCount += 1;
+    } catch (error) {
+      failedCount += 1;
+      if (error instanceof Error && "telemetry" in error) telemetryValues.push((error as { telemetry: GooglePlacesTelemetry }).telemetry);
+    }
+  }
+  return { candidates: updated, telemetry: { attemptedCount: targets.length, succeededCount, failedCount, skippedCount: candidates.length - targets.length, telemetry: telemetryValues } };
+}
+
 function telemetryFor(candidates: EvaluatedDiscoveryCandidate[], eligibleCount: number, attemptedCount: number, successCount: number, failedCount: number, materialCount: number): EnrichmentRunTelemetry {
   return { firstPassCandidateCount: candidates.length, enrichmentEligibleCount: eligibleCount, enrichmentAttemptedCount: attemptedCount, enrichmentSucceededCount: successCount, enrichmentFailedCount: failedCount, enrichmentSkippedCount: candidates.length - attemptedCount, enrichmentMateriallyChangedCount: materialCount };
 }
 
-export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: EnrichmentRunTelemetry }> {
+export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory, options: { googlePlaces?: GooglePlacesOptions } = {}): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: EnrichmentRunTelemetry }> {
+  const googlePlaces = await enrichDiscoveryCandidatesWithGooglePlaces(candidates, territory, options.googlePlaces);
+  candidates = googlePlaces.candidates;
   const eligible = candidates.filter((candidate) => identityHandoffGate(candidate).eligible);
   const targets = eligible.slice(0, 4);
   const targetKeys = new Set(targets.map((candidate) => candidate.canonicalKey));
   let prepared: EvaluatedDiscoveryCandidate[] = candidates.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "ATTEMPTED" as const, attempted: true, succeeded: false, materiallyChanged: false, gateReason: identityHandoffGate(candidate).reason } } : { ...candidate, enrichment: { status: "SKIPPED" as const, attempted: false, succeeded: false, materiallyChanged: false, gateReason: identityHandoffGate(candidate).reason, resolutionOutcome: candidate.organisationResolution?.status ?? (candidate.origin === "EVENT_FIRST" ? "UNRESOLVED" : "NOT_REQUIRED"), commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: (eligible.includes(candidate) ? "BUDGET_LIMIT" : skipReason(candidate)) as EnrichmentSkipReason } });
-  if (!targets.length) return { candidates: prepared, telemetry: telemetryFor(prepared, eligible.length, 0, 0, 0, 0) };
+  if (!targets.length) return { candidates: prepared, telemetry: { ...telemetryFor(prepared, eligible.length, 0, 0, 0, 0), googlePlaces: googlePlaces.telemetry } };
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   const reasoning = ["gpt-5.6-terra", "gpt-5.6-luna"].includes(model) && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined;
   const failed = () => ({ candidates: prepared.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const, gateReason: identityHandoffGate(candidate).reason, promptVersions: AGENT_PROMPT_VERSIONS } } : candidate), telemetry: telemetryFor(prepared, eligible.length, targets.length, 0, targets.length, 0) });
-  if (!apiKey) return failed();
+  if (!apiKey) { const failure = failed(); return { candidates: failure.candidates, telemetry: { ...failure.telemetry, googlePlaces: googlePlaces.telemetry } }; }
   const dossier = targets.map((candidate, index) => ({ candidateRef: String(index + 1), discoverySignal: candidate.canonicalName, currentCommercialTarget: { name: laneTargetName(candidate), website: candidate.website }, laneContext: candidate.laneContext ?? null, origin: candidate.origin, facts: candidate.facts.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, roles: item.sourceRoles, confidence: item.confidence })), unresolved: candidate.prospectIntelligence.accountCreationReason }));
   const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, ...(reasoning ? { reasoning } : {}), tools: [{ type: "web_search" }], max_output_tokens: 10000, input: `${IDENTITY_RESOLVER_PROMPT_V1}\n${COMMERCIAL_RESEARCHER_PROMPT_V1}\nPerform one bounded handoff for these ${territory === "ZA" ? "South African" : "UK"} candidates. Resolve identity first, then research the resolved organisation and return supporting and counter-evidence for every product lens. The discovery source is never automatically the target website. Return a specific unknown when evidence is insufficient. Dossiers: ${JSON.stringify(dossier)}`, text: { format: { type: "json_schema", name: "prospecting_evidence_enrichment", strict: true, schema: enrichmentSchema } } }) });
-  if (!response.ok) return failed();
+  if (!response.ok) { const failure = failed(); return { candidates: failure.candidates, telemetry: { ...failure.telemetry, googlePlaces: googlePlaces.telemetry } }; }
   const parsed = parseProviderText(await response.json() as StructuredOutputPayload);
   const updates = new Map((parsed.value.candidates ?? []).filter((item) => targets[Number(item.candidateRef) - 1]).map((item) => [item.candidateRef, item]));
   let succeeded = 0;
@@ -293,7 +352,7 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
     if (changed) materiallyChanged += 1;
     return { ...enriched, enrichment: { status: "SUCCEEDED" as const, attempted: true, succeeded: true, materiallyChanged: changed, gateReason: identityHandoffGate(candidate).reason, organisationResolution: resolution, commercialEvidence: evidence, resolutionOutcome: resolution.status, commercialOutcome: outcome.outcome, commerciallyAdvanced: outcome.advanced, promptVersions: AGENT_PROMPT_VERSIONS } };
   });
-  return { candidates: prepared, telemetry: { ...telemetryFor(prepared, eligible.length, targets.length, succeeded, targets.length - succeeded, materiallyChanged), structuredOutputTelemetry: parsed.telemetry } };
+  return { candidates: prepared, telemetry: { ...telemetryFor(prepared, eligible.length, targets.length, succeeded, targets.length - succeeded, materiallyChanged), googlePlaces: googlePlaces.telemetry, structuredOutputTelemetry: parsed.telemetry } };
 }
 
 export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, territory: DiscoveryTerritory): EvaluatedDiscoveryCandidate {
@@ -326,7 +385,7 @@ export function parseDiscovery(value: unknown, territory: DiscoveryTerritory, la
   return (value as { candidates: DiscoveredCandidate[] }).candidates.filter((candidate) => candidate?.canonicalName?.trim() && candidate.facts?.some((fact) => fact.kind === "FACT" && fact.sourceUrl)).map((candidate) => { const origin = laneOverride ?? normaliseOrigin(candidate.origin); const website = candidate.website?.trim() || null; const inferredSite = website ? classifySourceSite({ url: website, claims: candidate.facts.map((item) => item.claim), candidateOrigin: origin }) : null; const suppliedSite = candidate.siteClassifications?.find((item) => item.url === website) ?? inferredSite; const providerSignal = origin !== "PERSON_FIRST" && PROVIDER_HOST_PATTERN.test(domainOf(website) ?? ""); const discoveryOnlyEventSite = origin === "EVENT_FIRST" && ["EVENT_OFFICIAL", "TICKETING_PROVIDER", "EVENT_LISTING_DIRECTORY", "VENUE_CALENDAR", "VENUE_OFFICIAL"].includes(suppliedSite?.siteType ?? ""); return evaluateDiscoveryCandidate({ ...candidate, origin, organiserName: candidate.organiserName?.trim() || null, laneContext: normaliseLaneContext(candidate.laneContext, { ...candidate, origin }), siteClassifications: [...(candidate.siteClassifications ?? []), ...(inferredSite ? [inferredSite] : [])], website: providerSignal || discoveryOnlyEventSite ? null : website }, territory); }).filter((candidate) => { if (seen.has(candidate.canonicalKey)) return false; seen.add(candidate.canonicalKey); return true; });
 }
 
-export async function discoverProspects(input: { territory: DiscoveryTerritory; focus: DiscoveryFocus; caseHint?: string; discoveryLane?: DiscoveryLane }) {
+export async function discoverProspects(input: { territory: DiscoveryTerritory; focus: DiscoveryFocus; caseHint?: string; discoveryLane?: DiscoveryLane; googlePlaces?: GooglePlacesOptions }) {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   const reasoning = ["gpt-5.6-terra", "gpt-5.6-luna"].includes(model) && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined;
@@ -339,6 +398,6 @@ export async function discoverProspects(input: { territory: DiscoveryTerritory; 
   const payload = await response.json() as StructuredOutputPayload;
   const initialParsed = parseStrictStructuredOutput<{ candidates?: DiscoveredCandidate[] }>(payload);
   const initial = parseDiscovery(initialParsed.value, input.territory, input.discoveryLane);
-  const enrichment = await enrichDiscoveryCandidates(initial, input.territory);
+  const enrichment = await enrichDiscoveryCandidates(initial, input.territory, { googlePlaces: input.googlePlaces });
   return { candidates: enrichment.candidates, provider: "openai", model, discoveryLane: input.discoveryLane, enrichment: enrichment.telemetry, structuredOutputTelemetry: initialParsed.telemetry };
 }
