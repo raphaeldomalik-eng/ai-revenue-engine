@@ -49,6 +49,17 @@ test("profile validation retains legal fields only and does not overwrite a trad
   assert.equal(JSON.stringify(result).includes("must not retain"), false);
 });
 
+test("Hyve search title and profile company_name normalize to the same active legal company", async () => {
+  const hyveSearch = await searchCompaniesHouse({ organisationName: "Hyve Group", territory: "GB", limit: 3 }, { apiKey: "test-key", mode: "search_only", fetchImpl: async () => response({ items: [{ title: "HYVE GROUP LIMITED", company_number: "01927339", company_status: "active", company_type: "ltd", date_of_creation: "1985-06-28", sic_codes: [] }] }) });
+  assert.equal(hyveSearch.outcome, "REGISTRAR_CONFIRMED");
+  assert.equal(hyveSearch.selectedCompany?.companyNumber, "01927339");
+  const hyveProfile = await validateSelectedCompaniesHouseCompany({ company: hyveSearch.selectedCompany!, organisationName: "Hyve Group" }, { apiKey: "test-key", mode: "validate_selected", now: () => "2026-08-21T00:00:00.000Z", fetchImpl: async () => response({ company_name: "HYVE GROUP LIMITED", company_number: "01927339", company_status: "active", company_type: "ltd", date_of_creation: "1985-06-28", sic_codes: [] }) });
+  assert.equal(hyveProfile.outcome, "REGISTRAR_CONFIRMED");
+  assert.equal(hyveProfile.company?.legalCompanyName, "HYVE GROUP LIMITED");
+  assert.equal(hyveProfile.company?.companyNumber, "01927339");
+  assert.deepEqual(hyveProfile.company?.sicCodes, []);
+});
+
 test("officers are minimized legal officers and never buyer candidates", async () => {
   const result = await getCompaniesHouseOfficers({ company: selectedCompany, validationOutcome: "REGISTRAR_CONFIRMED" }, { apiKey: "test-key", mode: "officers_selected", now: () => "2026-08-21T00:00:00.000Z", fetchImpl: async () => response({ items: [{ name: "Current Director", officer_role: "director", appointed_on: "2020-01-01", address: { postal_code: "XX" }, date_of_birth: { month: 1, year: 1980 } }, { name: "Former Director", officer_role: "director", appointed_on: "2010-01-01", resigned_on: "2019-01-01", nationality: "hidden" }] }) });
   assert.equal(result.outcome, "REGISTRAR_CONFIRMED");

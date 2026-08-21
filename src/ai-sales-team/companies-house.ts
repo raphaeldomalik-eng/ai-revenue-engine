@@ -129,7 +129,7 @@ function safeStringArray(value: unknown, max = 20) {
 function companyFromApi(value: unknown, timestamp: string): CompaniesHouseCompanyEvidence | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
-  const name = stringOrNull(item.title);
+  const name = stringOrNull(item.company_name) ?? stringOrNull(item.title);
   const number = stringOrNull(item.company_number);
   if (!name || !number) return null;
   const address = item.registered_office_address && typeof item.registered_office_address === "object" ? item.registered_office_address as Record<string, unknown> : null;
