@@ -1,0 +1,441 @@
+# AI Revenue Engine Deterministic Gates V1
+
+## 1. Purpose
+
+Models research and propose. Deterministic policy decides what the system is allowed to promote, persist, qualify, contact, and send.
+
+The following rules must not depend solely on model instruction-following.
+
+---
+
+# 2. Discovery Acceptance Gate
+
+A discovery result may enter candidate research memory when:
+
+- it contains a credible public/authorised source URL;
+- it represents current/upcoming or reasonably recent recurring event activity, or a credible timing/change signal;
+- it is not an obvious malformed/no-signal result;
+- same-run dedupe does not identify it as redundant.
+
+Discovery acceptance does **not** establish commercial identity.
+
+The discovery source URL is evidence. It must not automatically populate the resolved commercial organisation website.
+
+---
+
+# 3. Source Authority Gate
+
+Before a URL can become an authoritative commercial website, server-side policy must consider the resolved source/site type and identity evidence.
+
+Allowed as authoritative target website when supported:
+
+- `ORGANISATION_OFFICIAL`
+- `EVENT_OFFICIAL` only when the event brand itself is the proven commercial target
+
+Not sufficient by itself:
+
+- `TICKETING_PROVIDER`
+- `EVENT_LISTING_DIRECTORY`
+- `VENUE_CALENDAR`
+- `NEWS_EDITORIAL`
+- `SOCIAL_COMMUNITY`
+- `ARTIST_OFFICIAL`
+- `UNKNOWN`
+
+`VENUE_OFFICIAL` may be target identity only when the venue is itself the resolved operator/customer.
+
+Do not implement this as a giant domain blacklist. Provider/domain lists may be supplementary known-source hints, not the deciding architecture.
+
+## 3a. Provider responsibility and orchestration gate
+
+Provider calls must be selected by fact responsibility and lane, not by model
+convenience:
+
+- Companies House may discover and validate UK legal companies. Retain only
+  legal name, company number, status, type, incorporation date, SIC codes,
+  registered region, record URL, evidence timestamp and minimized officer
+  fields. It must not overwrite the official trading domain or prove event
+  ownership, venue operation, EventSuite fit, pain, buyer status, contact
+  eligibility or outreach. Officers are `LEGAL_OFFICER` only.
+- Google Places may discover/validate physical venues. Retain Place ID, name,
+  locality/address, type and operational/closed status. Do not request website
+  fields by default, and never promote Places evidence into operator,
+  organiser, buyer, ownership or pain evidence.
+- Public official web evidence owns trading brands, official domains and
+  organiser/operator relationships. Keep FACT and INFERENCE separate.
+- Apollo Mixed People Search is the primary people route after deterministic
+  organisation/domain checks. Search is bounded to five candidates; ranking and
+  human selection precede one initial verified business-email enrichment.
+  `DOMAIN_CONFLICT` is rejected and `DOMAIN_QUERY_SCOPED` remains review-only.
+- AI may interpret ambiguity and EventSuite fit, but may not replace a
+  deterministic source for legal registration, venue identity, people or
+  email discovery.
+
+The graph preserves event, trading organisation, legal company, venue, venue
+operator, person and provider/supplier separately. Equivalent existing JSON
+fields include origin lane, canonical/trading/legal identity, company number,
+domain, Place ID, operational employer, people-search organisation, related
+organisations, evidence timestamp, facts/inferences/unknowns, identity
+confidence and human-review status. No schema change is implied by this gate.
+
+The exact lane sequence is: `ORGANISATION_FIRST` legal-company discovery →
+web trading/domain/activity validation → fit → Apollo → ranking → human
+selection → one enrichment; `EVENT_FIRST` event web discovery → organiser
+resolution → legal validation where applicable → separate event/trading/legal
+identity → domain confirmation → optional venue validation → Apollo → human
+selection → one enrichment; `VENUE_FIRST` Places venue identity → web domain and
+operator → legal operator validation where applicable → separate venue/operator
+identity → explicit Apollo operational alias only → Apollo → human selection →
+one enrichment; `PERSON_FIRST` sourced person → web employer/domain validation
+→ legal validation where applicable → Apollo employment/role check → buyer/
+influencer/route/freelance classification → human selection. The originating
+lane must never be rewritten.
+
+---
+
+# 4. Identity Promotion Gate
+
+The Identity Resolver proposes a resolution. Deterministic code validates promotion.
+
+Promotion to canonical commercial target requires:
+
+- `RESOLVED` or valid `NOT_REQUIRED` state;
+- canonical organisation name;
+- adequate identity evidence;
+- sufficient confidence under current policy;
+- no first-party/competitor/provider block;
+- authoritative target-site semantics where website is supplied.
+
+On promotion:
+
+- preserve original discovery signal/source as evidence;
+- update organisation-centric target fields safely;
+- recompute canonical identity;
+- perform same-run/cross-run dedupe using existing semantics;
+- do not violate unique constraints;
+- do not lose the original event/activity link.
+- preserve validated related organisations as relationship evidence without
+  copying their identity, website or contacts into the canonical target.
+
+Exactly one primary commercial target may be promoted. A parent/group,
+operating brand, commissioner, appointed operator, venue, ticketing provider,
+production partner or subsidiary/division remains a separate related entity
+unless evidence independently proves it is the correct primary target. If
+conflicting authoritative evidence prevents that distinction, promotion must
+remain unresolved or enter precise human review.
+
+If evidence is insufficient, remain `UNRESOLVED`. Do not fall back to the discovery provider/domain as target.
+
+---
+
+# 5. First-Party / Competitor / Provider Gate
+
+Existing stricter policy remains controlling.
+
+At minimum:
+
+- EventSuite/current first-party identity must be blocked from ordinary prospecting/outreach.
+- Direct competitors must remain blocked under existing competitor rules.
+- A competitor/customer/provider relationship must be represented accurately rather than automatically conflated.
+- A ticketing provider hosting an event is not the organiser.
+- A genuine event organiser using a ticketing provider remains a potential prospect.
+
+Model classifications cannot override deterministic block policy.
+
+---
+
+# 6. Commercial Research Eligibility Gate
+
+Commercial Research may run when:
+
+- commercial organisation is resolved (or organisation-first identity is authoritatively validated);
+- current/recurring event activity is sufficiently supported;
+- no deterministic block applies;
+- the candidate remains within bounded research budget.
+
+Proven pain is not required to retain or qualify a credible prospect that could
+plausibly benefit from EventSuite. Product evidence and pain/change signals
+guide priority and messaging; they are required for a positive product
+opportunity or outbound-readiness claim, not for basic prospect retention.
+
+Do not spend commercial research budget on known duplicates/rejected/blocked/no-connection records unless a deliberate regression/replay mode explicitly requests it.
+
+---
+
+# 7. Product Evidence Gate
+
+A model-supplied `COMMERCIAL_EVIDENCE` label is not sufficient.
+
+Server-side interpretation must validate:
+
+- product is one of EGS/TICKETING/ECC;
+- evidence category is valid for that product;
+- source exists;
+- polarity/context is respected;
+- evidence actually supports the claimed product conclusion.
+- each product assessment considered both supporting evidence and
+  counter-evidence (or explicitly recorded that bounded research found none).
+
+Safe negative rules:
+
+- ticketing provider presence alone does not support Ticketing opportunity;
+- own ticketing system alone does not support Ticketing opportunity;
+- mature/coherent owned website is negative or neutral for EGS;
+- generic event existence does not support ECC;
+- mature integrated operations tooling reduces ECC confidence unless separate
+  evidence establishes a gap, fragmentation, manual work, change intent,
+  procurement or dissatisfaction;
+- an established integrated ticketing/registration model reduces Ticketing
+  confidence unless separate problem/change evidence exists;
+- event/organisation validation is not itself commercial evidence.
+
+Positive opportunity strength must be produced from the net validated
+product-relevant evidence, not generic prose scanning or complexity alone.
+
+---
+
+# 8. Commercial Advancement Gate
+
+Technical research success and commercial advancement are separate.
+
+`commerciallyAdvanced=true` only when meaningful progress occurs, such as:
+
+- a previously unresolved target becomes safely resolved; and/or
+- defensible product-specific commercial evidence is found; and/or
+- primary opportunity becomes supportable; and/or
+- buyer role becomes supportable; and/or
+- qualification evidence materially improves.
+
+Validation-only factual expansion does not automatically count as commercial advancement.
+
+---
+
+# 9. Contact Research Eligibility Gate
+
+Contact research must not be starved until after every final sales state is reached.
+
+It may be authorised as a bounded research step when all are true:
+
+- target organisation is resolved/authoritatively validated;
+- no first-party/competitor/suppression block applies;
+- the lane establishes credible event-sector relevance or a defensible
+  EventSuite-fit hypothesis;
+- a likely buyer role/function can be articulated, or a legitimate organisation-level contact fallback would materially improve actionability;
+- contact research budget is available.
+
+This gate authorises **research only**.
+
+It does not:
+
+- create Account eligibility by itself;
+- authorise outreach;
+- override qualification;
+- bypass suppression.
+
+The implementation should preserve the canonical PRD rule that an email is not required merely to retain useful research memory or to establish a commercial hypothesis.
+
+---
+
+# 10. Contact Provenance Gate
+
+Every persisted/usable contact route must pass server-side consistency and ownership validation.
+
+Required properties:
+
+- actual route value when route type requires one;
+- source URL;
+- source site type;
+- owner identity or explicit owner uncertainty;
+- target relationship;
+- ownership evidence;
+- verification confidence.
+
+## Hard consistency rules
+
+`BUYER_EMAIL_VERIFIED`, `ROLE_EMAIL_VERIFIED`, or `ORGANISATION_EMAIL_VERIFIED` requires:
+
+- non-null syntactically valid email;
+- public evidence containing/supporting that address;
+- route not classified `NOT_TARGET`;
+- source/ownership relationship acceptable under policy.
+
+`OTHER_DIRECT_CONTACT_VERIFIED` requires an actual non-email direct method value.
+
+`CONTACT_PAGE_ONLY` may have a page/form URL with no email/phone.
+
+`BUYER_IDENTIFIED_NO_ROUTE` may have a named buyer and role but no usable route.
+
+`THIRD_PARTY_CONTACT_REJECTED` requires at least one retained rejected route
+with `NOT_TARGET` relationship and a precise ownership/rejection reason, and it
+must never set email readiness or sales readiness.
+
+Do not persist a ticketing-provider/venue/directory/artist/media route as target-owned unless independent evidence explicitly establishes target attribution.
+
+## Domain is evidence, not proof
+
+Matching the target domain can strengthen ownership but is not sufficient by itself.
+
+A different domain can still be valid when authoritative evidence explicitly attributes the route to the target.
+
+---
+
+# 11. Qualification Gate
+
+Preserve the controlling prospecting PRD semantics.
+
+Discovery has four equal entry lanes: `EVENT_FIRST`, `ORGANISATION_FIRST`,
+`PERSON_FIRST` and `VENUE_FIRST`. A credible lane-specific identity and
+event-sector relevance may continue as a prospect even when Commercial
+Research honestly returns `NO_EVIDENCE`. Product evidence changes priority
+and messaging; it is not a prerequisite for retaining a real, relevant
+prospect. Person-first role evidence does not assert event ownership, and
+venue-first hosting evidence does not assert venue organising.
+
+### PERSON_FIRST person-signal gate
+
+The originating `PERSON_FIRST` lane is preserved while the sourced person is
+treated as a signal that may lead to an organisation, venue, event or buyer.
+Deterministic classification is limited to:
+
+- `DIRECT_BUYER_CANDIDATE`;
+- `ROUTE_TO_BUYER`;
+- `FREELANCE_EVENT_CONNECTOR`;
+- `ACTIVITY_UNVERIFIED`.
+
+The first two require a recent sourced event-sector activity signal and remain
+role/function hypotheses rather than proof of buying authority. A freelance
+classification requires the same recent activity evidence. If recent activity
+is absent, use `ACTIVITY_UNVERIFIED` and `REVIEW_REQUIRED`; do not reject the
+person signal. Person evidence does not establish event ownership, employment
+beyond the sourced relationship or organiser status. Apollo zero results do
+not replace or erase the original person. When the person is connected to an
+existing organisation, venue or event, preserve the relationship on the
+existing canonical identity key and do not create a duplicate prospect. Apollo
+enrichment remains behind explicit human selection.
+
+A candidate may become commercially qualified only when there is sufficient evidence for:
+
+- credible/resolved organisation;
+- genuine event-sector relevance through the originating lane;
+- no deterministic block;
+- safe identity and dedupe state.
+
+A specific EventSuite commercial signal or hypothesis is required before a
+positive product opportunity, outbound readiness or outreach CTA, but not
+before retaining a credible prospect or continuing bounded research.
+
+Qualification does not require:
+
+- every product to be positive;
+- a named buyer;
+- a personal email;
+- a quota/score threshold invented for V1.
+
+Contact research can improve actionability before/around product qualification but does not create identity, override a block or authorise outreach.
+
+## 11a. Phase One size and ranking gate
+
+Phase One priority applies across all four lanes: `EVENT_FIRST`,
+`ORGANISATION_FIRST`, `PERSON_FIRST` and `VENUE_FIRST`. The initial focus is
+UK SMEs, independent organisers, regional venues and smaller event agencies.
+
+Deterministic size classifications are:
+
+- `PHASE_ONE_SME` — evidence supports the Phase One SME/independent or
+  regional focus;
+- `ENTERPRISE_DEFERRED` — strong evidence supports an enterprise or enterprise
+  group. Defer it for later sequencing; do not reject it;
+- `SIZE_UNRESOLVED` — evidence is insufficient. Do not guess size and do not
+  infer enterprise from absence of SME evidence.
+
+Companies House accounts categories are size indicators only, not definitive
+commercial classifications. Large venue capacity or attendance does not
+prove an enterprise operator. Strong public evidence must not let enterprise
+groups dominate ranking over Phase One prospects. These classifications do not
+override identity, competitor, first-party, provider or contact-provenance
+gates.
+
+---
+
+# 12. Sales Readiness Gate
+
+Sales readiness is stronger than qualification.
+
+For an outbound-email motion, conceptual `SALES_READY` requires:
+
+- qualified/resolved commercial target;
+- defensible commercial opportunity;
+- appropriate buyer role/function;
+- legitimate verified public contact route appropriate to the motion;
+- actual email when the motion specifically requires email;
+- no suppression/block;
+- outreach approval/control state satisfied under current policy.
+
+Do not add a new persisted enum solely because this conceptual UX/policy state exists. Map using current data unless a separate schema decision is approved.
+
+---
+
+# 13. Human Review Gate
+
+`REVIEW_REQUIRED` must identify a precise human decision that a human can actually make.
+
+Good examples:
+
+- conflicting authoritative organiser identity;
+- confirm a relationship where two credible official sources disagree;
+- approve outreach under existing controls.
+
+Bad example:
+
+- "needs more research" when the AI can perform additional bounded public research itself.
+
+---
+
+# 14. Outreach Gate
+
+Buyer/contact discovery does not authorise outreach.
+
+Existing outreach controls remain controlling, including:
+
+- approval per outbound action where required;
+- suppression/unsubscribe/bounce safety;
+- first-party/competitor guards;
+- idempotency;
+- follow-up limits;
+- no fabricated claims.
+
+Outreach generation must consume approved FACT/INFERENCE summaries and must not silently restart discovery/identity research.
+
+---
+
+# 15. Bounded Research / Cost Gate
+
+Preserve current bounded enrichment philosophy.
+
+- Discovery stays bounded by run candidate limits.
+- Expensive identity/commercial enrichment should remain limited to the most promising eligible candidates per run (current architecture has used a maximum four-candidate enrichment budget; preserve that unless a separate product decision changes it).
+- Buyer/contact research should run only for candidates passing the contact-research eligibility gate.
+- Do not create unbounded crawling or repeated loops.
+- A specialist may return `UNRESOLVED`/`NO_EVIDENCE`/`NO_VERIFIED_CONTACT` as a valid terminal result for that research attempt.
+
+---
+
+# 16. Telemetry Gate
+
+Preserve technical telemetry but add/retain business-outcome distinctions where existing JSON contracts permit.
+
+Minimum useful dimensions:
+
+- agent/prompt version;
+- attempted;
+- succeeded technically;
+- resolution outcome;
+- commercial outcome;
+- commercially advanced;
+- buyer identified;
+- contact research status;
+- email ready;
+- buyer email ready;
+- target-contact provenance outcome.
+
+Do not require schema changes solely for telemetry labels; use existing JSON where safe.

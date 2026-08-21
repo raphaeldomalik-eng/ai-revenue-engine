@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { canPersistCommercialMemory, discoverProspects, isFirstPartyCandidate, type DiscoveryFocus, type DiscoveryTerritory } from "../../../../src/ai-sales-team/discovery";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import { FIRST_PARTY_SELF } from "../../../../src/ai-sales-team/first-party";
+import { discoveryProductionEnabled } from "../../../../src/lib/server-production-activation";
 
 async function operatorClient() {
   const client = await createServerSupabaseClient();
@@ -21,6 +22,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!discoveryProductionEnabled()) return NextResponse.json({ code: "PILOT_NOT_ENABLED", message: "Discovery production pilot is not enabled." }, { status: 503 });
   const state = await operatorClient();
   if (state.error) return state.error;
   if (!state.canRun) return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });
@@ -75,7 +77,7 @@ export async function POST(request: Request) {
       }
       const status = firstPartySelf ? "REJECTED" : prior.data ? "DUPLICATE" : candidate.status;
       const relationship = firstPartySelf ? "UNKNOWN" : candidate.relationship;
-      const prospectIntelligence = { ...candidate.prospectIntelligence, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, organisationResolution: candidate.organisationResolution, commercialEvidence: candidate.commercialEvidence, enrichment: candidate.enrichment };
+      const prospectIntelligence = { ...candidate.prospectIntelligence, discoveryLane: candidate.origin, laneContext: candidate.laneContext ?? null, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, organisationResolution: candidate.organisationResolution, commercialEvidence: candidate.commercialEvidence, enrichment: candidate.enrichment };
       const values = { discovery_run_id: run.id, canonical_key: candidate.canonicalKey, candidate_name: candidate.canonicalName, organiser_name: candidate.organiserName, website: candidate.website, territory_code: body.territory, origin: candidate.origin, status, account_id: accountId, relationship, facts: candidate.facts, inferences: candidate.inferences, unknowns: candidate.unknowns, prospect_intelligence: prospectIntelligence, source_urls: candidate.sourceUrls, dedupe_of_candidate_id: prior.data?.id ?? null, last_seen_at: new Date().toISOString() };
       const { data, error } = await state.client.from("ai_prospect_candidates").insert(values).select("*").single();
       if (error) throw error;

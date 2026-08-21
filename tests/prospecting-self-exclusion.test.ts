@@ -134,3 +134,12 @@ test("external targets remain contact-eligible despite incidental EventSuite ref
   assert.equal(providerCalls, 1);
   if (!outcome.blocked) assert.deepEqual(outcome.researched.result, externalContactResult);
 });
+
+test("eligible contact research does not default to an OpenAI web-contact provider", async () => {
+  const outcome = await researchEligibleProspectContact({
+    candidate: legacyEligibleCandidate,
+    identity: { accountName: "Regional Events", accountWebsite: "https://regional.example.org", candidateName: "Regional Events", candidateWebsite: "https://regional.example.org" },
+    researchInput: { accountName: "Regional Events", website: "https://regional.example.org", eventEvidence: ["Confirmed recurring event"], likelyBuyerRoles: ["Event Director"] },
+  });
+  assert.deepEqual(outcome, { blocked: true, reason: "CONTACT_RESEARCH_PROVIDER_NOT_SELECTED" });
+});

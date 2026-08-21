@@ -1,0 +1,185 @@
+{
+  "artifact": "live-phase-one-priority-correction-v1",
+  "manifest": [
+    {
+      "id": "P1",
+      "lane": "EVENT_FIRST",
+      "startingSignal": "ArcTanGent Festival",
+      "organisationName": "ArcTanGent",
+      "domain": "arctangent.co.uk"
+    },
+    {
+      "id": "P4",
+      "lane": "VENUE_FIRST",
+      "startingSignal": "The Piece Hall",
+      "organisationName": "The Piece Hall Trust",
+      "domain": "piecehall.co.uk"
+    }
+  ],
+  "sequencePolicy": {
+    "arcTanGent": [
+      "OPENAI_PUBLIC_WEB_IDENTITY",
+      "COMPANIES_HOUSE_SEARCH",
+      "COMPANIES_HOUSE_PROFILE",
+      "APOLLO_PEOPLE_SEARCH"
+    ],
+    "pieceHall": [
+      "APOLLO_PEOPLE_SEARCH"
+    ],
+    "maxOpenAiCallsPerCase": 1,
+    "maxCompaniesHouseSearchesPerCase": 1,
+    "maxCompaniesHouseProfilesPerCase": 1,
+    "maxApolloSearchesPerCase": 1,
+    "maxApolloEnrichment": 0,
+    "googlePlacesCalls": 0,
+    "retries": 0,
+    "persistenceWrites": 0,
+    "outreachActions": 0
+  },
+  "cases": [
+    {
+      "id": "P1",
+      "lane": "EVENT_FIRST",
+      "startingSignal": "ArcTanGent Festival",
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "A documented Phase One focus signal supports priority routing; it is not a proof of company size and does not require SME verification.",
+        "evidence": [
+          {
+            "kind": "INDEPENDENT_ORGANISER",
+            "value": "Independent UK festival organiser",
+            "sourceUrl": "https://arctangent.co.uk",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "lanePreserved": true,
+      "providerSequence": [
+        "OPENAI_PUBLIC_WEB_IDENTITY"
+      ],
+      "identity": {
+        "event": "ArcTanGent Festival",
+        "venue": null,
+        "organisation": null,
+        "officialDomain": null,
+        "legalCompany": null
+      },
+      "counts": {
+        "companiesHouse": {
+          "search": 0,
+          "profile": 0,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 0,
+          "enrichment": 0
+        },
+        "openAi": 1
+      },
+      "contactResearchAttempted": false,
+      "enrichmentAttempted": false,
+      "persistenceWrites": 0,
+      "outreachActions": 0,
+      "openAi": {
+        "calls": 1,
+        "model": "gpt-4.1-mini",
+        "usage": null,
+        "webSearchCalls": 0,
+        "structuredOutputTelemetry": null,
+        "liveFailure": "OPENAI_STRUCTURED_OUTPUT_UNUSABLE",
+        "telemetryGap": "The pre-correction helper returned a safe failed candidate but did not retain the non-success response status; no retry was performed."
+      },
+      "companiesHouse": {
+        "search": 0,
+        "profile": 0,
+        "outcome": null,
+        "reason": null
+      },
+      "identityDecision": "SAFE_UNRESOLVED",
+      "commerciallyAdvanced": false
+    },
+    {
+      "id": "P4",
+      "lane": "VENUE_FIRST",
+      "startingSignal": "The Piece Hall",
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "A documented Phase One focus signal supports priority routing; it is not a proof of company size and does not require SME verification.",
+        "evidence": [
+          {
+            "kind": "REGIONAL_SCOPE",
+            "value": "Regional venue",
+            "sourceUrl": "https://www.thepiecehall.co.uk",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "lanePreserved": true,
+      "providerSequence": [
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "identity": {
+        "event": null,
+        "venue": "The Piece Hall",
+        "organisation": null,
+        "officialDomain": "https://piecehall.co.uk",
+        "legalCompany": null
+      },
+      "counts": {
+        "companiesHouse": {
+          "search": 0,
+          "profile": 0,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 0
+      },
+      "contactResearchAttempted": false,
+      "enrichmentAttempted": false,
+      "persistenceWrites": 0,
+      "outreachActions": 0,
+      "openAi": {
+        "calls": 0,
+        "model": null,
+        "usage": null,
+        "webSearchCalls": 0,
+        "structuredOutputTelemetry": null
+      },
+      "companiesHouse": {
+        "search": 0,
+        "profile": 0,
+        "outcome": null,
+        "reason": null
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "candidates": [],
+        "creditCategory": "ZERO_CREDIT_SEARCH"
+      },
+      "identityDecision": "VENUE_IDENTITY_RETAINED_OPERATOR_UNRESOLVED",
+      "commerciallyAdvanced": false
+    }
+  ],
+  "cost": {
+    "model": "gpt-4.1-mini",
+    "measuredModelTokenCostUsd": 0,
+    "explicitWebSearchFeesUsd": 0,
+    "knownTotalUsd": 0,
+    "unreportedProviderContentCost": "not separately reported by the response usage payload",
+    "ceilingUsd": 0.25
+  }
+}

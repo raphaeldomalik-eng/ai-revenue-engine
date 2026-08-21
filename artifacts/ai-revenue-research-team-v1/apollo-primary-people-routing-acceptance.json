@@ -1,0 +1,139 @@
+{
+  "acceptanceVersion": "apollo-primary-people-routing-v1",
+  "manifestFrozen": true,
+  "manifest": [
+    { "id": "M01", "name": "Event Production Show", "lane": "EVENT_FIRST", "territory": "GB" },
+    { "id": "M02", "name": "Hyve Group organisation portfolio", "lane": "ORGANISATION_FIRST", "territory": "GB" },
+    { "id": "M03", "name": "Lindiwe Rakharebe person signal", "lane": "PERSON_FIRST", "territory": "ZA" },
+    { "id": "M04", "name": "Cape Town International Convention Centre venue signal", "lane": "VENUE_FIRST", "territory": "ZA" }
+  ],
+  "searchMode": "search_only",
+  "roleFamilies": [
+    "event leadership",
+    "event operations",
+    "venue operations",
+    "commercial leadership",
+    "ticketing or box office",
+    "marketing or audience growth",
+    "digital, technology or product",
+    "procurement or supplier management",
+    "managing director, founder or owner",
+    "event manager, producer or project manager",
+    "freelance event professional"
+  ],
+  "requests": { "peopleSearch": 4, "maximumPeopleSearch": 4, "retries": 0, "enrichment": 0, "emailOrPhoneRequests": 0 },
+  "cases": [
+    {
+      "id": "M01",
+      "lane": "EVENT_FIRST",
+      "canonicalOrganisation": "Mash Media Group",
+      "canonicalDomain": "mashmedia.net",
+      "resultCount": 0,
+      "candidates": [],
+      "safeOutcome": "NO_APOLLO_RESULT",
+      "humanSelectionRecommendation": "NO_SELECTION_SAFE_UNRESOLVED",
+      "lanePreserved": true,
+      "httpStatus": 200,
+      "creditCategory": "ZERO_CREDIT_SEARCH"
+    },
+    {
+      "id": "M02",
+      "lane": "ORGANISATION_FIRST",
+      "canonicalOrganisation": "Hyve Group",
+      "canonicalDomain": "hyve.group",
+      "resultCount": 5,
+      "candidates": [
+        { "name": "Karen", "title": "Event Operations Director", "employer": "Hyve Group", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 100, "deterministicRank": 1, "humanSelectionRecommendation": "RECOMMENDED_FOR_HUMAN_REVIEW_ONLY", "status": "REVIEW_REQUIRED" },
+        { "name": "Rifat", "title": "Event Operations Manager", "employer": "Hyve Group", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 2, "humanSelectionRecommendation": "LOWER_RANK_THAN_TOP_CANDIDATE", "status": "REVIEW_REQUIRED" },
+        { "name": "Sally", "title": "Senior Event Operations Manager", "employer": "Hyve Group", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 3, "humanSelectionRecommendation": "LOWER_RANK_THAN_TOP_CANDIDATE", "status": "REVIEW_REQUIRED" },
+        { "name": "Lucia", "title": "Senior Event Operations Manager", "employer": "Hyve Group", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 4, "humanSelectionRecommendation": "LOWER_RANK_THAN_TOP_CANDIDATE", "status": "REVIEW_REQUIRED" },
+        { "name": "Olivia", "title": "Senior Event Operations Manager", "employer": "Hyve Group", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 5, "humanSelectionRecommendation": "LOWER_RANK_THAN_TOP_CANDIDATE", "status": "REVIEW_REQUIRED" }
+      ],
+      "safeOutcome": "REVIEW_ONLY_UNTIL_HUMAN_SELECTION",
+      "lanePreserved": true,
+      "httpStatus": 200,
+      "creditCategory": "ZERO_CREDIT_SEARCH"
+    },
+    {
+      "id": "M03",
+      "lane": "PERSON_FIRST",
+      "canonicalOrganisation": "Durban ICC",
+      "canonicalDomain": "icc.co.za",
+      "resultCount": 3,
+      "candidates": [
+        { "name": "Johannes", "title": "Operations Manager", "employer": "Durban International Convention Centre (Durban ICC)", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 1, "humanSelectionRecommendation": "NO_AUTOMATIC_RECOMMENDATION_TIED_SCORE_REQUIRES_HUMAN_REVIEW", "status": "REVIEW_REQUIRED" },
+        { "name": "Patrick", "title": "Acting Operations Manager", "employer": "Durban International Convention Centre (Durban ICC)", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 2, "humanSelectionRecommendation": "NO_AUTOMATIC_RECOMMENDATION_TIED_SCORE_REQUIRES_HUMAN_REVIEW", "status": "REVIEW_REQUIRED" },
+        { "name": "Claudine", "title": "Operations Manager", "employer": "Durban International Convention Centre (Durban ICC)", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 3, "humanSelectionRecommendation": "NO_AUTOMATIC_RECOMMENDATION_TIED_SCORE_REQUIRES_HUMAN_REVIEW", "status": "REVIEW_REQUIRED" }
+      ],
+      "safeOutcome": "REVIEW_ONLY_UNTIL_HUMAN_SELECTION",
+      "lanePreserved": true,
+      "httpStatus": 200,
+      "creditCategory": "ZERO_CREDIT_SEARCH"
+    },
+    {
+      "id": "M04",
+      "lane": "VENUE_FIRST",
+      "canonicalOrganisation": "Convenco",
+      "canonicalDomain": "cticc.co.za",
+      "peopleSearchOrganisation": "Cape Town International Convention Centre",
+      "resultCount": 1,
+      "candidates": [
+        { "name": "Randale", "title": "Assistant Back of House/Facilities Operations Manager", "employer": "Cape Town International Convention Centre", "employerDomainClassification": "DOMAIN_MISSING", "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 1, "humanSelectionRecommendation": "DO_NOT_SELECT_UNTIL_EXPLICIT_OPERATIONAL_EMPLOYER_ALIAS_IS_APPLIED", "status": "REVIEW_REQUIRED" }
+      ],
+      "safeOutcome": "REVIEW_ONLY_DOMAIN_MISSING",
+      "lanePreserved": true,
+      "httpStatus": 200,
+      "creditCategory": "ZERO_CREDIT_SEARCH"
+    }
+  ],
+  "focusedRerun": {
+    "acceptanceVersion": "apollo-primary-people-routing-focused-v1",
+    "manifest": ["M01", "M04"],
+    "requests": { "peopleSearch": 2, "maximumPeopleSearch": 2, "retries": 0, "enrichment": 0, "emailOrPhoneRequests": 0 },
+    "cases": [
+      {
+        "id": "M01",
+        "lane": "EVENT_FIRST",
+        "canonicalOrganisation": "Mash Media Group",
+        "canonicalDomain": "mashmedia.net",
+        "peopleSearchOrganisation": "Mash Media Group",
+        "resultCount": 5,
+        "candidates": [
+          { "name": "Charlotte", "title": "Marketing Event Director", "employer": "Mash Media", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP", "roleRankingScore": 100, "deterministicRank": 1, "humanSelectionRecommendation": "RECOMMENDED_FOR_HUMAN_REVIEW_ONLY", "status": "REVIEW_REQUIRED" },
+          { "name": "Lisa", "title": "PA Show Sales Event Director", "employer": "Mash Media", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP", "roleRankingScore": 100, "deterministicRank": 2, "humanSelectionRecommendation": "LOWER_RANK_THAN_TOP_CANDIDATE", "status": "REVIEW_REQUIRED" },
+          { "name": "Dilara", "title": "Operations Manager", "employer": "Mash Media", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 3, "humanSelectionRecommendation": "LOWER_RANK_THAN_TOP_CANDIDATE", "status": "REVIEW_REQUIRED" },
+          { "name": "Mia", "title": "Operations Manager", "employer": "Mash Media", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 4, "humanSelectionRecommendation": "LOWER_RANK_THAN_TOP_CANDIDATE", "status": "REVIEW_REQUIRED" },
+          { "name": "Ruth", "title": "Operations Manager", "employer": "Mash Media", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 5, "humanSelectionRecommendation": "LOWER_RANK_THAN_TOP_CANDIDATE", "status": "REVIEW_REQUIRED" }
+        ],
+        "httpStatus": 200,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "lanePreserved": true
+      },
+      {
+        "id": "M04",
+        "lane": "VENUE_FIRST",
+        "canonicalOrganisation": "Convenco",
+        "canonicalDomain": "cticc.co.za",
+        "peopleSearchOrganisation": "Cape Town International Convention Centre",
+        "resultCount": 1,
+        "candidates": [
+          { "name": "Randale", "title": "Assistant Back of House/Facilities Operations Manager", "employer": "Cape Town International Convention Centre", "employerDomainClassification": "DOMAIN_QUERY_SCOPED", "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_EXPLICIT_OPERATIONAL_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", "buyerRoutingClassification": "LIKELY_BUYER", "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS", "roleRankingScore": 80, "deterministicRank": 1, "humanSelectionRecommendation": "REVIEW_ONLY_CONFIRM_CTICC_EMPLOYER_AND_CONVENCO_RELATIONSHIP_BEFORE_ANY_ENRICHMENT", "status": "REVIEW_REQUIRED" }
+        ],
+        "httpStatus": 200,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "lanePreserved": true
+      }
+    ],
+    "safety": { "persistence": false, "outreach": false, "openAiCalls": 0, "googlePlacesCalls": 0, "enrichmentCalls": 0, "personalEmailRequests": 0, "phoneRequests": 0, "providerIdsRetained": false, "rawProviderResponsesRetained": false }
+  },
+  "safety": {
+    "persistence": false,
+    "outreach": false,
+    "openAiCalls": 0,
+    "enrichmentCalls": 0,
+    "personalEmailRequests": 0,
+    "phoneRequests": 0,
+    "providerIdsRetained": false,
+    "rawProviderResponsesRetained": false
+  }
+}

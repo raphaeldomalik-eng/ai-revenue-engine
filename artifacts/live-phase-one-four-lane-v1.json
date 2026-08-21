@@ -1,0 +1,447 @@
+{
+  "artifact": "live-phase-one-four-lane-v1",
+  "manifestFrozen": true,
+  "requestPolicy": {
+    "sequential": true,
+    "retries": 0,
+    "companiesHouse": {
+      "maxSearch": 1,
+      "maxProfile": 1,
+      "officers": 0
+    },
+    "googlePlaces": {
+      "maxTextSearch": 1,
+      "maxDetails": 2
+    },
+    "apollo": {
+      "maxPeopleSearch": 1,
+      "enrichment": 0
+    },
+    "openAi": 0,
+    "persistenceWrites": 0,
+    "outreachActions": 0
+  },
+  "keyPresence": {
+    "companiesHouse": true,
+    "googlePlaces": true,
+    "apollo": true
+  },
+  "cases": [
+    {
+      "id": "P1",
+      "originatingLane": "EVENT_FIRST",
+      "startingSignal": "ArcTanGent Festival",
+      "canonicalOrganisationName": "ArcTanGent",
+      "canonicalDomain": "arctangent.co.uk",
+      "officialSourceUrls": [
+        "https://arctangent.co.uk"
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE"
+      ],
+      "identities": {
+        "event": "ArcTanGent Festival",
+        "organisation": {
+          "name": "ArcTanGent",
+          "domain": "arctangent.co.uk"
+        },
+        "venue": null,
+        "venueOperator": null,
+        "person": null,
+        "legalCompany": null
+      },
+      "conflicts": [],
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.",
+        "evidence": [
+          {
+            "kind": "INDEPENDENT_ORGANISER",
+            "value": "Independent UK festival organiser",
+            "sourceUrl": "https://arctangent.co.uk",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "lanePreserved": true,
+      "counts": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 0,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 0,
+          "enrichment": 0
+        },
+        "openAi": 0
+      },
+      "openAiCalls": 0,
+      "apolloCandidates": [],
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen signal is an active event, event organisation, professional event programme or venue context; proven pain is not required."
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The exact Companies House match is dissolved and cannot validate an active legal organisation.",
+        "resultCount": 1
+      },
+      "identityDecision": "SAFE_UNRESOLVED",
+      "stages": [
+        "PUBLIC_WEB_EVENT_DISCOVERY",
+        "COMPANIES_HOUSE_SEARCH"
+      ]
+    },
+    {
+      "id": "P2",
+      "originatingLane": "ORGANISATION_FIRST",
+      "startingSignal": "Farnham Maltings regional events programme",
+      "canonicalOrganisationName": "Farnham Maltings Association",
+      "canonicalDomain": "farnhammaltings.com",
+      "officialSourceUrls": [
+        "https://www.farnhammaltings.com"
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE",
+        "APOLLO"
+      ],
+      "identities": {
+        "event": null,
+        "organisation": {
+          "name": "Farnham Maltings Association",
+          "domain": "farnhammaltings.com"
+        },
+        "venue": null,
+        "venueOperator": null,
+        "person": null,
+        "legalCompany": {
+          "legalCompanyName": "FARNHAM MALTINGS ASSOCIATION LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "90040",
+            "91020",
+            "91030"
+          ],
+          "accountsCategory": "full",
+          "registeredRegion": "Surrey"
+        }
+      },
+      "conflicts": [],
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.",
+        "evidence": [
+          {
+            "kind": "REGIONAL_SCOPE",
+            "value": "Regional arts and events organisation",
+            "sourceUrl": "https://www.farnhammaltings.com",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "lanePreserved": true,
+      "counts": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 0
+      },
+      "openAiCalls": 0,
+      "apolloCandidates": [],
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen signal is an active event, event organisation, professional event programme or venue context; proven pain is not required."
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 3
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "FARNHAM MALTINGS ASSOCIATION LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "90040",
+            "91020",
+            "91030"
+          ],
+          "accountsCategory": "full",
+          "registeredRegion": "Surrey"
+        }
+      },
+      "identityDecision": "REGISTRAR_CONFIRMED",
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "Confirmed UK legal identity and frozen authoritative organisation/domain evidence passed the bounded commercial-research handoff."
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "candidates": [],
+        "creditCategory": "ZERO_CREDIT_SEARCH"
+      },
+      "stages": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "APOLLO_PEOPLE_SEARCH"
+      ]
+    },
+    {
+      "id": "P3",
+      "originatingLane": "PERSON_FIRST",
+      "startingSignal": "Aaron Casserly Stewart",
+      "canonicalOrganisationName": "The Piece Hall Trust",
+      "canonicalDomain": "piecehall.co.uk",
+      "officialSourceUrls": [
+        "https://www.thepiecehall.co.uk"
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE",
+        "APOLLO"
+      ],
+      "identities": {
+        "event": null,
+        "organisation": {
+          "name": "The Piece Hall Trust",
+          "domain": "piecehall.co.uk"
+        },
+        "venue": null,
+        "venueOperator": null,
+        "person": {
+          "name": "Aaron Casserly Stewart",
+          "title": "Programme & Event Director"
+        },
+        "legalCompany": {
+          "legalCompanyName": "THE PIECE HALL TRUST",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "91030"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": "West Yorkshire"
+        }
+      },
+      "conflicts": [],
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.",
+        "evidence": [
+          {
+            "kind": "REGIONAL_SCOPE",
+            "value": "Regional venue programme",
+            "sourceUrl": "https://www.thepiecehall.co.uk",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "lanePreserved": true,
+      "counts": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 0
+      },
+      "openAiCalls": 0,
+      "apolloCandidates": [],
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen signal is an active event, event organisation, professional event programme or venue context; proven pain is not required."
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 3
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "THE PIECE HALL TRUST",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "91030"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": "West Yorkshire"
+        }
+      },
+      "identityDecision": "REGISTRAR_CONFIRMED",
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "Confirmed UK legal identity and frozen authoritative organisation/domain evidence passed the bounded commercial-research handoff."
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "candidates": [],
+        "creditCategory": "ZERO_CREDIT_SEARCH"
+      },
+      "stages": [
+        "PUBLIC_WEB_PERSON_DISCOVERY",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "APOLLO_PEOPLE_SEARCH"
+      ]
+    },
+    {
+      "id": "P4",
+      "originatingLane": "VENUE_FIRST",
+      "startingSignal": "The Piece Hall",
+      "canonicalOrganisationName": "The Piece Hall Trust",
+      "canonicalDomain": "piecehall.co.uk",
+      "officialSourceUrls": [
+        "https://www.thepiecehall.co.uk"
+      ],
+      "providerSequence": [
+        "GOOGLE_PLACES"
+      ],
+      "identities": {
+        "event": null,
+        "organisation": {
+          "name": "The Piece Hall Trust",
+          "domain": "piecehall.co.uk"
+        },
+        "venue": "The Piece Hall",
+        "venueOperator": null,
+        "person": null,
+        "legalCompany": null
+      },
+      "conflicts": [],
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "Evidence supports the UK Phase One independent, regional or smaller-organisation focus.",
+        "evidence": [
+          {
+            "kind": "REGIONAL_SCOPE",
+            "value": "Regional venue",
+            "sourceUrl": "https://www.thepiecehall.co.uk",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "lanePreserved": true,
+      "counts": {
+        "companiesHouse": {
+          "search": 0,
+          "profile": 0,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 1,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 0,
+          "enrichment": 0
+        },
+        "openAi": 0
+      },
+      "openAiCalls": 0,
+      "apolloCandidates": [],
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen signal is an active event, event organisation, professional event programme or venue context; proven pain is not required."
+      },
+      "googlePlaces": {
+        "resolution": {
+          "status": "SAFE_UNRESOLVED",
+          "canonicalVenueName": null,
+          "officialWebsiteDomain": null,
+          "groupingReason": null,
+          "groupingEvidence": []
+        },
+        "search": [
+          {
+            "displayName": "The Piece Hall",
+            "formattedAddress": "Blackledge, Halifax HX1 1RE, UK",
+            "types": [
+              "tourist_attraction",
+              "food_court",
+              "shopping_mall",
+              "art_gallery",
+              "museum",
+              "live_music_venue",
+              "event_venue",
+              "bar",
+              "restaurant",
+              "food",
+              "service",
+              "point_of_interest",
+              "establishment"
+            ],
+            "businessStatus": "OPERATIONAL",
+            "matchStatus": "EXACT_OR_STRONG",
+            "rejectionReasons": [
+              "LOCALITY_NOT_ALIGNED"
+            ],
+            "websiteDomain": null
+          }
+        ],
+        "details": []
+      },
+      "identityDecision": "SAFE_UNRESOLVED",
+      "stages": [
+        "GOOGLE_PLACES_TEXT_SEARCH"
+      ]
+    }
+  ],
+  "generatedAt": "2026-08-21T21:00:57.602Z",
+  "cost": {
+    "openAi": "USD 0; no model calls",
+    "apollo": "zero-credit search-only; provider billing not reported by adapter",
+    "googlePlaces": "provider billing not reported by adapter",
+    "companiesHouse": "provider billing not reported by adapter"
+  }
+}

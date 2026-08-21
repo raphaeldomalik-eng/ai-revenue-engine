@@ -8,7 +8,7 @@ This is the canonical product policy for Direct Prospecting and ICP Intelligence
 
 The AI Revenue Engine is building an AI Sales Team, not a traditional CRM. Accounts, contacts, opportunities, evidence and activities are persistent commercial memory for the AI. Humans should primarily see prospects discovered, why they matter, what the AI learned, supported commercial hypotheses, material unknowns, recommended actions, and approvals or exceptions requiring attention.
 
-The system is not optimised to find as many events as possible. Its purpose is to find active organisations with credible EventSuite problems and build enough evidence for an AI sales team to advance them intelligently.
+The system is not optimised to find as many events as possible. Its purpose is to find active organisations that could plausibly benefit from EventSuite and build enough evidence for an AI sales team to advance them intelligently. Proven pain is not required for a credible prospect; product evidence and pain/change signals guide prioritisation, messaging and sales readiness.
 
 The canonical workflow is:
 
@@ -30,13 +30,87 @@ EventSuite itself and authoritative EventSuite-owned first-party identities or d
 
 ## 2. Discovery paths
 
-The strategy supports three conceptual paths, with no fixed quota or required ratio:
+The strategy supports four equal entry lanes, with no fixed quota or required ratio:
 
 - **EVENT_FIRST:** event → responsible organisation → validation → commercial diagnosis.
 - **ORGANISATION_FIRST:** organisation → active event or activity portfolio → commercial diagnosis.
-- **SIGNAL_FIRST:** commercial or timing signal → organisation → validation → opportunity diagnosis.
+- **PERSON_FIRST:** credible event-industry person → evidenced employer, own business or client relationships → commercial diagnosis.
+- **VENUE_FIRST:** venue → venue operator/owner and hosted activity → commercial diagnosis.
+
+Commercial, timing and change signals are evidence attached to the lane that found them, not a fifth top-level prospect lane. The shared graph is `Event ↔ Organisation ↔ Person ↔ Venue`; each relationship retains evidence, confidence and relationship type. Venue hosting does not prove venue organising, and a person’s event work does not prove that they own or organise the event.
 
 Signals may include a new event launch, expansion, additional stages or venues, vendor or volunteer recruitment, registration opening, venue launch, a new event series, programme growth, or procurement/provider-change evidence.
+
+### Four-lane orchestration contract
+
+The originating lane is orchestration input and remains unchanged through
+Scout output, identity handoff, commercial research and buyer research. The
+model may discover related entities, but it must not rewrite the lane.
+
+`ORGANISATION_FIRST` follows: Companies House active-company discovery for UK
+organisations; core event-sector SIC cohorts (`82301` exhibition and fair
+organisers, `82302` conference organisers and `68202` conference/exhibition
+centre operators); deterministic legal validation; targeted public-web
+validation of trading name, official domain and current event activity;
+EventSuite-fit assessment; Apollo People Search on the confirmed domain;
+deterministic role ranking; human selection; and one selected verified
+business-email enrichment. SIC is a discovery signal, not proof of current
+event activity or qualification. The stated 8,000-company UK population is a
+user-supplied planning estimate, not a verified system fact.
+
+`EVENT_FIRST` discovers a current or recurring event through public evidence,
+captures event identity/date/location and official sources, resolves the
+organiser or promoter, validates a UK legal entity where applicable, preserves
+event brand/trading organiser/legal company separately, confirms the official
+organisation domain through public evidence, uses Google Places only when the
+venue is relevant, then runs Apollo on the organiser domain, ranks candidates,
+human-selects one buyer and enriches one selected business email. An unresolved
+organiser remains review-required; a venue or supplier is never substituted.
+
+`VENUE_FIRST` validates the physical venue through Google Places Text Search,
+retains Place ID/name/locality/type/status, uses public evidence for the
+official domain and operator relationship, validates a UK legal operator where
+applicable, preserves venue/operational-employer/legal-operator separately,
+uses only explicitly evidenced operational-employer aliases for Apollo, then
+searches venue, operations, commercial, ticketing, marketing, technology and
+procurement roles before human selection and one selected enrichment. Venue
+hosting never proves organising.
+
+`PERSON_FIRST` discovers a person through sourced programmes, articles, event
+credits, awards or professional evidence; preserves person/role/event/claimed
+organisation; validates current organisation and official domain through
+public evidence; validates the organisation or claimed director relationship
+where applicable; uses Apollo to verify employment and find stronger buyer
+roles; and classifies the person signal deterministically as
+`DIRECT_BUYER_CANDIDATE`, `ROUTE_TO_BUYER`, `FREELANCE_EVENT_CONNECTOR` or
+`ACTIVITY_UNVERIFIED`. `FREELANCE_EVENT_CONNECTOR` requires at least one
+sourced recent event-sector activity signal. Without recent evidence, retain
+the person as `ACTIVITY_UNVERIFIED` with `REVIEW_REQUIRED`; do not reject the
+signal. Person evidence does not prove event ownership, employment beyond the
+sourced relationship, organiser status or buying authority. Preserve related
+events/venues/organisations in the shared graph, preserve the original person
+when Apollo returns zero results, and require explicit human selection before
+any Apollo enrichment. A freelance event manager may reveal valuable buying
+relationships without being the final buyer.
+
+### Buyer discovery after identity resolution
+
+Once deterministic identity gates establish a canonical organisation and
+domain, Apollo Mixed People Search is the primary bounded route for discovering
+people. It may return at most five role-ranked candidates across event
+leadership, operations, venue, commercial, ticketing/box office, marketing,
+digital/technology/product, procurement, executive ownership, event
+manager/producer/project manager and relevant freelance roles. Each candidate
+retains the originating discovery lane and is classified as likely buyer,
+influencer/route-to-buyer or irrelevant.
+
+Apollo search is discovery-only. It does not request personal email, phone or
+waterfall data, does not enrich automatically and does not authorize outreach.
+`DOMAIN_CONFLICT` is rejected; `DOMAIN_QUERY_SCOPED` remains review-only and
+requires explicit human selection before any later business-email enrichment.
+General web contact searching is disabled by default. Zero results and safe
+unresolved outcomes are valid. Qualification remains “Could prospect
+plausibly benefit from EventSuite?” and does not require public proof of pain.
 
 ## 3. Target hierarchy and territories
 
@@ -45,6 +119,36 @@ Primary targets are organisers, promoters, festival operators, conference and ex
 Universities, sports operators, cultural and tourism organisations, charities, event agencies and community operators are situational targets where event evidence supports them.
 
 Initial territories are South Africa and the United Kingdom. Discovery should deliberately include grassroots, regional, community, independent-promoter and smaller-town activity, not only nationally visible events. Europe is deferred.
+
+### Phase One target priority and size handling
+
+Phase One prioritises UK SMEs, independent organisers, regional venues and
+smaller event agencies across all four discovery lanes:
+`EVENT_FIRST`, `ORGANISATION_FIRST`, `PERSON_FIRST` and `VENUE_FIRST`.
+The same priority applies whether the signal begins with an event,
+organisation, person or venue.
+
+Use these deterministic prospect-size classifications:
+
+- `PHASE_ONE_SME` — evidence supports a small or medium independent organiser,
+  regional venue operator or smaller event agency that fits the initial sales
+  motion;
+- `ENTERPRISE_DEFERRED` — strong evidence supports a large enterprise or
+  enterprise group outside the Phase One focus. This is deferred, not rejected;
+- `SIZE_UNRESOLVED` — available evidence is insufficient to classify size.
+  Unknown size must not be guessed and must not be treated as enterprise.
+
+Companies House accounts categories may be used as size indicators, but they
+are not definitive classifications of the commercial prospect. Legal accounts
+category, group structure, public scale and operating context must not be
+collapsed into an unsupported size claim. Likewise, a large venue capacity or
+high attendance figure does not imply that the venue operator is an enterprise.
+
+Strong public evidence must not allow enterprise groups to dominate Phase One
+ranking merely because they produce more visible signals. Enterprise groups
+remain separate valid entities and may be retained for later sequencing, while
+`PHASE_ONE_SME` receives the initial priority and `SIZE_UNRESOLVED` remains
+reviewable.
 
 ## 4. Source strategy and compliance
 
@@ -67,6 +171,60 @@ Future adapters must fit this source model rather than create a separate prospec
 Meta initially means Facebook and Instagram; LinkedIn initially means organisation, company-context, role and permitted professional intelligence. These are the first dedicated social source families to explore after the core engine is quality-proven.
 
 The product must not bypass authentication, scrape protected or gated platforms without permission, automate personal accounts, collect private-group content, circumvent technical controls, or fabricate private contact details. Native Meta and LinkedIn integrations require authorised/permitted access. Until an official integration exists, legitimate public-web references may act as DISCOVERY evidence and should normally be validated elsewhere.
+
+### Source responsibility and authority
+
+Use the most authoritative and cost-effective source for each fact. Use
+cached evidence before a provider request and free deterministic sources before
+AI research. The source ownership order is:
+
+1. Companies House owns UK legal-company facts: legal name, company number,
+   active/dissolved status, registered region, incorporation date, SIC codes
+   and current legal officers. It does not normally supply the official
+   trading website. Companies House officers are `LEGAL_OFFICER` evidence only
+   and never automatically operational buyers.
+2. Google Places owns physical-place facts: Place ID, venue name,
+   locality/address, venue type and operational/closed status. Do not request
+   `websiteUri` by default. Places does not establish venue operator,
+   organiser, buyer, event ownership or pain.
+3. Official public websites own trading brands, official organisation domains,
+   event pages, organiser/promoter relationships, venue-operator relationships,
+   portfolios and commercial context.
+4. Apollo owns provider-native people/employment evidence and selected,
+   verified business-email evidence. Mixed People Search is the primary
+   bounded people route: maximum five candidates, deterministic ranking, human
+   selection, then initially one enrichment credit.
+5. AI models interpret ambiguity, relationships, EventSuite fit, role
+   classification, commercial context and messaging. AI is not the default
+   source for registration facts, venue identity, people discovery or email
+   discovery.
+6. Human review controls ambiguous identity promotion and enrichment.
+
+A higher-authority source may correct a lower-authority fact, but unrelated
+entities must never be silently merged. Facts remain separate from inferences.
+
+### Shared prospect graph
+
+The graph keeps event, trading organisation, legal company, venue, venue
+operator, person and provider/supplier as separate entities and relationships.
+Where the existing JSON contract permits, retain: originating lane,
+canonical prospect name, trading name, legal company name and number,
+canonical domain, venue identity and Place ID, operational employer and
+people-search organisation names, related organisations, evidence source and
+timestamp, FACT/INFERENCE/UNKNOWN state, identity confidence and human-review
+status. This contract does not require a schema change in V1.
+
+### Cost routing defaults
+
+- use cached evidence before provider requests;
+- use free deterministic sources before AI research;
+- do not run Google Places for non-physical entities or request Place Details
+  unless uniquely required;
+- do not run AI web-contact discovery when Apollo is available;
+- limit Apollo Search to five people and enrich only after human selection;
+- require approval before a second enriched contact;
+- deduplicate by company number, Place ID, canonical domain and event identity;
+- record request counts, model usage and provider cost per prospect.
 
 ## 5. Evidence roles
 
@@ -114,7 +272,13 @@ When an organisation is resolved, consider its wider public portfolio where evid
 
 ## 9. Commercial diagnosis
 
-Qualification is problem-led, not event-led. Event existence is insufficient. A commercially meaningful prospect needs at least one defensible EventSuite problem or opportunity hypothesis.
+The qualification question is: **“Could this prospect plausibly benefit from
+EventSuite?”** Event existence alone is insufficient, but proven pain is not a
+prerequisite for retaining or qualifying a credible, relevant prospect. A
+defensible EventSuite-fit hypothesis, product evidence and pain/change signals
+guide prioritisation, messaging and sales readiness. Positive product
+opportunity states still require product-relevant evidence and must not be
+invented from generic event activity.
 
 EGS, Ticketing and ECC are assessed independently. The system must not force all products to POSSIBLE and must not optimise toward a qualification quota.
 
@@ -182,7 +346,7 @@ Canonicalisation should prefer one commercial identity per real organisation usi
 
 Discovery memory comes first. Do not create an Account merely because a candidate was discovered or marked REVIEW_REQUIRED.
 
-An Account normally requires credible organisation identity, relevant current or recurring activity, adequate Event Connection, a non-blocked relationship and at least one credible EventSuite commercial signal or hypothesis. Weak review candidates remain discovery memory.
+An Account normally requires credible organisation identity, genuine event-sector relevance, adequate lane-specific activity or role evidence and a non-blocked relationship. A specific EventSuite commercial signal or hypothesis improves prioritisation and messaging but is not required merely to retain a credible prospect or continue bounded buyer/contact research. Weak or unresolved candidates remain discovery memory.
 
 A candidate may qualify when evidence supports a real commercial organisation, relevant activity, adequate connection, credible EventSuite opportunity and no blocking safety condition. Qualification does not require every product to fit, a named buyer, a verified email or a fixed candidate quota.
 
@@ -192,15 +356,24 @@ REVIEW_REQUIRED must identify the actual unresolved issue: organiser responsibil
 
 Buyer roles may be inferred from the supported hypothesis: marketing/digital/event marketing for EGS; commercial/ticketing/event director for Ticketing; operations/production/event leadership for ECC. A role inference is not a named-person FACT. Named people require public evidence.
 
-Contact research occurs only after sufficient commercial qualification, in this order:
+Bounded Buyer & Contact Research may run when the commercial organisation is
+resolved or authoritatively validated, the lane establishes credible
+event-sector relevance and no deterministic block applies. A proven pain or
+named product problem is not required to discover a relevant buyer; final
+qualification is not a prerequisite. Contactability is part of completing a
+commercially useful prospect.
 
-1. named relevant buyer with public work email;
-2. named buyer with legitimate public route;
-3. relevant official organisation route;
-4. named buyer without a verified route;
-5. CONTACT_RESEARCH_REQUIRED.
+Contact research should prefer, in this order:
 
-Never guess people, emails, LinkedIn URLs or private contact information. A contact does not authorise outreach.
+1. named relevant buyer with verified public work email;
+2. relevant role or department email with verified target ownership;
+3. verified official organisation email or other direct route;
+4. official contact page/form only;
+5. named buyer without a verified route;
+6. no verified target contact;
+7. explicit third-party contact rejection where a discovered route belongs elsewhere.
+
+Contact research authorises research only. It does not create an Account, establish qualification, set sales readiness or authorise outreach. Never guess people, emails, LinkedIn URLs or private contact information.
 
 ## 15. Autonomy, authority and outreach safety
 
@@ -216,6 +389,14 @@ Bounded staged research is permitted:
 
 1. **First pass:** discovery and early rejection.
 2. **Second pass:** organisation validation, commercial evidence, product diagnosis and material unknowns.
+
+Source selection must follow the responsibility contract above. Companies
+House is UK legal validation before Apollo where applicable; Google Places is
+venue identity before public operator research where applicable; public web
+evidence is the authority for trading/domain and operating relationships; and
+Apollo people search precedes any selected enrichment. A missing provider
+result is a safe unresolved/review outcome, not permission to substitute a
+lower-authority entity or guess a contact.
 
 Do not spend enrichment budget on obvious competitors, rejected noise, stale unsupported one-offs, unnecessary duplicates or NONE-connection candidates except for a minimal identity check. Bound candidates, searches and provider cost. A second stage must change search intent toward unresolved commercial questions rather than repeat generic discovery.
 
@@ -249,7 +430,7 @@ The following revenue-intelligence capabilities are also explicitly future roadm
 - Local Operator Network integration;
 - Gig Guide venue prospect graph;
 - SendGrid Revenue Engine event-webhook feedback;
-- Signal-first source expansion;
+- additional commercial-signal source expansion;
 - Meta and LinkedIn source integrations;
 - scheduled or background prospecting.
 
@@ -313,32 +494,32 @@ After core public-web prospecting is quality-proven, the current roadmap is:
 4. SendGrid Outreach Feedback V1;
 5. Meta source feasibility/integration;
 6. LinkedIn source feasibility/integration;
-7. Signal-first expansion;
+7. additional commercial-signal source expansion;
 8. scheduled/background autonomous prospecting only after later quality gates.
 
-This order may evolve from evidence, but represents the current approved product sequencing. The immediate release and quality sequence is:
+This order may evolve from evidence, but represents the current approved product sequencing. The immediate release and quality sequence is now:
 
-1. finish safety and integrity corrections — complete through PR #17;
-2. Revenue Intelligence roadmap documentation — this PRD update in PR #16;
-3. explicitly approve and remove only the known invalid EventSuite self-prospect graph;
-4. run Production Quality Calibration V4;
-5. if needed, make one focused commercial-quality correction against the bottleneck proven by V4;
-6. repeat bounded calibration until a quality decision is reached;
-7. only after core prospecting quality is proven, begin Operator Experience V1 and the future integrations above.
+1. safety and integrity corrections — complete through PR #17;
+2. Operator Experience V1 — merged through PR #22;
+3. AI Revenue Research Team Agent Pack V1 — quality-proven for implementation;
+4. implement the four model-driven research roles plus deterministic gates in one bounded delivery slice;
+5. pass the pack's deterministic regression corpus and a small bounded Preview/replay acceptance sample;
+6. only after the new pipeline is implemented and verified, schedule the next production quality calibration;
+7. continue future integrations only after core prospecting quality is proven at production scale.
 
-The current quality gate is not weakened by this future roadmap. Operator Experience is not unlocked by documentation alone.
+Agent-pack prompt quality is proven for implementation; this does not yet mean the new runtime pipeline or production commercial yield is proven.
 
 ### Current commercial-quality gap
 
 Current prospecting is safer and more observable, but has not yet proven that it reliably delivers valid, commercially qualified prospects. Production Quality Calibration V3 observed 39 discovered candidates, 0 valid qualified prospects, sparse commercial evidence, 0 positive EGS hypotheses, 0 positive Ticketing hypotheses and only an invalid EventSuite self-prospect carrying the positive ECC/qualified result. This remains an unresolved product question, not a completed capability.
 
-Quality Calibration V4 is the next evidence gate. Its purpose is to use the enrichment telemetry to identify whether the bottleneck is candidate discovery quality, enrichment eligibility, enrichment execution, validation evidence, commercial-evidence extraction, EGS/Ticketing/ECC diagnosis, FACT/INFERENCE/UNKNOWN generation, Event Connection, or the qualification/account gate. V4 is diagnostic; it does not authorise autonomous model retraining.
+Quality Calibration V4 is deferred until the Agent Pack V1 runtime is implemented and its deterministic regression and bounded Preview/replay acceptance gates pass. The next calibration must measure the new pipeline's identity resolution, commercial evidence, counter-evidence consumption, contact research and commercial advancement separately from technical model success. Calibration remains diagnostic and does not authorise autonomous model retraining, bulk historical cleanup or outreach.
 
 ## Non-normative implementation status
 
 Implemented or proven so far:
 
-- EVENT_FIRST and ORGANISATION_FIRST discovery;
+- EVENT_FIRST, ORGANISATION_FIRST, PERSON_FIRST and VENUE_FIRST discovery;
 - dynamic freshness and rejection improvements;
 - account-pollution protection;
 - competitor/customer distinction;
@@ -354,8 +535,8 @@ Not yet quality-proven at real-world production scale:
 - source-role diversity;
 - meaningful live inference and unknown output at scale.
 
-PR #14 is governed by this PRD and remains limited to bounded evidence enrichment. It does not implement Signal-first discovery, Meta, LinkedIn, UI redesign or scheduled discovery. Production quality calibration remains a separate post-merge gate.
+PR #14 is governed by this PRD and remains limited to bounded evidence enrichment. It does not implement additional commercial-signal source expansion, Meta, LinkedIn, UI redesign or scheduled discovery. Production quality calibration remains a separate post-merge gate.
 
-PR #15 is governed by this PRD and remains limited to first-party self-exclusion and bounded enrichment observability. It does not implement the EventSuite Lifecycle Bridge, lifecycle matching, Local Operator Network integration, Gig Guide prospect graph, SendGrid Revenue Engine webhook feedback, Meta, LinkedIn, Signal-first expansion or scheduled prospecting. All such capabilities remain planned, not implemented.
+PR #15 is governed by this PRD and remains limited to first-party self-exclusion and bounded enrichment observability. It does not implement the EventSuite Lifecycle Bridge, lifecycle matching, Local Operator Network integration, Gig Guide prospect graph, SendGrid Revenue Engine webhook feedback, Meta, LinkedIn, additional commercial-signal source expansion or scheduled prospecting. All such capabilities remain planned, not implemented.
 
 PR #17 is governed by this PRD and remains limited to the legacy first-party Contact Discovery and outreach guard. Current authoritative Account identity now blocks stale EventSuite self-prospect state before contact research or outreach work; this correction does not clean historical records or prove broader commercial qualification quality.

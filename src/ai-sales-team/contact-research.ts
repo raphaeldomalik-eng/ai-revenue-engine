@@ -1,206 +1,95 @@
 import type { AiSalesEvidence } from "./model.ts";
 import { isEventSuiteFirstPartyTarget } from "./first-party.ts";
+import { BUYER_CONTACT_RESEARCHER_PROMPT_V2 } from "./agent-prompts.ts";
+import { parseStrictStructuredOutput, type StructuredOutputPayload } from "./structured-output.ts";
 
-export type ContactResearchStatus = "CONTACT_FOUND" | "CONTACT_ROUTE_FOUND" | "CONTACT_RESEARCH_REQUIRED";
+export const CONTACT_RESEARCH_STATUSES = ["BUYER_EMAIL_VERIFIED", "ROLE_EMAIL_VERIFIED", "ORGANISATION_EMAIL_VERIFIED", "OTHER_DIRECT_CONTACT_VERIFIED", "CONTACT_PAGE_ONLY", "BUYER_IDENTIFIED_NO_ROUTE", "NO_VERIFIED_CONTACT", "THIRD_PARTY_CONTACT_REJECTED"] as const;
+export type ContactResearchStatus = typeof CONTACT_RESEARCH_STATUSES[number];
+export type ContactOwnerType = "TARGET_ORGANISATION" | "NAMED_BUYER" | "TARGET_DEPARTMENT" | "THIRD_PARTY" | "UNKNOWN";
+export type ContactRelationship = "PRIMARY_TARGET" | "TARGET_DEPARTMENT" | "TARGET_RELATED_ORGANISATION" | "NOT_TARGET" | "UNKNOWN";
+export type ContactRouteType = "EMAIL" | "PHONE" | "CONTACT_FORM" | "PUBLIC_PROFILE" | "OTHER";
+export type ContactProvenance = { ownerName: string | null; ownerType: ContactOwnerType; relationshipToTarget: ContactRelationship; sourceUrl: string; ownershipEvidence: string; ownershipConfidence: "HIGH" | "MEDIUM" | "LOW" };
 
-type PublicNamedContact = {
-  fullName: string;
-  roleTitle: string | null;
-  email: string | null;
-  phone: string | null;
-  linkedinUrl: string | null;
-  sourceUrl: string;
-  sourceTitle: string | null;
-  evidence: string;
-  confidence: AiSalesEvidence["confidence"];
-};
+type PublicNamedContact = { fullName: string; roleTitle: string | null; email: string | null; phone: string | null; linkedinUrl: string | null; sourceUrl: string; sourceTitle: string | null; evidence: string; confidence: AiSalesEvidence["confidence"]; provenance: ContactProvenance };
+type PublicOrganisationRoute = { email: string | null; phone: string | null; contactUrl: string | null; linkedinUrl: string | null; sourceUrl: string; sourceTitle: string | null; evidence: string; confidence: AiSalesEvidence["confidence"]; routeType: ContactRouteType; provenance: ContactProvenance };
+export type ContactResearchTargetIdentity = { accountName?: string | null; accountWebsite?: string | null; candidateName?: string | null; candidateWebsite?: string | null; authoritativeUrls?: string[]; relatedOrganisations?: Array<{ name: string; relationship: string; website?: string | null }> };
+export type ContactResearchResult = { likelyBuyerRole: string | null; buyerRoleRationale: string | null; namedContact: PublicNamedContact | null; organisationRoute: PublicOrganisationRoute | null; facts: AiSalesEvidence[]; unknowns: string[]; status: ContactResearchStatus; buyerIdentified: boolean; emailReady: boolean; targetProvenance: "ACCEPTED" | "REJECTED" | "UNKNOWN"; rejectedThirdPartyContacts: string[] };
+export type ContactPersistenceTarget = { kind: "NAMED" | "ORGANISATION_ROUTE"; fullName: string | null; email: string | null; phone: string | null; linkedinUrl: string | null; contactUrl: string | null; roleTitle: string | null; sourceUrl: string; sourceTitle: string | null; evidence: string; confidence: AiSalesEvidence["confidence"]; provenance: ContactProvenance };
 
-type PublicOrganisationRoute = {
-  email: string | null;
-  phone: string | null;
-  contactUrl: string | null;
-  sourceUrl: string;
-  sourceTitle: string | null;
-  evidence: string;
-  confidence: AiSalesEvidence["confidence"];
-};
+type RawContact = { fullName?: unknown; roleTitle?: unknown; email?: unknown; phone?: unknown; linkedinUrl?: unknown; contactUrl?: unknown; sourceUrl?: unknown; sourceTitle?: unknown; evidence?: unknown; confidence?: AiSalesEvidence["confidence"]; routeType?: ContactRouteType; provenance?: Partial<ContactProvenance> };
+type ContactResearchInput = { likelyBuyerRole?: unknown; buyerRoleRationale?: unknown; namedContact?: RawContact | null; organisationRoute?: RawContact | null; facts?: AiSalesEvidence[]; unknowns?: unknown; targetIdentity?: ContactResearchTargetIdentity; rejectedThirdPartyContacts?: string[] };
 
-export type ContactResearchResult = {
-  likelyBuyerRole: string | null;
-  buyerRoleRationale: string | null;
-  namedContact: PublicNamedContact | null;
-  organisationRoute: PublicOrganisationRoute | null;
-  facts: AiSalesEvidence[];
-  unknowns: string[];
-  status: ContactResearchStatus;
-};
+const schema = { type: "object", additionalProperties: false, required: ["researchStatus", "likelyBuyerRole", "buyerRoleRationale", "namedContact", "organisationRoute", "facts", "unknowns", "rejectedThirdPartyContacts"], properties: {
+  researchStatus: { type: "string", enum: CONTACT_RESEARCH_STATUSES }, likelyBuyerRole: { type: ["string", "null"] }, buyerRoleRationale: { type: ["string", "null"] },
+  namedContact: { type: ["object", "null"], additionalProperties: false, required: ["fullName", "roleTitle", "email", "phone", "linkedinUrl", "sourceUrl", "sourceTitle", "evidence", "confidence", "provenance"], properties: { fullName: { type: "string" }, roleTitle: { type: ["string", "null"] }, email: { type: ["string", "null"] }, phone: { type: ["string", "null"] }, linkedinUrl: { type: ["string", "null"] }, sourceUrl: { type: "string" }, sourceTitle: { type: ["string", "null"] }, evidence: { type: "string" }, confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }, provenance: { "$ref": "#/$defs/provenance" } } },
+  organisationRoute: { type: ["object", "null"], additionalProperties: false, required: ["email", "phone", "contactUrl", "linkedinUrl", "sourceUrl", "sourceTitle", "evidence", "confidence", "routeType", "provenance"], properties: { email: { type: ["string", "null"] }, phone: { type: ["string", "null"] }, contactUrl: { type: ["string", "null"] }, linkedinUrl: { type: ["string", "null"] }, sourceUrl: { type: "string" }, sourceTitle: { type: ["string", "null"] }, evidence: { type: "string" }, confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }, routeType: { type: "string", enum: ["EMAIL", "PHONE", "CONTACT_FORM", "PUBLIC_PROFILE", "OTHER"] }, provenance: { "$ref": "#/$defs/provenance" } } },
+  facts: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "kind", "confidence"], properties: { claim: { type: "string" }, sourceUrl: { type: ["string", "null"] }, sourceTitle: { type: ["string", "null"] }, kind: { type: "string", const: "FACT" }, confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] } } } }, unknowns: { type: "array", items: { type: "string" } }, rejectedThirdPartyContacts: { type: "array", items: { type: "string" } },
+}, "$defs": { provenance: { type: "object", additionalProperties: false, required: ["ownerName", "ownerType", "relationshipToTarget", "sourceUrl", "ownershipEvidence", "ownershipConfidence"], properties: { ownerName: { type: ["string", "null"] }, ownerType: { type: "string", enum: ["TARGET_ORGANISATION", "NAMED_BUYER", "TARGET_DEPARTMENT", "THIRD_PARTY", "UNKNOWN"] }, relationshipToTarget: { type: "string", enum: ["PRIMARY_TARGET", "TARGET_DEPARTMENT", "TARGET_RELATED_ORGANISATION", "NOT_TARGET", "UNKNOWN"] }, sourceUrl: { type: "string" }, ownershipEvidence: { type: "string" }, ownershipConfidence: { type: "string", enum: ["HIGH", "MEDIUM", "LOW"] } } } } } as const;
 
-export type ContactPersistenceTarget = {
-  kind: "NAMED" | "ORGANISATION_ROUTE";
-  fullName: string | null;
-  email: string | null;
-  phone: string | null;
-  linkedinUrl: string | null;
-  contactUrl: string | null;
-  roleTitle: string | null;
-  sourceUrl: string;
-  sourceTitle: string | null;
-  evidence: string;
-  confidence: AiSalesEvidence["confidence"];
-};
+function text(value: unknown) { return typeof value === "string" && value.trim() ? value.trim() : null; }
+function url(value: unknown) { const candidate = text(value); return candidate && /^https?:\/\/[^\s]+$/i.test(candidate) ? candidate : null; }
+function email(value: unknown) { const candidate = text(value); return candidate && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate) ? candidate : null; }
+function host(value: string) { try { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } }
+function exactPublicValue(value: string | null, evidence: string) { if (!value || !evidence.toLowerCase().includes(value.toLowerCase()) || /\b(?:guess(?:ed)?|infer(?:red)?|pattern|constructed|generated|likely)\b/i.test(evidence)) return null; return value; }
+function targetNames(identity?: ContactResearchTargetIdentity) { return [identity?.accountName, identity?.candidateName].filter((item): item is string => Boolean(item?.trim())).map((item) => item.trim().toLowerCase()); }
+function targetHosts(identity?: ContactResearchTargetIdentity) { return [...(identity?.authoritativeUrls ?? []), identity?.accountWebsite ?? null, identity?.candidateWebsite ?? null].filter((item): item is string => Boolean(item)).map(host).filter(Boolean); }
 
-type ContactResearchInput = Omit<ContactResearchResult, "status">;
-
-const schema = {
-  type: "object", additionalProperties: false,
-  required: ["likelyBuyerRole", "buyerRoleRationale", "namedContact", "organisationRoute", "facts", "unknowns"],
-  properties: {
-    likelyBuyerRole: { type: ["string", "null"] },
-    buyerRoleRationale: { type: ["string", "null"] },
-    namedContact: {
-      type: ["object", "null"],
-      properties: {
-        fullName: { type: "string" }, roleTitle: { type: ["string", "null"] }, email: { type: ["string", "null"] }, phone: { type: ["string", "null"] }, linkedinUrl: { type: ["string", "null"] }, sourceUrl: { type: "string" }, sourceTitle: { type: ["string", "null"] }, evidence: { type: "string" }, confidence: { type: "string", enum: ["NONE", "LOW", "MEDIUM", "HIGH"] },
-      },
-      required: ["fullName", "roleTitle", "email", "phone", "linkedinUrl", "sourceUrl", "sourceTitle", "evidence", "confidence"], additionalProperties: false,
-    },
-    organisationRoute: {
-      type: ["object", "null"],
-      properties: {
-        email: { type: ["string", "null"] }, phone: { type: ["string", "null"] }, contactUrl: { type: ["string", "null"] }, sourceUrl: { type: "string" }, sourceTitle: { type: ["string", "null"] }, evidence: { type: "string" }, confidence: { type: "string", enum: ["NONE", "LOW", "MEDIUM", "HIGH"] },
-      },
-      required: ["email", "phone", "contactUrl", "sourceUrl", "sourceTitle", "evidence", "confidence"], additionalProperties: false,
-    },
-    facts: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "kind", "confidence"], properties: { claim: { type: "string" }, sourceUrl: { type: ["string", "null"] }, sourceTitle: { type: ["string", "null"] }, kind: { type: "string", const: "FACT" }, confidence: { type: "string", enum: ["NONE", "LOW", "MEDIUM", "HIGH"] } } } },
-    unknowns: { type: "array", items: { type: "string" } },
-  },
-} as const;
-
-function text(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+function validateProvenance(value: RawContact | null | undefined, sourceUrl: string, identity?: ContactResearchTargetIdentity): ContactProvenance | null {
+  const raw = value?.provenance; if (!raw || raw.sourceUrl !== sourceUrl) return null;
+  const ownerType = raw.ownerType; const relationship = raw.relationshipToTarget; const ownerName = text(raw.ownerName); const ownershipEvidence = text(raw.ownershipEvidence); const confidence = raw.ownershipConfidence;
+  if (!ownerType || !relationship || !ownershipEvidence || !["HIGH", "MEDIUM", "LOW"].includes(confidence ?? "")) return null;
+  const names = targetNames(identity); const evidenceNamesTarget = names.some((name) => ownershipEvidence.toLowerCase().includes(name)); const officialTargetPage = targetHosts(identity).includes(host(sourceUrl));
+  const explicitTargetAttribution = /(?:official|organis(?:er|or)|organisation|organization|department|team|for the target|for organiser|for organizer)/i.test(ownershipEvidence);
+  const acceptedOwner = ["TARGET_ORGANISATION", "NAMED_BUYER", "TARGET_DEPARTMENT"].includes(ownerType); const acceptedRelationship = ["PRIMARY_TARGET", "TARGET_DEPARTMENT"].includes(relationship);
+  if (!acceptedOwner || !acceptedRelationship || !explicitTargetAttribution || (!evidenceNamesTarget && !officialTargetPage)) return null;
+  return { ownerName, ownerType, relationshipToTarget: relationship, sourceUrl, ownershipEvidence, ownershipConfidence: confidence as "HIGH" | "MEDIUM" | "LOW" };
 }
-
-function url(value: unknown) {
-  const candidate = text(value);
-  return candidate && /^https?:\/\//i.test(candidate) ? candidate : null;
+function named(value: RawContact | null | undefined, identity?: ContactResearchTargetIdentity): PublicNamedContact | null {
+  if (!value) return null; const fullName = text(value.fullName); const sourceUrl = url(value.sourceUrl); const evidence = text(value.evidence); const p = sourceUrl && validateProvenance(value, sourceUrl, identity); if (!fullName || !sourceUrl || !evidence || !evidence.toLowerCase().includes(fullName.toLowerCase()) || !p) return null;
+  return { fullName, roleTitle: text(value.roleTitle), email: exactPublicValue(email(value.email), evidence), phone: exactPublicValue(text(value.phone), evidence), linkedinUrl: exactPublicValue(url(value.linkedinUrl), evidence), sourceUrl, sourceTitle: text(value.sourceTitle), evidence, confidence: value.confidence ?? "LOW", provenance: p };
 }
-
-function email(value: unknown) {
-  const candidate = text(value);
-  return candidate && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate) ? candidate : null;
+function route(value: RawContact | null | undefined, identity?: ContactResearchTargetIdentity): PublicOrganisationRoute | null {
+  if (!value) return null; const sourceUrl = url(value.sourceUrl); const evidence = text(value.evidence); const p = sourceUrl && validateProvenance(value, sourceUrl, identity); if (!sourceUrl || !evidence || !p) return null;
+  const result = { email: exactPublicValue(email(value.email), evidence), phone: exactPublicValue(text(value.phone), evidence), contactUrl: exactPublicValue(url(value.contactUrl), evidence), linkedinUrl: exactPublicValue(url(value.linkedinUrl), evidence), sourceUrl, sourceTitle: text(value.sourceTitle), evidence, confidence: value.confidence ?? "LOW", routeType: value.routeType ?? (value.email ? "EMAIL" : value.phone ? "PHONE" : "CONTACT_FORM"), provenance: p } as PublicOrganisationRoute;
+  return result.email || result.phone || result.linkedinUrl || result.contactUrl ? result : null;
 }
-
-function publicValue(value: string | null, evidence: string, sourceUrl: string | null) {
-  return value && sourceUrl && evidence.toLowerCase().includes(value.toLowerCase()) ? value : null;
-}
-
-function validNamedContact(value: ContactResearchInput["namedContact"]): PublicNamedContact | null {
-  if (!value) return null;
-  const fullName = text(value.fullName);
-  const sourceUrl = url(value.sourceUrl);
-  const evidence = text(value.evidence);
-  if (!fullName || !sourceUrl || !evidence || !evidence.toLowerCase().includes(fullName.toLowerCase())) return null;
-  return {
-    fullName,
-    roleTitle: text(value.roleTitle),
-    email: publicValue(email(value.email), evidence, sourceUrl),
-    phone: publicValue(text(value.phone), evidence, sourceUrl),
-    linkedinUrl: (() => { const linkedInUrl = url(value.linkedinUrl); return linkedInUrl && (linkedInUrl === sourceUrl || evidence.includes(linkedInUrl)) ? linkedInUrl : null; })(),
-    sourceUrl,
-    sourceTitle: text(value.sourceTitle),
-    evidence,
-    confidence: value.confidence,
-  };
-}
-
-function validOrganisationRoute(value: ContactResearchInput["organisationRoute"]): PublicOrganisationRoute | null {
-  if (!value) return null;
-  const sourceUrl = url(value.sourceUrl);
-  const evidence = text(value.evidence);
-  if (!sourceUrl || !evidence) return null;
-  const route = {
-    email: publicValue(email(value.email), evidence, sourceUrl),
-    phone: publicValue(text(value.phone), evidence, sourceUrl),
-    contactUrl: (() => { const contactUrl = url(value.contactUrl); return contactUrl && (contactUrl === sourceUrl || evidence.includes(contactUrl)) ? contactUrl : null; })(),
-    sourceUrl,
-    sourceTitle: text(value.sourceTitle),
-    evidence,
-    confidence: value.confidence,
-  };
-  return route.email || route.phone || route.contactUrl ? route : null;
+function statusFor(person: PublicNamedContact | null, organisation: PublicOrganisationRoute | null, rejected: boolean): ContactResearchStatus {
+  if (person?.email) return person.provenance.ownerType === "NAMED_BUYER" ? "BUYER_EMAIL_VERIFIED" : "ROLE_EMAIL_VERIFIED";
+  if (organisation?.email) return organisation.provenance.ownerType === "TARGET_DEPARTMENT" ? "ROLE_EMAIL_VERIFIED" : "ORGANISATION_EMAIL_VERIFIED";
+  if (person) return "BUYER_IDENTIFIED_NO_ROUTE";
+  if (organisation?.phone || organisation?.linkedinUrl) return "OTHER_DIRECT_CONTACT_VERIFIED";
+  if (organisation?.contactUrl) return "CONTACT_PAGE_ONLY";
+  return rejected ? "THIRD_PARTY_CONTACT_REJECTED" : "NO_VERIFIED_CONTACT";
 }
 
 export function normaliseContactResearch(value: ContactResearchInput): ContactResearchResult {
-  const namedContact = validNamedContact(value.namedContact);
-  const organisationRoute = validOrganisationRoute(value.organisationRoute);
-  const facts = (value.facts ?? []).filter((fact) => fact.kind === "FACT" && Boolean(text(fact.claim)) && Boolean(url(fact.sourceUrl)));
-  return {
-    likelyBuyerRole: text(value.likelyBuyerRole),
-    buyerRoleRationale: text(value.buyerRoleRationale),
-    namedContact,
-    organisationRoute,
-    facts,
-    unknowns: Array.isArray(value.unknowns) ? value.unknowns.filter((item): item is string => Boolean(text(item))) : [],
-    status: namedContact ? "CONTACT_FOUND" : organisationRoute ? "CONTACT_ROUTE_FOUND" : "CONTACT_RESEARCH_REQUIRED",
-  };
+  const person = named(value.namedContact, value.targetIdentity); const organisation = route(value.organisationRoute, value.targetIdentity); const rejected = Array.isArray(value.rejectedThirdPartyContacts) ? value.rejectedThirdPartyContacts.filter((item): item is string => Boolean(text(item))) : [];
+  if (value.namedContact && !person) rejected.push("Rejected person/contact route: ownership provenance did not establish the resolved target.");
+  if (value.organisationRoute && !organisation) rejected.push("Rejected organisation route: ownership provenance did not establish the resolved target.");
+  const status = statusFor(person, organisation, rejected.length > 0); const facts = (value.facts ?? []).filter((fact) => fact.kind === "FACT" && Boolean(text(fact.claim)) && Boolean(url(fact.sourceUrl)));
+  return { likelyBuyerRole: text(value.likelyBuyerRole), buyerRoleRationale: text(value.buyerRoleRationale), namedContact: person, organisationRoute: organisation, facts, unknowns: Array.isArray(value.unknowns) ? value.unknowns.filter((item): item is string => Boolean(text(item))) : [], status, buyerIdentified: Boolean(person), emailReady: ["BUYER_EMAIL_VERIFIED", "ROLE_EMAIL_VERIFIED", "ORGANISATION_EMAIL_VERIFIED"].includes(status), targetProvenance: person || organisation ? "ACCEPTED" : rejected.length ? "REJECTED" : "UNKNOWN", rejectedThirdPartyContacts: rejected };
 }
 
-export type ContactResearchCandidateState = { status: string; relationship: string; account_id: string | null; prospect_intelligence: unknown };
-export type ContactResearchTargetIdentity = { accountName?: string | null; accountWebsite?: string | null; candidateName?: string | null; candidateWebsite?: string | null };
+export function normaliseApolloBusinessEmail(input: { fullName: string; roleTitle: string | null; email: string; targetIdentity: ContactResearchTargetIdentity; providerPersonId: string; providerStatus: string; sourceUrl: string }) {
+  const targetName = input.targetIdentity.accountName ?? input.targetIdentity.candidateName ?? "the resolved target organisation";
+  const evidence = `Apollo verified a business email for ${input.fullName} at ${targetName}. Provider person ID ${input.providerPersonId} matched the resolved organisation domain. Email: ${input.email}`;
+  return normaliseContactResearch({ targetIdentity: input.targetIdentity, namedContact: { fullName: input.fullName, roleTitle: input.roleTitle, email: input.email, phone: null, linkedinUrl: null, sourceUrl: input.sourceUrl, sourceTitle: "Apollo People Enrichment", evidence, confidence: "HIGH", provenance: { ownerName: input.fullName, ownerType: "NAMED_BUYER", relationshipToTarget: "PRIMARY_TARGET", sourceUrl: input.sourceUrl, ownershipEvidence: `Apollo provider status ${input.providerStatus} matched this buyer to target organisation ${targetName} through the canonical organisation domain.`, ownershipConfidence: "HIGH" } }, organisationRoute: null, facts: [], unknowns: [] });
+}
 
+export type ContactResearchCandidateState = { status: string; relationship: string; account_id: string | null; candidate_name?: string | null; organiser_name?: string | null; website?: string | null; prospect_intelligence: unknown };
 export function isContactResearchEligible(candidate: ContactResearchCandidateState) {
-  const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { eventConnection?: { state?: string }; accountCreationEligible?: boolean; firstPartyStatus?: string } : {};
-  return Boolean(candidate.account_id) && candidate.status === "QUALIFIED" && candidate.relationship === "PROSPECT" && intelligence.firstPartyStatus !== "FIRST_PARTY_SELF" && intelligence.accountCreationEligible === true && ["CONFIRMED", "STRONG"].includes(intelligence.eventConnection?.state ?? "");
+  const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence as { eventConnection?: { state?: string }; accountCreationEligible?: boolean; primaryEntryOpportunity?: string; firstPartyStatus?: string; organisationResolution?: { status?: string } } : {};
+  const allowedStatus = candidate.status === "QUALIFIED" || candidate.status === "REVIEW_REQUIRED";
+  return allowedStatus && candidate.relationship === "PROSPECT" && intelligence.firstPartyStatus !== "FIRST_PARTY_SELF" && intelligence.organisationResolution?.status !== "UNRESOLVED" && ["CONFIRMED", "STRONG"].includes(intelligence.eventConnection?.state ?? "") && (intelligence.accountCreationEligible === true || Boolean(intelligence.primaryEntryOpportunity && intelligence.primaryEntryOpportunity !== "UNKNOWN"));
 }
-
-export function contactResearchEligibility(candidate: ContactResearchCandidateState, identity: ContactResearchTargetIdentity) {
-  if (isEventSuiteFirstPartyTarget(identity)) return { eligible: false as const, reason: "FIRST_PARTY_SELF" as const };
-  return isContactResearchEligible(candidate)
-    ? { eligible: true as const }
-    : { eligible: false as const, reason: "CONTACT_RESEARCH_NOT_ELIGIBLE" as const };
-}
-
+export function contactResearchEligibility(candidate: ContactResearchCandidateState, identity: ContactResearchTargetIdentity) { if (isEventSuiteFirstPartyTarget(identity)) return { eligible: false as const, reason: "FIRST_PARTY_SELF" as const }; return isContactResearchEligible(candidate) ? { eligible: true as const } : { eligible: false as const, reason: "CONTACT_RESEARCH_NOT_ELIGIBLE" as const }; }
 export function contactPersistenceTargets(result: ContactResearchResult): ContactPersistenceTarget[] {
-  const targets: ContactPersistenceTarget[] = [];
-  if (result.namedContact) targets.push({ kind: "NAMED", ...result.namedContact, contactUrl: null });
-  const route = result.organisationRoute;
-  if (route && (!result.namedContact || !route.email || route.email !== result.namedContact.email)) {
-    targets.push({ kind: "ORGANISATION_ROUTE", fullName: null, roleTitle: null, email: route.email, phone: route.phone, linkedinUrl: null, contactUrl: route.contactUrl, sourceUrl: route.sourceUrl, sourceTitle: route.sourceTitle, evidence: route.evidence, confidence: route.confidence });
-  }
-  return targets;
+  const targets: ContactPersistenceTarget[] = []; if (result.namedContact && result.status !== "BUYER_IDENTIFIED_NO_ROUTE") targets.push({ kind: "NAMED", ...result.namedContact, contactUrl: null }); if (result.organisationRoute && (!result.namedContact?.email || result.organisationRoute.email !== result.namedContact.email)) targets.push({ kind: "ORGANISATION_ROUTE", fullName: null, roleTitle: null, email: result.organisationRoute.email, phone: result.organisationRoute.phone, linkedinUrl: result.organisationRoute.linkedinUrl, contactUrl: result.organisationRoute.contactUrl, sourceUrl: result.organisationRoute.sourceUrl, sourceTitle: result.organisationRoute.sourceTitle, evidence: result.organisationRoute.evidence, confidence: result.organisationRoute.confidence, provenance: result.organisationRoute.provenance }); return targets.filter((target) => ["PRIMARY_TARGET", "TARGET_DEPARTMENT"].includes(target.provenance.relationshipToTarget));
 }
 
-export async function researchProspectContact(input: { accountName: string; website: string | null; eventEvidence: string[]; likelyBuyerRoles: string[] }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-  if (!apiKey) throw new Error("AI_RESEARCH_NOT_CONFIGURED: OPENAI_API_KEY is required for public contact research.");
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model, tools: [{ type: "web_search" }], max_output_tokens: 6000,
-      input: `Research public business contact evidence for this EventSuite prospect. Do not send outreach and do not infer, guess or construct names, job titles, email addresses, phone numbers, LinkedIn URLs or email patterns. A named person is allowed only when an authoritative public source explicitly names that person and supports their role. A direct email or phone is allowed only when that exact value appears in defensible public evidence. A generic organisation address or contact route is allowed only when publicly published by an authoritative source. If no defensible contact is found, return null contacts and state the gap. The likely buyer role is an INFERENCE and must remain separate from a named person. Return FACT evidence with source URLs. Account: ${input.accountName}. Website: ${input.website ?? "not provided"}. Existing event evidence: ${input.eventEvidence.join(" | ")}. Likely buyer-role hypotheses from existing prospect intelligence: ${input.likelyBuyerRoles.join(", ") || "none"}.`,
-      text: { format: { type: "json_schema", name: "prospect_contact_research", strict: true, schema } },
-    }),
-  });
-  if (!response.ok) {
-    const failure = await response.json().catch(() => null) as { error?: { message?: string; type?: string } } | null;
-    throw new Error(`AI contact research provider failed with HTTP ${response.status}: ${failure?.error?.message || failure?.error?.type || "no provider detail"}`);
-  }
-  const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
-  const output = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("");
-  if (!output) throw new Error("AI contact research provider returned no structured output.");
-  return { result: normaliseContactResearch(JSON.parse(output) as ContactResearchInput), provider: "openai", model };
+export async function researchProspectContact(input: { accountName: string; website: string | null; eventEvidence: string[]; likelyBuyerRoles: string[]; targetIdentity?: ContactResearchTargetIdentity }) {
+  const apiKey = process.env.OPENAI_API_KEY; const model = process.env.OPENAI_MODEL || "gpt-4.1-mini"; const reasoning = ["gpt-5.6-terra", "gpt-5.6-luna"].includes(model) && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined; if (!apiKey) throw new Error("AI_RESEARCH_NOT_CONFIGURED: OPENAI_API_KEY is required for public contact research.");
+  const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, ...(reasoning ? { reasoning } : {}), tools: [{ type: "web_search" }], max_output_tokens: 7000, input: `${BUYER_CONTACT_RESEARCHER_PROMPT_V2}\nTarget: ${input.accountName}. Website: ${input.website ?? "not provided"}. Event evidence: ${input.eventEvidence.join(" | ")}. Likely buyer roles: ${input.likelyBuyerRoles.join(", ") || "none"}.`, text: { format: { type: "json_schema", name: "buyer_contact_researcher_v2", strict: true, schema } } }) });
+  if (!response.ok) throw new Error(`AI contact research provider failed with HTTP ${response.status}.`); const payload = await response.json() as StructuredOutputPayload; const parsed = parseStrictStructuredOutput<ContactResearchInput>(payload); return { result: normaliseContactResearch({ ...parsed.value, targetIdentity: input.targetIdentity }), provider: "openai", model };
 }
-
-export async function researchEligibleProspectContact(
-  input: {
-    candidate: ContactResearchCandidateState;
-    identity: ContactResearchTargetIdentity;
-    researchInput: Parameters<typeof researchProspectContact>[0];
-  },
-  provider: typeof researchProspectContact = researchProspectContact,
-) {
-  const eligibility = contactResearchEligibility(input.candidate, input.identity);
-  if (!eligibility.eligible) return { blocked: true as const, reason: eligibility.reason };
-  return { blocked: false as const, researched: await provider(input.researchInput) };
-}
+export async function researchEligibleProspectContact(input: { candidate: ContactResearchCandidateState; identity: ContactResearchTargetIdentity; researchInput: Parameters<typeof researchProspectContact>[0] }, provider?: typeof researchProspectContact) { const eligibility = contactResearchEligibility(input.candidate, input.identity); if (!eligibility.eligible) return { blocked: true as const, reason: eligibility.reason }; if (!provider) return { blocked: true as const, reason: "CONTACT_RESEARCH_PROVIDER_NOT_SELECTED" as const }; return { blocked: false as const, researched: await provider(input.researchInput) }; }
