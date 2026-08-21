@@ -14,6 +14,14 @@ test("Apollo is disabled by default even when a key is supplied", async () => {
   assert.equal(result.mode, "disabled"); assert.equal(result.telemetry.rejectionReasons[0], "APOLLO_DISABLED"); assert.equal(calls, 0);
 });
 
+test("zero Apollo results preserve the originally sourced person signal", async () => {
+  const candidate = { status: "QUALIFIED", relationship: "PROSPECT", account_id: null, candidate_name: "ABC Events", organiser_name: "ABC Events", website: "https://abc-events.example", laneContext: { person: { name: "Alex Person", role: "Event Director", organisationName: "ABC Events" } }, prospect_intelligence: { eventConnection: { state: "CONFIRMED" }, accountCreationEligible: true, primaryEntryOpportunity: "EGS", organisationResolution: { status: "RESOLVED" } } };
+  const result = await searchPrimaryApolloBuyers({ candidate, identity: { accountName: "ABC Events", accountWebsite: "https://abc-events.example" }, discoveryLane: "PERSON_FIRST", mode: "search_only" }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [] }) });
+  assert.equal(result.blocked, false);
+  if (!result.blocked) assert.equal(result.result.results.length, 0);
+  assert.deepEqual(candidate.laneContext.person, { name: "Alex Person", role: "Event Director", organisationName: "ABC Events" });
+});
+
 test("Apollo classifies all four employer-domain outcomes deterministically", async () => {
   const run = async (person: Record<string, unknown>) => (await searchApolloBuyers(searchInput, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [person] }) })).results[0];
   const confirmed = await run(acceptedPerson);

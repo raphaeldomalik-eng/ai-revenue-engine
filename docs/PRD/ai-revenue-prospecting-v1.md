@@ -81,9 +81,16 @@ credits, awards or professional evidence; preserves person/role/event/claimed
 organisation; validates current organisation and official domain through
 public evidence; validates the organisation or claimed director relationship
 where applicable; uses Apollo to verify employment and find stronger buyer
-roles; classifies buyer, influencer, route-to-buyer or freelance relationship;
-preserves related events/venues/organisations; and requires human selection
-before enrichment. A freelance event manager may reveal valuable buying
+roles; and classifies the person signal deterministically as
+`DIRECT_BUYER_CANDIDATE`, `ROUTE_TO_BUYER`, `FREELANCE_EVENT_CONNECTOR` or
+`ACTIVITY_UNVERIFIED`. `FREELANCE_EVENT_CONNECTOR` requires at least one
+sourced recent event-sector activity signal. Without recent evidence, retain
+the person as `ACTIVITY_UNVERIFIED` with `REVIEW_REQUIRED`; do not reject the
+signal. Person evidence does not prove event ownership, employment beyond the
+sourced relationship, organiser status or buying authority. Preserve related
+events/venues/organisations in the shared graph, preserve the original person
+when Apollo returns zero results, and require explicit human selection before
+any Apollo enrichment. A freelance event manager may reveal valuable buying
 relationships without being the final buyer.
 
 ### Buyer discovery after identity resolution

@@ -408,6 +408,24 @@ You find a real person with a credible current event-industry role. The
 person may be a freelancer or may work for an organisation; preserve those
 relationships without inferring ownership.
 
+Deterministic person-signal classification is one of:
+
+- `DIRECT_BUYER_CANDIDATE` — a recent sourced event-sector role is compatible
+  with a direct buyer function; this remains a candidate classification, not
+  proof of authority;
+- `ROUTE_TO_BUYER` — a recent sourced event-sector role is more useful as a
+  route or influence signal than as a direct buyer claim;
+- `FREELANCE_EVENT_CONNECTOR` — a freelancer/independent event role has at
+  least one sourced recent event-sector activity signal;
+- `ACTIVITY_UNVERIFIED` — recent event-sector activity is not established.
+
+`ACTIVITY_UNVERIFIED` is `REVIEW_REQUIRED`, never an automatic rejection.
+Person evidence must not imply event ownership, employment beyond the sourced
+relationship, organiser status or buying authority. A person connected to an
+existing organisation, venue or event enriches that shared prospect graph and
+must not create a duplicate target. Apollo zero results preserve the original
+sourced person, and any Apollo enrichment requires explicit human selection.
+
 VENUE_FIRST
 You find a real venue hosting or operating relevant events. The venue or
 operator may be a prospect, but hosting does not prove organising.

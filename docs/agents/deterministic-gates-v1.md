@@ -291,6 +291,28 @@ and messaging; it is not a prerequisite for retaining a real, relevant
 prospect. Person-first role evidence does not assert event ownership, and
 venue-first hosting evidence does not assert venue organising.
 
+### PERSON_FIRST person-signal gate
+
+The originating `PERSON_FIRST` lane is preserved while the sourced person is
+treated as a signal that may lead to an organisation, venue, event or buyer.
+Deterministic classification is limited to:
+
+- `DIRECT_BUYER_CANDIDATE`;
+- `ROUTE_TO_BUYER`;
+- `FREELANCE_EVENT_CONNECTOR`;
+- `ACTIVITY_UNVERIFIED`.
+
+The first two require a recent sourced event-sector activity signal and remain
+role/function hypotheses rather than proof of buying authority. A freelance
+classification requires the same recent activity evidence. If recent activity
+is absent, use `ACTIVITY_UNVERIFIED` and `REVIEW_REQUIRED`; do not reject the
+person signal. Person evidence does not establish event ownership, employment
+beyond the sourced relationship or organiser status. Apollo zero results do
+not replace or erase the original person. When the person is connected to an
+existing organisation, venue or event, preserve the relationship on the
+existing canonical identity key and do not create a duplicate prospect. Apollo
+enrichment remains behind explicit human selection.
+
 A candidate may become commercially qualified only when there is sufficient evidence for:
 
 - credible/resolved organisation;

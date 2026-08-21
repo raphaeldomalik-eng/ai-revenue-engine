@@ -30,6 +30,33 @@ test("R38 four equal lanes reach the shared identity handoff and legacy SIGNAL_F
   assert.equal(legacy.origin, "ORGANISATION_FIRST");
 });
 
+test("PERSON_FIRST classifies recent person signals without inferring ownership or authority", () => {
+  const person = (role: string, claim: string) => evaluateDiscoveryCandidate({ canonicalName: "Alex Person", organiserName: null, website: null, origin: "PERSON_FIRST", relationshipHint: "PROSPECT", laneContext: { organisation: { name: "ABC Events", website: "https://abc-events.example" }, person: { name: "Alex Person", role, organisationName: "ABC Events", organisationWebsite: "https://abc-events.example" }, venue: null }, facts: [fact(claim)], inferences: [], unknowns: [] }, "GB");
+  const direct = person("Event Director", "Alex Person is the current Event Director at ABC Events for its upcoming festival.");
+  const route = person("Event Coordinator", "Alex Person is the current Event Coordinator at ABC Events for its annual event programme.");
+  const freelancer = person("Freelance Event Producer", "Alex Person is currently producing the next edition of an independent event.");
+  const unverified = person("Freelance Event Producer", "Alex Person produced a festival in 2022.");
+  assert.equal(direct.prospectIntelligence.personSignal?.classification, "DIRECT_BUYER_CANDIDATE");
+  assert.equal(route.prospectIntelligence.personSignal?.classification, "ROUTE_TO_BUYER");
+  assert.equal(freelancer.prospectIntelligence.personSignal?.classification, "FREELANCE_EVENT_CONNECTOR");
+  assert.equal(unverified.prospectIntelligence.personSignal?.classification, "ACTIVITY_UNVERIFIED");
+  assert.equal(unverified.status, "REVIEW_REQUIRED");
+  assert.equal(unverified.prospectIntelligence.outreachEligibility, "REVIEW_REQUIRED");
+  assert.match(direct.prospectIntelligence.personSignal?.guard ?? "", /ownership|authority/i);
+  assert.equal(direct.prospectIntelligence.events.some((event) => /organised|operated/i.test(event.role)), false);
+  assert.equal(direct.enrichment.attempted, false);
+});
+
+test("PERSON_FIRST keeps the sourced person in the shared graph and does not duplicate an organisation or venue target", () => {
+  const person = evaluateDiscoveryCandidate({ canonicalName: "Alex Person", organiserName: null, website: null, origin: "PERSON_FIRST", relationshipHint: "PROSPECT", laneContext: { organisation: { name: "ABC Events", website: "https://abc-events.example" }, person: { name: "Alex Person", role: "Event Director", organisationName: "ABC Events", organisationWebsite: "https://abc-events.example" }, venue: null }, facts: [fact("Alex Person is the current Event Director at ABC Events for an upcoming event.")], inferences: [], unknowns: [] }, "GB");
+  const organisation = evaluateDiscoveryCandidate({ canonicalName: "ABC Events", organiserName: null, website: "https://abc-events.example", origin: "ORGANISATION_FIRST", relationshipHint: "PROSPECT", facts: [fact("ABC Events operates an upcoming event programme.")], inferences: [], unknowns: [] }, "GB");
+  const venue = evaluateDiscoveryCandidate({ canonicalName: "ABC Venue", organiserName: null, website: null, origin: "VENUE_FIRST", relationshipHint: "PROSPECT", laneContext: { organisation: null, person: null, venue: { name: "ABC Venue", website: "https://venue.example", operatorName: "ABC Events", operatorWebsite: "https://abc-events.example" } }, facts: [fact("ABC Venue hosts an upcoming event programme.")], inferences: [], unknowns: [] }, "GB");
+  assert.equal(person.canonicalKey, organisation.canonicalKey);
+  assert.equal(person.canonicalKey, venue.canonicalKey);
+  assert.equal(person.laneContext?.person?.name, "Alex Person");
+  assert.equal(person.laneContext?.person?.organisationName, "ABC Events");
+});
+
 test("R1-R6 source, venue, listing and procurement identities never become organisers", () => {
   const provider = parseDiscovery({ candidates: [candidate()] }, "ZA")[0];
   assert.equal(provider.website, null);
