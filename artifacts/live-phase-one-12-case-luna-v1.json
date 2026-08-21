@@ -1,7 +1,7 @@
 {
   "artifact": "live-phase-one-12-case-luna-v1",
   "status": "COMPLETED",
-  "executionMode": "DRY_RUN",
+  "executionMode": "LIVE",
   "manifestFrozen": true,
   "manifest": [
     {
@@ -357,17 +357,11 @@
         "Known EVENT_FIRST safe-unresolved regression."
       ],
       "providerSequence": [
-        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
-        "COMPANIES_HOUSE_SEARCH",
-        "COMPANIES_HOUSE_PROFILE",
-        "APOLLO_PEOPLE_SEARCH"
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH"
       ],
       "stages": [
         "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
-        "EVENTSUITE_FIT",
-        "COMPANIES_HOUSE_SEARCH",
-        "COMPANIES_HOUSE_PROFILE",
-        "APOLLO_PEOPLE_SEARCH"
+        "EVENTSUITE_FIT"
       ],
       "lanePreserved": true,
       "phaseOne": {
@@ -414,87 +408,182 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 40023,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 0,
+            "cached_tokens": 5960
           },
+          "output_tokens": 4306,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 1442
+          },
+          "total_tokens": 44329
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 4,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 34063,
+          "cachedInputTokens": 5960,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 4306,
+          "reasoningTokens": 1442,
+          "modelCostUsd": 0.012099,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.04,
+          "totalKnownCostUsd": 0.052099
         },
         "enrichment": {
           "status": "SUCCEEDED",
-          "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
-          "commerciallyAdvanced": true
+          "resolutionOutcome": "UNRESOLVED",
+          "commercialOutcome": "NO_COMMERCIAL_SIGNAL",
+          "commerciallyAdvanced": false
         },
         "organisationResolution": {
-          "status": "RESOLVED",
-          "canonicalOrganisationName": "ArcTanGent",
-          "officialWebsite": "https://dry-run.example",
+          "status": "UNRESOLVED",
+          "canonicalOrganisationName": null,
+          "officialWebsite": null,
           "confidence": "HIGH",
-          "evidence": [
+          "evidence": [],
+          "relatedOrganisations": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://dry-run.example",
-              "confidence": "HIGH"
+              "name": "Fernhill Farm",
+              "relationship": "Venue/site hosting the 2026 ArcTanGent Festival; hosting does not establish event ownership or organising responsibility.",
+              "website": null,
+              "confidence": "HIGH",
+              "evidence": [
+                "The official ArcTanGent site states that the 2026 festival takes place at Fernhill Farm near Bristol.",
+                "ArcTanGent's privacy policy and terms attribute ownership/promoter responsibility to Paper Cup Productions Ltd."
+              ]
+            },
+            {
+              "name": "Todenham Manor Farm",
+              "relationship": "Announced future venue/site for ArcTanGent from 2027; not established as organiser or operator of the festival.",
+              "website": null,
+              "confidence": "MEDIUM",
+              "evidence": [
+                "The official ArcTanGent 2027 page identifies Todenham Manor Farm as the new location from August 2027."
+              ]
             }
-          ],
-          "relatedOrganisations": []
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "The organisation has a substantial, current owned event presence: the official site publishes the 2026 event, 100+ acts, tickets, camping, glamping, food traders, silent disco information, FAQs, contact routes and a 2027 site announcement.",
+            "sourceUrl": "https://arctangent.co.uk/about",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Official ArcTanGent website"
+          },
+          {
+            "product": "EGS",
+            "claim": "The official site includes multiple event-discovery and audience-engagement functions, including line-up pages, ticket pages, FAQs, a festival app reference, mailing-list signup and merchandise links.",
+            "sourceUrl": "https://arctangent.co.uk/faq",
+            "evidenceCategory": "DISCOVERY_GAP",
+            "confidence": "MEDIUM",
+            "polarity": "COUNTER",
+            "existingSystem": "Official ArcTanGent website and festival app"
+          },
+          {
+            "product": "EGS",
+            "claim": "No authoritative source found that evidences a current discovery, audience-acquisition or owned-digital shortfall requiring an EventSuite intervention.",
+            "sourceUrl": "https://arctangent.co.uk",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Official ArcTanGent website"
+          },
+          {
+            "product": "ECC",
+            "claim": "ArcTanGent presents a multi-stage, multi-day operating model with 100+ acts across alternating stages, camping, glamping, food traders, bars and a nightly silent disco.",
+            "sourceUrl": "https://arctangent.co.uk/about",
+            "evidenceCategory": "MULTI_STAGE",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          },
+          {
+            "product": "ECC",
+            "claim": "The event coordinates multiple workforce and supplier lanes, including traders, volunteer stewards, bar staff, sponsors, charities, partners, ticketing and press.",
+            "sourceUrl": "https://arctangent.co.uk/contact",
+            "evidenceCategory": "VENDOR_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          },
+          {
+            "product": "ECC",
+            "claim": "The official site documents in-house stewarding at scale, including more than 100 returning volunteers and a further requirement for approximately 50–100 volunteers in the referenced programme.",
+            "sourceUrl": "https://arctangent.co.uk/landing/volunteer",
+            "evidenceCategory": "WORKFORCE",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": "In-house stewarding process"
+          },
+          {
+            "product": "ECC",
+            "claim": "The official site states that its cashless system is designed to operate without internet or power and without a central point of failure, indicating an established on-site operating solution.",
+            "sourceUrl": "https://arctangent.co.uk/faq",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Unnamed cashless/RFID payment system"
+          },
+          {
+            "product": "ECC",
+            "claim": "Operational complexity is evidenced, but no authoritative source identifies a coordination failure, manual-process pain point, accreditation issue, workforce shortfall or requirement for a replacement event-operations platform.",
+            "sourceUrl": "https://arctangent.co.uk",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": null
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "No authoritative evidence found of a specific EventSuite pain point, buying trigger, active procurement or migration project.",
+          "No authoritative evidence found of an EGS discovery or audience-acquisition gap.",
+          "No authoritative evidence found that ticketing-provider fragmentation is causing operational pain or that a replacement ticketing system is being considered.",
+          "No authoritative evidence found of an ECC coordination failure, accreditation problem, workforce shortage or manual-process bottleneck.",
+          "The operator of Fernhill Farm is not established by the bounded research.",
+          "The relationship between Paper Cup Productions Ltd and any wider festival portfolio was not expanded beyond the ArcTanGent evidence required for this handoff."
         ]
       },
-      "companiesHouseSearch": {
-        "outcome": "REGISTRAR_CONFIRMED",
-        "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
-      },
-      "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
-      },
-      "apollo": {
-        "httpStatus": 200,
-        "resultCount": 0,
-        "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
-      },
-      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
-      "safeUnresolvedReasons": [],
+      "identityDecision": "SAFE_UNRESOLVED",
+      "safeUnresolvedReasons": [
+        "Company size is optional metadata and has not been used as an identity or qualification gate.",
+        "No authoritative evidence found of a specific EventSuite pain point, buying trigger, active procurement or migration project.",
+        "No authoritative evidence found of an EGS discovery or audience-acquisition gap.",
+        "No authoritative evidence found that ticketing-provider fragmentation is causing operational pain or that a replacement ticketing system is being considered.",
+        "No authoritative evidence found of an ECC coordination failure, accreditation problem, workforce shortage or manual-process bottleneck.",
+        "The operator of Fernhill Farm is not established by the bounded research.",
+        "The relationship between Paper Cup Productions Ltd and any wider festival portfolio was not expanded beyond the ArcTanGent evidence required for this handoff."
+      ],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "NO_COMMERCIAL_SIGNAL"
       },
       "providerCalls": {
         "companiesHouse": {
-          "search": 1,
-          "profile": 1,
+          "search": 0,
+          "profile": 0,
           "officers": 0
         },
         "googlePlaces": {
@@ -502,11 +591,11 @@
           "details": 0
         },
         "apollo": {
-          "peopleSearch": 1,
+          "peopleSearch": 0,
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 4
       },
       "safety": {
         "guessedEmails": 0,
@@ -558,8 +647,20 @@
       },
       "identities": {
         "event": "Event Production Show",
-        "organisation": "Mash Media Group",
-        "legalEntity": null,
+        "organisation": "Mash Media Group Limited",
+        "legalEntity": {
+          "legalCompanyName": "MASH MEDIA GROUP LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "58142",
+            "73120",
+            "82301",
+            "82302"
+          ],
+          "accountsCategory": "unaudited-abridged",
+          "registeredRegion": "England"
+        },
         "venue": null,
         "operator": null,
         "sourcedPerson": null
@@ -572,7 +673,83 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Charlotte",
+          "title": "Marketing Event Director",
+          "currentEmployer": "Mash Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+          "roleClassification": "event leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Lisa",
+          "title": "PA Show Sales Event Director",
+          "currentEmployer": "Mash Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+          "roleClassification": "event leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 2,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Dilara",
+          "title": "Operations Manager",
+          "currentEmployer": "Mash Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 3,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Ruth",
+          "title": "Operations Manager",
+          "currentEmployer": "Mash Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 4,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Mia",
+          "title": "Operations Manager",
+          "currentEmployer": "Mash Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 5,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "openAi": {
         "request": {
           "model": "gpt-5.6-luna",
@@ -587,82 +764,270 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 27899,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 675,
+            "cached_tokens": 5284
           },
+          "output_tokens": 3032,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 518
+          },
+          "total_tokens": 30931
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 3,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 22615,
+          "cachedInputTokens": 5284,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3032,
+          "reasoningTokens": 518,
+          "modelCostUsd": 0.00826708,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.03,
+          "totalKnownCostUsd": 0.038267079999999995
         },
         "enrichment": {
           "status": "SUCCEEDED",
           "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
+          "commercialOutcome": "PRODUCT_SIGNAL_FOUND",
           "commerciallyAdvanced": true
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "Mash Media Group",
-          "officialWebsite": "https://dry-run.example",
+          "canonicalOrganisationName": "Mash Media Group Limited",
+          "officialWebsite": "https://www.mashmedia.net/",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://dry-run.example",
+              "claim": "Mash Media’s corporate website identifies the organisation as Mash Media and states that the site represents the business operating its media properties and live events.",
+              "sourceUrl": "https://www.mashmedia.net/",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "Event Production Show",
+              "relationship": "Event brand operated/promoted within the Mash Media shows portfolio; the event site carries Mash Media Group Ltd copyright.",
+              "website": "https://www.eventproductionshow.co.uk/",
+              "confidence": "HIGH",
+              "evidence": [
+                "Mash Media lists EPS under its shows.",
+                "EPS website footer identifies Mash Media Group Ltd.",
+                "EPS site presents registration, exhibiting and event information under the EPS brand."
+              ]
+            },
+            {
+              "name": "Access All Areas",
+              "relationship": "Mash Media media brand and collaboration/in-association partner for Event Production Show.",
+              "website": "https://accessaa.co.uk/",
+              "confidence": "MEDIUM",
+              "evidence": [
+                "Mash Media lists Access All Areas within its media portfolio.",
+                "EPS states that the event is brought to the market in collaboration with Access All Areas magazine."
+              ]
+            },
+            {
+              "name": "Excel London",
+              "relationship": "Venue hosting Event Production Show; hosting does not evidence event ownership or organising responsibility.",
+              "website": "https://www.excel.london/",
+              "confidence": "HIGH",
+              "evidence": [
+                "EPS identifies Excel London as the venue for the 3-4 March 2027 event."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "Mash Media has a substantial owned digital and media presence covering multiple event-industry brands and shows, including a corporate site and dedicated Event Production Show site.",
+            "sourceUrl": "https://www.mashmedia.net/brands",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Owned corporate and event websites"
+          },
+          {
+            "product": "EGS",
+            "claim": "The Event Production Show has a dedicated current event website with registration, exhibitor enquiry, conference-programme and visitor-information journeys.",
+            "sourceUrl": "https://www.eventproductionshow.co.uk/",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Dedicated event website"
+          },
+          {
+            "product": "TICKETING",
+            "claim": "Event Production Show offers free attendee registration through its dedicated event website.",
+            "sourceUrl": "https://www.eventproductionshow.co.uk/registration",
+            "evidenceCategory": "MANUAL_OPERATIONS",
+            "confidence": "MEDIUM",
+            "polarity": "SUPPORTING",
+            "existingSystem": "Dedicated online registration flow; provider not publicly confirmed"
+          },
+          {
+            "product": "ECC",
+            "claim": "Mash Media operates a portfolio of recurring trade shows and media-led events, while EPS itself includes exhibitors, speakers, conference programming, registration and venue delivery across a two-day cycle.",
+            "sourceUrl": "https://www.mashmedia.net/our-events",
+            "evidenceCategory": "MULTI_STAGE",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          },
+          {
+            "product": "ECC",
+            "claim": "EPS involves multiple operational components, including exhibitors, speakers, suppliers, registration, conference sessions and venue logistics.",
+            "sourceUrl": "https://www.eventproductionshow.co.uk/",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          },
+          {
+            "product": "ECC",
+            "claim": "Public pages evidence event scale and operational components but do not identify a specific coordination gap, manual workflow, accreditation burden, workforce issue, production-scheduling problem or vendor-management pain.",
+            "sourceUrl": "https://www.eventproductionshow.co.uk/",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Operational model not disclosed"
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "The legal-company record, registered number and any trading-name relationship were not independently validated through Companies House in this bounded pass.",
+          "The exact contractual responsibility split between Mash Media Group Limited, the Event Production Show brand, Access All Areas and any production or venue partners is not fully disclosed publicly.",
+          "The registration, exhibitor-management and event-operations technology stack beyond the ASP.events website layer is unknown.",
+          "No public evidence establishes paid ticketing, payment processing, ticketing failure, attendee check-in complexity or a ticketing migration project.",
+          "No public evidence establishes an EGS discovery gap, fragmented audience journey, weak SEO, or dissatisfaction with the current digital presence.",
+          "No public evidence establishes ECC pain involving accreditation, workforce management, vendor coordination, production scheduling, multi-zone control or manual operational workflows.",
+          "No buyer status, qualification status, suppression status, competitor status, contact eligibility or outreach eligibility was assessed."
         ]
       },
       "companiesHouseSearch": {
         "outcome": "REGISTRAR_CONFIRMED",
         "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
+        "resultCount": 3
       },
       "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "MASH MEDIA GROUP LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "58142",
+            "73120",
+            "82301",
+            "82302"
+          ],
+          "accountsCategory": "unaudited-abridged",
+          "registeredRegion": "England"
+        }
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 5,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Charlotte",
+            "title": "Marketing Event Director",
+            "currentEmployer": "Mash Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+            "roleClassification": "event leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Lisa",
+            "title": "PA Show Sales Event Director",
+            "currentEmployer": "Mash Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+            "roleClassification": "event leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 2,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Dilara",
+            "title": "Operations Manager",
+            "currentEmployer": "Mash Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 3,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Ruth",
+            "title": "Operations Manager",
+            "currentEmployer": "Mash Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 4,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Mia",
+            "title": "Operations Manager",
+            "currentEmployer": "Mash Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 5,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "NOT_RUN"
       },
       "providerCalls": {
         "companiesHouse": {
@@ -679,7 +1044,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 3
       },
       "safety": {
         "guessedEmails": 0,
@@ -731,8 +1096,17 @@
       },
       "identities": {
         "event": "eCommerce Expo",
-        "organisation": "CloserStill Media",
-        "legalEntity": null,
+        "organisation": "CloserStill Media Limited",
+        "legalEntity": {
+          "legalCompanyName": "CLOSERSTILL MEDIA LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "82301"
+          ],
+          "accountsCategory": "audit-exemption-subsidiary",
+          "registeredRegion": "England"
+        },
         "venue": null,
         "operator": null,
         "sourcedPerson": null
@@ -745,7 +1119,83 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Christopher",
+          "title": "Event Director",
+          "currentEmployer": "CloserStill Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+          "roleClassification": "event leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Matthew",
+          "title": "Event Director",
+          "currentEmployer": "CloserStill Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+          "roleClassification": "event leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 2,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Adam",
+          "title": "Event Director",
+          "currentEmployer": "CloserStill Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+          "roleClassification": "event leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 3,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Robyn",
+          "title": "Event Director",
+          "currentEmployer": "CloserStill Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+          "roleClassification": "event leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 4,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Garry",
+          "title": "Event Director",
+          "currentEmployer": "CloserStill Media",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+          "roleClassification": "event leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 5,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "openAi": {
         "request": {
           "model": "gpt-5.6-luna",
@@ -760,82 +1210,259 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 31128,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 0,
+            "cached_tokens": 5960
           },
+          "output_tokens": 3882,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 914
+          },
+          "total_tokens": 35010
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 3,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 25168,
+          "cachedInputTokens": 5960,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3882,
+          "reasoningTokens": 914,
+          "modelCostUsd": 0.0098112,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.03,
+          "totalKnownCostUsd": 0.0398112
         },
         "enrichment": {
           "status": "SUCCEEDED",
           "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
+          "commercialOutcome": "PRODUCT_SIGNAL_FOUND",
           "commerciallyAdvanced": true
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "CloserStill Media",
-          "officialWebsite": "https://dry-run.example",
+          "canonicalOrganisationName": "CloserStill Media Limited",
+          "officialWebsite": "https://www.closerstillmedia.com/",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://dry-run.example",
+              "claim": "The eCommerce Expo website identifies the event as organised by CloserStill Media.",
+              "sourceUrl": "https://www.ecommerceexpo.co.uk/",
+              "confidence": "HIGH"
+            },
+            {
+              "claim": "CloserStill Media describes itself as a B2B events organiser operating more than 200 event brands across multiple sectors and countries.",
+              "sourceUrl": "https://www.closerstillmedia.com/",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "eCommerce Expo",
+              "relationship": "Event brand operated by or organised by CloserStill Media; it is the discovery signal rather than the primary organisation target.",
+              "website": "https://www.ecommerceexpo.co.uk/",
+              "confidence": "HIGH",
+              "evidence": [
+                "The event website states that eCommerce Expo is organised by CloserStill Media."
+              ]
+            },
+            {
+              "name": "Excel London",
+              "relationship": "Venue hosting eCommerce Expo 2026; venue hosting does not establish event ownership or organising responsibility.",
+              "website": "https://www.excel.london/",
+              "confidence": "HIGH",
+              "evidence": [
+                "Excel London’s official calendar lists eCommerce Expo 2026 for 23–24 September 2026."
+              ]
+            },
+            {
+              "name": "ASP Events Websites",
+              "relationship": "External event-website technology and services provider with a long-standing CloserStill partnership; not the primary event organiser.",
+              "website": "https://www.asp.events/",
+              "confidence": "HIGH",
+              "evidence": [
+                "ASP states that it designs, develops and supports websites across CloserStill’s event portfolio."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "The current eCommerce Expo website has an active agenda, exhibitor list, registration calls to action, venue information, FAQs and event content for the 2026 edition.",
+            "sourceUrl": "https://www.ecommerceexpo.co.uk/",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Current eCommerce Expo official website"
+          },
+          {
+            "product": "TICKETING",
+            "claim": "eCommerce Expo uses online registration for attendees, including a current Register Now flow for the 23–24 September 2026 event.",
+            "sourceUrl": "https://www.ecommerceexpo.co.uk/",
+            "evidenceCategory": "MANUAL_OPERATIONS",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": "Official eCommerce Expo registration flow"
+          },
+          {
+            "product": "TICKETING",
+            "claim": "The event FAQ states that registered visitors receive an email containing a barcode and visitor registration number, with badge printing available at the venue.",
+            "sourceUrl": "https://www.ecommerceexpo.co.uk/faq",
+            "evidenceCategory": "WORKFLOW_COMPLEXITY",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": "Online registration and onsite badge-printing workflow"
+          },
+          {
+            "product": "TICKETING",
+            "claim": "CloserStill’s event terms describe ticket bookings, badge scanning, session registration and registration kiosks for events held by CloserStill group members.",
+            "sourceUrl": "https://www.ecommerceexpo.co.uk/closerstill-event-terms-conditions",
+            "evidenceCategory": "WORKFLOW_COMPLEXITY",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": "CloserStill event registration and badge-scanning processes"
+          },
+          {
+            "product": "ECC",
+            "claim": "The official event site provides a detailed conference agenda, exhibitor directory, registration process, visitor FAQs and exhibitor-facing commercial workflows.",
+            "sourceUrl": "https://www.ecommerceexpo.co.uk/",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": "Official event website and exhibitor workflows"
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "The specific CloserStill group entity or subsidiary holding commercial responsibility for the 2026 eCommerce Expo contract is not publicly established beyond the group-level organiser attribution.",
+          "No public source establishes the current ticketing, CRM, event-app or badge-registration vendor stack for eCommerce Expo 2026 in full.",
+          "No public evidence establishes a current EventSuite procurement, migration, dissatisfaction, operational failure or budgeted project.",
+          "No public evidence establishes the internal buyer, decision-maker or contact eligibility.",
+          "The event website’s statement that it is powered by ASP establishes a website technology relationship, not ownership of CloserStill’s wider ticketing or event-operations stack.",
+          "No specific product pain is evidenced; the commercial interpretation remains a general-fit hypothesis rather than a qualified opportunity."
         ]
       },
       "companiesHouseSearch": {
         "outcome": "REGISTRAR_CONFIRMED",
         "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
+        "resultCount": 3
       },
       "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "CLOSERSTILL MEDIA LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "82301"
+          ],
+          "accountsCategory": "audit-exemption-subsidiary",
+          "registeredRegion": "England"
+        }
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 5,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Christopher",
+            "title": "Event Director",
+            "currentEmployer": "CloserStill Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+            "roleClassification": "event leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Matthew",
+            "title": "Event Director",
+            "currentEmployer": "CloserStill Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+            "roleClassification": "event leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 2,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Adam",
+            "title": "Event Director",
+            "currentEmployer": "CloserStill Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+            "roleClassification": "event leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 3,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Robyn",
+            "title": "Event Director",
+            "currentEmployer": "CloserStill Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+            "roleClassification": "event leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 4,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Garry",
+            "title": "Event Director",
+            "currentEmployer": "CloserStill Media",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+            "roleClassification": "event leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 5,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "NOT_RUN"
       },
       "providerCalls": {
         "companiesHouse": {
@@ -852,7 +1479,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 3
       },
       "safety": {
         "guessedEmails": 0,
@@ -910,8 +1537,19 @@
       },
       "identities": {
         "event": null,
-        "organisation": "Farnham Maltings Association",
-        "legalEntity": null,
+        "organisation": "Farnham Maltings Association Limited",
+        "legalEntity": {
+          "legalCompanyName": "FARNHAM MALTINGS ASSOCIATION LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "90040",
+            "91020",
+            "91030"
+          ],
+          "accountsCategory": "full",
+          "registeredRegion": "Surrey"
+        },
         "venue": null,
         "operator": null,
         "sourcedPerson": null
@@ -928,12 +1566,23 @@
       "companiesHouseSearch": {
         "outcome": "REGISTRAR_CONFIRMED",
         "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
+        "resultCount": 3
       },
       "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "FARNHAM MALTINGS ASSOCIATION LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "90040",
+            "91020",
+            "91030"
+          ],
+          "accountsCategory": "full",
+          "registeredRegion": "Surrey"
+        }
       },
       "openAi": {
         "request": {
@@ -949,34 +1598,42 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 31024,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 854,
+            "cached_tokens": 5284
           },
+          "output_tokens": 3733,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 839
+          },
+          "total_tokens": 34757
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 3,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 25740,
+          "cachedInputTokens": 5284,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3733,
+          "reasoningTokens": 839,
+          "modelCostUsd": 0.009733279999999999,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.03,
+          "totalKnownCostUsd": 0.039733279999999996
         },
         "enrichment": {
           "status": "SUCCEEDED",
@@ -986,22 +1643,65 @@
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "Farnham Maltings Association",
+          "canonicalOrganisationName": "Farnham Maltings Association Limited",
           "officialWebsite": "https://farnhammaltings.com",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://farnhammaltings.com",
+              "claim": "The organisation's authoritative website describes Farnham Maltings as a cultural organisation and arts and cultural centre presenting performance, craft showcases and participation work, and states that it runs the Museum of Farnham.",
+              "sourceUrl": "https://farnhammaltings.com/about/",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "Museum of Farnham",
+              "relationship": "Run by Farnham Maltings Association Limited according to the organisation's official website.",
+              "website": "https://farnhammaltings.com/museum",
+              "confidence": "HIGH",
+              "evidence": [
+                "The official Farnham Maltings about page states that the organisation has cared for the Museum of Farnham for over ten years and labels the museum as run by the Maltings."
+              ]
+            },
+            {
+              "name": "Farnham Maltings Trading Limited",
+              "relationship": "Related active company controlled by Farnham Maltings Association Limited; legal-company relationship only.",
+              "website": null,
+              "confidence": "MEDIUM",
+              "evidence": [
+                "A Companies House-derived company record identifies Farnham Maltings Trading Limited as a company controlled by Farnham Maltings Association Limited. This does not establish separate website, operating responsibility or product relevance for the primary target.",
+                "https://clarity-project.co.uk/company/00954753"
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "Counter: Farnham Maltings has a mature owned digital presence with a central What's On programme, event filtering, season-brochure access and online booking flows. This counters any assumption that it lacks a public event-programming presence.",
+            "sourceUrl": "https://farnhammaltings.com/whats-on",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": null
+          },
+          {
+            "product": "TICKETING",
+            "claim": "Counter: Farnham Maltings publicly documents a functioning box office, online ticket sales, e-ticket delivery, refund and exchange policies, membership benefits linked to ticketing, and an announced transition to all-inclusive ticket pricing for events from 1 September 2026.",
+            "sourceUrl": "https://farnhammaltings.com/visit-us/booking-tickets",
+            "evidenceCategory": "MIGRATION_CHANGE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Ticketsolve"
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "The authoritative sources reviewed do not establish whether Farnham Maltings is evaluating a replacement or expansion of Ticketsolve.",
+          "The specific commercial owner or decision-maker for EGS, TICKETING or ECC is not established and was not researched under this handoff.",
+          "No sourced evidence establishes an unmet EventSuite coordination requirement, disconnected event pages, provider fragmentation or current manual failure beyond the historical workflow description in the Ticketsolve case study.",
+          "The exact separation of responsibilities between Farnham Maltings Association Limited, Farnham Maltings Trading Limited and any individual event partners is not fully evidenced in the reviewed sources.",
+          "Venue hosting or external venue hire does not prove that Farnham Maltings organises or owns every event held at the site."
         ]
       },
       "apollo": {
@@ -1031,7 +1731,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 3
       },
       "safety": {
         "guessedEmails": 0,
@@ -1090,8 +1790,17 @@
       },
       "identities": {
         "event": "World Travel Market London",
-        "organisation": "Hyve Group",
-        "legalEntity": null,
+        "organisation": "Hyve Group Limited",
+        "legalEntity": {
+          "legalCompanyName": "HYVE GROUP LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "70100"
+          ],
+          "accountsCategory": "audit-exemption-subsidiary",
+          "registeredRegion": "England"
+        },
         "venue": null,
         "operator": null,
         "sourcedPerson": null
@@ -1104,16 +1813,101 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Karen",
+          "title": "Event Operations Director",
+          "currentEmployer": "Hyve Group",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Rifat",
+          "title": "Event Operations Manager",
+          "currentEmployer": "Hyve Group",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 2,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Sally",
+          "title": "Senior Event Operations Manager",
+          "currentEmployer": "Hyve Group",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 3,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Lucia",
+          "title": "Senior Event Operations Manager",
+          "currentEmployer": "Hyve Group",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 4,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Olivia",
+          "title": "Senior Event Operations Manager",
+          "currentEmployer": "Hyve Group",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 5,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "companiesHouseSearch": {
         "outcome": "REGISTRAR_CONFIRMED",
         "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
+        "resultCount": 3
       },
       "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "HYVE GROUP LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "70100"
+          ],
+          "accountsCategory": "audit-exemption-subsidiary",
+          "registeredRegion": "England"
+        }
       },
       "openAi": {
         "request": {
@@ -1129,72 +1923,266 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 28376,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 820,
+            "cached_tokens": 5284
           },
+          "output_tokens": 3958,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 837
+          },
+          "total_tokens": 32334
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 3,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 23092,
+          "cachedInputTokens": 5284,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3958,
+          "reasoningTokens": 837,
+          "modelCostUsd": 0.00947368,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.03,
+          "totalKnownCostUsd": 0.03947368
         },
         "enrichment": {
           "status": "SUCCEEDED",
           "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
+          "commercialOutcome": "PRODUCT_SIGNAL_FOUND",
           "commerciallyAdvanced": true
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "Hyve Group",
+          "canonicalOrganisationName": "Hyve Group Limited",
           "officialWebsite": "https://hyve.group",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "claim": "Hyve’s official website identifies the business as Hyve and describes it as operating industry events and tech-enabled products.",
               "sourceUrl": "https://hyve.group",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "World Travel Market London",
+              "relationship": "Discovery signal/event brand associated with the original candidate, but current organiser responsibility is not attributed to Hyve in the retrieved official evidence.",
+              "website": "https://www.wtm.com/london/en-gb.html",
+              "confidence": "MEDIUM",
+              "evidence": [
+                "The official WTM London website confirms an active 2026 event.",
+                "The registration flow references Reed Exhibitions Limited.",
+                "The retrieved Hyve portfolio page did not show World Travel Market London among the current listed brands."
+              ]
+            },
+            {
+              "name": "RX Global / Reed Exhibitions Limited",
+              "relationship": "Current organiser or operating organisation indicated for World Travel Market London registration; not the primary Hyve target.",
+              "website": "https://register-london.wtm.com/",
+              "confidence": "HIGH",
+              "evidence": [
+                "The official WTM registration flow states that World Travel Market London and Reed Exhibitions Limited would contact registrants.",
+                "The WTM registration site provides the current registration and ticketing workflow."
+              ]
+            },
+            {
+              "name": "ExCeL London",
+              "relationship": "Venue for World Travel Market London 2026; venue hosting does not establish event ownership or organisation.",
+              "website": "https://www.excel.london/",
+              "confidence": "HIGH",
+              "evidence": [
+                "The official WTM site lists ExCeL London as the 3–5 November 2026 venue."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "Hyve describes year-round commercial formats around events, including curated meetings, private dinners, product showcases and digital membership, indicating an existing portfolio-growth and engagement model.",
+            "sourceUrl": "https://hyve.group",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Hyve proprietary data and tech-enabled products"
+          },
+          {
+            "product": "EGS",
+            "claim": "Hyve’s portfolio page states that event brands are extended through curated introductions, peer-to-peer networking, advisory and digital membership.",
+            "sourceUrl": "https://hyve.group/events/our-brands/",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Hyve-owned or Hyve-operated event extensions; specific platform vendor unknown"
+          },
+          {
+            "product": "EGS",
+            "claim": "Hyve’s current public positioning presents a mature, data-led commercial platform around its event brands rather than a basic standalone event presence.",
+            "sourceUrl": "https://hyve.group",
+            "evidenceCategory": "DISCOVERY_GAP",
+            "confidence": "MEDIUM",
+            "polarity": "COUNTER",
+            "existingSystem": "Hyve tech-enabled products; exact systems and internal workflows unknown"
+          },
+          {
+            "product": "TICKETING",
+            "claim": "Hyve’s official attendance terms describe registration, fees, payment processing, cancellation, badge substitution and ticket transfers through an event organiser platform.",
+            "sourceUrl": "https://hyve.group/terms-of-attendance/",
+            "evidenceCategory": "MANUAL_OPERATIONS",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": "Event Organiser’s platform; vendor and scope unknown"
+          },
+          {
+            "product": "TICKETING",
+            "claim": "The same terms show that Hyve-associated event operations include structured registration and attendee-data processing, including business email, job title and telephone information.",
+            "sourceUrl": "https://hyve.group/terms-of-attendance/",
+            "evidenceCategory": "WORKFLOW_COMPLEXITY",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": "Event registration platform; vendor unknown"
+          },
+          {
+            "product": "ECC",
+            "claim": "Hyve reports 31 events and 18 brands across multiple strategic verticals, creating a confirmed multi-event portfolio requiring portfolio-level operational coordination.",
+            "sourceUrl": "https://hyve.group",
+            "evidenceCategory": "MULTI_ZONE",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          },
+          {
+            "product": "ECC",
+            "claim": "Hyve states that it has invested in a modern technology stack and operates a centralised model across its event portfolio.",
+            "sourceUrl": "https://hyve.group/news/2026/2025-double-digit-growth-and-on-track-to-deliver-go27-a-year-early/",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Hyve modern technology stack and centralised operating model"
+          },
+          {
+            "product": "ECC",
+            "claim": "Hyve’s Shoptalk and Fintech Meetup examples show internally operated matchmaking and meeting programmes at significant scale, including 50,000 one-to-one meetings at Shoptalk in 2023 and more than 25,000 planned meetings for Fintech Meetup Europe 2026.",
+            "sourceUrl": "https://hyve.group/news/2023/a-symphony-of-retail/",
+            "evidenceCategory": "PRODUCTION_SCHEDULING",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Hyve Meetup and event technology platforms"
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "The retrieved evidence does not establish whether Hyve Group Limited is the trading entity responsible for each individual Hyve event brand.",
+          "The current legal entity or operating company responsible for specific Hyve events is not established beyond the group-level identity.",
+          "The specific vendors, architecture and ownership boundaries of Hyve’s registration, ticketing, matchmaking, CRM, event-app and operational systems are unknown.",
+          "No authoritative evidence establishes a current EventSuite replacement, procurement, migration or vendor-selection project at Hyve.",
+          "No sourced operational pain, manual-workflow failure, disconnected-event-page problem or provider-fragmentation problem was found for Hyve.",
+          "World Travel Market London’s current organiser responsibility appears linked to Reed Exhibitions Limited/RX Global in the retrieved registration evidence; the exact corporate relationship, if any, to Hyve is not established.",
+          "No contact research, person resolution, account qualification, suppression, outreach or buyer-eligibility decision was performed."
         ]
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 5,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Karen",
+            "title": "Event Operations Director",
+            "currentEmployer": "Hyve Group",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Rifat",
+            "title": "Event Operations Manager",
+            "currentEmployer": "Hyve Group",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 2,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Sally",
+            "title": "Senior Event Operations Manager",
+            "currentEmployer": "Hyve Group",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 3,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Lucia",
+            "title": "Senior Event Operations Manager",
+            "currentEmployer": "Hyve Group",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 4,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Olivia",
+            "title": "Senior Event Operations Manager",
+            "currentEmployer": "Hyve Group",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 5,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "PRODUCT_SIGNAL_FOUND"
       },
       "providerCalls": {
         "companiesHouse": {
@@ -1211,7 +2199,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 3
       },
       "safety": {
         "guessedEmails": 0,
@@ -1242,13 +2230,11 @@
       ],
       "providerSequence": [
         "COMPANIES_HOUSE_SEARCH",
-        "COMPANIES_HOUSE_PROFILE",
         "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
         "APOLLO_PEOPLE_SEARCH"
       ],
       "stages": [
         "COMPANIES_HOUSE_SEARCH",
-        "COMPANIES_HOUSE_PROFILE",
         "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
         "EVENTSUITE_FIT",
         "APOLLO_PEOPLE_SEARCH"
@@ -1276,16 +2262,27 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Matt",
+          "title": "Head of Events & Public Engagement",
+          "currentEmployer": "The British Academy",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+          "roleClassification": "event leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "companiesHouseSearch": {
-        "outcome": "REGISTRAR_CONFIRMED",
-        "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
-      },
-      "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_AMBIGUOUS",
+        "reason": "Search results exist but no exact active legal-company match was established.",
+        "resultCount": 3
       },
       "openAi": {
         "request": {
@@ -1301,34 +2298,43 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 29023,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 0,
+            "cached_tokens": 5970
           },
+          "output_tokens": 3815,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 1341
+          },
+          "total_tokens": 32838
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 3,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 23053,
+          "cachedInputTokens": 5970,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3815,
+          "reasoningTokens": 1341,
+          "modelCostUsd": 0.009308,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.03,
+          "totalKnownCostUsd": 0.039307999999999996
         },
         "enrichment": {
           "status": "SUCCEEDED",
@@ -1339,28 +2345,80 @@
         "organisationResolution": {
           "status": "RESOLVED",
           "canonicalOrganisationName": "The British Academy",
-          "officialWebsite": "https://thebritishacademy.ac.uk",
+          "officialWebsite": "https://www.thebritishacademy.ac.uk",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://thebritishacademy.ac.uk",
+              "claim": "The official website presents the Academy’s own events programme, including public events and the annual Summer Showcase / Ideas Festival.",
+              "sourceUrl": "https://www.thebritishacademy.ac.uk/events/",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "Clio Enterprises Ltd",
+              "relationship": "Subsidiary of The British Academy operating the venue-hire business and venue-sales function",
+              "website": null,
+              "confidence": "HIGH",
+              "evidence": [
+                "The Academy’s official vacancy page identifies Clio Enterprises Ltd as a subsidiary of The British Academy and describes its venue-hire business."
+              ]
+            },
+            {
+              "name": "British International Research Institutes",
+              "relationship": "Research-institute network supported and hosted by The British Academy; individual institutes remain distinct organisations",
+              "website": "https://www.thebritishacademy.ac.uk/international/research-institutes/",
+              "confidence": "HIGH",
+              "evidence": [
+                "The Academy states that it supports and hosts the British International Research Institutes.",
+                "The Academy’s historical material describes the institutes as autonomous bodies with their own events programmes."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "TICKETING",
+            "claim": "The Academy documents established registration, waiting-list, ticket allocation and event-attendance procedures. This is counter-evidence to an assumption that ticketing operations are absent or wholly manual.",
+            "sourceUrl": "https://www.thebritishacademy.ac.uk/events/events-faq/",
+            "evidenceCategory": "MANUAL_OPERATIONS",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "TicketTailor and documented event procedures"
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "The legal entity number and exact Companies House identity were not supplied or independently validated in this handoff.",
+          "The precise trading relationship between The British Academy, Clio Enterprises Ltd and any venue-hire contracts is not fully documented on the reviewed pages.",
+          "No authoritative evidence establishes an EGS-specific pain point, buying project, budget, qualification status or EventSuite requirement.",
+          "No authoritative evidence establishes a ticketing-system deficiency; TicketTailor and documented procedures are already in use.",
+          "No authoritative evidence establishes that the British Academy’s existing venue or event-management systems are disconnected from one another.",
+          "The identity of any current decision-maker or buyer was not researched, as required by the operating contract.",
+          "No contact details, email patterns or outreach eligibility were researched or inferred."
         ]
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 1,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Matt",
+            "title": "Head of Events & Public Engagement",
+            "currentEmployer": "The British Academy",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_LEADERSHIP",
+            "roleClassification": "event leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
@@ -1371,7 +2429,7 @@
       "providerCalls": {
         "companiesHouse": {
           "search": 1,
-          "profile": 1,
+          "profile": 0,
           "officers": 0
         },
         "googlePlaces": {
@@ -1383,7 +2441,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 3
       },
       "safety": {
         "guessedEmails": 0,
@@ -1442,7 +2500,16 @@
       "identities": {
         "event": null,
         "organisation": "The Piece Hall Trust",
-        "legalEntity": null,
+        "legalEntity": {
+          "legalCompanyName": "THE PIECE HALL TRUST",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "91030"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": "West Yorkshire"
+        },
         "venue": null,
         "operator": null,
         "sourcedPerson": {
@@ -1459,16 +2526,41 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Andy",
+          "title": "Head of Operations",
+          "currentEmployer": "The Piece Hall Trust",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "companiesHouseSearch": {
         "outcome": "REGISTRAR_CONFIRMED",
         "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
+        "resultCount": 3
       },
       "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "THE PIECE HALL TRUST",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "91030"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": "West Yorkshire"
+        }
       },
       "openAi": {
         "request": {
@@ -1484,34 +2576,40 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 22737,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 843,
+            "cached_tokens": 5284
           },
+          "output_tokens": 3324,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 495
+          },
+          "total_tokens": 26061
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 2,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 17453,
+          "cachedInputTokens": 5284,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3324,
+          "reasoningTokens": 495,
+          "modelCostUsd": 0.00758508,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.02,
+          "totalKnownCostUsd": 0.02758508
         },
         "enrichment": {
           "status": "SUCCEEDED",
@@ -1522,28 +2620,105 @@
         "organisationResolution": {
           "status": "RESOLVED",
           "canonicalOrganisationName": "The Piece Hall Trust",
-          "officialWebsite": "https://dry-run.example",
+          "officialWebsite": "https://www.thepiecehall.co.uk",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://dry-run.example",
+              "claim": "Companies House identifies THE PIECE HALL TRUST as an active company, number 08906735, with registered office at The Piece Hall, Halifax, and SIC 91030 for operating historical sites and similar visitor attractions.",
+              "sourceUrl": "https://find-and-update.company-information.service.gov.uk/company/08906735",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "Piece Hall Enterprises Ltd",
+              "relationship": "Wholly owned subsidiary of The Piece Hall Trust through which the Trust states its commercial trading activities are conducted.",
+              "website": "https://www.thepiecehall.co.uk",
+              "confidence": "HIGH",
+              "evidence": [
+                "The Trust's official page identifies Piece Hall Enterprises Ltd as its wholly owned subsidiary and gives company number 09761837."
+              ]
+            },
+            {
+              "name": "Cuffe and Taylor",
+              "relationship": "Live music promoter and co-promoter with The Piece Hall Trust under an announced five-year programming agreement beginning in 2022.",
+              "website": "https://cuffeandtaylor.com",
+              "confidence": "HIGH",
+              "evidence": [
+                "The Piece Hall Trust announced that Cuffe and Taylor secured an exclusive agreement to programme live music events and co-promote headline shows with the Trust."
+              ]
+            },
+            {
+              "name": "Live Nation Entertainment",
+              "relationship": "Parent/group relationship for Cuffe and Taylor and provider ecosystem connected with live concert promotion and ticketing at The Piece Hall.",
+              "website": "https://www.livenation.com",
+              "confidence": "MEDIUM",
+              "evidence": [
+                "The Trust describes Cuffe and Taylor as part of Live Nation Entertainment; current Live Nation event pages list events at The Piece Hall."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "The Piece Hall operates a mature official digital destination with an active events calendar, visitor information, heritage, culture, hospitality, membership and private-hire content.",
+            "sourceUrl": "https://www.thepiecehall.co.uk/",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "The Piece Hall's owned website and event-content infrastructure"
+          },
+          {
+            "product": "EGS",
+            "claim": "The official site exposes multiple programme areas, including culture, music, heritage, community, markets, workshops and private hire, indicating an established owned digital presence rather than an obvious discovery or event-page gap.",
+            "sourceUrl": "https://www.thepiecehall.co.uk/culture/",
+            "evidenceCategory": "DISCOVERY_GAP",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "The Piece Hall official website"
+          },
+          {
+            "product": "EGS",
+            "claim": "The official private-hire page provides a dedicated event-enquiry route and commercial contact channel for organisations seeking to host events at the venue.",
+            "sourceUrl": "https://www.thepiecehall.co.uk/private-hire/",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Official private-hire website workflow"
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "No authoritative evidence was found establishing that Aaron Casserly Stewart currently owns or controls the commercial budget, procurement process or technology decisions for The Piece Hall Trust.",
+          "No evidence was found of an EventSuite implementation, evaluation, replacement project or active procurement process.",
+          "No sourced operational pain, manual workflow, fragmented internal system, event-page duplication or coordination failure was found for EGS, TICKETING or ECC.",
+          "The exact contractual scope and current renewal status of the Cuffe and Taylor five-year agreement were not established from the available official sources.",
+          "The website relationship between The Piece Hall Trust and Piece Hall Enterprises Ltd is established, but the specific division of responsibility for ticketing, private hire, hospitality and event operations remains partly unknown.",
+          "Current ticketing evidence confirms provider usage but does not establish whether all event categories, private-hire events or non-concert activities use the same provider."
         ]
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 1,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Andy",
+            "title": "Head of Operations",
+            "currentEmployer": "The Piece Hall Trust",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
@@ -1566,7 +2741,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 2
       },
       "safety": {
         "guessedEmails": 0,
@@ -1617,8 +2792,17 @@
       },
       "identities": {
         "event": null,
-        "organisation": "Scottish Event Campus",
-        "legalEntity": null,
+        "organisation": "Scottish Event Campus Limited",
+        "legalEntity": {
+          "legalCompanyName": "SCOTTISH EVENT CAMPUS LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "68202"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": null
+        },
         "venue": null,
         "operator": null,
         "sourcedPerson": {
@@ -1635,16 +2819,101 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Julie",
+          "title": "Head of Ticketing - Live Entertainment",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+          "roleClassification": "ticketing or box office",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Beth",
+          "title": "Ticketing Manager",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+          "roleClassification": "ticketing or box office",
+          "roleRankingScore": 80,
+          "deterministicRank": 2,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Gemma",
+          "title": "Ticketing Manager",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+          "roleClassification": "ticketing or box office",
+          "roleRankingScore": 80,
+          "deterministicRank": 3,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Rebecca",
+          "title": "Live Entertainment Ticketing Manager",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+          "roleClassification": "ticketing or box office",
+          "roleRankingScore": 80,
+          "deterministicRank": 4,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Hannah",
+          "title": "Sales & Business Development Manager",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+          "roleClassification": "commercial leadership",
+          "roleRankingScore": 80,
+          "deterministicRank": 5,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "companiesHouseSearch": {
         "outcome": "REGISTRAR_CONFIRMED",
         "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
+        "resultCount": 3
       },
       "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "SCOTTISH EVENT CAMPUS LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "68202"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": null
+        }
       },
       "openAi": {
         "request": {
@@ -1660,72 +2929,225 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 28714,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 841,
+            "cached_tokens": 5284
           },
+          "output_tokens": 3688,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 1101
+          },
+          "total_tokens": 32402
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 3,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 23430,
+          "cachedInputTokens": 5284,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3688,
+          "reasoningTokens": 1101,
+          "modelCostUsd": 0.00921728,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.03,
+          "totalKnownCostUsd": 0.03921728
         },
         "enrichment": {
           "status": "SUCCEEDED",
           "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
+          "commercialOutcome": "PRODUCT_SIGNAL_FOUND",
           "commerciallyAdvanced": true
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "Scottish Event Campus",
-          "officialWebsite": "https://dry-run.example",
+          "canonicalOrganisationName": "Scottish Event Campus Limited",
+          "officialWebsite": "https://www.sec.co.uk",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://dry-run.example",
+              "claim": "Scottish Event Campus is owned and operated by Scottish Event Campus Limited, company number SC082081.",
+              "sourceUrl": "https://www.sec.co.uk/about-the-sec",
+              "confidence": "HIGH"
+            },
+            {
+              "claim": "Scottish Event Campus Limited is an active UK private limited company whose SIC code is letting and operating of conference and exhibition centres.",
+              "sourceUrl": "https://find-and-update.company-information.service.gov.uk/company/SC082081",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "Glasgow City Council",
+              "relationship": "Majority shareholder and person with significant control of Scottish Event Campus Limited; not the primary trading target for this signal.",
+              "website": "https://www.glasgow.gov.uk",
+              "confidence": "HIGH",
+              "evidence": [
+                "The SEC states that Glasgow City Council owns 90.86% of Scottish Event Campus Limited.",
+                "Companies House records Glasgow City Council as the active person with significant control with 75% or more share ownership."
+              ]
+            },
+            {
+              "name": "Ticketmaster",
+              "relationship": "Official ticketing services supplier and ticketing partner for SEC live-entertainment activity; existing provider, not the primary organisation.",
+              "website": "https://www.ticketmaster.co.uk",
+              "confidence": "HIGH",
+              "evidence": [
+                "SEC states that Ticketmaster is the venue's official ticketing partner and services supplier.",
+                "SEC states that it continues to operate venue box-office and related ticketing functions alongside Ticketmaster."
+              ]
+            },
+            {
+              "name": "OVO Hydro",
+              "relationship": "Venue operated within the Scottish Event Campus portfolio; venue brand, not a separate resolved organisation for this candidate.",
+              "website": "https://www.ovohydro.com",
+              "confidence": "HIGH",
+              "evidence": [
+                "SEC states that Scottish Event Campus Limited operates the OVO Hydro, SEC Armadillo and SEC Centre."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "The SEC maintains a mature owned digital presence with dedicated event-management resources, event-space information, event services, booking information, event listings and operational documentation. This counters a claim of an obvious EventSuite-style digital-presence gap.",
+            "sourceUrl": "https://www.sec.co.uk/organise-an-event/your-event-management",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": null
+          },
+          {
+            "product": "TICKETING",
+            "claim": "SEC states that it continues to own and operate a venue box office, limited contact centre and account-management team while Ticketmaster provides the retail ticketing system. This indicates an established provider-plus-internal-operations model rather than an evidenced absence of ticketing capability.",
+            "sourceUrl": "https://www.sec.co.uk/fulfilment",
+            "evidenceCategory": "MANUAL_OPERATIONS",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Ticketmaster"
+          },
+          {
+            "product": "ECC",
+            "claim": "SEC operates multiple venues and publishes current events across those venues, including major sporting, entertainment and conference activity. This supports a bounded inference of substantial operational coordination and potential multi-venue command requirements, but not a sourced ECC buying need.",
+            "sourceUrl": "https://www.sec.co.uk/whats-on",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "Ruth Bailey's exact internal responsibilities at SEC beyond the evidenced Independent Non-Executive Director role are not established.",
+          "The person-first signal does not establish that Ruth Bailey owns or organises SEC events.",
+          "No authoritative evidence identifies the SEC's internal event-governance, accreditation, workforce-management, production-scheduling or command-and-control software systems.",
+          "No current evidence establishes a ticketing replacement, migration, dissatisfaction or provider-review opportunity; Ticketmaster is an evidenced existing system.",
+          "No authoritative evidence establishes an ECC or EGS procurement gap, buyer mandate, budget, timeline or active project.",
+          "The SEC's ownership relationship with Glasgow City Council does not establish that Glasgow City Council is the commercial operator or primary target for this signal."
         ]
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 5,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Julie",
+            "title": "Head of Ticketing - Live Entertainment",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+            "roleClassification": "ticketing or box office",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Beth",
+            "title": "Ticketing Manager",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+            "roleClassification": "ticketing or box office",
+            "roleRankingScore": 80,
+            "deterministicRank": 2,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Gemma",
+            "title": "Ticketing Manager",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+            "roleClassification": "ticketing or box office",
+            "roleRankingScore": 80,
+            "deterministicRank": 3,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Rebecca",
+            "title": "Live Entertainment Ticketing Manager",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+            "roleClassification": "ticketing or box office",
+            "roleRankingScore": 80,
+            "deterministicRank": 4,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Hannah",
+            "title": "Sales & Business Development Manager",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+            "roleClassification": "commercial leadership",
+            "roleRankingScore": 80,
+            "deterministicRank": 5,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "PRODUCT_SIGNAL_FOUND"
       },
       "providerCalls": {
         "companiesHouse": {
@@ -1742,7 +3164,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 3
       },
       "safety": {
         "guessedEmails": 0,
@@ -1773,13 +3195,11 @@
       ],
       "providerSequence": [
         "COMPANIES_HOUSE_SEARCH",
-        "COMPANIES_HOUSE_PROFILE",
         "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
         "APOLLO_PEOPLE_SEARCH"
       ],
       "stages": [
         "COMPANIES_HOUSE_SEARCH",
-        "COMPANIES_HOUSE_PROFILE",
         "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
         "EVENTSUITE_FIT",
         "APOLLO_PEOPLE_SEARCH"
@@ -1793,7 +3213,7 @@
       },
       "identities": {
         "event": null,
-        "organisation": "ExCeL London",
+        "organisation": "London International Exhibition Centre plc (trading as ExCeL London)",
         "legalEntity": null,
         "venue": null,
         "operator": null,
@@ -1811,16 +3231,87 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Nick",
+          "title": "Head of Business Development",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+          "roleClassification": "commercial leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Ian",
+          "title": "Venue Operations Manager",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 2,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Naomi",
+          "title": "Event Operations Manager",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 3,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Saif",
+          "title": "Venue Manager",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_VENUE_OPERATIONS",
+          "roleClassification": "venue operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 4,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Diego",
+          "title": "Contracts & Commercial Manager",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+          "roleClassification": "commercial leadership",
+          "roleRankingScore": 80,
+          "deterministicRank": 5,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "companiesHouseSearch": {
-        "outcome": "REGISTRAR_CONFIRMED",
-        "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
-      },
-      "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_AMBIGUOUS",
+        "reason": "More than one credible Companies House match remains; profile and officer retrieval are blocked.",
+        "resultCount": 3
       },
       "openAi": {
         "request": {
@@ -1836,77 +3327,205 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 32173,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 704,
+            "cached_tokens": 5284
           },
+          "output_tokens": 3583,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 979
+          },
+          "total_tokens": 35756
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 4,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 26889,
+          "cachedInputTokens": 5284,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3583,
+          "reasoningTokens": 979,
+          "modelCostUsd": 0.00978308,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.04,
+          "totalKnownCostUsd": 0.04978308
         },
         "enrichment": {
           "status": "SUCCEEDED",
           "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
+          "commercialOutcome": "PRODUCT_SIGNAL_FOUND",
           "commerciallyAdvanced": true
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "ExCeL London",
-          "officialWebsite": "https://dry-run.example",
+          "canonicalOrganisationName": "London International Exhibition Centre plc (trading as ExCeL London)",
+          "officialWebsite": "https://www.excel.london",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://dry-run.example",
+              "claim": "ExCeL London’s official website identifies the venue as Excel London and provides its operating venue-hire and event-services presence.",
+              "sourceUrl": "https://www.excel.london/contact-us",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "ADNEC Group",
+              "relationship": "Owner or wider corporate group identified by ExCeL London’s sustainability reporting; not promoted as the primary commercial target.",
+              "website": null,
+              "confidence": "HIGH",
+              "evidence": [
+                "ExCeL London’s sustainability report states that Excel London is owned by the Abu Dhabi-based ADNEC Group. Source: https://www.excel.london/uploads/excel-london-sustainability-report-2023-%28final%29.pdf"
+              ]
+            },
+            {
+              "name": "Tom Edwards",
+              "relationship": "Original person-level discovery signal associated with ExCeL London; not treated as an organisation or event owner.",
+              "website": null,
+              "confidence": "MEDIUM",
+              "evidence": [
+                "The supplied discovery fact cites an ExCeL London leadership article associating Tom Edwards with venue services. Current role responsibility was not independently revalidated in this handoff."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "The official site presents a mature, detailed owned digital presence covering organiser journeys, venue spaces, service categories, contacts and exhibitor workflows.",
+            "sourceUrl": "https://www.excel.london/corporates",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Official ExCeL London website and associated service pages."
+          },
+          {
+            "product": "EGS",
+            "claim": "The evidence shows operational breadth and coordination requirements but does not identify a specific process gap, disconnected workflow or migration requirement that would establish EventSuite need.",
+            "sourceUrl": "https://www.excel.london/organiser/event-services",
+            "evidenceCategory": "DISCOVERY_GAP",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": null
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "Tom Edwards’s current employment and responsibility were not independently revalidated during this bounded handoff.",
+          "The exact operating relationship between London International Exhibition Centre plc and ADNEC Group was not expanded beyond the official statement that ADNEC Group owns ExCeL London.",
+          "No evidence was found identifying ExCeL London as the organiser or ticketing owner for specific hosted events.",
+          "No authoritative evidence was found of ExCeL London’s current internal EGS, ticketing or ECC software stack beyond its official website, webshop, in-house teams and partner workflows.",
+          "No sourced commercial pain, procurement activity, migration programme, buyer status or EventSuite evaluation was established."
         ]
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 5,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Nick",
+            "title": "Head of Business Development",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+            "roleClassification": "commercial leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Ian",
+            "title": "Venue Operations Manager",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 2,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Naomi",
+            "title": "Event Operations Manager",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 3,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Saif",
+            "title": "Venue Manager",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_VENUE_OPERATIONS",
+            "roleClassification": "venue operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 4,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Diego",
+            "title": "Contracts & Commercial Manager",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+            "roleClassification": "commercial leadership",
+            "roleRankingScore": 80,
+            "deterministicRank": 5,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "PRODUCT_SIGNAL_FOUND"
       },
       "providerCalls": {
         "companiesHouse": {
           "search": 1,
-          "profile": 1,
+          "profile": 0,
           "officers": 0
         },
         "googlePlaces": {
@@ -1918,7 +3537,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 4
       },
       "safety": {
         "guessedEmails": 0,
@@ -1978,10 +3597,19 @@
       },
       "identities": {
         "event": null,
-        "organisation": "The Piece Hall",
-        "legalEntity": null,
+        "organisation": "The Piece Hall Trust",
+        "legalEntity": {
+          "legalCompanyName": "THE PIECE HALL TRUST",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "91030"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": "West Yorkshire"
+        },
         "venue": "The Piece Hall",
-        "operator": "The Piece Hall",
+        "operator": "The Piece Hall Trust",
         "sourcedPerson": null
       },
       "conflicts": [],
@@ -1992,7 +3620,23 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Andy",
+          "title": "Head of Operations",
+          "currentEmployer": "The Piece Hall Trust",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "googlePlaces": {
         "telemetry": [
           {
@@ -2008,8 +3652,8 @@
         ],
         "identityEvidenceFacts": [
           {
-            "claim": "Google Places identity evidence lists The Piece Hall as the target venue at London, United Kingdom. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
-            "sourceUrl": "https://places.googleapis.com/v1/places/dry-place",
+            "claim": "Google Places identity evidence lists The Piece Hall as the target venue at Blackledge, Halifax HX1 1RE, UK. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
+            "sourceUrl": "https://places.googleapis.com/v1/places/ChIJ___TCADoe0gRXpc0bk-f2Mw",
             "confidence": "HIGH"
           }
         ]
@@ -2028,82 +3672,162 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 22701,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 785,
+            "cached_tokens": 5284
           },
+          "output_tokens": 3392,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 818
+          },
+          "total_tokens": 26093
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 2,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 17417,
+          "cachedInputTokens": 5284,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3392,
+          "reasoningTokens": 818,
+          "modelCostUsd": 0.00765948,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.02,
+          "totalKnownCostUsd": 0.02765948
         },
         "enrichment": {
           "status": "SUCCEEDED",
           "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
+          "commercialOutcome": "PRODUCT_SIGNAL_FOUND",
           "commerciallyAdvanced": true
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "The Piece Hall",
-          "officialWebsite": "https://piecehall.co.uk",
+          "canonicalOrganisationName": "The Piece Hall Trust",
+          "officialWebsite": "https://www.thepiecehall.co.uk",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://piecehall.co.uk",
+              "claim": "The Piece Hall Trust is responsible for operating The Piece Hall.",
+              "sourceUrl": "https://www.thepiecehall.co.uk/the-trust/",
+              "confidence": "HIGH"
+            },
+            {
+              "claim": "The Piece Hall Trust operates the historic venue and delivers public, cultural, community and event activity through the site.",
+              "sourceUrl": "https://www.thepiecehall.co.uk/the-project/",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "Piece Hall Enterprises Ltd",
+              "relationship": "Wholly owned subsidiary through which The Piece Hall Trust conducts commercial trading activities.",
+              "website": null,
+              "confidence": "HIGH",
+              "evidence": [
+                "The Piece Hall Trust's official page states that its commercial trading activities are conducted through Piece Hall Enterprises Ltd.",
+                "Companies House lists Piece Hall Enterprises Limited as active and registered at The Piece Hall, Blackledge, Halifax HX1 1RE."
+              ]
+            },
+            {
+              "name": "Calderdale Council",
+              "relationship": "Historic project and funding partner; not established as the current operator.",
+              "website": "https://www.calderdale.gov.uk",
+              "confidence": "MEDIUM",
+              "evidence": [
+                "The official Piece Hall project page states that the conservation programme was led by Calderdale Council and that The Piece Hall is now operated by The Piece Hall Trust."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "The organisation has a mature owned digital presence with an official event calendar, event detail pages, programme categories and visitor information; this counters a basic event-discovery or owned-web-presence gap.",
+            "sourceUrl": "https://www.thepiecehall.co.uk/organiser/the-piece-hall/",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Owned official website and event-calendar publishing workflow"
+          },
+          {
+            "product": "ECC",
+            "claim": "The organisation's community and cultural programme involves recurring events, partnerships with artists, charities, volunteers and community groups, indicating coordination across multiple stakeholder types.",
+            "sourceUrl": "https://www.thepiecehall.co.uk/community/",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "The exact division of commercial responsibility between The Piece Hall Trust and Piece Hall Enterprises Ltd for event production, private hire, ticketing and venue trading is not fully evidenced.",
+          "The internal systems used for event planning, production scheduling, workforce coordination, accreditation, reporting and operational control are unknown.",
+          "No specific EventSuite pain point, procurement activity, migration project, system dissatisfaction or budget signal is evidenced.",
+          "The scope of Ticketmaster usage across free events, private hires, community events and all ticketed programmes is unknown.",
+          "Hosting an event at The Piece Hall does not by itself establish that The Piece Hall Trust organises every event listed on or occurring at the venue.",
+          "No contact, buyer, qualification, suppression or outreach decision has been made."
         ]
       },
       "companiesHouseSearch": {
         "outcome": "REGISTRAR_CONFIRMED",
         "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
+        "resultCount": 3
       },
       "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "THE PIECE HALL TRUST",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "91030"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": "West Yorkshire"
+        }
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 1,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Andy",
+            "title": "Head of Operations",
+            "currentEmployer": "The Piece Hall Trust",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "NOT_RUN"
       },
       "providerCalls": {
         "companiesHouse": {
@@ -2120,7 +3844,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 2
       },
       "safety": {
         "guessedEmails": 0,
@@ -2173,10 +3897,19 @@
       },
       "identities": {
         "event": null,
-        "organisation": "SEC Centre",
-        "legalEntity": null,
+        "organisation": "Scottish Event Campus Limited",
+        "legalEntity": {
+          "legalCompanyName": "SCOTTISH EVENT CAMPUS LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "68202"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": null
+        },
         "venue": "SEC Centre",
-        "operator": "SEC Centre",
+        "operator": "Scottish Event Campus Limited",
         "sourcedPerson": null
       },
       "conflicts": [],
@@ -2187,7 +3920,83 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Julie",
+          "title": "Head of Ticketing - Live Entertainment",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+          "roleClassification": "ticketing or box office",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Beth",
+          "title": "Ticketing Manager",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+          "roleClassification": "ticketing or box office",
+          "roleRankingScore": 80,
+          "deterministicRank": 2,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Gemma",
+          "title": "Ticketing Manager",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+          "roleClassification": "ticketing or box office",
+          "roleRankingScore": 80,
+          "deterministicRank": 3,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Rebecca",
+          "title": "Live Entertainment Ticketing Manager",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+          "roleClassification": "ticketing or box office",
+          "roleRankingScore": 80,
+          "deterministicRank": 4,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Hannah",
+          "title": "Sales & Business Development Manager",
+          "currentEmployer": "Scottish Event Campus (SEC)",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_MISSING",
+          "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+          "roleClassification": "commercial leadership",
+          "roleRankingScore": 80,
+          "deterministicRank": 5,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "googlePlaces": {
         "telemetry": [
           {
@@ -2195,7 +4004,7 @@
             "mode": "search_only",
             "fieldMask": "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus",
             "candidateCount": 1,
-            "matchStatus": "EXACT_OR_STRONG",
+            "matchStatus": "REVIEW_REQUIRED",
             "httpStatus": 200,
             "errorCategory": null,
             "retryCount": 0
@@ -2203,9 +4012,9 @@
         ],
         "identityEvidenceFacts": [
           {
-            "claim": "Google Places identity evidence lists SEC Centre as the target venue at London, United Kingdom. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
-            "sourceUrl": "https://places.googleapis.com/v1/places/dry-place",
-            "confidence": "HIGH"
+            "claim": "Google Places identity evidence lists Scottish Event Campus as the target venue at Exhibition Way, Glasgow G3 8YW, UK. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
+            "sourceUrl": "https://places.googleapis.com/v1/places/ChIJK5LpU39GiEgRm5y89irhps8",
+            "confidence": "MEDIUM"
           }
         ]
       },
@@ -2223,82 +4032,257 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 20658,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 787,
+            "cached_tokens": 5284
           },
+          "output_tokens": 3512,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 713
+          },
+          "total_tokens": 24170
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 2,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 15374,
+          "cachedInputTokens": 5284,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 3512,
+          "reasoningTokens": 713,
+          "modelCostUsd": 0.0073948799999999995,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.02,
+          "totalKnownCostUsd": 0.02739488
         },
         "enrichment": {
           "status": "SUCCEEDED",
           "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
+          "commercialOutcome": "PRODUCT_SIGNAL_FOUND",
           "commerciallyAdvanced": true
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "SEC Centre",
-          "officialWebsite": "https://sec.co.uk",
+          "canonicalOrganisationName": "Scottish Event Campus Limited",
+          "officialWebsite": "https://www.sec.co.uk",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://sec.co.uk",
+              "claim": "SEC Centre is a venue within the Scottish Event Campus rather than the legal operating organisation.",
+              "sourceUrl": "https://www.sec.co.uk/about-the-sec",
+              "confidence": "HIGH"
+            },
+            {
+              "claim": "The Scottish Event Campus, including SEC Centre, is owned and operated by Scottish Event Campus Limited, company number SC082081.",
+              "sourceUrl": "https://www.sec.co.uk/about-the-sec",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "SEC Centre",
+              "relationship": "Venue operated by Scottish Event Campus Limited; previously known as SECC.",
+              "website": "https://www.sec.co.uk/organise-an-event/event-spaces/sec-centre",
+              "confidence": "HIGH",
+              "evidence": [
+                "The official venue page identifies SEC Centre as a venue within the campus.",
+                "The About the SEC page states that Scottish Event Campus Limited operates SEC Centre."
+              ]
+            },
+            {
+              "name": "SEC Armadillo",
+              "relationship": "Related venue operated by Scottish Event Campus Limited.",
+              "website": "https://www.sec.co.uk",
+              "confidence": "HIGH",
+              "evidence": [
+                "The official SEC site identifies SEC Armadillo as part of the Scottish Event Campus."
+              ]
+            },
+            {
+              "name": "OVO Hydro",
+              "relationship": "Related arena operated by Scottish Event Campus Limited.",
+              "website": "https://www.ovohydro.com",
+              "confidence": "HIGH",
+              "evidence": [
+                "The official SEC site identifies OVO Hydro as part of the Scottish Event Campus."
+              ]
+            },
+            {
+              "name": "Glasgow City Council",
+              "relationship": "Major shareholder of Scottish Event Campus Limited; ownership does not establish operating responsibility for the venue.",
+              "website": "https://www.sec.co.uk/about-the-sec",
+              "confidence": "HIGH",
+              "evidence": [
+                "The official SEC page states that Glasgow City Council owns 90.86% of Scottish Event Campus Limited."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "Counter-evidence: The organisation maintains a mature owned digital presence with venue pages, event listings, event-organising pages, capacities, case studies and customer-facing event information. This counters any assumption that it lacks a basic event website or digital event presence.",
+            "sourceUrl": "https://www.sec.co.uk/organise-an-event/organise-an-event",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": null
+          },
+          {
+            "product": "TICKETING",
+            "claim": "Supporting evidence: The SEC retains an on-site box office, satellite box office, contact-centre and account-management capability alongside its online ticketing operation. This indicates a distributed ticketing workflow, but not a confirmed product gap.",
+            "sourceUrl": "https://www.sec.co.uk/visitor-information/faqs/faqs-ticketing",
+            "evidenceCategory": "WORKFLOW_COMPLEXITY",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": "Ticketmaster"
+          },
+          {
+            "product": "ECC",
+            "claim": "Supporting evidence: The campus combines three major venues and outdoor precincts and accommodates conferences, exhibitions, meetings, concerts, sport and special events. This supports a bounded hypothesis of multi-venue and multi-stage operational coordination needs.",
+            "sourceUrl": "https://www.sec.co.uk/organise-an-event/event-spaces",
+            "evidenceCategory": "MULTI_ZONE",
+            "confidence": "HIGH",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          },
+          {
+            "product": "ECC",
+            "claim": "Supporting evidence: SEC recruitment material describes exhibition technical operations across SEC Centre, SEC Armadillo and OVO Hydro, supporting the existence of cross-venue production and workforce coordination activity.",
+            "sourceUrl": "https://www.sec.co.uk/about-the-sec/working-at-the-sec/technical-operative-exhibitions-2026",
+            "evidenceCategory": "WORKFORCE",
+            "confidence": "MEDIUM",
+            "polarity": "SUPPORTING",
+            "existingSystem": null
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "The specific internal operator or business unit responsible for any SEC Centre-related purchasing decision is not evidenced.",
+          "No public evidence establishes a current EventSuite, EGS or ECC procurement, replacement project, budget, dissatisfaction or implementation gap.",
+          "No public evidence establishes whether Scottish Event Campus Limited uses additional event-management, CRM, workforce, production or venue-operations systems beyond the documented Ticketmaster arrangement.",
+          "Venue hosting does not establish that Scottish Event Campus Limited owns or organises every event listed at SEC Centre; event-organiser responsibility varies by event.",
+          "No person, contact, email eligibility or outreach eligibility was researched or inferred."
         ]
       },
       "companiesHouseSearch": {
         "outcome": "REGISTRAR_CONFIRMED",
         "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
+        "resultCount": 3
       },
       "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "The selected Companies House profile confirms one active legal company.",
+        "company": {
+          "legalCompanyName": "SCOTTISH EVENT CAMPUS LIMITED",
+          "companyStatus": "active",
+          "companyType": null,
+          "sicCodes": [
+            "68202"
+          ],
+          "accountsCategory": "group",
+          "registeredRegion": null
+        }
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 5,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Julie",
+            "title": "Head of Ticketing - Live Entertainment",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+            "roleClassification": "ticketing or box office",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Beth",
+            "title": "Ticketing Manager",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+            "roleClassification": "ticketing or box office",
+            "roleRankingScore": 80,
+            "deterministicRank": 2,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Gemma",
+            "title": "Ticketing Manager",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+            "roleClassification": "ticketing or box office",
+            "roleRankingScore": 80,
+            "deterministicRank": 3,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Rebecca",
+            "title": "Live Entertainment Ticketing Manager",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_TICKETING_OR_BOX_OFFICE",
+            "roleClassification": "ticketing or box office",
+            "roleRankingScore": 80,
+            "deterministicRank": 4,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Hannah",
+            "title": "Sales & Business Development Manager",
+            "currentEmployer": "Scottish Event Campus (SEC)",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_MISSING",
+            "employerDomainReason": "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+            "roleClassification": "commercial leadership",
+            "roleRankingScore": 80,
+            "deterministicRank": 5,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "NOT_RUN"
       },
       "providerCalls": {
         "companiesHouse": {
@@ -2315,7 +4299,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 2
       },
       "safety": {
         "guessedEmails": 0,
@@ -2348,7 +4332,6 @@
         "GOOGLE_PLACES_TEXT_SEARCH",
         "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
         "COMPANIES_HOUSE_SEARCH",
-        "COMPANIES_HOUSE_PROFILE",
         "APOLLO_PEOPLE_SEARCH"
       ],
       "stages": [
@@ -2356,7 +4339,6 @@
         "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
         "EVENTSUITE_FIT",
         "COMPANIES_HOUSE_SEARCH",
-        "COMPANIES_HOUSE_PROFILE",
         "APOLLO_PEOPLE_SEARCH"
       ],
       "lanePreserved": true,
@@ -2368,10 +4350,10 @@
       },
       "identities": {
         "event": null,
-        "organisation": "ExCeL London",
+        "organisation": "London International Exhibition Centre PLC trading as ExCeL London",
         "legalEntity": null,
         "venue": "ExCeL London",
-        "operator": "ExCeL London",
+        "operator": "London International Exhibition Centre PLC trading as ExCeL London",
         "sourcedPerson": null
       },
       "conflicts": [],
@@ -2382,7 +4364,83 @@
       "contactResearchAttempted": false,
       "outreachActions": 0,
       "persistenceWrites": 0,
-      "apolloCandidates": [],
+      "apolloCandidates": [
+        {
+          "fullName": "Nick",
+          "title": "Head of Business Development",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+          "roleClassification": "commercial leadership",
+          "roleRankingScore": 100,
+          "deterministicRank": 1,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Ian",
+          "title": "Venue Operations Manager",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 2,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Naomi",
+          "title": "Event Operations Manager",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+          "roleClassification": "event operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 3,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Saif",
+          "title": "Venue Manager",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_VENUE_OPERATIONS",
+          "roleClassification": "venue operations",
+          "roleRankingScore": 80,
+          "deterministicRank": 4,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        },
+        {
+          "fullName": "Diego",
+          "title": "Contracts & Commercial Manager",
+          "currentEmployer": "Excel London",
+          "employerDomain": null,
+          "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+          "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+          "buyerRoutingClassification": "LIKELY_BUYER",
+          "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+          "roleClassification": "commercial leadership",
+          "roleRankingScore": 80,
+          "deterministicRank": 5,
+          "status": "REVIEW_REQUIRED",
+          "humanSelectionRecommendation": "DO_NOT_SELECT"
+        }
+      ],
       "googlePlaces": {
         "telemetry": [
           {
@@ -2398,8 +4456,8 @@
         ],
         "identityEvidenceFacts": [
           {
-            "claim": "Google Places identity evidence lists ExCeL London as the target venue at London, United Kingdom. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
-            "sourceUrl": "https://places.googleapis.com/v1/places/dry-place",
+            "claim": "Google Places identity evidence lists Excel London as the target venue at Royal Victoria Dock, 1 Western Gateway, London E16 1XL, UK. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
+            "sourceUrl": "https://places.googleapis.com/v1/places/ChIJDeUJ5gyo2EcRx67XBfflDQo",
             "confidence": "HIGH"
           }
         ]
@@ -2418,87 +4476,231 @@
         "incompleteReason": null,
         "refusalState": "ABSENT",
         "outputItemTypes": [
+          "reasoning",
           "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
+          "web_search_call",
+          "reasoning",
           "message"
         ],
         "structuredMessageContent": true,
         "parserPath": "responses.output[].message.content[].text",
         "schemaValidationResult": "VALID",
         "usage": {
-          "input_tokens": 100,
-          "output_tokens": 40,
+          "input_tokens": 27628,
           "input_tokens_details": {
-            "cached_tokens": 0
+            "cache_write_tokens": 0,
+            "cached_tokens": 6077
           },
+          "output_tokens": 4009,
           "output_tokens_details": {
-            "reasoning_tokens": 10
-          }
+            "reasoning_tokens": 577
+          },
+          "total_tokens": 31637
         },
-        "webSearchCalls": 1,
+        "webSearchCalls": 3,
         "errorKind": null,
         "cost": {
-          "uncachedInputTokens": 100,
-          "cachedInputTokens": 0,
+          "uncachedInputTokens": 21551,
+          "cachedInputTokens": 6077,
           "cacheWriteTokens": 0,
-          "outputTokens": 40,
-          "reasoningTokens": 10,
-          "modelCostUsd": 0.000068,
+          "outputTokens": 4009,
+          "reasoningTokens": 577,
+          "modelCostUsd": 0.00924254,
           "searchContentCostUsd": "included in input_tokens; not separately reported",
-          "explicitWebSearchFeesUsd": 0.01,
-          "totalKnownCostUsd": 0.010068
+          "explicitWebSearchFeesUsd": 0.03,
+          "totalKnownCostUsd": 0.03924254
         },
         "enrichment": {
           "status": "SUCCEEDED",
           "resolutionOutcome": "RESOLVED",
-          "commercialOutcome": "VALIDATION_ONLY",
+          "commercialOutcome": "PRODUCT_SIGNAL_FOUND",
           "commerciallyAdvanced": true
         },
         "organisationResolution": {
           "status": "RESOLVED",
-          "canonicalOrganisationName": "ExCeL London",
-          "officialWebsite": "https://excel.london",
+          "canonicalOrganisationName": "London International Exhibition Centre PLC trading as ExCeL London",
+          "officialWebsite": "https://www.excel.london",
           "confidence": "HIGH",
           "evidence": [
             {
-              "claim": "Dry-run identity fixture preserves the bounded route only.",
-              "sourceUrl": "https://excel.london",
+              "claim": "ExCeL London’s privacy notice states that its premises, website and services are owned and operated by London International Exhibition Centre PLC, registered in England under company number 03458317, trading as ExCeL London.",
+              "sourceUrl": "https://www.excel.london/privacy-notice",
               "confidence": "HIGH"
             }
           ],
-          "relatedOrganisations": []
+          "relatedOrganisations": [
+            {
+              "name": "ADNEC Group",
+              "relationship": "Parent/group owner identified by ExCeL London; ExCeL London is described as part of ADNEC Group.",
+              "website": "https://www.adnecgroup.ae",
+              "confidence": "HIGH",
+              "evidence": [
+                "ExCeL London’s About Us page states that ExCeL London is part of ADNEC Group.",
+                "ExCeL London’s ESG announcement refers to ADNEC Group as the owner of ExCeL London."
+              ]
+            },
+            {
+              "name": "Modon Holding P.S.C",
+              "relationship": "Ultimate group parent identified by ExCeL London; ADNEC Group is described as a wholly owned subsidiary.",
+              "website": "https://www.modon.com",
+              "confidence": "HIGH",
+              "evidence": [
+                "ExCeL London’s About Us page states that ADNEC Group is a wholly owned subsidiary of Modon Holding P.S.C."
+              ]
+            },
+            {
+              "name": "GES",
+              "relationship": "Official in-house event delivery and services partner referenced by ExCeL London; not resolved as the venue operator or event owner.",
+              "website": "https://www.ges.com",
+              "confidence": "HIGH",
+              "evidence": [
+                "ExCeL London identifies GES as its official in-house supplier for event build and related delivery services.",
+                "The page describes GES services including operational planning, delivery, registration, data intelligence and engagement technology."
+              ]
+            }
+          ]
         },
-        "commercialEvidence": [],
+        "commercialEvidence": [
+          {
+            "product": "EGS",
+            "claim": "COUNTER: ExCeL London has a mature owned website with structured venue, organiser, exhibitor and event content, which materially counters a hypothesis of a basic digital-presence gap.",
+            "sourceUrl": "https://www.excel.london/organiser/event-services",
+            "evidenceCategory": "WEAK_OWNED_PRESENCE",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "ExCeL London official website, organiser portal and exhibitor-services content"
+          },
+          {
+            "product": "EGS",
+            "claim": "COUNTER: The official site includes current event listings, event detail pages, organiser links and visitor information, so no specific EGS discovery or publishing failure is evidenced.",
+            "sourceUrl": "https://www.excel.london/whats-on?exp=true",
+            "evidenceCategory": "DISCOVERY_GAP",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "ExCeL London What’s On calendar"
+          },
+          {
+            "product": "ECC",
+            "claim": "COUNTER: ExCeL London’s official pages describe coordinated service delivery as an existing capability, so venue scale and event complexity alone do not establish EventSuite need.",
+            "sourceUrl": "https://www.excel.london/corporates",
+            "evidenceCategory": "OPERATIONAL_COORDINATION",
+            "confidence": "HIGH",
+            "polarity": "COUNTER",
+            "existingSystem": "Excel account-management, event-management and venue-services teams"
+          }
+        ],
         "unknowns": [
           "Company size is optional metadata and has not been used as an identity or qualification gate.",
-          "Dry-run fixture; no live public-web evidence was requested."
+          "The current legal ownership structure between London International Exhibition Centre PLC, ADNEC Group and Modon Holding is not fully established from the reviewed sources beyond ExCeL London’s own group statements.",
+          "The specific event organisers, promoters, ticketing providers and commercial owners for individual events on the ExCeL calendar are not resolved here.",
+          "No authoritative evidence identifies a single venue-wide ticketing platform or confirms whether ExCeL London directly processes ticket sales for any particular event.",
+          "No specific EGS problem, conversion issue, discovery failure or content-management gap is evidenced.",
+          "No specific ECC pain point, workflow failure, coordination bottleneck, reporting gap or migration requirement is evidenced.",
+          "The current systems used by ExCeL London for CRM, registration, accreditation, attendee management, event operations, scheduling and reporting are not fully identified.",
+          "The role of GES is bounded to an official event-services partner relationship; it is not established as ExCeL London’s venue operator, owner or event organiser.",
+          "No named people, contact eligibility, buyer status, account qualification, suppression status or outreach eligibility was researched or decided."
         ]
       },
       "companiesHouseSearch": {
-        "outcome": "REGISTRAR_CONFIRMED",
-        "reason": "One exact active Companies House legal-company match was selected deterministically.",
-        "resultCount": 1
-      },
-      "companiesHouseProfile": {
-        "outcome": "REGISTRAR_CONFLICT",
-        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
-        "company": null
+        "outcome": "REGISTRAR_AMBIGUOUS",
+        "reason": "Search results exist but no exact active legal-company match was established.",
+        "resultCount": 3
       },
       "apollo": {
         "httpStatus": 200,
-        "resultCount": 0,
+        "resultCount": 5,
         "creditCategory": "ZERO_CREDIT_SEARCH",
-        "candidates": []
+        "candidates": [
+          {
+            "fullName": "Nick",
+            "title": "Head of Business Development",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+            "roleClassification": "commercial leadership",
+            "roleRankingScore": 100,
+            "deterministicRank": 1,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Ian",
+            "title": "Venue Operations Manager",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 2,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Naomi",
+            "title": "Event Operations Manager",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_EVENT_OPERATIONS",
+            "roleClassification": "event operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 3,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Saif",
+            "title": "Venue Manager",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_VENUE_OPERATIONS",
+            "roleClassification": "venue operations",
+            "roleRankingScore": 80,
+            "deterministicRank": 4,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          },
+          {
+            "fullName": "Diego",
+            "title": "Contracts & Commercial Manager",
+            "currentEmployer": "Excel London",
+            "employerDomain": null,
+            "employerDomainClassification": "DOMAIN_QUERY_SCOPED",
+            "employerDomainReason": "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED",
+            "buyerRoutingClassification": "LIKELY_BUYER",
+            "buyerRoutingReason": "TITLE_MATCHED_COMMERCIAL_LEADERSHIP",
+            "roleClassification": "commercial leadership",
+            "roleRankingScore": 80,
+            "deterministicRank": 5,
+            "status": "REVIEW_REQUIRED",
+            "humanSelectionRecommendation": "DO_NOT_SELECT"
+          }
+        ]
       },
       "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
       "safeUnresolvedReasons": [],
       "commercialAdvancement": {
         "advanced": true,
-        "reason": "VALIDATION_ONLY"
+        "reason": "PRODUCT_SIGNAL_FOUND"
       },
       "providerCalls": {
         "companiesHouse": {
           "search": 1,
-          "profile": 1,
+          "profile": 0,
           "officers": 0
         },
         "googlePlaces": {
@@ -2510,7 +4712,7 @@
           "enrichment": 0
         },
         "openAi": 1,
-        "openAiWebSearchCalls": 1
+        "openAiWebSearchCalls": 3
       },
       "safety": {
         "guessedEmails": 0,
@@ -2535,13 +4737,13 @@
       "failed": 0
     },
     "companiesHouseSearch": {
-      "attempted": 12,
-      "succeeded": 12,
+      "attempted": 11,
+      "succeeded": 11,
       "failed": 0
     },
     "companiesHouseProfile": {
-      "attempted": 12,
-      "succeeded": 12,
+      "attempted": 8,
+      "succeeded": 8,
       "failed": 0
     },
     "companiesHouseOfficers": {
@@ -2560,8 +4762,8 @@
       "failed": 0
     },
     "apolloPeopleSearch": {
-      "attempted": 12,
-      "succeeded": 12,
+      "attempted": 11,
+      "succeeded": 11,
       "failed": 0
     },
     "apolloEnrichment": {
@@ -2571,13 +4773,13 @@
     }
   },
   "knownUsageCost": {
-    "totalKnownCostUsd": 0.12081599999999998,
-    "webSearchCalls": 12
+    "totalKnownCostUsd": 0.45957458,
+    "webSearchCalls": 35
   },
   "checkpoint": {
     "reason": "COMPLETED",
-    "at": "2026-08-21T22:07:06.083Z",
-    "ordinal": 179
+    "at": "2026-08-21T22:16:51.583Z",
+    "ordinal": 161
   },
   "failure": null,
   "finalExitStatus": 0
