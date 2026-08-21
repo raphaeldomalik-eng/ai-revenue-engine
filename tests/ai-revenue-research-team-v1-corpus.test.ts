@@ -3,18 +3,31 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { contactPersistenceTargets, isContactResearchEligible, normaliseContactResearch, type ContactResearchTargetIdentity } from "../src/ai-sales-team/contact-research.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
-import { classifySourceSite, evaluateDiscoveryCandidate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
+import { classifySourceSite, evaluateDiscoveryCandidate, identityHandoffGate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
 
-export const REGRESSION_CORPUS_V1 = Object.fromEntries(Array.from({ length: 37 }, (_, index) => [`R${index + 1}`, `v1-corpus-${index + 1}`]));
+export const REGRESSION_CORPUS_V1 = Object.fromEntries(Array.from({ length: 38 }, (_, index) => [`R${index + 1}`, `v1-corpus-${index + 1}`]));
 const target: ContactResearchTargetIdentity = { accountName: "ABC Events", accountWebsite: "https://abc-events.example" };
 const orgProvenance = { ownerName: "ABC Events", ownerType: "TARGET_ORGANISATION" as const, relationshipToTarget: "PRIMARY_TARGET" as const, sourceUrl: "https://abc-events.example/contact", ownershipEvidence: "Published on ABC Events official contact page.", ownershipConfidence: "HIGH" as const };
 const route = (email: string | null, sourceUrl = "https://abc-events.example/contact", evidence = "ABC Events official contact page publishes the contact route.") => ({ email, phone: null, contactUrl: sourceUrl, sourceUrl, sourceTitle: "Contact", evidence: `${evidence} ${sourceUrl}${email ? ` Contact ${email}.` : ""}`, confidence: "HIGH" as const, provenance: { ...orgProvenance, sourceUrl } });
 const fact = (claim: string, sourceUrl = "https://abc-events.example/event") => ({ claim, sourceUrl, sourceTitle: "Evidence", kind: "FACT" as const, confidence: "HIGH" as const });
 const candidate = (overrides: Record<string, unknown> = {}) => ({ canonicalName: "Example Festival", organiserName: "ABC Events", website: "https://ticketsza.co.za/example", origin: "EVENT_FIRST" as const, relationshipHint: "PROSPECT" as const, facts: [fact("ABC Events organises the annual Example Festival 2026 event.", "https://ticketsza.co.za/example")], inferences: [], unknowns: [], ...overrides });
 
-test("R1-R37 manifest is complete and each case has a deterministic fixture entry", () => {
-  assert.deepEqual(Object.keys(REGRESSION_CORPUS_V1), Array.from({ length: 37 }, (_, index) => `R${index + 1}`));
+test("R1-R38 manifest is complete and each case has a deterministic fixture entry", () => {
+  assert.deepEqual(Object.keys(REGRESSION_CORPUS_V1), Array.from({ length: 38 }, (_, index) => `R${index + 1}`));
   assert.equal(Object.values(REGRESSION_CORPUS_V1).every(Boolean), true);
+});
+
+test("R38 four equal lanes reach the shared identity handoff and legacy SIGNAL_FIRST remains readable", () => {
+  const base = { organiserName: null, website: null, relationshipHint: "PROSPECT" as const, inferences: [], unknowns: [] };
+  const lanes = [
+    { ...base, canonicalName: "Example Festival", origin: "EVENT_FIRST" as const, organiserName: "ABC Events", facts: [fact("ABC Events organises an upcoming festival.")] },
+    { ...base, canonicalName: "ABC Events", origin: "ORGANISATION_FIRST" as const, website: "https://abc-events.example", laneContext: { organisation: { name: "ABC Events", website: "https://abc-events.example" }, person: null, venue: null }, facts: [fact("ABC Events operates an upcoming event portfolio.")] },
+    { ...base, canonicalName: "Alex Buyer", origin: "PERSON_FIRST" as const, laneContext: { organisation: null, person: { name: "Alex Buyer", role: "Event Manager", organisationName: "ABC Events", organisationWebsite: "https://abc-events.example" }, venue: null }, facts: [fact("Alex Buyer is the current Event Manager at ABC Events.")] },
+    { ...base, canonicalName: "ABC Venue", origin: "VENUE_FIRST" as const, laneContext: { organisation: null, person: null, venue: { name: "ABC Venue", website: "https://abc-events.example/venue", operatorName: "ABC Events", operatorWebsite: "https://abc-events.example" } }, facts: [fact("ABC Venue hosts an annual events programme.")] },
+  ];
+  for (const item of lanes) assert.equal(identityHandoffGate(evaluateDiscoveryCandidate(item, "GB")).eligible, true);
+  const legacy = parseDiscovery({ candidates: [{ ...lanes[1], origin: "SIGNAL_FIRST" }] }, "GB")[0];
+  assert.equal(legacy.origin, "ORGANISATION_FIRST");
 });
 
 test("R1-R6 source, venue, listing and procurement identities never become organisers", () => {

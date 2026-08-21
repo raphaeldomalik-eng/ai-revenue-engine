@@ -9,7 +9,7 @@ const fact = (claim: string, sourceUrl = "https://event.example/source") => ({ c
 const candidate = (overrides: Record<string, unknown> = {}) => ({ canonicalName: "Example Expo", organiserName: "Example Events", website: "https://ticketsza.co.za/example", origin: "EVENT_FIRST" as const, relationshipHint: "PROSPECT" as const, facts: [fact("Example Events organises the annual Example Expo 2026 event.")], inferences: [], unknowns: [], ...overrides });
 
 test("all four V1 roles have stable prompt versions", () => {
-  assert.deepEqual(Object.values(AGENT_PROMPT_VERSIONS), ["discovery-scout-v1", "identity-resolver-v1", "commercial-researcher-v1", "buyer-contact-researcher-v1"]);
+  assert.deepEqual(Object.values(AGENT_PROMPT_VERSIONS), ["discovery-scout-v1-four-lane", "identity-resolver-v1", "commercial-researcher-v1", "buyer-contact-researcher-v1"]);
 });
 
 test("TicketsZA/Tixsa discovery sources never become organiser websites", () => {
@@ -95,5 +95,5 @@ test("technical success without product evidence is validation-only", () => {
   const before = evaluateDiscoveryCandidate(candidate({ website: "https://example.org" }), "GB");
   const after = applyDiscoveryEnrichment(before, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Example Events", officialWebsite: "https://example.org", officialWebsiteSiteType: "ORGANISATION_OFFICIAL", aliases: [], confidence: "HIGH", evidence: [{ claim: "Example Events organises Example Expo.", sourceUrl: "https://example.org/about", sourceTitle: "About", confidence: "HIGH" }], siteClassifications: [], relatedOrganisations: [] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
   assert.equal(after.prospectIntelligence.primaryEntryOpportunity, "UNKNOWN");
-  assert.equal(after.prospectIntelligence.accountCreationEligible, false);
+  assert.equal(after.prospectIntelligence.accountCreationEligible, true);
 });

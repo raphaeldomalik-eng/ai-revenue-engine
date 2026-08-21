@@ -322,9 +322,17 @@ You find an event and a later specialist must determine who operates it.
 ORGANISATION_FIRST
 You find an organisation that clearly appears active in events.
 
-SIGNAL_FIRST
-You find a commercial/change/complexity signal that may lead to an event
-organisation.
+PERSON_FIRST
+You find a real person with a credible current event-industry role. The
+person may be a freelancer or may work for an organisation; preserve those
+relationships without inferring ownership.
+
+VENUE_FIRST
+You find a real venue hosting or operating relevant events. The venue or
+operator may be a prospect, but hosting does not prove organising.
+
+Commercial, timing and change signals are evidence attached to whichever of
+these four lanes initiated discovery. They are not a fifth top-level lane.
 
 ==================================================
 VALID SOURCE FAMILIES
@@ -530,7 +538,12 @@ Do not search for contacts.
   "signals": [
     {
       "candidateSignalName": "string",
-      "discoveryPath": "EVENT_FIRST | ORGANISATION_FIRST | SIGNAL_FIRST",
+      "discoveryPath": "EVENT_FIRST | ORGANISATION_FIRST | PERSON_FIRST | VENUE_FIRST",
+      "laneContext": {
+        "organisation": {"name": "string", "website": "string|null"},
+        "person": {"name": "string", "role": "string|null", "organisationName": "string|null", "organisationWebsite": "string|null"},
+        "venue": {"name": "string", "website": "string|null", "operatorName": "string|null", "operatorWebsite": "string|null"}
+      },
       "signalType": "EVENT | ORGANISATION_ACTIVITY | PROCUREMENT_CHANGE | COMMERCIAL_SIGNAL | OTHER",
       "discoverySource": {
         "url": "string",

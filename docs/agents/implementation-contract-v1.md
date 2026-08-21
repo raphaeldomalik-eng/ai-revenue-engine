@@ -47,6 +47,13 @@ Prefer existing OpenAI/structured-output/web-search architecture.
 
 Do not introduce an agent framework merely to label these roles.
 
+Discovery Scout must expose four equal entry lanes — `EVENT_FIRST`,
+`ORGANISATION_FIRST`, `PERSON_FIRST` and `VENUE_FIRST` — feeding one shared
+`Event ↔ Organisation ↔ Person ↔ Venue` graph. Commercial/change signals are
+evidence on a lane, not a fifth `SIGNAL_FIRST` lane. Existing candidate JSON
+and evidence fields should carry lane context where no schema change is
+needed.
+
 ---
 
 # 3. Prompt ownership
@@ -66,7 +73,7 @@ Keep one canonical runtime prompt definition per role.
 
 Version them explicitly:
 
-- `discovery-scout-v1`
+- `discovery-scout-v1-four-lane`
 - `identity-resolver-v1`
 - `commercial-researcher-v1`
 - `buyer-contact-researcher-v1`
@@ -86,6 +93,11 @@ Validate enum values, URLs, evidence shape, confidence, contact values, and prod
 Identity output must preserve exactly one primary commercial target plus a
 bounded `relatedOrganisations[]` collection. Relationship evidence must not
 cause websites, contacts or block states to leak between entities.
+
+Historical stored `SIGNAL_FIRST` origin values remain readable through a
+read-time compatibility mapping into the shared organisation lane. Current
+model output and new persisted candidates use only the four approved lanes;
+no bulk historical rewrite is permitted.
 
 ---
 

@@ -1,12 +1,12 @@
 import type { AiSalesEvidence } from "./model.ts";
 import { classifyAccountRelationship, type AccountRelationship } from "./outreach-model.ts";
-import { evaluateProspectIntelligence, type CommercialEvidenceCategory, type CommercialEvidenceItem, type OrganisationResolution, type ProspectIntelligence, type SourceSiteClassification, type SourceSiteType } from "./prospect-intelligence.ts";
+import { evaluateProspectIntelligence, type CommercialEvidenceCategory, type CommercialEvidenceItem, type DiscoveryLane, type DiscoveryLaneContext, type OrganisationResolution, type ProspectIntelligence, type SourceSiteClassification, type SourceSiteType } from "./prospect-intelligence.ts";
 import { FIRST_PARTY_SELF, isEventSuiteFirstPartyIdentity } from "./first-party.ts";
 import { AGENT_PROMPT_VERSIONS, COMMERCIAL_RESEARCHER_PROMPT_V1, DISCOVERY_SCOUT_PROMPT_V1, IDENTITY_RESOLVER_PROMPT_V1 } from "./agent-prompts.ts";
 
 export type DiscoveryTerritory = "ZA" | "GB";
 export type DiscoveryFocus = "ALL" | "EGS" | "TICKETING" | "ECC";
-export type DiscoveryOrigin = "EVENT_FIRST" | "ORGANISATION_FIRST";
+export type DiscoveryOrigin = DiscoveryLane;
 export type DiscoveryCandidateStatus = "QUALIFIED" | "REVIEW_REQUIRED" | "BLOCKED" | "REJECTED" | "DUPLICATE";
 export type DiscoverySourceRole = "DISCOVERY" | "VALIDATION" | "COMMERCIAL_EVIDENCE" | "CONTACT" | "SIGNAL";
 export type EventFreshness = NonNullable<AiSalesEvidence["eventFreshness"]>;
@@ -16,7 +16,7 @@ export type EnrichmentSkipReason = "BLOCKED" | "REJECTED" | "DUPLICATE" | "FIRST
 export type EnrichmentCandidateTelemetry = { status: "SKIPPED" | "ATTEMPTED" | "SUCCEEDED" | "FAILED"; attempted: boolean; succeeded: boolean; materiallyChanged: boolean; skipReason?: EnrichmentSkipReason; gateReason?: string; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; resolutionOutcome?: "NOT_REQUIRED" | "RESOLVED" | "UNRESOLVED"; commercialOutcome?: "PRODUCT_SIGNAL_FOUND" | "VALIDATION_ONLY" | "NO_COMMERCIAL_SIGNAL" | "NOT_RUN"; commerciallyAdvanced?: boolean; promptVersions?: typeof AGENT_PROMPT_VERSIONS };
 export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number };
 
-export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; siteClassifications?: SourceSiteClassification[] };
+export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; laneContext?: DiscoveryLaneContext | null; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; siteClassifications?: SourceSiteClassification[] };
 export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence & { firstPartyStatus?: typeof FIRST_PARTY_SELF }; sourceUrls: string[]; firstPartyStatus?: typeof FIRST_PARTY_SELF; enrichment: EnrichmentCandidateTelemetry };
 
 export function isFirstPartyCandidate(candidate: Pick<EvaluatedDiscoveryCandidate, "website" | "sourceUrls" | "firstPartyStatus" | "canonicalName" | "organiserName">) {
@@ -33,7 +33,7 @@ const SERVICE_NOISE_PATTERN = /\b(?:ticketing platform|ticketing software|ticket
 const PROVIDER_HOST_PATTERN = /(?:^|\.)(?:ticketsza|tixsa)\.(?:co\.za|co\.uk|com|org)(?:$|\.)/i;
 const SITE_TYPES = ["ORGANISATION_OFFICIAL", "EVENT_OFFICIAL", "TICKETING_PROVIDER", "EVENT_LISTING_DIRECTORY", "VENUE_OFFICIAL", "VENUE_CALENDAR", "ARTIST_OFFICIAL", "NEWS_EDITORIAL", "SOCIAL_COMMUNITY", "PROFESSIONAL_COMPANY", "INSTITUTIONAL_PROCUREMENT", "UNKNOWN"] as const;
 const EVENT_CONTEXT_PATTERN = /\b(?:event|expo|exhibition|conference|symposium|festival|programme|tournament|performance|summit|workshop|concert)\w*\b/i;
-const ORGANISER_PATTERN = /\b(?:organis(?:e|es|ed|er|ers|ing)|promotes?|operat(?:e|es|ed|ing)|produces?|presents?|runs?|owns?|host(?:s|ed|ing)|is\s+(?:the\s+)?organis(?:er|or)|organis(?:ed|zed)\s+by|promoted\s+by|produced\s+by|operated\s+by)\b/i;
+const ORGANISER_PATTERN = /\b(?:organis(?:e|es|ed|er|ers|ing)|promotes?|operat(?:e|es|ed|ing)|produces?|presents?|runs?|owns?|host(?:s|ed|ing)|employs?|works?\s+for|represents?|is\s+(?:the\s+)?organis(?:er|or)|organis(?:ed|zed)\s+by|promoted\s+by|produced\s+by|operated\s+by)\b/i;
 const DIGITAL_GAP_PATTERN = /\b(?:no meaningful owned|weak owned|poor owned|fragmented|thin|social[- ]first|ticket(?:ing| provider)? page (?:as|is) (?:the )?primary|missing .*programme|weak .*digital|poor .*presence|discoverab(?:ility|le)|public information .*spread)\b/i;
 const TICKETING_PROBLEM_PATTERN = /\b(?:multiple (?:ticket|registration|sales) arrangements|manual (?:registration|reconciliation|ticket)|switch(?:ing|ed)?(?: provider)?|procurement|evaluation|settlement|fragmented (?:purchasing|registration)|admission scanning|ticket tiers?|box office|reconciliation|paid (?:tickets?|registration)|registration|workflow complexity)\b/i;
 const COMPLEXITY_PATTERN = /\b(?:multi-day|multi-stage|multi-zone|multiple venues?|multiple locations?|concurrent|simultaneous|suppliers?|exhibitors?|vendors?|workforce|volunteers?|accreditation|production schedule|technical dependencies|guest operations|complex programme|operational coordination)\b/i;
@@ -42,8 +42,13 @@ const TICKETING_CATEGORIES = new Set<CommercialEvidenceCategory>(["PROVIDER_FRAG
 const ECC_CATEGORIES = new Set<CommercialEvidenceCategory>(["MULTI_STAGE", "MULTI_ZONE", "MULTI_VENUE", "CONCURRENCY", "ACCREDITATION", "WORKFORCE", "VENDOR_COORDINATION", "PRODUCTION_SCHEDULING", "OPERATIONAL_COORDINATION"]);
 const candidateSchema = {
   type: "object", additionalProperties: false, required: ["candidates"], properties: {
-    candidates: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["canonicalName", "organiserName", "website", "origin", "relationshipHint", "facts", "inferences", "unknowns", "siteClassifications"], properties: {
-      canonicalName: { type: "string" }, organiserName: { type: ["string", "null"] }, website: { type: ["string", "null"] }, origin: { type: "string", enum: ["EVENT_FIRST", "ORGANISATION_FIRST"] }, relationshipHint: { type: "string", enum: ["PROSPECT", "CUSTOMER", "PARTNER", "COMPETITOR", "UNKNOWN"] },
+    candidates: { type: "array", maxItems: 8, items: { type: "object", additionalProperties: false, required: ["canonicalName", "organiserName", "website", "origin", "relationshipHint", "laneContext", "facts", "inferences", "unknowns", "siteClassifications"], properties: {
+      canonicalName: { type: "string" }, organiserName: { type: ["string", "null"] }, website: { type: ["string", "null"] }, origin: { type: "string", enum: ["EVENT_FIRST", "ORGANISATION_FIRST", "PERSON_FIRST", "VENUE_FIRST"] }, relationshipHint: { type: "string", enum: ["PROSPECT", "CUSTOMER", "PARTNER", "COMPETITOR", "UNKNOWN"] },
+      laneContext: { type: "object", additionalProperties: false, required: ["organisation", "person", "venue"], properties: {
+        organisation: { type: ["object", "null"], additionalProperties: false, required: ["name", "website"], properties: { name: { type: "string" }, website: { type: ["string", "null"] } } },
+        person: { type: ["object", "null"], additionalProperties: false, required: ["name", "role", "organisationName", "organisationWebsite"], properties: { name: { type: "string" }, role: { type: ["string", "null"] }, organisationName: { type: ["string", "null"] }, organisationWebsite: { type: ["string", "null"] } } },
+        venue: { type: ["object", "null"], additionalProperties: false, required: ["name", "website", "operatorName", "operatorWebsite"], properties: { name: { type: "string" }, website: { type: ["string", "null"] }, operatorName: { type: ["string", "null"] }, operatorWebsite: { type: ["string", "null"] } } },
+      } },
       siteClassifications: { type: "array", items: { type: "object", additionalProperties: false, required: ["url", "siteType", "siteTypeConfidence", "siteTypeEvidence"], properties: { url: { type: "string" }, siteType: { type: "string", enum: SITE_TYPES }, siteTypeConfidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }, siteTypeEvidence: { type: "array", items: { type: "string" } } } } },
       facts: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "kind", "confidence", "sourceRoles", "eventFreshness"], properties: { claim: { type: "string" }, sourceUrl: { type: ["string", "null"] }, sourceTitle: { type: ["string", "null"] }, kind: { type: "string", const: "FACT" }, confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] }, sourceRoles: { type: "array", items: { type: "string", enum: sourceRoles } }, eventFreshness: { type: "string", enum: freshnessStates } } } },
       inferences: { type: "array", items: { type: "object", additionalProperties: false, required: ["claim", "sourceUrl", "sourceTitle", "kind", "confidence"], properties: { claim: { type: "string" }, sourceUrl: { type: ["string", "null"] }, sourceTitle: { type: ["string", "null"] }, kind: { type: "string", const: "INFERENCE" }, confidence: { type: "string", enum: ["LOW", "MEDIUM", "HIGH"] } } } }, unknowns: { type: "array", items: { type: "string" } },
@@ -71,6 +76,19 @@ const normaliseName = (value: string) => value.trim().toLowerCase().replace(/\b(
 const rawName = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 function domainOf(website?: string | null) { return website?.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "") || null; }
 export function canonicalDiscoveryKey(name: string, website?: string | null) { const domain = domainOf(website); return `${domain ? normaliseName(name) : rawName(name)}|${domain || "no-domain"}`; }
+function identityKeyParts(candidate: Pick<DiscoveredCandidate, "canonicalName" | "organiserName" | "website" | "laneContext">) {
+  const name = candidate.organiserName?.trim() || candidate.laneContext?.organisation?.name?.trim() || candidate.laneContext?.person?.organisationName?.trim() || candidate.laneContext?.venue?.operatorName?.trim() || candidate.canonicalName;
+  const website = candidate.laneContext?.organisation?.website || candidate.laneContext?.person?.organisationWebsite || candidate.laneContext?.venue?.operatorWebsite || candidate.website;
+  return { name, website };
+}
+function normaliseOrigin(value: unknown): DiscoveryOrigin {
+  if (["EVENT_FIRST", "ORGANISATION_FIRST", "PERSON_FIRST", "VENUE_FIRST"].includes(value as string)) return value as DiscoveryOrigin;
+  // SIGNAL_FIRST was a historical entry label. Preserve old records by
+  // attaching the signal to the shared organisation lane at read time; it is
+  // never emitted by the current model schema.
+  if (value === "SIGNAL_FIRST") return "ORGANISATION_FIRST";
+  return "EVENT_FIRST";
+}
 
 function inferFreshness(claim: string, supplied?: EventFreshness): EventFreshness {
   if (supplied && freshnessStates.includes(supplied)) return supplied;
@@ -97,6 +115,16 @@ function normaliseFact(value: DiscoveryEvidence): DiscoveryEvidence {
 }
 
 function validUrl(value: unknown): value is string { return typeof value === "string" && /^https?:\/\/[^\s]+$/i.test(value.trim()); }
+function text(value: unknown) { return typeof value === "string" && value.trim() ? value.trim() : null; }
+function normaliseLaneContext(value: unknown, candidate: Pick<DiscoveredCandidate, "canonicalName" | "organiserName" | "website" | "origin">): DiscoveryLaneContext {
+  const raw = value && typeof value === "object" ? value as Partial<DiscoveryLaneContext> : {};
+  const organisation = raw.organisation && typeof raw.organisation === "object" && text(raw.organisation.name) ? { name: text(raw.organisation.name)!, website: validUrl(raw.organisation.website) ? raw.organisation.website.trim() : null } : candidate.origin === "ORGANISATION_FIRST" ? { name: candidate.canonicalName.trim(), website: validUrl(candidate.website) ? candidate.website.trim() : null } : null;
+  const personRaw = raw.person && typeof raw.person === "object" ? raw.person : null;
+  const person = personRaw && text(personRaw.name) ? { name: text(personRaw.name)!, role: text(personRaw.role), organisationName: text(personRaw.organisationName), organisationWebsite: validUrl(personRaw.organisationWebsite) ? personRaw.organisationWebsite.trim() : null } : null;
+  const venueRaw = raw.venue && typeof raw.venue === "object" ? raw.venue : null;
+  const venue = venueRaw && text(venueRaw.name) ? { name: text(venueRaw.name)!, website: validUrl(venueRaw.website) ? venueRaw.website.trim() : null, operatorName: text(venueRaw.operatorName), operatorWebsite: validUrl(venueRaw.operatorWebsite) ? venueRaw.operatorWebsite.trim() : null } : null;
+  return { organisation, person, venue };
+}
 const SITE_SIGNAL_PATTERNS: Array<[SourceSiteType, RegExp]> = [
   ["VENUE_CALENDAR", /\b(?:venue calendar|what's on at|what.s on at|events at the venue)\b/i],
   ["VENUE_OFFICIAL", /\b(?:official venue|venue website|venue operator|the venue presents)\b/i],
@@ -142,7 +170,7 @@ function normaliseOrganisationResolution(value: unknown, candidate: DiscoveredCa
   const officialWebsiteSiteType = SITE_TYPES.includes(raw.officialWebsiteSiteType as SourceSiteType) ? raw.officialWebsiteSiteType as SourceSiteType : siteClassifications.find((item) => item.url === officialWebsite)?.siteType ?? (candidate.origin === "EVENT_FIRST" && officialWebsite === candidate.website ? "UNKNOWN" : "ORGANISATION_OFFICIAL");
   const targetIsAuthoritative = officialWebsiteSiteType === "ORGANISATION_OFFICIAL" || (officialWebsiteSiteType === "EVENT_OFFICIAL" && evidence.some((item) => /\b(?:event brand|event itself|operating entity|organising entity|organizer is the event|organiser is the event)\b/i.test(item.claim)));
   const resolved = status === "RESOLVED" && Boolean(canonicalOrganisationName && officialWebsite && evidence.length && raw.confidence && raw.confidence !== "NONE" && targetIsAuthoritative);
-  const finalStatus = resolved ? "RESOLVED" : candidate.origin === "ORGANISATION_FIRST" ? "NOT_REQUIRED" : "UNRESOLVED";
+  const finalStatus = resolved ? "RESOLVED" : raw.status === "NOT_REQUIRED" && candidate.origin === "ORGANISATION_FIRST" ? "NOT_REQUIRED" : "UNRESOLVED";
   const relatedOrganisations = Array.isArray(raw.relatedOrganisations) ? raw.relatedOrganisations.filter((item): item is NonNullable<OrganisationResolution["relatedOrganisations"]>[number] => Boolean(item && typeof item === "object" && typeof item.name === "string" && typeof item.relationship === "string" && Array.isArray(item.evidence))).slice(0, 8).map((item) => ({ name: item.name.trim(), relationship: item.relationship.trim(), website: validUrl(item.website) ? item.website : null, confidence: item.confidence, evidence: item.evidence.filter((e): e is string => typeof e === "string" && Boolean(e.trim())).slice(0, 4) })) : [];
   return { status: finalStatus, canonicalOrganisationName: resolved ? canonicalOrganisationName : null, officialWebsite: resolved ? officialWebsite : null, aliases: Array.isArray(raw.aliases) ? raw.aliases.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()).slice(0, 8) : [], confidence: ["LOW", "MEDIUM", "HIGH"].includes(raw.confidence as string) ? raw.confidence as OrganisationResolution["confidence"] : "NONE", evidence, officialWebsiteSiteType, siteClassifications, relatedOrganisations };
 }
@@ -179,7 +207,7 @@ export function applyDiscoveryEnrichment(candidate: EvaluatedDiscoveryCandidate,
   const facts = [...candidate.facts, ...resolutionFacts, ...commercialFacts, ...update.facts.filter((item) => item.kind === "FACT" && item.claim.trim() && (item.sourceUrl || item.sourceTitle) && !factKeys.has(`${item.claim}::${item.sourceUrl ?? ""}`))];
   const inferenceKeys = new Set(candidate.inferences.map((item) => item.claim));
   const inferences = [...candidate.inferences, ...update.inferences.filter((item) => item.kind === "INFERENCE" && item.claim.trim() && !inferenceKeys.has(item.claim))];
-  return evaluateDiscoveryCandidate({ ...promoted, facts, inferences, commercialEvidence, organisationResolution, siteClassifications: [...(candidate.siteClassifications ?? []), ...(organisationResolution.siteClassifications ?? [])], unknowns: [...new Set([...candidate.unknowns, ...update.unknowns.filter((item) => item.trim())])] }, territory);
+  return evaluateDiscoveryCandidate({ ...promoted, facts, inferences, commercialEvidence, organisationResolution, siteClassifications: [...(candidate.siteClassifications ?? []), ...(organisationResolution.siteClassifications ?? [])], laneContext: candidate.laneContext, unknowns: [...new Set([...candidate.unknowns, ...update.unknowns.filter((item) => item.trim())])] }, territory);
 }
 
 function materialSnapshot(candidate: EvaluatedDiscoveryCandidate) {
@@ -207,16 +235,28 @@ function hasEventSignal(candidate: Pick<EvaluatedDiscoveryCandidate, "canonicalN
   return candidate.facts.some((item) => EVENT_CONTEXT_PATTERN.test(item.claim) || item.claim.toLowerCase().includes(candidate.canonicalName.toLowerCase()));
 }
 
-export function identityHandoffGate(candidate: Pick<EvaluatedDiscoveryCandidate, "canonicalName" | "origin" | "organiserName" | "facts" | "relationship" | "firstPartyStatus" | "status" | "prospectIntelligence">) {
+function laneTargetName(candidate: Pick<DiscoveredCandidate, "canonicalName" | "organiserName" | "laneContext" | "origin">) {
+  return candidate.organiserName?.trim() || candidate.laneContext?.organisation?.name?.trim() || candidate.laneContext?.person?.organisationName?.trim() || candidate.laneContext?.venue?.operatorName?.trim() || candidate.canonicalName.trim();
+}
+
+function hasLaneMinimumEvidence(candidate: Pick<EvaluatedDiscoveryCandidate, "canonicalName" | "origin" | "organiserName" | "facts" | "laneContext">) {
+  if (candidate.origin === "EVENT_FIRST") return Boolean(candidate.organiserName?.trim()) && hasEventSignal(candidate);
+  if (candidate.origin === "ORGANISATION_FIRST") return Boolean(candidate.laneContext?.organisation?.name?.trim() || candidate.canonicalName.trim()) && candidate.facts.some((item) => EVENT_CONTEXT_PATTERN.test(item.claim) && (ORGANISER_PATTERN.test(item.claim) || /\b(?:portfolio|series|programme|events?)\b/i.test(item.claim)));
+  if (candidate.origin === "PERSON_FIRST") return Boolean(candidate.laneContext?.person?.name?.trim() && candidate.laneContext.person.role?.trim()) && candidate.facts.some((item) => item.sourceUrl && /\b(?:event|venue|production|ticketing|registration|operations?|marketing|commercial|sponsorship|supplier|promot(?:er|ing)|organis(?:er|ing)|agency|freelance)\b/i.test(`${item.claim} ${candidate.laneContext?.person?.role ?? ""}`));
+  return Boolean(candidate.laneContext?.venue?.name?.trim()) && candidate.facts.some((item) => item.sourceUrl && EVENT_CONTEXT_PATTERN.test(item.claim) && /\b(?:venue|host(?:s|ed|ing)|calendar|programme|resident|recurring)\b/i.test(item.claim));
+}
+
+export function identityHandoffGate(candidate: Pick<EvaluatedDiscoveryCandidate, "canonicalName" | "origin" | "organiserName" | "facts" | "laneContext" | "relationship" | "firstPartyStatus" | "status" | "prospectIntelligence">) {
   if (candidate.firstPartyStatus === FIRST_PARTY_SELF) return { eligible: false, reason: "FIRST_PARTY_SELF" };
   if (candidate.relationship === "COMPETITOR") return { eligible: false, reason: "COMPETITOR_BLOCKED" };
   if (!["PROSPECT", "UNKNOWN"].includes(candidate.relationship)) return { eligible: false, reason: "RELATIONSHIP_NOT_PROSPECT" };
-  if (candidate.status !== "REVIEW_REQUIRED") return { eligible: false, reason: `STATUS_${candidate.status}` };
-  if (candidate.origin !== "EVENT_FIRST") return { eligible: false, reason: "NOT_EVENT_FIRST" };
-  if (candidate.prospectIntelligence.eventConnection.state !== "NONE") return { eligible: true, reason: "EVENT_CONNECTION_REQUIRES_ENRICHMENT" };
-  if (!candidate.organiserName?.trim()) return { eligible: false, reason: "NO_ORGANISER_HINT" };
-  if (!hasEventSignal(candidate)) return { eligible: false, reason: "NO_EVENT_SIGNAL" };
-  return { eligible: true, reason: "UNVERIFIED_ORGANISER_HINT" };
+  if (!["REVIEW_REQUIRED", "QUALIFIED"].includes(candidate.status)) return { eligible: false, reason: `STATUS_${candidate.status}` };
+  if (!hasLaneMinimumEvidence(candidate)) return { eligible: false, reason: "LANE_MINIMUM_EVIDENCE_MISSING" };
+  if (candidate.origin === "EVENT_FIRST") {
+    if (candidate.prospectIntelligence.eventConnection.state !== "NONE") return { eligible: true, reason: "EVENT_CONNECTION_REQUIRES_ENRICHMENT" };
+    return { eligible: true, reason: "UNVERIFIED_ORGANISER_HINT" };
+  }
+  return { eligible: true, reason: `${candidate.origin}_IDENTITY_CONFIRMATION` };
 }
 
 function telemetryFor(candidates: EvaluatedDiscoveryCandidate[], eligibleCount: number, attemptedCount: number, successCount: number, failedCount: number, materialCount: number): EnrichmentRunTelemetry {
@@ -233,7 +273,7 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   const failed = () => ({ candidates: prepared.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const, gateReason: identityHandoffGate(candidate).reason, promptVersions: AGENT_PROMPT_VERSIONS } } : candidate), telemetry: telemetryFor(prepared, eligible.length, targets.length, 0, targets.length, 0) });
   if (!apiKey) return failed();
-  const dossier = targets.map((candidate, index) => ({ candidateRef: String(index + 1), discoverySignal: candidate.canonicalName, currentCommercialTarget: { name: candidate.organiserName, website: candidate.website }, origin: candidate.origin, facts: candidate.facts.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, roles: item.sourceRoles, confidence: item.confidence })), unresolved: candidate.prospectIntelligence.accountCreationReason }));
+  const dossier = targets.map((candidate, index) => ({ candidateRef: String(index + 1), discoverySignal: candidate.canonicalName, currentCommercialTarget: { name: laneTargetName(candidate), website: candidate.website }, laneContext: candidate.laneContext ?? null, origin: candidate.origin, facts: candidate.facts.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, roles: item.sourceRoles, confidence: item.confidence })), unresolved: candidate.prospectIntelligence.accountCreationReason }));
   const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, tools: [{ type: "web_search" }], max_output_tokens: 10000, input: `${IDENTITY_RESOLVER_PROMPT_V1}\n${COMMERCIAL_RESEARCHER_PROMPT_V1}\nPerform one bounded handoff for these ${territory === "ZA" ? "South African" : "UK"} candidates. Resolve identity first, then research the resolved organisation and return supporting and counter-evidence for every product lens. The discovery source is never automatically the target website. Return a specific unknown when evidence is insufficient. Dossiers: ${JSON.stringify(dossier)}`, text: { format: { type: "json_schema", name: "prospecting_evidence_enrichment", strict: true, schema: enrichmentSchema } } }) });
   if (!response.ok) return failed();
   const parsed = parseProviderText(await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> });
@@ -258,9 +298,12 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
 
 export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, territory: DiscoveryTerritory): EvaluatedDiscoveryCandidate {
   const facts = candidate.facts.filter((item) => item.kind === "FACT").map(normaliseFact);
+  const laneContext = normaliseLaneContext(candidate.laneContext, candidate);
   const firstPartyStatus = isEventSuiteFirstPartyIdentity({ website: candidate.website, identityName: candidate.organiserName || candidate.canonicalName, sourceUrls: facts.map((item) => item.sourceUrl) }) ? FIRST_PARTY_SELF : undefined;
   const relationship = firstPartyStatus ? "UNKNOWN" : classifyAccountRelationship({ name: candidate.organiserName || candidate.canonicalName, website: candidate.website, summary: [...facts, ...candidate.inferences].map((item) => item.claim).join(" "), qualificationFit: facts.length ? "MEDIUM" : "UNKNOWN", relationship: candidate.relationshipHint }).relationship;
-  const evaluated = evaluateProspectIntelligence({ relationship, territory, facts, inferences: candidate.inferences.filter((item) => item.kind === "INFERENCE"), unknowns: candidate.unknowns, commercialEvidence: candidate.commercialEvidence });
+  const explicitOrganiserValidation = candidate.origin === "EVENT_FIRST" && facts.some((item) => item.sourceRoles?.includes("VALIDATION") && ORGANISER_PATTERN.test(item.claim) && ["HIGH", "MEDIUM"].includes(item.confidence));
+  const identityResolved = candidate.origin === "ORGANISATION_FIRST" ? Boolean(candidate.website) : candidate.organisationResolution?.status === "RESOLVED" || explicitOrganiserValidation;
+  const evaluated = evaluateProspectIntelligence({ relationship, territory, facts, inferences: candidate.inferences.filter((item) => item.kind === "INFERENCE"), unknowns: candidate.unknowns, commercialEvidence: candidate.commercialEvidence, discoveryLane: candidate.origin, laneContext, identityResolved });
   const prospectIntelligence = firstPartyStatus ? { ...evaluated, primaryEntryOpportunity: "UNKNOWN" as const, commercialPriority: "LOW" as const, accountCreationEligible: false, accountCreationReason: "EventSuite first-party identity is not a prospect.", outreachEligibility: "BLOCKED" as const, outreachBlockOrReviewReason: "FIRST_PARTY_SELF — EventSuite first-party identity is not eligible for commercial memory or outreach.", firstPartyStatus } : evaluated;
   const freshness = prospectIntelligence.eventFreshness.state;
   const hasOrganiserEvidence = facts.some((item) => EVENT_CONTEXT_PATTERN.test(item.claim) && ORGANISER_PATTERN.test(item.claim));
@@ -273,13 +316,14 @@ export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, terri
   const sourceUrls = [...new Set(facts.map((item) => item.sourceUrl).filter((url): url is string => Boolean(url)))];
   const siteClassifications = [...(candidate.siteClassifications ?? []), ...(candidate.website ? [classifySourceSite({ url: candidate.website, claims: facts.map((item) => item.claim), candidateOrigin: candidate.origin })] : []), ...facts.filter((item) => item.sourceUrl).map((item) => classifySourceSite({ url: item.sourceUrl as string, claims: [item.claim], sourceTitle: item.sourceTitle, candidateOrigin: candidate.origin }))].filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index);
   const persistedResolution = { ...organisationResolution, siteClassifications: [...(organisationResolution.siteClassifications ?? []), ...siteClassifications].filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index) };
-  return { ...candidate, facts, canonicalKey: canonicalDiscoveryKey(candidate.organiserName || candidate.canonicalName, candidate.website), relationship, status, prospectIntelligence, organisationResolution: persistedResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, siteClassifications, sourceUrls, enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, gateReason: allowIdentityHandoff ? "UNVERIFIED_ORGANISER_HINT" : firstPartyStatus ? "FIRST_PARTY_SELF" : "INITIAL_DISCOVERY_GATE", resolutionOutcome: persistedResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
+  const identity = identityKeyParts({ ...candidate, laneContext });
+  return { ...candidate, laneContext, facts, canonicalKey: canonicalDiscoveryKey(identity.name, identity.website), relationship, status, prospectIntelligence, organisationResolution: persistedResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, siteClassifications, sourceUrls, enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, gateReason: allowIdentityHandoff ? "UNVERIFIED_ORGANISER_HINT" : firstPartyStatus ? "FIRST_PARTY_SELF" : "INITIAL_DISCOVERY_GATE", resolutionOutcome: persistedResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
 }
 
 export function parseDiscovery(value: unknown, territory: DiscoveryTerritory) {
   if (!value || typeof value !== "object" || !Array.isArray((value as { candidates?: unknown }).candidates)) throw new Error("Discovery returned no candidate list.");
   const seen = new Set<string>();
-  return (value as { candidates: DiscoveredCandidate[] }).candidates.filter((candidate) => candidate?.canonicalName?.trim() && candidate.facts?.some((fact) => fact.kind === "FACT" && fact.sourceUrl)).map((candidate) => { const website = candidate.website?.trim() || null; const inferredSite = website ? classifySourceSite({ url: website, claims: candidate.facts.map((item) => item.claim), candidateOrigin: candidate.origin }) : null; const suppliedSite = candidate.siteClassifications?.find((item) => item.url === website) ?? inferredSite; const providerSignal = candidate.origin === "EVENT_FIRST" && PROVIDER_HOST_PATTERN.test(domainOf(website) ?? ""); const discoveryOnlyEventSite = candidate.origin === "EVENT_FIRST" && ["EVENT_OFFICIAL", "TICKETING_PROVIDER", "EVENT_LISTING_DIRECTORY", "VENUE_CALENDAR", "VENUE_OFFICIAL"].includes(suppliedSite?.siteType ?? ""); return evaluateDiscoveryCandidate({ ...candidate, organiserName: candidate.organiserName?.trim() || null, siteClassifications: [...(candidate.siteClassifications ?? []), ...(inferredSite ? [inferredSite] : [])], website: providerSignal || discoveryOnlyEventSite ? null : website }, territory); }).filter((candidate) => { if (seen.has(candidate.canonicalKey)) return false; seen.add(candidate.canonicalKey); return true; });
+  return (value as { candidates: DiscoveredCandidate[] }).candidates.filter((candidate) => candidate?.canonicalName?.trim() && candidate.facts?.some((fact) => fact.kind === "FACT" && fact.sourceUrl)).map((candidate) => { const origin = normaliseOrigin(candidate.origin); const website = candidate.website?.trim() || null; const inferredSite = website ? classifySourceSite({ url: website, claims: candidate.facts.map((item) => item.claim), candidateOrigin: origin }) : null; const suppliedSite = candidate.siteClassifications?.find((item) => item.url === website) ?? inferredSite; const providerSignal = origin !== "PERSON_FIRST" && PROVIDER_HOST_PATTERN.test(domainOf(website) ?? ""); const discoveryOnlyEventSite = origin === "EVENT_FIRST" && ["EVENT_OFFICIAL", "TICKETING_PROVIDER", "EVENT_LISTING_DIRECTORY", "VENUE_CALENDAR", "VENUE_OFFICIAL"].includes(suppliedSite?.siteType ?? ""); return evaluateDiscoveryCandidate({ ...candidate, origin, organiserName: candidate.organiserName?.trim() || null, laneContext: normaliseLaneContext(candidate.laneContext, { ...candidate, origin }), siteClassifications: [...(candidate.siteClassifications ?? []), ...(inferredSite ? [inferredSite] : [])], website: providerSignal || discoveryOnlyEventSite ? null : website }, territory); }).filter((candidate) => { if (seen.has(candidate.canonicalKey)) return false; seen.add(candidate.canonicalKey); return true; });
 }
 
 export async function discoverProspects(input: { territory: DiscoveryTerritory; focus: DiscoveryFocus; caseHint?: string }) {

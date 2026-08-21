@@ -232,13 +232,24 @@ A different domain can still be valid when authoritative evidence explicitly att
 
 Preserve the controlling prospecting PRD semantics.
 
+Discovery has four equal entry lanes: `EVENT_FIRST`, `ORGANISATION_FIRST`,
+`PERSON_FIRST` and `VENUE_FIRST`. A credible lane-specific identity and
+event-sector relevance may continue as a prospect even when Commercial
+Research honestly returns `NO_EVIDENCE`. Product evidence changes priority
+and messaging; it is not a prerequisite for retaining a real, relevant
+prospect. Person-first role evidence does not assert event ownership, and
+venue-first hosting evidence does not assert venue organising.
+
 A candidate may become commercially qualified only when there is sufficient evidence for:
 
 - credible/resolved organisation;
-- current or recurring event activity;
-- adequate Event Connection;
+- genuine event-sector relevance through the originating lane;
 - no deterministic block;
-- at least one credible EventSuite commercial signal/hypothesis meeting policy.
+- safe identity and dedupe state.
+
+A specific EventSuite commercial signal or hypothesis is required before a
+positive product opportunity, outbound readiness or outreach CTA, but not
+before retaining a credible prospect or continuing bounded research.
 
 Qualification does not require:
 
@@ -247,7 +258,7 @@ Qualification does not require:
 - a personal email;
 - a quota/score threshold invented for V1.
 
-Contact research can improve actionability before/around qualification but does not replace the commercial evidence gate.
+Contact research can improve actionability before/around product qualification but does not create identity, override a block or authorise outreach.
 
 ---
 

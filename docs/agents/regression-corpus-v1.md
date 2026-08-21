@@ -392,6 +392,26 @@ Expected:
 - a positive ECC result requires separate evidence of a gap, fragmentation,
   manual work, procurement, dissatisfaction or change intent.
 
+## R38 — Four equal discovery lanes
+
+Fixtures cover `EVENT_FIRST`, `ORGANISATION_FIRST`, `PERSON_FIRST` and
+`VENUE_FIRST` independently.
+
+Expected:
+
+- each lane reaches the shared identity handoff when its minimum evidence is
+  present;
+- person-first preserves the person, role and evidenced organisation/event
+  relationships without claiming ownership;
+- venue-first may retain the venue/operator as the prospect, while venue
+  hosting never becomes organiser evidence;
+- credible identity and event-sector relevance can continue without proven
+  pain, while product evidence improves prioritisation;
+- the same organisation found through multiple lanes deduplicates through
+  the existing canonical identity key;
+- old stored origin strings remain readable and no production records are
+  rewritten.
+
 ---
 
 # Acceptance bar
@@ -410,3 +430,5 @@ For this corpus:
 - primary and related organisations remain distinct;
 - supporting evidence and counter-evidence are both investigated and consumed;
 - technical-success telemetry remains distinct from business advancement.
+- all four discovery lanes remain distinct from any commercial/change signal
+  attached to them.

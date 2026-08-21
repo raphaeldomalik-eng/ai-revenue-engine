@@ -155,6 +155,53 @@ test("expo terminology remains event evidence after identity promotion", () => {
   assert.notEqual(promoted.status, "REJECTED");
 });
 
+test("the four discovery lanes independently reach identity handoff", () => {
+  const eventFirst = evaluateDiscoveryCandidate(candidate({ laneContext: { organisation: null, person: null, venue: null } }), "GB");
+  const organisationFirst = evaluateDiscoveryCandidate(candidate({ canonicalName: "Quality Events", organiserName: "Quality Events", origin: "ORGANISATION_FIRST", website: "https://quality.example.org", laneContext: { organisation: { name: "Quality Events", website: "https://quality.example.org" }, person: null, venue: null }, facts: [fact("Quality Events operates an upcoming portfolio of regional festivals.", ["VALIDATION"])] }), "GB");
+  const personFirst = evaluateDiscoveryCandidate(candidate({ canonicalName: "Alex Morgan", organiserName: null, website: null, origin: "PERSON_FIRST", laneContext: { organisation: null, person: { name: "Alex Morgan", role: "Event Operations Manager", organisationName: "Quality Events", organisationWebsite: "https://quality.example.org" }, venue: null }, facts: [fact("Alex Morgan is the current Event Operations Manager at Quality Events.", ["VALIDATION"])] }), "GB");
+  const venueFirst = evaluateDiscoveryCandidate(candidate({ canonicalName: "The Piece Hall", organiserName: null, website: "https://piecehall.co.uk", origin: "VENUE_FIRST", laneContext: { organisation: null, person: null, venue: { name: "The Piece Hall", website: "https://piecehall.co.uk", operatorName: "The Piece Hall Trust", operatorWebsite: "https://piecehall.co.uk/about" } }, facts: [fact("The Piece Hall hosts an annual events programme and recurring concerts.", ["VALIDATION"])] }), "GB");
+  assert.deepEqual(identityHandoffGate(eventFirst), { eligible: true, reason: "EVENT_CONNECTION_REQUIRES_ENRICHMENT" });
+  assert.deepEqual(identityHandoffGate(organisationFirst), { eligible: true, reason: "ORGANISATION_FIRST_IDENTITY_CONFIRMATION" });
+  assert.deepEqual(identityHandoffGate(personFirst), { eligible: true, reason: "PERSON_FIRST_IDENTITY_CONFIRMATION" });
+  assert.deepEqual(identityHandoffGate(venueFirst), { eligible: true, reason: "VENUE_FIRST_IDENTITY_CONFIRMATION" });
+});
+
+test("person-first preserves person relationships without claiming event ownership", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Alex Morgan", organiserName: null, website: null, origin: "PERSON_FIRST", laneContext: { organisation: null, person: { name: "Alex Morgan", role: "Freelance Event Producer", organisationName: "Alex Morgan Events", organisationWebsite: "https://alexmorgan.example.org" }, venue: null }, facts: [fact("Alex Morgan is a freelance event producer who works on public conferences.", ["VALIDATION"])] }), "GB");
+  const resolved = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Alex Morgan Events", officialWebsite: "https://alexmorgan.example.org", aliases: [], confidence: "HIGH", evidence: [{ claim: "Alex Morgan Events employs Alex Morgan as a freelance event producer.", sourceUrl: "https://alexmorgan.example.org/about", sourceTitle: "Team", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(resolved.origin, "PERSON_FIRST");
+  assert.equal(resolved.laneContext?.person?.name, "Alex Morgan");
+  assert.equal(resolved.laneContext?.person?.role, "Freelance Event Producer");
+  assert.equal(resolved.canonicalName, "Alex Morgan Events");
+  assert.equal(resolved.prospectIntelligence.accountCreationEligible, true);
+  assert.match(resolved.prospectIntelligence.eventConnection.reasons[0], /does not assert event ownership/i);
+});
+
+test("venue-first can retain an operator while hosting does not become organiser evidence", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "The Piece Hall", organiserName: null, website: "https://piecehall.co.uk", origin: "VENUE_FIRST", laneContext: { organisation: null, person: null, venue: { name: "The Piece Hall", website: "https://piecehall.co.uk", operatorName: "The Piece Hall Trust", operatorWebsite: "https://piecehall.co.uk/about" } }, facts: [fact("The Piece Hall hosts an annual events programme and recurring concerts.", ["VALIDATION"])] }), "GB");
+  assert.equal(initial.prospectIntelligence.eventConnection.state, "STRONG");
+  assert.match(initial.prospectIntelligence.eventConnection.reasons[0], /does not prove organising/i);
+  const resolved = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "The Piece Hall Trust", officialWebsite: "https://piecehall.co.uk/about", aliases: ["The Piece Hall"], confidence: "HIGH", evidence: [{ claim: "The Piece Hall Trust operates The Piece Hall venue.", sourceUrl: "https://piecehall.co.uk/about", sourceTitle: "About", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(resolved.laneContext?.venue?.name, "The Piece Hall");
+  assert.equal(resolved.canonicalName, "The Piece Hall Trust");
+  assert.equal(resolved.prospectIntelligence.accountCreationEligible, true);
+});
+
+test("lack of proven pain does not block a resolved lane prospect or create outreach readiness", () => {
+  const result = evaluateDiscoveryCandidate(candidate({ canonicalName: "Quality Events", organiserName: "Quality Events", origin: "ORGANISATION_FIRST", website: "https://quality.example.org", laneContext: { organisation: { name: "Quality Events", website: "https://quality.example.org" }, person: null, venue: null }, facts: [fact("Quality Events operates an annual portfolio of public festivals.", ["VALIDATION"])], inferences: [], commercialEvidence: [] }), "GB");
+  assert.equal(result.prospectIntelligence.accountCreationEligible, true);
+  assert.equal(result.prospectIntelligence.primaryEntryOpportunity, "UNKNOWN");
+  assert.equal(result.prospectIntelligence.outreachEligibility, "REVIEW_REQUIRED");
+});
+
+test("the shared identity key deduplicates one organisation found through multiple lanes", () => {
+  const parsed = parseDiscovery({ candidates: [
+    candidate({ canonicalName: "Quality Festival", organiserName: "Quality Events", website: "https://quality.example.org", origin: "EVENT_FIRST", laneContext: { organisation: { name: "Quality Events", website: "https://quality.example.org" }, person: null, venue: null } }),
+    candidate({ canonicalName: "Quality Events", organiserName: "Quality Events", website: "https://quality.example.org", origin: "ORGANISATION_FIRST", laneContext: { organisation: { name: "Quality Events", website: "https://quality.example.org" }, person: null, venue: null }, facts: [fact("Quality Events operates an upcoming portfolio of regional festivals.", ["VALIDATION"])] }),
+  ] }, "GB");
+  assert.equal(parsed.length, 1);
+});
+
 test("eCommerce Expo-style resolution hands commercial research to UPTECH, not the event page", () => {
   const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "eCommerce Expo 2026", organiserName: "UPTECH Events", website: "https://www.ecommerceexpo.co.uk/", facts: [fact("UPTECH Events is the organiser of eCommerce Expo 2026.", ["DISCOVERY"])] }), "GB");
   const promoted = applyDiscoveryEnrichment(initial, {
@@ -195,7 +242,7 @@ test("commercial advancement telemetry distinguishes resolution/product progress
   const originalFetch = globalThis.fetch;
   process.env.OPENAI_API_KEY = "test-only-key";
   globalThis.fetch = async () => new Response(JSON.stringify({ output_text: JSON.stringify({ candidates: [{ candidateRef: "1", organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Resolved Events", officialWebsite: "https://resolved.example.org", aliases: [], confidence: "HIGH", evidence: [{ claim: "Resolved Events is the organiser of the current event.", sourceUrl: "https://event.example.org/about", sourceTitle: "Organiser", confidence: "HIGH" }] }, commercialEvidence: [{ product: "EGS", claim: "The organisation has fragmented event pages.", sourceUrl: "https://resolved.example.org/events", evidenceCategory: "FRAGMENTED_DIGITAL", confidence: "HIGH" }], facts: [], inferences: [], unknowns: [] }] }) }), { status: 200, headers: { "content-type": "application/json" } });
-  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Current Event", organiserName: null, website: null, facts: [fact("Current Event is scheduled this year.", ["DISCOVERY"])] }), "GB");
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Current Event", organiserName: "Current Events", website: null, facts: [fact("Current Event is scheduled this year.", ["DISCOVERY"])] }), "GB");
   const result = await (await import("../src/ai-sales-team/discovery.ts")).enrichDiscoveryCandidates([initial], "GB");
   assert.equal(result.candidates[0].enrichment.status, "SUCCEEDED");
   assert.equal(result.candidates[0].enrichment.resolutionOutcome, "RESOLVED");

@@ -30,11 +30,14 @@ EventSuite itself and authoritative EventSuite-owned first-party identities or d
 
 ## 2. Discovery paths
 
-The strategy supports three conceptual paths, with no fixed quota or required ratio:
+The strategy supports four equal entry lanes, with no fixed quota or required ratio:
 
 - **EVENT_FIRST:** event → responsible organisation → validation → commercial diagnosis.
 - **ORGANISATION_FIRST:** organisation → active event or activity portfolio → commercial diagnosis.
-- **SIGNAL_FIRST:** commercial or timing signal → organisation → validation → opportunity diagnosis.
+- **PERSON_FIRST:** credible event-industry person → evidenced employer, own business or client relationships → commercial diagnosis.
+- **VENUE_FIRST:** venue → venue operator/owner and hosted activity → commercial diagnosis.
+
+Commercial, timing and change signals are evidence attached to the lane that found them, not a fifth top-level prospect lane. The shared graph is `Event ↔ Organisation ↔ Person ↔ Venue`; each relationship retains evidence, confidence and relationship type. Venue hosting does not prove venue organising, and a person’s event work does not prove that they own or organise the event.
 
 Signals may include a new event launch, expansion, additional stages or venues, vendor or volunteer recruitment, registration opening, venue launch, a new event series, programme growth, or procurement/provider-change evidence.
 
@@ -182,7 +185,7 @@ Canonicalisation should prefer one commercial identity per real organisation usi
 
 Discovery memory comes first. Do not create an Account merely because a candidate was discovered or marked REVIEW_REQUIRED.
 
-An Account normally requires credible organisation identity, relevant current or recurring activity, adequate Event Connection, a non-blocked relationship and at least one credible EventSuite commercial signal or hypothesis. Weak review candidates remain discovery memory.
+An Account normally requires credible organisation identity, genuine event-sector relevance, adequate lane-specific activity or role evidence and a non-blocked relationship. A specific EventSuite commercial signal or hypothesis improves prioritisation and messaging but is not required merely to retain a credible prospect or continue bounded buyer/contact research. Weak or unresolved candidates remain discovery memory.
 
 A candidate may qualify when evidence supports a real commercial organisation, relevant activity, adequate connection, credible EventSuite opportunity and no blocking safety condition. Qualification does not require every product to fit, a named buyer, a verified email or a fixed candidate quota.
 
@@ -253,7 +256,7 @@ The following revenue-intelligence capabilities are also explicitly future roadm
 - Local Operator Network integration;
 - Gig Guide venue prospect graph;
 - SendGrid Revenue Engine event-webhook feedback;
-- Signal-first source expansion;
+- additional commercial-signal source expansion;
 - Meta and LinkedIn source integrations;
 - scheduled or background prospecting.
 
@@ -317,7 +320,7 @@ After core public-web prospecting is quality-proven, the current roadmap is:
 4. SendGrid Outreach Feedback V1;
 5. Meta source feasibility/integration;
 6. LinkedIn source feasibility/integration;
-7. Signal-first expansion;
+7. additional commercial-signal source expansion;
 8. scheduled/background autonomous prospecting only after later quality gates.
 
 This order may evolve from evidence, but represents the current approved product sequencing. The immediate release and quality sequence is now:
@@ -342,7 +345,7 @@ Quality Calibration V4 is deferred until the Agent Pack V1 runtime is implemente
 
 Implemented or proven so far:
 
-- EVENT_FIRST and ORGANISATION_FIRST discovery;
+- EVENT_FIRST, ORGANISATION_FIRST, PERSON_FIRST and VENUE_FIRST discovery;
 - dynamic freshness and rejection improvements;
 - account-pollution protection;
 - competitor/customer distinction;
@@ -358,8 +361,8 @@ Not yet quality-proven at real-world production scale:
 - source-role diversity;
 - meaningful live inference and unknown output at scale.
 
-PR #14 is governed by this PRD and remains limited to bounded evidence enrichment. It does not implement Signal-first discovery, Meta, LinkedIn, UI redesign or scheduled discovery. Production quality calibration remains a separate post-merge gate.
+PR #14 is governed by this PRD and remains limited to bounded evidence enrichment. It does not implement additional commercial-signal source expansion, Meta, LinkedIn, UI redesign or scheduled discovery. Production quality calibration remains a separate post-merge gate.
 
-PR #15 is governed by this PRD and remains limited to first-party self-exclusion and bounded enrichment observability. It does not implement the EventSuite Lifecycle Bridge, lifecycle matching, Local Operator Network integration, Gig Guide prospect graph, SendGrid Revenue Engine webhook feedback, Meta, LinkedIn, Signal-first expansion or scheduled prospecting. All such capabilities remain planned, not implemented.
+PR #15 is governed by this PRD and remains limited to first-party self-exclusion and bounded enrichment observability. It does not implement the EventSuite Lifecycle Bridge, lifecycle matching, Local Operator Network integration, Gig Guide prospect graph, SendGrid Revenue Engine webhook feedback, Meta, LinkedIn, additional commercial-signal source expansion or scheduled prospecting. All such capabilities remain planned, not implemented.
 
 PR #17 is governed by this PRD and remains limited to the legacy first-party Contact Discovery and outreach guard. Current authoritative Account identity now blocks stale EventSuite self-prospect state before contact research or outreach work; this correction does not clean historical records or prove broader commercial qualification quality.

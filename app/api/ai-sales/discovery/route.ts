@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       }
       const status = firstPartySelf ? "REJECTED" : prior.data ? "DUPLICATE" : candidate.status;
       const relationship = firstPartySelf ? "UNKNOWN" : candidate.relationship;
-      const prospectIntelligence = { ...candidate.prospectIntelligence, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, organisationResolution: candidate.organisationResolution, commercialEvidence: candidate.commercialEvidence, enrichment: candidate.enrichment };
+      const prospectIntelligence = { ...candidate.prospectIntelligence, discoveryLane: candidate.origin, laneContext: candidate.laneContext ?? null, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, organisationResolution: candidate.organisationResolution, commercialEvidence: candidate.commercialEvidence, enrichment: candidate.enrichment };
       const values = { discovery_run_id: run.id, canonical_key: candidate.canonicalKey, candidate_name: candidate.canonicalName, organiser_name: candidate.organiserName, website: candidate.website, territory_code: body.territory, origin: candidate.origin, status, account_id: accountId, relationship, facts: candidate.facts, inferences: candidate.inferences, unknowns: candidate.unknowns, prospect_intelligence: prospectIntelligence, source_urls: candidate.sourceUrls, dedupe_of_candidate_id: prior.data?.id ?? null, last_seen_at: new Date().toISOString() };
       const { data, error } = await state.client.from("ai_prospect_candidates").insert(values).select("*").single();
       if (error) throw error;
