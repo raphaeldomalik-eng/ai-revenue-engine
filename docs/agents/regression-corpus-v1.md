@@ -415,6 +415,12 @@ Expected:
   pain, while product evidence improves prioritisation;
 - Apollo remains downstream of deterministic identity/domain checks, with
   maximum-five search, ranking, human selection and no automatic enrichment;
+- Phase One ranking prioritises SMEs, independent organisers, regional venues
+  and smaller agencies across all four lanes; `ENTERPRISE_DEFERRED` remains
+  deferred rather than rejected and `SIZE_UNRESOLVED` is never guessed;
+- the Hyve organisation-first case remains a valuable identity/Apollo
+  regression case, but is not representative of the Phase One target segment
+  and must not by itself make enterprise groups dominate ranking;
 - the same organisation found through multiple lanes deduplicates through
   the existing canonical identity key;
 - old stored origin strings remain readable and no production records are

@@ -82,6 +82,14 @@ employment/role check. Every lane ends in deterministic ranking, human
 selection and at most one initial enrichment. Proven pain is not required for
 credible prospect qualification; it guides product priority and messaging.
 
+Phase One ranking must prioritise UK SMEs, independent organisers, regional
+venues and smaller event agencies across all four lanes. Reuse the deterministic
+classifications `PHASE_ONE_SME`, `ENTERPRISE_DEFERRED` and `SIZE_UNRESOLVED` in
+existing JSON where possible. Enterprise is deferred, not rejected; unknown
+size is not guessed; Companies House account categories are indicators only;
+and venue capacity is not an operator-size proxy. This documentation rule does
+not require a schema change or model-generated size inference.
+
 ---
 
 # 3. Prompt ownership

@@ -311,6 +311,28 @@ Qualification does not require:
 
 Contact research can improve actionability before/around product qualification but does not create identity, override a block or authorise outreach.
 
+## 11a. Phase One size and ranking gate
+
+Phase One priority applies across all four lanes: `EVENT_FIRST`,
+`ORGANISATION_FIRST`, `PERSON_FIRST` and `VENUE_FIRST`. The initial focus is
+UK SMEs, independent organisers, regional venues and smaller event agencies.
+
+Deterministic size classifications are:
+
+- `PHASE_ONE_SME` — evidence supports the Phase One SME/independent or
+  regional focus;
+- `ENTERPRISE_DEFERRED` — strong evidence supports an enterprise or enterprise
+  group. Defer it for later sequencing; do not reject it;
+- `SIZE_UNRESOLVED` — evidence is insufficient. Do not guess size and do not
+  infer enterprise from absence of SME evidence.
+
+Companies House accounts categories are size indicators only, not definitive
+commercial classifications. Large venue capacity or attendance does not
+prove an enterprise operator. Strong public evidence must not let enterprise
+groups dominate ranking over Phase One prospects. These classifications do not
+override identity, competitor, first-party, provider or contact-provenance
+gates.
+
 ---
 
 # 12. Sales Readiness Gate

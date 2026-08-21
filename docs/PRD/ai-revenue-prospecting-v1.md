@@ -113,6 +113,36 @@ Universities, sports operators, cultural and tourism organisations, charities, e
 
 Initial territories are South Africa and the United Kingdom. Discovery should deliberately include grassroots, regional, community, independent-promoter and smaller-town activity, not only nationally visible events. Europe is deferred.
 
+### Phase One target priority and size handling
+
+Phase One prioritises UK SMEs, independent organisers, regional venues and
+smaller event agencies across all four discovery lanes:
+`EVENT_FIRST`, `ORGANISATION_FIRST`, `PERSON_FIRST` and `VENUE_FIRST`.
+The same priority applies whether the signal begins with an event,
+organisation, person or venue.
+
+Use these deterministic prospect-size classifications:
+
+- `PHASE_ONE_SME` — evidence supports a small or medium independent organiser,
+  regional venue operator or smaller event agency that fits the initial sales
+  motion;
+- `ENTERPRISE_DEFERRED` — strong evidence supports a large enterprise or
+  enterprise group outside the Phase One focus. This is deferred, not rejected;
+- `SIZE_UNRESOLVED` — available evidence is insufficient to classify size.
+  Unknown size must not be guessed and must not be treated as enterprise.
+
+Companies House accounts categories may be used as size indicators, but they
+are not definitive classifications of the commercial prospect. Legal accounts
+category, group structure, public scale and operating context must not be
+collapsed into an unsupported size claim. Likewise, a large venue capacity or
+high attendance figure does not imply that the venue operator is an enterprise.
+
+Strong public evidence must not allow enterprise groups to dominate Phase One
+ranking merely because they produce more visible signals. Enterprise groups
+remain separate valid entities and may be retained for later sequencing, while
+`PHASE_ONE_SME` receives the initial priority and `SIZE_UNRESOLVED` remains
+reviewable.
+
 ## 4. Source strategy and compliance
 
 The source model is intentionally multi-source:

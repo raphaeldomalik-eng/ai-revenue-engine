@@ -322,6 +322,29 @@ after deterministic checks and human selection, require approval before a
 second enrichment, deduplicate by company number/Place ID/domain/event
 identity, and record requests, model usage and provider costs per prospect.
 
+### Phase One prospect-size policy
+
+Phase One prioritises UK SMEs, independent organisers, regional venues and
+smaller event agencies across `EVENT_FIRST`, `ORGANISATION_FIRST`,
+`PERSON_FIRST` and `VENUE_FIRST`. The originating lane does not change this
+priority.
+
+The deterministic classifications are:
+
+- `PHASE_ONE_SME` — supported by evidence for the initial SME/independent or
+  regional sales focus;
+- `ENTERPRISE_DEFERRED` — supported by strong evidence of an enterprise or
+  enterprise-group profile; retain and defer, do not reject;
+- `SIZE_UNRESOLVED` — size is not sufficiently evidenced; do not guess and do
+  not default the record to enterprise.
+
+Companies House account categories are indicators, not definitive commercial
+size classifications. A large venue capacity does not establish an enterprise
+operator. Strong public visibility or evidence must not cause enterprise
+groups to dominate ranking over the Phase One focus. Size classification is
+policy output, not an AI-created fact, and must remain separate from identity,
+qualification and relationship facts.
+
 ---
 
 # 4. Agent 1 — Discovery Scout V1
