@@ -264,6 +264,64 @@ A source may have more than one role, but roles must be justified by the claim. 
 
 `POSSIBLE` is research memory and should not, by itself, satisfy a commercial qualification gate.
 
+## Source responsibility and orchestration contract
+
+Use the most authoritative and cost-effective source for each fact. The
+originating lane is orchestration input and must remain unchanged through all
+model handoffs. Related entities may be discovered, but a model must not
+rewrite the lane or silently merge separate graph nodes.
+
+### Source ownership
+
+- **Companies House** is authoritative for UK legal-company name, company
+  number, active/dissolved status, registered region, incorporation date, SIC
+  codes and current legal officers. It normally does not provide the trading
+  website. Officers are `LEGAL_OFFICER` evidence only, never automatic buyer,
+  Apollo-candidate, event-owner or outreach evidence.
+- **Google Places** is authoritative for physical-place discovery and
+  identity: Place ID, venue name, locality/address, venue type and
+  operational/closed status. Website fields are not requested by default.
+  Places never proves operator, organiser, buyer, event ownership or pain.
+- **Official public web evidence** establishes current events, official event
+  pages, trading brands, organisation domains, organiser and venue-operator
+  relationships, portfolios and commercial context. Public facts and model
+  inferences remain separate.
+- **Apollo** is the primary provider for people discovery, current roles and
+  employers, buyer/influencer candidates and selected verified business-email
+  enrichment. Mixed People Search is first, bounded to five candidates; role
+  ranking and human selection precede one initial enrichment.
+- **AI** interprets ambiguity, relationships, EventSuite fit, role relevance,
+  commercial context and messaging. AI is not the default source for company
+  registration facts, venue identity, people discovery or email discovery.
+- **Human review** controls ambiguous identity promotion and enrichment.
+
+The authority order is Companies House for UK legal facts, Google Places for
+physical-place facts, official websites for trading/operational claims, Apollo
+for provider-native people and verified-email evidence, AI for interpretations,
+and human review for ambiguous promotion. Higher authority may correct lower
+authority, but unrelated entities must not be silently merged.
+
+### Shared graph and safe fields
+
+Preserve separate event, trading organisation, legal company, venue, venue
+operator, person and provider/supplier entities. Existing JSON contracts
+should carry equivalent fields for originating lane, canonical prospect name,
+trading name, legal company name/number, canonical domain, venue identity and
+Place ID, operational employer and people-search organisation, related
+organisations, evidence source/timestamp, FACT/INFERENCE/UNKNOWN,
+identity confidence and human-review status. This is an orchestration contract,
+not a request for schema change.
+
+### Cost-routing defaults
+
+Use cached evidence before provider calls and free deterministic sources before
+AI. Do not run Places for non-physical entities or request Details unless
+uniquely required. Do not run AI web-contact discovery when Apollo is
+available. Keep Apollo Search to five people, spend one enrichment credit only
+after deterministic checks and human selection, require approval before a
+second enrichment, deduplicate by company number/Place ID/domain/event
+identity, and record requests, model usage and provider costs per prospect.
+
 ---
 
 # 4. Agent 1 — Discovery Scout V1
@@ -333,6 +391,37 @@ operator may be a prospect, but hosting does not prove organising.
 
 Commercial, timing and change signals are evidence attached to whichever of
 these four lanes initiated discovery. They are not a fifth top-level lane.
+
+The lane sequences are deterministic orchestration guidance:
+
+- **ORGANISATION_FIRST:** UK Companies House active-company discovery using
+  SIC cohorts 82301, 82302 and 68202; legal validation; public-web trading,
+  domain and current-activity validation; EventSuite-fit interpretation;
+  Apollo search on the confirmed domain; deterministic ranking; human
+  selection; one verified business-email enrichment. SIC is a discovery signal,
+  not proof of activity or qualification, and the stated 8,000-company UK
+  population is only a user-supplied planning estimate.
+- **EVENT_FIRST:** public-web current/recurring event discovery; event
+  identity/date/location capture; organiser/promoter resolution; UK legal
+  validation where applicable; separate event/trading/legal identities;
+  official-domain confirmation; optional venue Places validation; Apollo on
+  organiser domain; ranking, human selection and one selected enrichment.
+  Unresolved organiser remains review-required.
+- **VENUE_FIRST:** Places Text Search; retain Place ID/name/locality/type/status;
+  public-web official-domain and operator validation; UK legal-operator
+  validation where applicable; separate venue/operational-employer/legal
+  operator; explicitly evidenced Apollo operational-employer alias only; venue,
+  operations, commercial, ticketing, marketing, technology and procurement
+  roles; human selection and one selected enrichment. Hosting never proves
+  organising.
+- **PERSON_FIRST:** sourced person discovery; preserve person/role/event/
+  claimed-organisation relationships; public-web current-organisation and
+  domain validation; legal validation where applicable; Apollo employment and
+  stronger-role checks; classify buyer, influencer, route-to-buyer or freelance
+  relationship; preserve related entities; human selection before enrichment.
+
+Freelance event managers may reveal valuable events and buying relationships
+without being the final buyer.
 
 ==================================================
 VALID SOURCE FAMILIES

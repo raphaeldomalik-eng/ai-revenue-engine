@@ -54,6 +54,34 @@ evidence on a lane, not a fifth `SIGNAL_FIRST` lane. Existing candidate JSON
 and evidence fields should carry lane context where no schema change is
 needed.
 
+## 2a. Source and orchestration contract
+
+Use the most authoritative and cost-effective source for each fact. Companies
+House owns UK legal-company facts; Google Places owns physical-place facts;
+official public websites own trading/domain and operating relationships; Apollo
+owns provider-native people/employment and selected verified business-email
+evidence; AI interprets ambiguity and EventSuite fit; human review controls
+ambiguous promotion and enrichment.
+
+The implementation must preserve separate event, trading organisation, legal
+company, venue, venue operator, person and provider/supplier entities and the
+originating lane. Companies House officers remain `LEGAL_OFFICER` only. Places
+does not prove operator or organiser. Apollo Mixed People Search is bounded to
+five candidates and must precede only one initially approved enrichment. No
+schema change is required for this documentation checkpoint; reuse equivalent
+existing JSON fields for company number, Place ID, operational employer,
+people-search organisation, relationships, evidence timestamps, facts,
+inferences, unknowns and review state.
+
+The lane sequence is: organisation-first legal discovery/validation → web
+trading and activity → Apollo; event-first event → organiser → legal validation
+→ separate identities → domain → optional venue → Apollo; venue-first Places
+→ web operator/domain → legal operator → explicit operational alias → Apollo;
+person-first sourced person → web employer/domain → legal validation → Apollo
+employment/role check. Every lane ends in deterministic ranking, human
+selection and at most one initial enrichment. Proven pain is not required for
+credible prospect qualification; it guides product priority and messaging.
+
 ---
 
 # 3. Prompt ownership

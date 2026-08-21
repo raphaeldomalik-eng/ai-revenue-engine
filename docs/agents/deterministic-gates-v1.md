@@ -46,6 +46,51 @@ Not sufficient by itself:
 
 Do not implement this as a giant domain blacklist. Provider/domain lists may be supplementary known-source hints, not the deciding architecture.
 
+## 3a. Provider responsibility and orchestration gate
+
+Provider calls must be selected by fact responsibility and lane, not by model
+convenience:
+
+- Companies House may discover and validate UK legal companies. Retain only
+  legal name, company number, status, type, incorporation date, SIC codes,
+  registered region, record URL, evidence timestamp and minimized officer
+  fields. It must not overwrite the official trading domain or prove event
+  ownership, venue operation, EventSuite fit, pain, buyer status, contact
+  eligibility or outreach. Officers are `LEGAL_OFFICER` only.
+- Google Places may discover/validate physical venues. Retain Place ID, name,
+  locality/address, type and operational/closed status. Do not request website
+  fields by default, and never promote Places evidence into operator,
+  organiser, buyer, ownership or pain evidence.
+- Public official web evidence owns trading brands, official domains and
+  organiser/operator relationships. Keep FACT and INFERENCE separate.
+- Apollo Mixed People Search is the primary people route after deterministic
+  organisation/domain checks. Search is bounded to five candidates; ranking and
+  human selection precede one initial verified business-email enrichment.
+  `DOMAIN_CONFLICT` is rejected and `DOMAIN_QUERY_SCOPED` remains review-only.
+- AI may interpret ambiguity and EventSuite fit, but may not replace a
+  deterministic source for legal registration, venue identity, people or
+  email discovery.
+
+The graph preserves event, trading organisation, legal company, venue, venue
+operator, person and provider/supplier separately. Equivalent existing JSON
+fields include origin lane, canonical/trading/legal identity, company number,
+domain, Place ID, operational employer, people-search organisation, related
+organisations, evidence timestamp, facts/inferences/unknowns, identity
+confidence and human-review status. No schema change is implied by this gate.
+
+The exact lane sequence is: `ORGANISATION_FIRST` legal-company discovery →
+web trading/domain/activity validation → fit → Apollo → ranking → human
+selection → one enrichment; `EVENT_FIRST` event web discovery → organiser
+resolution → legal validation where applicable → separate event/trading/legal
+identity → domain confirmation → optional venue validation → Apollo → human
+selection → one enrichment; `VENUE_FIRST` Places venue identity → web domain and
+operator → legal operator validation where applicable → separate venue/operator
+identity → explicit Apollo operational alias only → Apollo → human selection →
+one enrichment; `PERSON_FIRST` sourced person → web employer/domain validation
+→ legal validation where applicable → Apollo employment/role check → buyer/
+influencer/route/freelance classification → human selection. The originating
+lane must never be rewritten.
+
 ---
 
 # 4. Identity Promotion Gate
@@ -108,6 +153,11 @@ Commercial Research may run when:
 - no deterministic block applies;
 - the candidate remains within bounded research budget.
 
+Proven pain is not required to retain or qualify a credible prospect that could
+plausibly benefit from EventSuite. Product evidence and pain/change signals
+guide priority and messaging; they are required for a positive product
+opportunity or outbound-readiness claim, not for basic prospect retention.
+
 Do not spend commercial research budget on known duplicates/rejected/blocked/no-connection records unless a deliberate regression/replay mode explicitly requests it.
 
 ---
@@ -168,7 +218,8 @@ It may be authorised as a bounded research step when all are true:
 
 - target organisation is resolved/authoritatively validated;
 - no first-party/competitor/suppression block applies;
-- at least one credible commercial signal or defensible product hypothesis exists;
+- the lane establishes credible event-sector relevance or a defensible
+  EventSuite-fit hypothesis;
 - a likely buyer role/function can be articulated, or a legitimate organisation-level contact fallback would materially improve actionability;
 - contact research budget is available.
 

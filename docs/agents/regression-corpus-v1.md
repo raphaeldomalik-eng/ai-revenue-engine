@@ -401,12 +401,20 @@ Expected:
 
 - each lane reaches the shared identity handoff when its minimum evidence is
   present;
+- organisation-first uses UK legal-company evidence before Apollo and preserves
+  legal company versus trading organisation;
+- event-first resolves the organiser before legal validation and never
+  substitutes the venue, supplier or discovery provider;
+- venue-first uses physical-place evidence before operator/legal validation and
+  preserves venue, operational employer and legal operator separately;
 - person-first preserves the person, role and evidenced organisation/event
   relationships without claiming ownership;
 - venue-first may retain the venue/operator as the prospect, while venue
   hosting never becomes organiser evidence;
 - credible identity and event-sector relevance can continue without proven
   pain, while product evidence improves prioritisation;
+- Apollo remains downstream of deterministic identity/domain checks, with
+  maximum-five search, ranking, human selection and no automatic enrichment;
 - the same organisation found through multiple lanes deduplicates through
   the existing canonical identity key;
 - old stored origin strings remain readable and no production records are
