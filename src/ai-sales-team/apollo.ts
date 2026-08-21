@@ -79,7 +79,18 @@ function roleTitles(roleFamilies: string[]) { return [...new Set(roleFamilies.fl
 function boundedLimit(limit: number | undefined) { return Math.max(1, Math.min(10, Math.floor(limit ?? 5))); }
 function modeOf(value: string | undefined) { return APOLLO_MODES.includes(value as ApolloMode) ? value as ApolloMode : "disabled"; }
 function telemetry(endpointCategory: ApolloEndpointCategory, mode: ApolloMode, httpStatus: number | null, creditCategory: ApolloTelemetry["creditCategory"], counts?: Partial<Pick<ApolloTelemetry, "resultCount" | "acceptedCount" | "rejectedCount" | "reviewRequiredCount">>, rejectionReasons: string[] = [], headers?: Headers) { return { endpointCategory, mode, resultCount: counts?.resultCount ?? 0, acceptedCount: counts?.acceptedCount ?? 0, rejectedCount: counts?.rejectedCount ?? 0, reviewRequiredCount: counts?.reviewRequiredCount ?? 0, rejectionReasons: [...new Set(rejectionReasons)].slice(0, 12), httpStatus, rateLimit: { retryAfter: headers?.get("retry-after") ?? null, limit: headers?.get("x-ratelimit-limit") ?? null, remaining: headers?.get("x-ratelimit-remaining") ?? null, reset: headers?.get("x-ratelimit-reset") ?? null }, creditCategory }; }
-function optionsOf(options: ApolloOptions = {}) { return { apiKey: options.apiKey ?? process.env.APOLLO_API_KEY, mode: options.mode ?? modeOf(process.env.APOLLO_MODE), fetchImpl: options.fetchImpl ?? fetch, now: options.now ?? (() => new Date().toISOString()) }; }
+function configuredApiKey(value: string | undefined) { const trimmed = value?.trim(); return trimmed || undefined; }
+function optionsOf(options: ApolloOptions = {}) { return { apiKey: configuredApiKey(options.apiKey ?? process.env.APOLLO_API_KEY), mode: options.mode ?? modeOf(process.env.APOLLO_MODE), fetchImpl: options.fetchImpl ?? fetch, now: options.now ?? (() => new Date().toISOString()) }; }
+
+export function buildApolloHeaders(apiKey: string, additionalHeaders?: HeadersInit) {
+  const headers = new Headers(additionalHeaders);
+  headers.set("accept", "application/json");
+  headers.set("content-type", "application/json");
+  headers.set("cache-control", "no-cache");
+  headers.delete("authorization");
+  headers.set("x-api-key", apiKey);
+  return headers;
+}
 
 export class ApolloProviderError extends Error {
   readonly telemetry: ApolloTelemetry;
@@ -89,7 +100,7 @@ export class ApolloProviderError extends Error {
 async function safeJson(response: Response, endpoint: ApolloEndpointCategory, mode: ApolloMode, creditCategory: ApolloTelemetry["creditCategory"]) { try { return await response.json() as unknown; } catch { throw new ApolloProviderError("Apollo returned malformed JSON.", telemetry(endpoint, mode, response.status, creditCategory, undefined, ["MALFORMED_RESPONSE"], response.headers)); } }
 async function request(options: ReturnType<typeof optionsOf>, endpoint: ApolloEndpointCategory, url: string, init: RequestInit, creditCategory: ApolloTelemetry["creditCategory"]) {
   if (!options.apiKey) throw new ApolloProviderError("APOLLO_NOT_CONFIGURED", telemetry(endpoint, options.mode, null, creditCategory, undefined, ["MISSING_API_KEY"]));
-  const response = await options.fetchImpl(url, { ...init, headers: { accept: "application/json", "content-type": "application/json", "x-api-key": options.apiKey, ...(init.headers ?? {}) } });
+  const response = await options.fetchImpl(url, { ...init, headers: buildApolloHeaders(options.apiKey, init.headers) });
   if (!response.ok) {
     const reason = response.status === 401 ? "AUTHENTICATION_FAILED" : response.status === 429 ? "RATE_LIMITED" : response.status >= 500 ? "PROVIDER_ERROR" : `HTTP_${response.status}`;
     throw new ApolloProviderError(`Apollo ${endpoint.toLowerCase()} failed safely.`, telemetry(endpoint, options.mode, response.status, creditCategory, undefined, [reason], response.headers));

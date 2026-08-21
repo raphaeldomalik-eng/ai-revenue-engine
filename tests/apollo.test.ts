@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ApolloProviderError, apolloAuthenticationHealth, apolloUsageStats, enrichSelectedApolloBuyer, resolveApolloMode, searchApolloBuyers, searchEligibleApolloBuyers, type ApolloBuyerSearchResult } from "../src/ai-sales-team/apollo.ts";
+import { ApolloProviderError, apolloAuthenticationHealth, apolloUsageStats, buildApolloHeaders, enrichSelectedApolloBuyer, resolveApolloMode, searchApolloBuyers, searchEligibleApolloBuyers, type ApolloBuyerSearchResult } from "../src/ai-sales-team/apollo.ts";
 
 function response(status: number, body: unknown, headers: Record<string, string> = {}) { return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } }); }
 function fetchMock(body: unknown, status = 200, headers: Record<string, string> = {}, seen: Request[] = []) { return async (input: RequestInfo | URL, init?: RequestInit) => { seen.push(new Request(input, init)); return response(status, body, headers); }; }
@@ -12,6 +12,29 @@ test("Apollo is disabled by default even when a key is supplied", async () => {
   let calls = 0;
   const result = await searchApolloBuyers(searchInput, { apiKey: "test-key", fetchImpl: async () => { calls += 1; return response(200, { people: [] }); } });
   assert.equal(result.mode, "disabled"); assert.equal(result.telemetry.rejectionReasons[0], "APOLLO_DISABLED"); assert.equal(calls, 0);
+});
+
+test("Apollo final headers retain one trimmed key and never carry Bearer authorization", async () => {
+  const seen: Request[] = [];
+  const configuredKey = " configured-apollo-key ";
+  await apolloAuthenticationHealth({ apiKey: configuredKey, mode: "search_only", fetchImpl: fetchMock({ people: [] }, 200, {}, seen) });
+  await searchApolloBuyers(searchInput, { apiKey: configuredKey, mode: "search_only", fetchImpl: fetchMock({ people: [] }, 200, {}, seen) });
+  assert.equal(seen.length, 2);
+  assert.equal(seen[0].method, "GET");
+  assert.equal(seen[1].method, "POST");
+  for (const request of seen) {
+    assert.equal(request.headers.get("x-api-key"), configuredKey.trim());
+    assert.equal(request.headers.has("authorization"), false);
+    assert.equal(request.headers.get("cache-control"), "no-cache");
+    assert.equal(JSON.stringify(request).includes(configuredKey.trim()), false);
+  }
+});
+
+test("later header merging cannot overwrite or reintroduce Apollo authorization", () => {
+  const headers = buildApolloHeaders("configured-apollo-key", { "x-api-key": "wrong-key", authorization: "Bearer wrong-token", "content-type": "text/plain" });
+  assert.equal(headers.get("x-api-key"), "configured-apollo-key");
+  assert.equal(headers.has("authorization"), false);
+  assert.equal(headers.get("content-type"), "application/json");
 });
 
 test("Apollo search is bounded, domain-filtered and has zero-credit telemetry", async () => {
