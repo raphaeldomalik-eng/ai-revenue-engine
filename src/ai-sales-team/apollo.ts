@@ -22,9 +22,17 @@ export type ApolloTelemetry = {
 export type ApolloBuyerSearchInput = {
   organisationName: string;
   organisationDomain: string;
+  peopleSearchOrganisation?: ApolloOperationalEmployerAlias;
   discoveryLane: DiscoveryLane;
   roleFamilies: string[];
   limit?: number;
+};
+
+export type ApolloOperationalEmployerAlias = {
+  name: string;
+  canonicalOrganisationName: string;
+  relationship: "EXPLICIT_IDENTITY_EVIDENCE";
+  evidenceUrls: string[];
 };
 
 export type ApolloBuyerSearchResult = {
@@ -62,6 +70,7 @@ const PEOPLE_SEARCH_URL = "https://api.apollo.io/api/v1/mixed_people/api_search"
 const AUTH_HEALTH_URL = "https://api.apollo.io/api/v1/auth/health";
 const USAGE_STATS_URL = "https://api.apollo.io/api/v1/usage_stats/api_usage_stats";
 const PERSON_ENRICHMENT_URL = "https://api.apollo.io/api/v1/people/match";
+const APPROVED_OPERATIONAL_EMPLOYER_RELATIONSHIPS = [{ canonicalOrganisationName: "convenco", organisationDomain: "cticc.co.za", peopleSearchOrganisation: "cape town international convention centre", evidenceUrl: "https://www.cticc.co.za/about-cticc/history-and-ownership/" }] as const;
 export const APOLLO_PRIMARY_ROLE_FAMILIES = [
   "event leadership",
   "event operations",
@@ -94,11 +103,25 @@ function text(value: unknown) { return typeof value === "string" && value.trim()
 function host(value: string | null | undefined) { try { return new URL(/^https?:\/\//i.test(value ?? "") ? value! : `https://${value}`).hostname.toLowerCase().replace(/^www\./, "").replace(/\.$/, ""); } catch { return ""; } }
 function canonicalDomain(value: string) { return host(value); }
 function normalisedName(value: string | null | undefined) { return text(value)?.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() ?? ""; }
-function sameOrganisationName(target: string, actual: string | null) { const expected = normalisedName(target); const received = normalisedName(actual); return Boolean(expected && received && (expected === received || expected.includes(received) || received.includes(expected))); }
+function validExplicitOperationalEmployer(input: ApolloBuyerSearchInput) {
+  const alias = input.peopleSearchOrganisation;
+  if (!alias || alias.relationship !== "EXPLICIT_IDENTITY_EVIDENCE" || !alias.evidenceUrls.length) return null;
+  if (!sameOrganisationName(input.organisationName, alias.canonicalOrganisationName)) return null;
+  if (!alias.evidenceUrls.every((url) => /^https:\/\/[^\s]+$/i.test(url))) return null;
+  const approved = APPROVED_OPERATIONAL_EMPLOYER_RELATIONSHIPS.find((item) => item.canonicalOrganisationName === normalisedName(input.organisationName) && item.organisationDomain === canonicalDomain(input.organisationDomain) && item.peopleSearchOrganisation === normalisedName(alias.name));
+  if (!approved || !alias.evidenceUrls.includes(approved.evidenceUrl)) return null;
+  return alias;
+}
+function sameOrganisationName(target: string, actual: string | null, alias?: ApolloOperationalEmployerAlias | null) {
+  const expected = [target, alias?.name].map(normalisedName).filter(Boolean);
+  const received = normalisedName(actual);
+  return Boolean(received && expected.some((item) => item === received || item.includes(received) || received.includes(item)));
+}
 function sameDomain(target: string, actual: string | null) { const expected = canonicalDomain(target); const received = canonicalDomain(actual ?? ""); return Boolean(expected && received && (expected === received || received.endsWith(`.${expected}`))); }
 function employerDomainAssessment(input: ApolloBuyerSearchInput, organisationName: string | null, organisationDomain: string | null, queryScoped: boolean) {
   if (organisationDomain) return sameDomain(input.organisationDomain, organisationDomain) ? { outcome: "DOMAIN_CONFIRMED" as const, reason: "RETURNED_EMPLOYER_DOMAIN_MATCHES_CANONICAL_DOMAIN" } : { outcome: "DOMAIN_CONFLICT" as const, reason: "RETURNED_EMPLOYER_DOMAIN_DIFFERS_FROM_CANONICAL_DOMAIN" };
-  if (queryScoped && canonicalDomain(input.organisationDomain) && sameOrganisationName(input.organisationName, organisationName)) return { outcome: "DOMAIN_QUERY_SCOPED" as const, reason: "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED" };
+  const explicitAlias = validExplicitOperationalEmployer(input);
+  if (queryScoped && canonicalDomain(input.organisationDomain) && sameOrganisationName(input.organisationName, organisationName, explicitAlias)) return { outcome: "DOMAIN_QUERY_SCOPED" as const, reason: explicitAlias && normalisedName(explicitAlias.name) === normalisedName(organisationName) ? "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_EXPLICIT_OPERATIONAL_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED" : "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED" };
   return { outcome: "DOMAIN_MISSING" as const, reason: "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING" };
 }
 function roleClassification(title: string | null, roleFamilies: string[]) { const value = title?.toLowerCase() ?? ""; const family = roleFamilies.find((item) => (ROLE_FAMILY_TITLES[item.toLowerCase()] ?? [item]).some((token) => value.includes(token.toLowerCase()))); return family ?? (ROLE_TOKENS.find((token) => value.includes(token)) ? "RELEVANT_ROLE_FAMILY" : null); }
@@ -167,7 +190,7 @@ function normalizePerson(raw: ApolloRawPerson, input: ApolloBuyerSearchInput, re
   const domainAssessment = employerDomainAssessment(input, organisationName, organisationDomain, queryScoped);
   const currentEmployerValidated = Boolean(organisationName && (organisationDomain || domainAssessment.outcome === "DOMAIN_QUERY_SCOPED"));
   const domainAligned = domainAssessment.outcome === "DOMAIN_CONFIRMED";
-  const organisationAligned = sameOrganisationName(input.organisationName, organisationName);
+  const organisationAligned = sameOrganisationName(input.organisationName, organisationName, validExplicitOperationalEmployer(input));
   const classifiedRole = roleClassification(title, input.roleFamilies);
   const rejectionReason = !personId ? "MISSING_PROVIDER_PERSON_ID" : domainAssessment.outcome === "DOMAIN_CONFLICT" ? "EMPLOYER_DOMAIN_CONFLICT" : domainAssessment.outcome === "DOMAIN_QUERY_SCOPED" ? "EMPLOYER_DOMAIN_QUERY_SCOPED_REQUIRES_REVIEW" : domainAssessment.outcome === "DOMAIN_MISSING" ? "EMPLOYER_DOMAIN_MISSING" : !organisationAligned ? "TARGET_ORGANISATION_MISMATCH" : !classifiedRole ? "IRRELEVANT_ROLE" : null;
   const status: ApolloStatus = domainAssessment.outcome === "DOMAIN_CONFLICT" || rejectionReason === "IRRELEVANT_ROLE" ? "REJECTED" : domainAssessment.outcome === "DOMAIN_QUERY_SCOPED" || Boolean(rejectionReason) ? "REVIEW_REQUIRED" : "ACCEPTED";
@@ -220,11 +243,11 @@ export async function searchEligibleApolloBuyers(input: { candidate: ContactRese
   return { blocked: false as const, result: await searchApolloBuyers(input, { ...options, mode: input.mode ?? options.mode }) };
 }
 
-export async function searchPrimaryApolloBuyers(input: { candidate: ContactResearchCandidateState; identity: ContactResearchTargetIdentity; discoveryLane: DiscoveryLane; mode?: ApolloMode }, options: ApolloOptions = {}) {
+export async function searchPrimaryApolloBuyers(input: { candidate: ContactResearchCandidateState; identity: ContactResearchTargetIdentity; peopleSearchOrganisation?: ApolloOperationalEmployerAlias; discoveryLane: DiscoveryLane; mode?: ApolloMode }, options: ApolloOptions = {}) {
   const eligibility = contactResearchEligibility(input.candidate, input.identity);
   if (!eligibility.eligible) return { blocked: true as const, reason: eligibility.reason, result: null };
   const organisationName = input.identity.accountName?.trim();
   const organisationDomain = canonicalDomain(input.identity.accountWebsite ?? "");
   if (!organisationName || !organisationDomain) return { blocked: true as const, reason: "CANONICAL_ORGANISATION_DOMAIN_REQUIRED", result: null };
-  return { blocked: false as const, result: await searchApolloBuyers({ organisationName, organisationDomain, discoveryLane: input.discoveryLane, roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 5 }, { ...options, mode: input.mode ?? options.mode }) };
+  return { blocked: false as const, result: await searchApolloBuyers({ organisationName, organisationDomain, peopleSearchOrganisation: input.peopleSearchOrganisation, discoveryLane: input.discoveryLane, roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 5 }, { ...options, mode: input.mode ?? options.mode }) };
 }

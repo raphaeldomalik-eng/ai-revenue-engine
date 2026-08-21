@@ -136,13 +136,13 @@ test("organiser noun phrasing establishes validation and resolution promotes the
   assert.ok(initial.facts[0].sourceRoles?.includes("VALIDATION"));
   assert.equal(initial.prospectIntelligence.eventConnection.state, "CONFIRMED");
   const promoted = applyDiscoveryEnrichment(initial, {
-    organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Mash Media Group Ltd.", officialWebsite: "https://www.mashmedia.co.uk/", aliases: ["Mash Media"], confidence: "HIGH", evidence: [{ claim: "Mash Media Group Ltd. is the organiser of Event Production Show 2026.", sourceUrl: "https://www.eventproductionshow.co.uk/about", sourceTitle: "Official organiser information", confidence: "HIGH" }] },
+    organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Mash Media Group Ltd.", officialWebsite: "https://mashmedia.net/", aliases: ["Mash Media"], confidence: "HIGH", evidence: [{ claim: "Mash Media Group Ltd. is the organiser of Event Production Show 2026.", sourceUrl: "https://www.eventproductionshow.co.uk/about", sourceTitle: "Official organiser information", confidence: "HIGH" }] },
     commercialEvidence: [], facts: [], inferences: [], unknowns: [],
   }, "GB");
   assert.equal(promoted.canonicalName, "Mash Media Group Ltd.");
   assert.equal(promoted.organiserName, "Mash Media Group Ltd.");
-  assert.equal(promoted.website, "https://www.mashmedia.co.uk/");
-  assert.equal(promoted.canonicalKey, "mash-media-group-ltd|mashmedia.co.uk");
+  assert.equal(promoted.website, "https://mashmedia.net/");
+  assert.equal(promoted.canonicalKey, "mash-media-group-ltd|mashmedia.net");
   assert.ok(promoted.facts.some((item) => /Event Production Show/.test(item.claim)));
   assert.equal(promoted.organisationResolution?.status, "RESOLVED");
 });

@@ -4,8 +4,8 @@ import { APOLLO_PRIMARY_ROLE_FAMILIES, ApolloProviderError, apolloAuthentication
 
 function response(status: number, body: unknown, headers: Record<string, string> = {}) { return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } }); }
 function fetchMock(body: unknown, status = 200, headers: Record<string, string> = {}, seen: Request[] = []) { return async (input: RequestInfo | URL, init?: RequestInit) => { seen.push(new Request(input, init)); return response(status, body, headers); }; }
-const searchInput = { organisationName: "Mash Media Group", organisationDomain: "https://www.mashmedia.co.uk/", discoveryLane: "EVENT_FIRST" as const, roleFamilies: ["event leadership", "marketing or audience growth"], limit: 3 };
-const acceptedPerson = { id: "apollo-person-1", name: "Alex Buyer", title: "Event Director", seniority: "director", linkedin_url: "https://www.linkedin.com/in/alex-buyer", email_status: "verified", organization: { name: "Mash Media Group", primary_domain: "mashmedia.co.uk" } };
+const searchInput = { organisationName: "Mash Media Group", organisationDomain: "https://mashmedia.net/", discoveryLane: "EVENT_FIRST" as const, roleFamilies: ["event leadership", "marketing or audience growth"], limit: 3 };
+const acceptedPerson = { id: "apollo-person-1", name: "Alex Buyer", title: "Event Director", seniority: "director", linkedin_url: "https://www.linkedin.com/in/alex-buyer", email_status: "verified", organization: { name: "Mash Media Group", primary_domain: "mashmedia.net" } };
 
 test("Apollo is disabled by default even when a key is supplied", async () => {
   assert.equal(resolveApolloMode(undefined), "disabled");
@@ -32,7 +32,7 @@ test("Apollo classifies all four employer-domain outcomes deterministically", as
   assert.equal(conflict.rejectionReason, "EMPLOYER_DOMAIN_CONFLICT");
   for (const result of [confirmed, queryScoped, missing, conflict]) {
     assert.equal(typeof result.employerDomainReason, "string");
-    assert.equal(result.provenance.organisationDomain, "mashmedia.co.uk");
+    assert.equal(result.provenance.organisationDomain, "mashmedia.net");
   }
 });
 
@@ -95,7 +95,7 @@ test("Apollo search is bounded, domain-filtered and has zero-credit telemetry", 
   const seen: Request[] = [];
   const result = await searchApolloBuyers(searchInput, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [acceptedPerson] }, 200, { "x-ratelimit-remaining": "49" }, seen), now: () => "2026-08-21T00:00:00.000Z" });
   const body = await seen[0].clone().json() as Record<string, unknown>;
-  assert.equal(result.results[0].status, "ACCEPTED"); assert.equal(result.telemetry.creditCategory, "ZERO_CREDIT_SEARCH"); assert.equal(result.telemetry.acceptedCount, 1); assert.equal(body.q_organization_domains_list instanceof Array && body.q_organization_domains_list[0], "mashmedia.co.uk"); assert.equal(body.per_page, 3); assert.equal("email" in body, false); assert.equal("phone" in body, false); assert.equal(result.results[0].emailAvailability, "verified");
+  assert.equal(result.results[0].status, "ACCEPTED"); assert.equal(result.telemetry.creditCategory, "ZERO_CREDIT_SEARCH"); assert.equal(result.telemetry.acceptedCount, 1); assert.equal(body.q_organization_domains_list instanceof Array && body.q_organization_domains_list[0], "mashmedia.net"); assert.equal(body.per_page, 3); assert.equal("email" in body, false); assert.equal("phone" in body, false); assert.equal(result.results[0].emailAvailability, "verified");
 });
 
 test("Apollo validates current employer domain, target ownership and role relevance", async () => {
@@ -107,9 +107,36 @@ test("Apollo validates current employer domain, target ownership and role releva
 
 test("Apollo preserves every originating discovery lane, including Hyve organisation-first", async () => {
   for (const discoveryLane of ["EVENT_FIRST", "ORGANISATION_FIRST", "PERSON_FIRST", "VENUE_FIRST"] as const) {
-    const result = await searchApolloBuyers({ ...searchInput, organisationName: discoveryLane === "ORGANISATION_FIRST" ? "Hyve Group" : searchInput.organisationName, organisationDomain: discoveryLane === "ORGANISATION_FIRST" ? "hyve.group" : searchInput.organisationDomain, discoveryLane, roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 5 }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [{ ...acceptedPerson, organization: { name: discoveryLane === "ORGANISATION_FIRST" ? "Hyve Group" : searchInput.organisationName, primary_domain: discoveryLane === "ORGANISATION_FIRST" ? "hyve.group" : "mashmedia.co.uk" } }] }) });
+    const result = await searchApolloBuyers({ ...searchInput, organisationName: discoveryLane === "ORGANISATION_FIRST" ? "Hyve Group" : searchInput.organisationName, organisationDomain: discoveryLane === "ORGANISATION_FIRST" ? "hyve.group" : searchInput.organisationDomain, discoveryLane, roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 5 }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [{ ...acceptedPerson, organization: { name: discoveryLane === "ORGANISATION_FIRST" ? "Hyve Group" : searchInput.organisationName, primary_domain: discoveryLane === "ORGANISATION_FIRST" ? "hyve.group" : "mashmedia.net" } }] }) });
     assert.equal(result.results[0].provenance.discoveryLane, discoveryLane);
   }
+});
+
+test("Apollo accepts only the explicit CTICC operational-employer alias for Convenco", async () => {
+  const run = async (peopleSearchOrganisation?: Record<string, unknown>) => (await searchApolloBuyers({ organisationName: "Convenco", organisationDomain: "https://www.cticc.co.za", peopleSearchOrganisation: peopleSearchOrganisation as never, discoveryLane: "VENUE_FIRST", roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 5 }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [{ id: "cticc-person", name: "Venue Operator", title: "Operations Manager", organization: { name: "Cape Town International Convention Centre" } }] }) })).results[0];
+  const alias = { name: "Cape Town International Convention Centre", canonicalOrganisationName: "Convenco", relationship: "EXPLICIT_IDENTITY_EVIDENCE", evidenceUrls: ["https://www.cticc.co.za/about-cticc/history-and-ownership/"] };
+  const accepted = await run(alias);
+  const arbitrary = await run({ ...alias, name: "Unrelated Venue Holdings" });
+  assert.equal(accepted.employerDomainOutcome, "DOMAIN_QUERY_SCOPED");
+  assert.equal(accepted.status, "REVIEW_REQUIRED");
+  assert.equal(accepted.employerDomainReason, "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_EXPLICIT_OPERATIONAL_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED");
+  assert.equal(arbitrary.employerDomainOutcome, "DOMAIN_MISSING");
+  assert.equal(arbitrary.status, "REVIEW_REQUIRED");
+});
+
+test("explicit CTICC operational-employer alias never permits implicit enrichment", async () => {
+  let calls = 0;
+  const selected = (await searchApolloBuyers({ organisationName: "Convenco", organisationDomain: "https://www.cticc.co.za", peopleSearchOrganisation: { name: "Cape Town International Convention Centre", canonicalOrganisationName: "Convenco", relationship: "EXPLICIT_IDENTITY_EVIDENCE", evidenceUrls: ["https://www.cticc.co.za/about-cticc/history-and-ownership/"] }, discoveryLane: "VENUE_FIRST", roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 1 }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [{ id: "cticc-person", name: "Venue Operator", title: "Operations Manager", organization: { name: "Cape Town International Convention Centre" } }] }) })).results[0];
+  const result = await enrichSelectedApolloBuyer({ selected, identity: { accountName: "Convenco", accountWebsite: "https://www.cticc.co.za" } }, { apiKey: "test-key", mode: "enrich_selected", fetchImpl: async () => { calls += 1; return response(200, {}); } });
+  assert.equal(selected.employerDomainOutcome, "DOMAIN_QUERY_SCOPED");
+  assert.equal(result.blockedReason, "DOMAIN_QUERY_SCOPED_REQUIRES_EXPLICIT_HUMAN_APPROVAL");
+  assert.equal(calls, 0);
+});
+
+test("explicit CTICC alias cannot override a conflicting employer domain", async () => {
+  const result = await searchApolloBuyers({ organisationName: "Convenco", organisationDomain: "https://www.cticc.co.za", peopleSearchOrganisation: { name: "Cape Town International Convention Centre", canonicalOrganisationName: "Convenco", relationship: "EXPLICIT_IDENTITY_EVIDENCE", evidenceUrls: ["https://www.cticc.co.za/about-cticc/history-and-ownership/"] }, discoveryLane: "VENUE_FIRST", roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 1 }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [{ id: "cticc-conflict", name: "Venue Operator", title: "Operations Manager", organization: { name: "Cape Town International Convention Centre", primary_domain: "other.example" } }] }) });
+  assert.equal(result.results[0].employerDomainOutcome, "DOMAIN_CONFLICT");
+  assert.equal(result.results[0].status, "REJECTED");
 });
 
 test("Apollo primary people search ranks bounded role families and never opens a web-contact path", async () => {
@@ -152,29 +179,29 @@ test("usage stats is explicitly zero-credit and never exposes response data", as
 });
 
 test("Apollo enrichment is blocked outside explicit enrich_selected mode", async () => {
-  const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: "mashmedia.co.uk", linkedinUrl: null, emailAvailability: "verified", employerDomainOutcome: "DOMAIN_CONFIRMED", employerDomainReason: "RETURNED_EMPLOYER_DOMAIN_MATCHES_CANONICAL_DOMAIN", retrievedAt: "2026-08-21T00:00:00.000Z", status: "ACCEPTED", roleClassification: "event leadership", rejectionReason: null, provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.co.uk", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: true } } satisfies ApolloBuyerSearchResult;
-  const result = await enrichSelectedApolloBuyer({ selected, identity: { accountName: "Mash Media Group", accountWebsite: "https://www.mashmedia.co.uk" } }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({}) });
+  const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: "mashmedia.net", linkedinUrl: null, emailAvailability: "verified", employerDomainOutcome: "DOMAIN_CONFIRMED", employerDomainReason: "RETURNED_EMPLOYER_DOMAIN_MATCHES_CANONICAL_DOMAIN", retrievedAt: "2026-08-21T00:00:00.000Z", status: "ACCEPTED", roleClassification: "event leadership", rejectionReason: null, provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.net", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: true } } satisfies ApolloBuyerSearchResult;
+  const result = await enrichSelectedApolloBuyer({ selected, identity: { accountName: "Mash Media Group", accountWebsite: "https://mashmedia.net" } }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({}) });
   assert.equal(result.result, null); assert.equal(result.telemetry.rejectionReasons[0], "ENRICHMENT_MODE_NOT_SELECTED");
 });
 
 test("selected Apollo enrichment sends all no-personal/no-phone/no-waterfall flags and accepts only verified target business email", async () => {
   const seen: Request[] = [];
-  const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: "mashmedia.co.uk", linkedinUrl: null, emailAvailability: "verified", employerDomainOutcome: "DOMAIN_CONFIRMED", employerDomainReason: "RETURNED_EMPLOYER_DOMAIN_MATCHES_CANONICAL_DOMAIN", retrievedAt: "2026-08-21T00:00:00.000Z", status: "ACCEPTED", roleClassification: "event leadership", rejectionReason: null, provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.co.uk", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: true } } satisfies ApolloBuyerSearchResult;
-  const result = await enrichSelectedApolloBuyer({ selected, identity: { accountName: "Mash Media Group", accountWebsite: "https://www.mashmedia.co.uk" } }, { apiKey: "test-key", mode: "enrich_selected", fetchImpl: fetchMock({ person: { id: "p1", name: "Alex Buyer", title: "Event Director", email: "alex@mashmedia.co.uk", email_status: "verified" } }, 200, {}, seen) });
+  const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: "mashmedia.net", linkedinUrl: null, emailAvailability: "verified", employerDomainOutcome: "DOMAIN_CONFIRMED", employerDomainReason: "RETURNED_EMPLOYER_DOMAIN_MATCHES_CANONICAL_DOMAIN", retrievedAt: "2026-08-21T00:00:00.000Z", status: "ACCEPTED", roleClassification: "event leadership", rejectionReason: null, provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.net", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: true } } satisfies ApolloBuyerSearchResult;
+  const result = await enrichSelectedApolloBuyer({ selected, identity: { accountName: "Mash Media Group", accountWebsite: "https://mashmedia.net" } }, { apiKey: "test-key", mode: "enrich_selected", fetchImpl: fetchMock({ person: { id: "p1", name: "Alex Buyer", title: "Event Director", email: "alex@mashmedia.net", email_status: "verified" } }, 200, {}, seen) });
   const body = await seen[0].clone().json() as Record<string, unknown>;
   assert.equal(result.result?.emailReady, true); assert.equal(body.reveal_personal_emails, false); assert.equal(body.reveal_phone_number, false); assert.equal(body.run_waterfall_email, false); assert.equal(body.run_waterfall_phone, false); assert.equal(result.telemetry.creditCategory, "POTENTIALLY_CHARGEABLE_ENRICHMENT");
 });
 
 test("personal, mismatched-domain and unverified Apollo email results are rejected without retries", async () => {
-  const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: "mashmedia.co.uk", linkedinUrl: null, emailAvailability: "verified", employerDomainOutcome: "DOMAIN_CONFIRMED", employerDomainReason: "RETURNED_EMPLOYER_DOMAIN_MATCHES_CANONICAL_DOMAIN", retrievedAt: "2026-08-21T00:00:00.000Z", status: "ACCEPTED", roleClassification: "event leadership", rejectionReason: null, provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.co.uk", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: true } } satisfies ApolloBuyerSearchResult;
-  for (const person of [{ email: "alex@gmail.com", email_status: "verified" }, { email: "alex@mashmedia.co.uk", email_status: "unverified" }]) {
-    const result = await enrichSelectedApolloBuyer({ selected, identity: { accountName: "Mash Media Group", accountWebsite: "https://www.mashmedia.co.uk" } }, { apiKey: "test-key", mode: "enrich_selected", fetchImpl: fetchMock({ person }) });
+  const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: "mashmedia.net", linkedinUrl: null, emailAvailability: "verified", employerDomainOutcome: "DOMAIN_CONFIRMED", employerDomainReason: "RETURNED_EMPLOYER_DOMAIN_MATCHES_CANONICAL_DOMAIN", retrievedAt: "2026-08-21T00:00:00.000Z", status: "ACCEPTED", roleClassification: "event leadership", rejectionReason: null, provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.net", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: true } } satisfies ApolloBuyerSearchResult;
+  for (const person of [{ email: "alex@gmail.com", email_status: "verified" }, { email: "alex@mashmedia.net", email_status: "unverified" }]) {
+    const result = await enrichSelectedApolloBuyer({ selected, identity: { accountName: "Mash Media Group", accountWebsite: "https://mashmedia.net" } }, { apiKey: "test-key", mode: "enrich_selected", fetchImpl: fetchMock({ person }) });
     assert.equal(result.result, null); assert.ok(result.blockedReason === "EMAIL_DOMAIN_MISMATCH" || result.blockedReason === "UNACCEPTABLE_EMAIL_STATUS");
   }
 });
 
 test("Apollo buyer search is downstream-gated by existing contact eligibility", async () => {
   let calls = 0;
-  const result = await searchEligibleApolloBuyers({ candidate: { status: "REVIEW_REQUIRED", relationship: "PROSPECT", account_id: null, candidate_name: "Mash Media Group", website: "https://www.mashmedia.co.uk", prospect_intelligence: { eventConnection: { state: "NONE" }, accountCreationEligible: false, primaryEntryOpportunity: "UNKNOWN", organisationResolution: { status: "RESOLVED" } } }, identity: { accountName: "Mash Media Group", accountWebsite: "https://www.mashmedia.co.uk" }, ...searchInput, mode: "search_only" }, { apiKey: "test-key", mode: "search_only", fetchImpl: async () => { calls += 1; return response(200, { people: [] }); } });
+  const result = await searchEligibleApolloBuyers({ candidate: { status: "REVIEW_REQUIRED", relationship: "PROSPECT", account_id: null, candidate_name: "Mash Media Group", website: "https://mashmedia.net", prospect_intelligence: { eventConnection: { state: "NONE" }, accountCreationEligible: false, primaryEntryOpportunity: "UNKNOWN", organisationResolution: { status: "RESOLVED" } } }, identity: { accountName: "Mash Media Group", accountWebsite: "https://mashmedia.net" }, ...searchInput, mode: "search_only" }, { apiKey: "test-key", mode: "search_only", fetchImpl: async () => { calls += 1; return response(200, { people: [] }); } });
   assert.equal(result.blocked, true); assert.equal(calls, 0);
 });
