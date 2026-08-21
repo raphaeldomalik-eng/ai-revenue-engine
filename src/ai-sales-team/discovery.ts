@@ -104,6 +104,7 @@ const SITE_SIGNAL_PATTERNS: Array<[SourceSiteType, RegExp]> = [
   ["ARTIST_OFFICIAL", /\b(?:official artist|artist website|band website|performer website)\b/i],
   ["NEWS_EDITORIAL", /\b(?:news report|editorial|journalist|press article|news outlet)\b/i],
   ["SOCIAL_COMMUNITY", /\b(?:social page|community page|facebook event|instagram|social media)\b/i],
+  ["INSTITUTIONAL_PROCUREMENT", /\b(?:institutional procurement|procurement notice|tender|seeking an? (?:promoter|operator)|appointed event operator)\b/i],
   ["EVENT_OFFICIAL", /\b(?:official event website|official event site|event domain|event.s own website|about the event|event contact)\b/i],
   ["ORGANISATION_OFFICIAL", /\b(?:official organisation|official organization|company website|organiser.s website|organisation.s website|organisation official|organizer.s website)\b/i],
 ];

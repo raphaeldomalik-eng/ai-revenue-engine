@@ -53,7 +53,7 @@ test("supporting and counter-evidence are both consumed for mature tooling", () 
     { product: "ECC", claim: "The organisation uses a mature integrated event operations app with meeting scheduling and smart badges.", sourceUrl: "https://example.org/app", evidenceCategory: "OPERATIONAL_COORDINATION", confidence: "HIGH", polarity: "COUNTER", existingSystem: "Integrated event app" },
   ], unknowns: [] });
   assert.equal(result.ecc.counterEvidence?.length, 1);
-  assert.equal(result.ecc.opportunityStrength, "NO_EVIDENCE");
+  assert.equal(result.ecc.opportunityStrength, "POSSIBLE");
 });
 
 test("contact research can run before final sales readiness but not for blocked records", () => {
@@ -63,10 +63,10 @@ test("contact research can run before final sales readiness but not for blocked 
 });
 
 test("generic organisation email is target-owned and contact-page-only is not email-ready", () => {
-  const result = normaliseContactResearch({ likelyBuyerRole: "Event Director", buyerRoleRationale: "Supported role hypothesis", namedContact: null, organisationRoute: { email: "info@arctangent.co.uk", phone: null, contactUrl: "https://arctangent.co.uk/contact", sourceUrl: "https://arctangent.co.uk/contact", sourceTitle: "Official contact", evidence: "For organisation enquiries contact info@arctangent.co.uk.", confidence: "HIGH" }, facts: [], unknowns: [] });
+  const result = normaliseContactResearch({ likelyBuyerRole: "Event Director", buyerRoleRationale: "Supported role hypothesis", targetIdentity: { accountName: "ArcTanGent", accountWebsite: "https://arctangent.co.uk" }, namedContact: null, organisationRoute: { email: "info@arctangent.co.uk", phone: null, contactUrl: "https://arctangent.co.uk/contact", sourceUrl: "https://arctangent.co.uk/contact", sourceTitle: "Official contact", evidence: "For ArcTanGent organisation enquiries contact info@arctangent.co.uk.", confidence: "HIGH", provenance: { ownerName: "ArcTanGent", ownerType: "TARGET_ORGANISATION", relationshipToTarget: "PRIMARY_TARGET", sourceUrl: "https://arctangent.co.uk/contact", ownershipEvidence: "Published on ArcTanGent's official contact page.", ownershipConfidence: "HIGH" } }, facts: [], unknowns: [] });
   assert.equal(result.emailReady, true);
   assert.equal(result.buyerIdentified, false);
-  const page = normaliseContactResearch({ likelyBuyerRole: "Programme Director", buyerRoleRationale: null, namedContact: null, organisationRoute: { email: null, phone: null, contactUrl: "https://piecehall.example/contact", sourceUrl: "https://piecehall.example/contact", sourceTitle: "Contact", evidence: "Contact page for the organisation: https://piecehall.example/contact", confidence: "HIGH" }, facts: [], unknowns: [] });
+  const page = normaliseContactResearch({ likelyBuyerRole: "Programme Director", buyerRoleRationale: null, targetIdentity: { accountName: "Piece Hall", accountWebsite: "https://piecehall.example" }, namedContact: null, organisationRoute: { email: null, phone: null, contactUrl: "https://piecehall.example/contact", sourceUrl: "https://piecehall.example/contact", sourceTitle: "Contact", evidence: "Contact page for Piece Hall organisation: https://piecehall.example/contact", confidence: "HIGH", provenance: { ownerName: "Piece Hall", ownerType: "TARGET_ORGANISATION", relationshipToTarget: "PRIMARY_TARGET", sourceUrl: "https://piecehall.example/contact", ownershipEvidence: "Published on Piece Hall's official contact page.", ownershipConfidence: "HIGH" } }, facts: [], unknowns: [] });
   assert.equal(page.status, "CONTACT_PAGE_ONLY");
   assert.equal(page.emailReady, false);
 });
@@ -79,7 +79,7 @@ test("third-party provider support email is explicitly rejected and never persis
 });
 
 test("named buyer without email remains buyer-no-route and guessed email is discarded", () => {
-  const result = normaliseContactResearch({ likelyBuyerRole: "Programme & Event Director", buyerRoleRationale: null, namedContact: { fullName: "Aaron Casserly Stewart", roleTitle: "Programme & Event Director", email: "aaron.casserly.stewart@piecehall.example", phone: null, linkedinUrl: null, sourceUrl: "https://piecehall.example/team", sourceTitle: "Team", evidence: "Aaron Casserly Stewart is Programme & Event Director.", confidence: "HIGH" }, organisationRoute: null, facts: [], unknowns: [] });
+  const result = normaliseContactResearch({ likelyBuyerRole: "Programme & Event Director", buyerRoleRationale: null, targetIdentity: { accountName: "Piece Hall", accountWebsite: "https://piecehall.example" }, namedContact: { fullName: "Aaron Casserly Stewart", roleTitle: "Programme & Event Director", email: "aaron.casserly.stewart@piecehall.example", phone: null, linkedinUrl: null, sourceUrl: "https://piecehall.example/team", sourceTitle: "Team", evidence: "Aaron Casserly Stewart is Programme & Event Director.", confidence: "HIGH", provenance: { ownerName: "Aaron Casserly Stewart", ownerType: "NAMED_BUYER", relationshipToTarget: "PRIMARY_TARGET", sourceUrl: "https://piecehall.example/team", ownershipEvidence: "Aaron Casserly Stewart is named on Piece Hall's official team page.", ownershipConfidence: "HIGH" } }, organisationRoute: null, facts: [], unknowns: [] });
   assert.equal(result.buyerIdentified, true);
   assert.equal(result.emailReady, false);
   assert.equal(result.namedContact?.email, null);

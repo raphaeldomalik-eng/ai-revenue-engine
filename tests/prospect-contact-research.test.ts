@@ -4,37 +4,40 @@ import { contactPersistenceTargets, isContactResearchEligible, normaliseContactR
 import { readFileSync } from "node:fs";
 
 const sourceUrl = "https://festival.example/contact";
-const base = () => ({ likelyBuyerRole: "Festival Director", buyerRoleRationale: "A festival director normally owns the event programme.", namedContact: null, organisationRoute: null, facts: [], unknowns: [] });
+const targetIdentity = { accountName: "Festival Example", accountWebsite: "https://festival.example" };
+const buyerProvenance = { ownerName: "Alex Example", ownerType: "NAMED_BUYER" as const, relationshipToTarget: "PRIMARY_TARGET" as const, sourceUrl, ownershipEvidence: "Alex Example is named on Festival Example's official contact page.", ownershipConfidence: "HIGH" as const };
+const organisationProvenance = { ownerName: "Festival Example", ownerType: "TARGET_ORGANISATION" as const, relationshipToTarget: "PRIMARY_TARGET" as const, sourceUrl, ownershipEvidence: "Published on Festival Example's official contact page.", ownershipConfidence: "HIGH" as const };
+const base = () => ({ likelyBuyerRole: "Festival Director", buyerRoleRationale: "A festival director normally owns the event programme.", namedContact: null, organisationRoute: null, facts: [], unknowns: [], targetIdentity });
 
 test("publicly evidenced named contact and direct email are retained", () => {
-  const result = normaliseContactResearch({ ...base(), namedContact: { fullName: "Alex Example", roleTitle: "Festival Director", email: "alex@festival.example", phone: null, linkedinUrl: null, sourceUrl, sourceTitle: "Official team", evidence: "Alex Example is Festival Director. Contact Alex Example at alex@festival.example.", confidence: "HIGH" } });
-  assert.equal(result.status, "CONTACT_FOUND");
+  const result = normaliseContactResearch({ ...base(), namedContact: { fullName: "Alex Example", roleTitle: "Festival Director", email: "alex@festival.example", phone: null, linkedinUrl: null, sourceUrl, sourceTitle: "Official team", evidence: "Alex Example is Festival Director. Contact Alex Example at alex@festival.example.", confidence: "HIGH", provenance: buyerProvenance } });
+  assert.equal(result.status, "BUYER_EMAIL_VERIFIED");
   assert.equal(result.namedContact?.email, "alex@festival.example");
 });
 
 test("published organisation email is a route when no named person is evidenced", () => {
-  const result = normaliseContactResearch({ ...base(), organisationRoute: { email: "events@festival.example", phone: null, contactUrl: sourceUrl, sourceUrl, sourceTitle: "Official contact", evidence: "For event enquiries contact events@festival.example.", confidence: "HIGH" } });
-  assert.equal(result.status, "CONTACT_ROUTE_FOUND");
+  const result = normaliseContactResearch({ ...base(), organisationRoute: { email: "events@festival.example", phone: null, contactUrl: sourceUrl, sourceUrl, sourceTitle: "Official contact", evidence: "For event enquiries contact events@festival.example.", confidence: "HIGH", provenance: organisationProvenance } });
+  assert.equal(result.status, "ORGANISATION_EMAIL_VERIFIED");
   assert.equal(result.organisationRoute?.email, "events@festival.example");
   assert.equal(result.namedContact, null);
 });
 
 test("buyer role can remain an inference while no contact is found", () => {
   const result = normaliseContactResearch(base());
-  assert.equal(result.status, "CONTACT_RESEARCH_REQUIRED");
+  assert.equal(result.status, "NO_VERIFIED_CONTACT");
   assert.equal(result.likelyBuyerRole, "Festival Director");
   assert.equal(result.namedContact, null);
 });
 
 test("guessed emails and unsupported names are discarded", () => {
-  const result = normaliseContactResearch({ ...base(), namedContact: { fullName: "Alex Example", roleTitle: "Festival Director", email: "alex.example@festival.example", phone: null, linkedinUrl: null, sourceUrl, sourceTitle: "Official contact", evidence: "The Festival Director role is responsible for the programme.", confidence: "LOW" } });
-  assert.equal(result.status, "CONTACT_RESEARCH_REQUIRED");
+  const result = normaliseContactResearch({ ...base(), namedContact: { fullName: "Alex Example", roleTitle: "Festival Director", email: "alex.example@festival.example", phone: null, linkedinUrl: null, sourceUrl, sourceTitle: "Official contact", evidence: "The Festival Director role is responsible for the programme.", confidence: "LOW", provenance: buyerProvenance } });
+  assert.equal(result.status, "THIRD_PARTY_CONTACT_REJECTED");
   assert.equal(result.namedContact, null);
 });
 
 test("a named person can be retained while an unquoted email pattern is rejected", () => {
-  const result = normaliseContactResearch({ ...base(), namedContact: { fullName: "Alex Example", roleTitle: "Festival Director", email: "alex.example@festival.example", phone: null, linkedinUrl: null, sourceUrl, sourceTitle: "Official team", evidence: "Alex Example is Festival Director.", confidence: "HIGH" } });
-  assert.equal(result.status, "CONTACT_FOUND");
+  const result = normaliseContactResearch({ ...base(), namedContact: { fullName: "Alex Example", roleTitle: "Festival Director", email: "alex.example@festival.example", phone: null, linkedinUrl: null, sourceUrl, sourceTitle: "Official team", evidence: "Alex Example is Festival Director.", confidence: "HIGH", provenance: buyerProvenance } });
+  assert.equal(result.status, "BUYER_IDENTIFIED_NO_ROUTE");
   assert.equal(result.namedContact?.fullName, "Alex Example");
   assert.equal(result.namedContact?.email, null);
 });
@@ -48,7 +51,7 @@ test("only credible prospect candidates may run contact research", () => {
 });
 
 test("a matching public email is persisted only once when the named person and route agree", () => {
-  const result = normaliseContactResearch({ ...base(), namedContact: { fullName: "Alex Example", roleTitle: "Festival Director", email: "alex@festival.example", phone: null, linkedinUrl: null, sourceUrl, sourceTitle: "Official team", evidence: "Alex Example is Festival Director. Contact Alex Example at alex@festival.example.", confidence: "HIGH" }, organisationRoute: { email: "alex@festival.example", phone: null, contactUrl: sourceUrl, sourceUrl, sourceTitle: "Official contact", evidence: "Contact Alex Example at alex@festival.example.", confidence: "HIGH" } });
+  const result = normaliseContactResearch({ ...base(), namedContact: { fullName: "Alex Example", roleTitle: "Festival Director", email: "alex@festival.example", phone: null, linkedinUrl: null, sourceUrl, sourceTitle: "Official team", evidence: "Alex Example is Festival Director. Contact Alex Example at alex@festival.example.", confidence: "HIGH", provenance: buyerProvenance }, organisationRoute: { email: "alex@festival.example", phone: null, contactUrl: sourceUrl, sourceUrl, sourceTitle: "Official contact", evidence: "Contact Alex Example at alex@festival.example.", confidence: "HIGH", provenance: organisationProvenance } });
   const targets = contactPersistenceTargets(result);
   assert.equal(targets.length, 1);
   assert.equal(targets[0].kind, "NAMED");
