@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { contactPersistenceTargets, researchEligibleProspectContact } from "../../../../src/ai-sales-team/contact-research";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import { AGENT_PROMPT_VERSIONS } from "../../../../src/ai-sales-team/agent-prompts";
+import { contactResearchProductionEnabled } from "../../../../src/lib/server-production-activation";
 
 async function operatorClient() {
   const client = await createServerSupabaseClient();
@@ -14,6 +15,7 @@ async function operatorClient() {
 }
 
 export async function POST(request: Request) {
+  if (!contactResearchProductionEnabled()) return NextResponse.json({ code: "PILOT_NOT_ENABLED", message: "Contact research production pilot is not enabled." }, { status: 503 });
   const state = await operatorClient();
   if (state.error) return state.error;
   const body = await request.json() as { candidateId?: string };

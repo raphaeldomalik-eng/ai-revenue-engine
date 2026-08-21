@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { canPersistCommercialMemory, discoverProspects, isFirstPartyCandidate, type DiscoveryFocus, type DiscoveryTerritory } from "../../../../src/ai-sales-team/discovery";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import { FIRST_PARTY_SELF } from "../../../../src/ai-sales-team/first-party";
+import { discoveryProductionEnabled } from "../../../../src/lib/server-production-activation";
 
 async function operatorClient() {
   const client = await createServerSupabaseClient();
@@ -21,6 +22,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!discoveryProductionEnabled()) return NextResponse.json({ code: "PILOT_NOT_ENABLED", message: "Discovery production pilot is not enabled." }, { status: 503 });
   const state = await operatorClient();
   if (state.error) return state.error;
   if (!state.canRun) return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });
