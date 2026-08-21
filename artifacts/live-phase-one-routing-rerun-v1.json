@@ -1,0 +1,214 @@
+{
+  "artifact": "live-phase-one-routing-rerun-v1",
+  "manifest": [
+    {
+      "id": "P1",
+      "lane": "EVENT_FIRST",
+      "startingSignal": "ArcTanGent Festival",
+      "organisationName": "ArcTanGent",
+      "domain": "arctangent.co.uk"
+    },
+    {
+      "id": "P4",
+      "lane": "VENUE_FIRST",
+      "startingSignal": "The Piece Hall",
+      "organisationName": "The Piece Hall Trust",
+      "domain": "piecehall.co.uk"
+    }
+  ],
+  "sequencePolicy": {
+    "eventFirst": [
+      "OPENAI_PUBLIC_WEB_IDENTITY",
+      "COMPANIES_HOUSE_SEARCH",
+      "COMPANIES_HOUSE_PROFILE",
+      "APOLLO_PEOPLE_SEARCH"
+    ],
+    "venueFirst": [
+      "GOOGLE_PLACES_TEXT_SEARCH",
+      "GOOGLE_PLACES_SELECTED_DETAILS",
+      "OPENAI_PUBLIC_WEB_IDENTITY",
+      "COMPANIES_HOUSE_SEARCH",
+      "COMPANIES_HOUSE_PROFILE",
+      "APOLLO_PEOPLE_SEARCH"
+    ],
+    "maxOpenAiCallsPerCase": 1,
+    "maxApolloSearchesPerOrganisation": 1,
+    "maxApolloEnrichment": 0,
+    "retries": 0,
+    "persistenceWrites": 0,
+    "outreachActions": 0
+  },
+  "cases": [
+    {
+      "id": "P1",
+      "lane": "EVENT_FIRST",
+      "signal": "ArcTanGent Festival",
+      "phaseOne": {
+        "classification": "PHASE_ONE_SME",
+        "reason": "Frozen official-source evidence identifies an independent UK festival organiser; SME priority is applied without guessing from registrar conflict."
+      },
+      "lanePreserved": true,
+      "providerSequence": [
+        "OPENAI_PUBLIC_WEB_IDENTITY"
+      ],
+      "openAi": {
+        "calls": 1,
+        "model": "gpt-4.1-mini",
+        "usage": null,
+        "webSearchCalls": null,
+        "failure": "STRICT_STRUCTURED_OUTPUT_INVALID_JSON",
+        "telemetryGap": "The initial bounded harness surfaced only the sanitized parser error and did not retain response status/item telemetry. No retry was performed."
+      },
+      "companiesHouse": {
+        "search": 0,
+        "profile": 0,
+        "outcome": null,
+        "reason": "Not reached because the one permitted public-web identity handoff failed safely.",
+        "company": null
+      },
+      "googlePlaces": null,
+      "apollo": null,
+      "identities": {
+        "event": "ArcTanGent Festival",
+        "venue": null,
+        "operator": null,
+        "organisation": null,
+        "legalCompany": null
+      },
+      "conflicts": [],
+      "contactResearchAttempted": false,
+      "enrichmentAttempted": false,
+      "persistenceWrites": 0,
+      "outreachActions": 0,
+      "identityDecision": "SAFE_UNRESOLVED",
+      "commerciallyAdvanced": false,
+      "counts": {
+        "companiesHouse": { "search": 0, "profile": 0, "officers": 0 },
+        "googlePlaces": { "textSearch": 0, "details": 0 },
+        "apollo": { "peopleSearch": 0, "enrichment": 0 },
+        "openAi": 1
+      },
+      "noRetryPerformed": true
+    },
+    {
+      "id": "P4",
+      "lane": "VENUE_FIRST",
+      "signal": "The Piece Hall",
+      "phaseOne": {
+        "classification": "PHASE_ONE_SME",
+        "reason": "Frozen official-source evidence identifies a UK independent or regional event-sector target; SME priority is applied without guessing from capacity or account category."
+      },
+      "lanePreserved": true,
+      "providerSequence": [
+        "GOOGLE_PLACES",
+        "OPENAI_PUBLIC_WEB_IDENTITY"
+      ],
+      "openAi": {
+        "calls": 1,
+        "model": "gpt-4.1-mini",
+        "usage": {
+          "input_tokens": 8174,
+          "input_tokens_details": {
+            "cache_write_tokens": 0,
+            "cached_tokens": 0
+          },
+          "output_tokens": 320,
+          "output_tokens_details": {
+            "reasoning_tokens": 0
+          },
+          "total_tokens": 8494
+        },
+        "webSearchCalls": 1,
+        "structuredOutputTelemetry": {
+          "responseStatus": "completed",
+          "incompleteReason": null,
+          "refusalStatus": null,
+          "outputItemTypes": [
+            "web_search_call",
+            "message"
+          ],
+          "schemaValidationError": null,
+          "truncation": false,
+          "parserPath": "responses.output[].message.content[].text"
+        }
+      },
+      "companiesHouse": {
+        "search": 0,
+        "profile": 0,
+        "outcome": null,
+        "reason": null,
+        "company": null
+      },
+      "googlePlaces": {
+        "telemetry": [
+          {
+            "endpointCategory": "TEXT_SEARCH",
+            "mode": "details_selected",
+            "fieldMask": "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus",
+            "candidateCount": 1,
+            "matchStatus": "EXACT_OR_STRONG",
+            "httpStatus": 200,
+            "errorCategory": null,
+            "retryCount": 0
+          },
+          {
+            "endpointCategory": "PLACE_DETAILS",
+            "mode": "details_selected",
+            "fieldMask": "id,displayName,formattedAddress,types,businessStatus,websiteUri",
+            "candidateCount": 1,
+            "matchStatus": "EXACT_OR_STRONG",
+            "httpStatus": 200,
+            "errorCategory": null,
+            "retryCount": 0
+          }
+        ],
+        "identity": {
+          "venueName": "The Piece Hall",
+          "address": "The Piece Hall hosts an upcoming events programme.",
+          "operator": null
+        },
+        "detailsCalls": 1
+      },
+      "apollo": null,
+      "identities": {
+        "event": null,
+        "venue": "The Piece Hall",
+        "operator": null,
+        "organisation": null,
+        "legalCompany": null
+      },
+      "conflicts": [],
+      "contactResearchAttempted": false,
+      "enrichmentAttempted": false,
+      "persistenceWrites": 0,
+      "outreachActions": 0,
+      "identityDecision": "SAFE_UNRESOLVED",
+      "commerciallyAdvanced": false,
+      "counts": {
+        "companiesHouse": {
+          "search": 0,
+          "profile": 0,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 1,
+          "details": 1
+        },
+        "apollo": {
+          "peopleSearch": 0,
+          "enrichment": 0
+        },
+        "openAi": 1
+      }
+    }
+  ],
+  "cost": {
+    "model": "gpt-4.1-mini",
+    "preflightProjectedUsd": 0.079598,
+    "measuredModelTokenCostUsd": 0.0037816000000000004,
+    "explicitWebSearchFeesUsd": 0.01,
+    "knownTotalUsd": 0.013781600000000001,
+    "ceilingUsd": 0.25,
+    "unreportedProviderContentCost": "not separately reported by the response usage payload"
+  }
+}

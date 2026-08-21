@@ -202,14 +202,16 @@ export function applyDiscoveryEnrichment(candidate: EvaluatedDiscoveryCandidate,
   const organisationResolution = normaliseOrganisationResolution(update.organisationResolution, candidate);
   const commercialEvidence = normaliseCommercialEvidence(update.commercialEvidence);
   const currentSite = candidate.siteClassifications?.find((item) => item.url === candidate.website);
-  const promoted = organisationResolution.status === "RESOLVED" ? { ...candidate, canonicalName: organisationResolution.canonicalOrganisationName ?? candidate.canonicalName, organiserName: organisationResolution.canonicalOrganisationName ?? candidate.organiserName, website: organisationResolution.officialWebsite } : { ...candidate, website: candidate.origin === "EVENT_FIRST" && (!currentSite || currentSite.siteType !== "ORGANISATION_OFFICIAL") ? null : candidate.website };
+  const baseLaneContext: DiscoveryLaneContext = candidate.laneContext ?? { organisation: null, person: null, venue: null };
+  const venueOperator = candidate.origin === "VENUE_FIRST" && organisationResolution.status === "RESOLVED" && baseLaneContext.venue ? { ...baseLaneContext.venue, operatorName: organisationResolution.canonicalOrganisationName, operatorWebsite: organisationResolution.officialWebsite } : baseLaneContext.venue;
+  const promoted = organisationResolution.status === "RESOLVED" ? { ...candidate, canonicalName: organisationResolution.canonicalOrganisationName ?? candidate.canonicalName, organiserName: candidate.origin === "VENUE_FIRST" ? candidate.organiserName : organisationResolution.canonicalOrganisationName ?? candidate.organiserName, website: organisationResolution.officialWebsite, laneContext: venueOperator ? { ...baseLaneContext, venue: venueOperator } : candidate.laneContext } : { ...candidate, website: candidate.origin === "EVENT_FIRST" && (!currentSite || currentSite.siteType !== "ORGANISATION_OFFICIAL") ? null : candidate.website };
   const factKeys = new Set(candidate.facts.map((item) => `${item.claim}::${item.sourceUrl ?? ""}`));
   const resolutionFacts: DiscoveryEvidence[] = organisationResolution.evidence.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, sourceTitle: item.sourceTitle, kind: "FACT", confidence: item.confidence, sourceRoles: ["VALIDATION"], eventFreshness: inferFreshness(item.claim) }));
   const commercialFacts: DiscoveryEvidence[] = commercialEvidence.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, sourceTitle: null, kind: "FACT", confidence: item.confidence, sourceRoles: ["COMMERCIAL_EVIDENCE"], eventFreshness: inferFreshness(item.claim) }));
   const facts = [...candidate.facts, ...resolutionFacts, ...commercialFacts, ...update.facts.filter((item) => item.kind === "FACT" && item.claim.trim() && (item.sourceUrl || item.sourceTitle) && !factKeys.has(`${item.claim}::${item.sourceUrl ?? ""}`))];
   const inferenceKeys = new Set(candidate.inferences.map((item) => item.claim));
   const inferences = [...candidate.inferences, ...update.inferences.filter((item) => item.kind === "INFERENCE" && item.claim.trim() && !inferenceKeys.has(item.claim))];
-  return evaluateDiscoveryCandidate({ ...promoted, facts, inferences, commercialEvidence, organisationResolution, siteClassifications: [...(candidate.siteClassifications ?? []), ...(organisationResolution.siteClassifications ?? [])], laneContext: candidate.laneContext, unknowns: [...new Set([...candidate.unknowns, ...update.unknowns.filter((item) => item.trim())])] }, territory);
+  return evaluateDiscoveryCandidate({ ...promoted, facts, inferences, commercialEvidence, organisationResolution, siteClassifications: [...(candidate.siteClassifications ?? []), ...(organisationResolution.siteClassifications ?? [])], laneContext: promoted.laneContext, unknowns: [...new Set([...candidate.unknowns, ...update.unknowns.filter((item) => item.trim())])] }, territory);
 }
 
 function materialSnapshot(candidate: EvaluatedDiscoveryCandidate) {
@@ -294,9 +296,9 @@ function applyGooglePlacesEvidence(candidate: EvaluatedDiscoveryCandidate, resul
   return evaluateDiscoveryCandidate({ ...candidate, website: promotedWebsite, laneContext, facts }, territory);
 }
 
-export async function enrichDiscoveryCandidatesWithGooglePlaces(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory, options?: GooglePlacesOptions): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: NonNullable<EnrichmentRunTelemetry["googlePlaces"]> }> {
+export async function enrichDiscoveryCandidatesWithGooglePlaces(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory, options?: GooglePlacesOptions, targetFilter: (candidate: EvaluatedDiscoveryCandidate) => boolean = () => true): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: NonNullable<EnrichmentRunTelemetry["googlePlaces"]> }> {
   if (!options || options.mode === "disabled" || !options.mode) return { candidates, telemetry: { attemptedCount: 0, succeededCount: 0, failedCount: 0, skippedCount: candidates.length, telemetry: [] } };
-  const targets = candidates.filter((candidate) => Boolean(googlePlacesTarget(candidate)));
+  const targets = candidates.filter((candidate) => Boolean(googlePlacesTarget(candidate)) && targetFilter(candidate));
   const telemetryValues: GooglePlacesTelemetry[] = [];
   let succeededCount = 0;
   let failedCount = 0;
@@ -334,9 +336,9 @@ function telemetryFor(candidates: EvaluatedDiscoveryCandidate[], eligibleCount: 
   return { firstPassCandidateCount: candidates.length, enrichmentEligibleCount: eligibleCount, enrichmentAttemptedCount: attemptedCount, enrichmentSucceededCount: successCount, enrichmentFailedCount: failedCount, enrichmentSkippedCount: candidates.length - attemptedCount, enrichmentMateriallyChangedCount: materialCount };
 }
 
-export async function enrichDiscoveryCandidatesWithCompaniesHouse(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory, options?: CompaniesHouseOptions): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: NonNullable<EnrichmentRunTelemetry["companiesHouse"]> }> {
+export async function enrichDiscoveryCandidatesWithCompaniesHouse(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory, options?: CompaniesHouseOptions, targetFilter: (candidate: EvaluatedDiscoveryCandidate) => boolean = () => true): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: NonNullable<EnrichmentRunTelemetry["companiesHouse"]> }> {
   if (!options || options.mode !== "search_only" || territory !== "GB") return { candidates, telemetry: { attemptedCount: 0, succeededCount: 0, failedCount: 0, skippedCount: candidates.length, telemetry: [] } };
-  const targets = candidates.filter((candidate) => Boolean(laneTargetName(candidate).trim())).slice(0, 4);
+  const targets = candidates.filter((candidate) => Boolean(laneTargetName(candidate).trim()) && targetFilter(candidate)).slice(0, 4);
   const telemetryValues: CompaniesHouseTelemetry[] = [];
   let succeededCount = 0;
   let failedCount = 0;
@@ -351,24 +353,20 @@ export async function enrichDiscoveryCandidatesWithCompaniesHouse(candidates: Ev
   return { candidates: updated, telemetry: { attemptedCount: targets.length, succeededCount, failedCount, skippedCount: candidates.length - targets.length, telemetry: telemetryValues } };
 }
 
-export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory, options: { googlePlaces?: GooglePlacesOptions; companiesHouse?: CompaniesHouseOptions } = {}): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: EnrichmentRunTelemetry }> {
-  const companiesHouse = await enrichDiscoveryCandidatesWithCompaniesHouse(candidates, territory, options.companiesHouse);
-  candidates = companiesHouse.candidates;
-  const googlePlaces = await enrichDiscoveryCandidatesWithGooglePlaces(candidates, territory, options.googlePlaces);
-  candidates = googlePlaces.candidates;
+export async function enrichDiscoveryCandidatesWithOpenAI(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: EnrichmentRunTelemetry }> {
   const eligible = candidates.filter((candidate) => identityHandoffGate(candidate).eligible);
   const targets = eligible.slice(0, 4);
   const targetKeys = new Set(targets.map((candidate) => candidate.canonicalKey));
   let prepared: EvaluatedDiscoveryCandidate[] = candidates.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "ATTEMPTED" as const, attempted: true, succeeded: false, materiallyChanged: false, gateReason: identityHandoffGate(candidate).reason } } : { ...candidate, enrichment: { status: "SKIPPED" as const, attempted: false, succeeded: false, materiallyChanged: false, gateReason: identityHandoffGate(candidate).reason, resolutionOutcome: candidate.organisationResolution?.status ?? (candidate.origin === "EVENT_FIRST" ? "UNRESOLVED" : "NOT_REQUIRED"), commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: (eligible.includes(candidate) ? "BUDGET_LIMIT" : skipReason(candidate)) as EnrichmentSkipReason } });
-  if (!targets.length) return { candidates: prepared, telemetry: { ...telemetryFor(prepared, eligible.length, 0, 0, 0, 0), companiesHouse: companiesHouse.telemetry, googlePlaces: googlePlaces.telemetry } };
+  if (!targets.length) return { candidates: prepared, telemetry: telemetryFor(prepared, eligible.length, 0, 0, 0, 0) };
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   const reasoning = ["gpt-5.6-terra", "gpt-5.6-luna"].includes(model) && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined;
   const failed = () => ({ candidates: prepared.map((candidate) => targetKeys.has(candidate.canonicalKey) ? { ...candidate, enrichment: { status: "FAILED" as const, attempted: true, succeeded: false, materiallyChanged: false, skipReason: "OTHER_SAFE_REASON" as const, gateReason: identityHandoffGate(candidate).reason, promptVersions: AGENT_PROMPT_VERSIONS } } : candidate), telemetry: telemetryFor(prepared, eligible.length, targets.length, 0, targets.length, 0) });
-  if (!apiKey) { const failure = failed(); return { candidates: failure.candidates, telemetry: { ...failure.telemetry, companiesHouse: companiesHouse.telemetry, googlePlaces: googlePlaces.telemetry } }; }
+  if (!apiKey) { const failure = failed(); return { candidates: failure.candidates, telemetry: failure.telemetry }; }
   const dossier = targets.map((candidate, index) => ({ candidateRef: String(index + 1), discoverySignal: candidate.canonicalName, currentCommercialTarget: { name: laneTargetName(candidate), website: candidate.website }, laneContext: candidate.laneContext ?? null, origin: candidate.origin, registrarValidation: candidate.registrarValidation ?? null, facts: candidate.facts.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, roles: item.sourceRoles, confidence: item.confidence })), unresolved: candidate.prospectIntelligence.accountCreationReason }));
   const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, ...(reasoning ? { reasoning } : {}), tools: [{ type: "web_search" }], max_output_tokens: 10000, input: `${IDENTITY_RESOLVER_PROMPT_V1}\n${COMMERCIAL_RESEARCHER_PROMPT_V1}\nPerform one bounded handoff for these ${territory === "ZA" ? "South African" : "UK"} candidates. Resolve identity first, then research the resolved organisation and return supporting and counter-evidence for every product lens. The discovery source is never automatically the target website. Companies House registrarValidation is legal-company identity evidence only: it does not prove a trading domain, event ownership, organiser responsibility, venue operation, EventSuite fit, pain, buyer status, contact eligibility or outreach eligibility. Preserve trading-name, legal-entity, venue and operator relationships, and return a specific unknown when evidence is insufficient. Dossiers: ${JSON.stringify(dossier)}`, text: { format: { type: "json_schema", name: "prospecting_evidence_enrichment", strict: true, schema: enrichmentSchema } } }) });
-  if (!response.ok) { const failure = failed(); return { candidates: failure.candidates, telemetry: { ...failure.telemetry, companiesHouse: companiesHouse.telemetry, googlePlaces: googlePlaces.telemetry } }; }
+  if (!response.ok) { const failure = failed(); return { candidates: failure.candidates, telemetry: failure.telemetry }; }
   const parsed = parseProviderText(await response.json() as StructuredOutputPayload);
   const updates = new Map((parsed.value.candidates ?? []).filter((item) => targets[Number(item.candidateRef) - 1]).map((item) => [item.candidateRef, item]));
   let succeeded = 0;
@@ -386,7 +384,51 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
     if (changed) materiallyChanged += 1;
     return { ...enriched, enrichment: { status: "SUCCEEDED" as const, attempted: true, succeeded: true, materiallyChanged: changed, gateReason: identityHandoffGate(candidate).reason, organisationResolution: resolution, commercialEvidence: evidence, resolutionOutcome: resolution.status, commercialOutcome: outcome.outcome, commerciallyAdvanced: outcome.advanced, promptVersions: AGENT_PROMPT_VERSIONS } };
   });
-  return { candidates: prepared, telemetry: { ...telemetryFor(prepared, eligible.length, targets.length, succeeded, targets.length - succeeded, materiallyChanged), companiesHouse: companiesHouse.telemetry, googlePlaces: googlePlaces.telemetry, structuredOutputTelemetry: parsed.telemetry } };
+  return { candidates: prepared, telemetry: { ...telemetryFor(prepared, eligible.length, targets.length, succeeded, targets.length - succeeded, materiallyChanged), structuredOutputTelemetry: parsed.telemetry } };
+}
+
+function mergeStageCounts<T extends { attemptedCount: number; succeededCount: number; failedCount: number; skippedCount: number; telemetry: unknown[] }>(runs: T[], candidateCount: number): { attemptedCount: number; succeededCount: number; failedCount: number; skippedCount: number; telemetry: unknown[] } {
+  return {
+    attemptedCount: runs.reduce<number>((sum, run) => sum + run.attemptedCount, 0),
+    succeededCount: runs.reduce<number>((sum, run) => sum + run.succeededCount, 0),
+    failedCount: runs.reduce<number>((sum, run) => sum + run.failedCount, 0),
+    skippedCount: Math.max(0, candidateCount - runs.reduce<number>((sum, run) => sum + run.attemptedCount, 0)),
+    telemetry: runs.flatMap((run) => run.telemetry),
+  };
+}
+
+export function applyRegistrarPromotionGate(candidate: EvaluatedDiscoveryCandidate): EvaluatedDiscoveryCandidate {
+  const validation = candidate.registrarValidation;
+  if (!validation || !["EVENT_FIRST", "VENUE_FIRST"].includes(candidate.origin) || validation.outcome === "REGISTRAR_CONFIRMED") return candidate;
+  return {
+    ...candidate,
+    status: candidate.firstPartyStatus === FIRST_PARTY_SELF ? "REJECTED" : "REVIEW_REQUIRED",
+    prospectIntelligence: { ...candidate.prospectIntelligence, accountCreationEligible: false, accountCreationReason: `REGISTRAR_${validation.outcome}_BLOCKS_AUTOMATIC_PROMOTION`, outreachEligibility: "BLOCKED", outreachBlockOrReviewReason: `REGISTRAR_${validation.outcome} — public identity is retained for review, but legal promotion is blocked.` },
+  };
+}
+
+export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCandidate[], territory: DiscoveryTerritory, options: { googlePlaces?: GooglePlacesOptions; companiesHouse?: CompaniesHouseOptions } = {}): Promise<{ candidates: EvaluatedDiscoveryCandidate[]; telemetry: EnrichmentRunTelemetry }> {
+  const companiesHouseRuns: NonNullable<EnrichmentRunTelemetry["companiesHouse"]>[] = [];
+  const googlePlacesRuns: NonNullable<EnrichmentRunTelemetry["googlePlaces"]>[] = [];
+  const initialCompaniesHouse = await enrichDiscoveryCandidatesWithCompaniesHouse(candidates, territory, options.companiesHouse, (candidate) => ["ORGANISATION_FIRST", "PERSON_FIRST"].includes(candidate.origin));
+  candidates = initialCompaniesHouse.candidates;
+  companiesHouseRuns.push(initialCompaniesHouse.telemetry);
+  const venuePlaces = await enrichDiscoveryCandidatesWithGooglePlaces(candidates, territory, options.googlePlaces, (candidate) => candidate.origin === "VENUE_FIRST");
+  candidates = venuePlaces.candidates;
+  googlePlacesRuns.push(venuePlaces.telemetry);
+  const openAi = await enrichDiscoveryCandidatesWithOpenAI(candidates, territory);
+  candidates = openAi.candidates;
+  const postIdentityCompaniesHouse = await enrichDiscoveryCandidatesWithCompaniesHouse(candidates, territory, options.companiesHouse, (candidate) => ["EVENT_FIRST", "VENUE_FIRST"].includes(candidate.origin) && candidate.organisationResolution?.status === "RESOLVED");
+  candidates = postIdentityCompaniesHouse.candidates.map(applyRegistrarPromotionGate);
+  companiesHouseRuns.push(postIdentityCompaniesHouse.telemetry);
+  return {
+    candidates,
+    telemetry: {
+      ...openAi.telemetry,
+      companiesHouse: mergeStageCounts(companiesHouseRuns, candidates.length) as NonNullable<EnrichmentRunTelemetry["companiesHouse"]>,
+      googlePlaces: mergeStageCounts(googlePlacesRuns, candidates.length) as NonNullable<EnrichmentRunTelemetry["googlePlaces"]>,
+    },
+  };
 }
 
 export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, territory: DiscoveryTerritory): EvaluatedDiscoveryCandidate {

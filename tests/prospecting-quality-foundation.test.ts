@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { applyDiscoveryEnrichment, canonicalDiscoveryKey, classifySourceSite, evaluateDiscoveryCandidate, identityHandoffGate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
+import { applyDiscoveryEnrichment, canonicalDiscoveryKey, classifySourceSite, enrichDiscoveryCandidates, evaluateDiscoveryCandidate, identityHandoffGate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
 import { isContactResearchEligible } from "../src/ai-sales-team/contact-research.ts";
 
@@ -15,6 +15,43 @@ test("event-first and organisation-first are both real, commercially assessed or
   assert.equal(organisationFirst.status, "QUALIFIED");
   assert.equal(organisationFirst.origin, "ORGANISATION_FIRST");
   assert.equal(organisationFirst.prospectIntelligence.accountCreationEligible, true);
+});
+
+test("venue identity resolution promotes an operator without rewriting the venue as organiser", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "The Piece Hall", organiserName: null, website: "https://www.thepiecehall.co.uk", origin: "VENUE_FIRST", laneContext: { organisation: null, person: null, venue: { name: "The Piece Hall", website: "https://www.thepiecehall.co.uk", operatorName: null, operatorWebsite: null } }, facts: [fact("The Piece Hall hosts an upcoming events programme.", ["DISCOVERY"])] }), "GB");
+  const resolved = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "The Piece Hall Trust", officialWebsite: "https://www.thepiecehall.co.uk", officialWebsiteSiteType: "ORGANISATION_OFFICIAL", aliases: [], confidence: "HIGH", evidence: [{ claim: "The Piece Hall Trust operates The Piece Hall venue.", sourceUrl: "https://www.thepiecehall.co.uk/about", sourceTitle: "Venue operator", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(resolved.organiserName, null);
+  assert.equal(resolved.laneContext?.venue?.name, "The Piece Hall");
+  assert.equal(resolved.laneContext?.venue?.operatorName, "The Piece Hall Trust");
+  assert.equal(resolved.laneContext?.venue?.operatorWebsite, "https://www.thepiecehall.co.uk");
+});
+
+test("person-first preserves the sourced person when identity enrichment is unresolved", () => {
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "Alex Morgan", organiserName: null, origin: "PERSON_FIRST", laneContext: { organisation: null, person: { name: "Alex Morgan", role: "Event Manager", organisationName: "Quality Events", organisationWebsite: "https://quality.example.org" }, venue: null }, facts: [fact("Alex Morgan is the current Event Manager at Quality Events.", ["DISCOVERY"])] }), "GB");
+  const unresolved = applyDiscoveryEnrichment(initial, { organisationResolution: { status: "UNRESOLVED" }, commercialEvidence: [], facts: [], inferences: [], unknowns: ["Employer needs confirmation."] }, "GB");
+  assert.deepEqual(unresolved.laneContext?.person, { name: "Alex Morgan", role: "Event Manager", organisationName: "Quality Events", organisationWebsite: "https://quality.example.org" });
+  assert.equal(unresolved.organisationResolution?.status, "UNRESOLVED");
+});
+
+test("event-first runs bounded public identity research before Companies House", async () => {
+  const originalKey = process.env.OPENAI_API_KEY;
+  const originalFetch = globalThis.fetch;
+  const order: string[] = [];
+  process.env.OPENAI_API_KEY = "test-only-key";
+  globalThis.fetch = async (input) => {
+    if (String(input).includes("api.openai.com/v1/responses")) {
+      order.push("OPENAI");
+      return new Response(JSON.stringify({ output_text: JSON.stringify({ candidates: [{ candidateRef: "1", organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "ArcTanGent", officialWebsite: "https://arctangent.co.uk", officialWebsiteSiteType: "ORGANISATION_OFFICIAL", aliases: [], confidence: "HIGH", evidence: [{ claim: "ArcTanGent organises the current festival.", sourceUrl: "https://arctangent.co.uk", sourceTitle: "Official organiser", confidence: "HIGH" }] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }] }) }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    throw new Error("UNEXPECTED_PROVIDER_CALL");
+  };
+  const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "ArcTanGent Festival", organiserName: "ArcTanGent", website: null, facts: [fact("ArcTanGent organises the current ArcTanGent Festival.", ["DISCOVERY"])] }), "GB");
+  const result = await enrichDiscoveryCandidates([initial], "GB", { companiesHouse: { apiKey: "test-key", mode: "search_only", fetchImpl: async () => { order.push("CH"); return new Response(JSON.stringify({ items: [{ title: "ARCTANGENT LIMITED", company_number: "01234567", company_status: "active", company_type: "ltd", sic_codes: ["90020"] }] }), { status: 200, headers: { "content-type": "application/json" } }); } } });
+  assert.deepEqual(order, ["OPENAI", "CH"]);
+  assert.equal(result.candidates[0].organisationResolution?.status, "RESOLVED");
+  assert.equal(result.candidates[0].registrarValidation?.outcome, "REGISTRAR_CONFIRMED");
+  process.env.OPENAI_API_KEY = originalKey;
+  globalThis.fetch = originalFetch;
 });
 
 test("freshness rejects historical one-offs while recurring evidence stays explicitly non-upcoming", () => {

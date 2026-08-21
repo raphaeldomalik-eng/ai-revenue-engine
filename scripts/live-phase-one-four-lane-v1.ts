@@ -5,7 +5,7 @@ import { resolveGooglePlacesVenueComplex } from "../src/ai-sales-team/google-pla
 import { assessPhaseOneCandidate, type PhaseOneEvidence } from "../src/ai-sales-team/phase-one.ts";
 import type { DiscoveryLane } from "../src/ai-sales-team/prospect-intelligence.ts";
 
-type FrozenCase = {
+export type FrozenCase = {
   id: string;
   lane: DiscoveryLane;
   startingSignal: string;
@@ -25,7 +25,7 @@ type FrozenCase = {
 
 // Frozen before provider calls. These are smaller/regional UK targets and official public source inputs,
 // not model-generated discoveries. P3/P4 intentionally reuse the established Piece Hall regression source.
-const FROZEN_CASES: readonly FrozenCase[] = [
+export const FROZEN_CASES: readonly FrozenCase[] = [
   {
     id: "P1",
     lane: "EVENT_FIRST",
@@ -72,7 +72,7 @@ const FROZEN_CASES: readonly FrozenCase[] = [
     personName: "Aaron Casserly Stewart",
     personTitle: "Programme & Event Director",
     venueName: null,
-    locality: "Halifax, United Kingdom",
+    locality: "Halifax",
     roleFamilies: APOLLO_PRIMARY_ROLE_FAMILIES,
     companySearchName: "The Piece Hall Trust",
     phaseOneEvidence: [{ kind: "REGIONAL_SCOPE", value: "Regional venue programme", sourceUrl: "https://www.thepiecehall.co.uk", confidence: "HIGH" }],
@@ -96,13 +96,13 @@ const FROZEN_CASES: readonly FrozenCase[] = [
   },
 ];
 
-type Counts = { companiesHouse: { search: number; profile: number; officers: number }; googlePlaces: { textSearch: number; details: number }; apollo: { peopleSearch: number; enrichment: number }; openAi: number };
+export type Counts = { companiesHouse: { search: number; profile: number; officers: number }; googlePlaces: { textSearch: number; details: number }; apollo: { peopleSearch: number; enrichment: number }; openAi: number };
 type SafeFailure = { category: string; httpStatus: number | null };
 
 function keyPresent(name: string) { return Boolean(process.env[name]?.trim()); }
-function emptyCounts(): Counts { return { companiesHouse: { search: 0, profile: 0, officers: 0 }, googlePlaces: { textSearch: 0, details: 0 }, apollo: { peopleSearch: 0, enrichment: 0 }, openAi: 0 }; }
+export function emptyCounts(): Counts { return { companiesHouse: { search: 0, profile: 0, officers: 0 }, googlePlaces: { textSearch: 0, details: 0 }, apollo: { peopleSearch: 0, enrichment: 0 }, openAi: 0 }; }
 function safeFailure(error: unknown): SafeFailure { const telemetry = error && typeof error === "object" && "telemetry" in error ? (error as { telemetry?: { errorCategory?: string | null; httpStatus?: number | null } }).telemetry : null; return { category: telemetry?.errorCategory ?? "PROVIDER_ERROR", httpStatus: telemetry?.httpStatus ?? null }; }
-function countedFetch(counts: Counts, provider: "companiesHouse" | "googlePlaces" | "apollo") {
+export function countedFetch(counts: Counts, provider: "companiesHouse" | "googlePlaces" | "apollo", fetchImpl: typeof fetch = fetch) {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (provider === "companiesHouse") {
@@ -120,7 +120,7 @@ function countedFetch(counts: Counts, provider: "companiesHouse" | "googlePlaces
       counts.apollo.peopleSearch += 1;
       if (counts.apollo.peopleSearch > 1) throw new Error("BOUNDED_APOLLO_SEARCH_LIMIT");
     }
-    return fetch(input, init);
+    return fetchImpl(input, init);
   };
 }
 function sanitiseCompany(company: CompaniesHouseCompanyEvidence | null) { return company ? { legalCompanyName: company.legalCompanyName, companyStatus: company.companyStatus, companyType: company.companyType, sicCodes: company.sicCodes, accountsCategory: company.accountsCategory, registeredRegion: company.registeredRegion } : null; }
@@ -191,4 +191,4 @@ async function main() {
   console.log(JSON.stringify(summary, null, 2));
 }
 
-main().catch((error) => { console.error(error instanceof Error ? error.message : "BOUNDED_LIVE_HARNESS_FAILED"); process.exitCode = 1; });
+if (process.argv[1]?.replaceAll("\\", "/").endsWith("/live-phase-one-four-lane-v1.ts")) main().catch((error) => { console.error(error instanceof Error ? error.message : "BOUNDED_LIVE_HARNESS_FAILED"); process.exitCode = 1; });
