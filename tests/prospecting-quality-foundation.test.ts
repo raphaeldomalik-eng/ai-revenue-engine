@@ -202,6 +202,13 @@ test("the shared identity key deduplicates one organisation found through multip
   assert.equal(parsed.length, 1);
 });
 
+test("orchestration lane override preserves the Hyve organisation-first lane through enrichment", () => {
+  const parsed = parseDiscovery({ candidates: [{ canonicalName: "Hyve Group", organiserName: "Hyve Group", website: "https://hyve.group", origin: "EVENT_FIRST", relationshipHint: "UNKNOWN", laneContext: { organisation: { name: "Hyve Group", website: "https://hyve.group" }, person: null, venue: null }, facts: [fact("Hyve Group operates an upcoming portfolio of events.", ["VALIDATION"])], inferences: [], unknowns: [], siteClassifications: [] }] }, "GB", "ORGANISATION_FIRST")[0];
+  assert.equal(parsed.origin, "ORGANISATION_FIRST");
+  const enriched = applyDiscoveryEnrichment(parsed, { organisationResolution: { status: "RESOLVED", canonicalOrganisationName: "Hyve Group", officialWebsite: "https://hyve.group", officialWebsiteSiteType: "ORGANISATION_OFFICIAL", aliases: [], confidence: "HIGH", evidence: [{ claim: "Hyve Group organises its event portfolio.", sourceUrl: "https://hyve.group/about", sourceTitle: "Hyve", confidence: "HIGH" }], siteClassifications: [], relatedOrganisations: [] }, commercialEvidence: [], facts: [], inferences: [], unknowns: [] }, "GB");
+  assert.equal(enriched.origin, "ORGANISATION_FIRST");
+});
+
 test("eCommerce Expo-style resolution hands commercial research to UPTECH, not the event page", () => {
   const initial = evaluateDiscoveryCandidate(candidate({ canonicalName: "eCommerce Expo 2026", organiserName: "UPTECH Events", website: "https://www.ecommerceexpo.co.uk/", facts: [fact("UPTECH Events is the organiser of eCommerce Expo 2026.", ["DISCOVERY"])] }), "GB");
   const promoted = applyDiscoveryEnrichment(initial, {

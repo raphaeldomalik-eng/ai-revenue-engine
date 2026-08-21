@@ -1,6 +1,7 @@
 import { discoverProspects, identityHandoffGate, type DiscoveryTerritory, type EvaluatedDiscoveryCandidate } from "../src/ai-sales-team/discovery.ts";
 import { AGENT_PROMPT_VERSIONS } from "../src/ai-sales-team/agent-prompts.ts";
 import { researchEligibleProspectContact, type ContactResearchTargetIdentity } from "../src/ai-sales-team/contact-research.ts";
+import { StructuredOutputError, structuredOutputTelemetry, type StructuredOutputPayload, type StructuredOutputTelemetry } from "../src/ai-sales-team/structured-output.ts";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -8,7 +9,7 @@ type Lane = "EVENT_FIRST" | "ORGANISATION_FIRST" | "PERSON_FIRST" | "VENUE_FIRST
 type ModelConfig = { model: "gpt-4.1-mini" | "gpt-5.6-terra"; reasoningEffort: "none" | "medium" };
 type FrozenCase = { id: string; name: string; territory: DiscoveryTerritory; lane: Lane; selector: string; hint: string; evidenceUrls: string[]; laneContext: Record<string, string | null> };
 type Usage = { input_tokens?: number; input_tokens_details?: { cached_tokens?: number; cache_write_tokens?: number }; output_tokens?: number; output_tokens_details?: { reasoning_tokens?: number } };
-type CallRecord = { callId: number; model: string; caseId: string; lane: Lane; stage: string; httpStatus: number | null; success: boolean; usage: Usage | null; webSearchCalls: number; advancement: string; budgetBlocked?: boolean };
+type CallRecord = { callId: number; model: string; caseId: string; lane: Lane; stage: string; httpStatus: number | null; success: boolean; usage: Usage | null; webSearchCalls: number; webSearchCallCostUsd?: number; responseStatus?: string | null; incompleteReason?: string | null; refusalStatus?: string | null; outputItemTypes?: string[]; schemaValidationError?: string | null; truncation?: boolean; parserPath?: string; advancement: string; budgetBlocked?: boolean };
 
 export const LIVE_MODEL_COMPARISON_CASES: FrozenCase[] = [
   { id: "M01", name: "Event Production Show", territory: "GB", lane: "EVENT_FIRST", selector: "Event Production Show", hint: "lane=EVENT_FIRST; signal=Event Production Show; eventUrl=https://www.eventproductionshow.co.uk/; organisation=Mash Media Group; organisationUrl=https://www.mashmedia.co.uk/; preserve event, organisation, venue and provider separation.", evidenceUrls: ["https://www.eventproductionshow.co.uk/", "https://www.mashmedia.co.uk/"], laneContext: { event: "Event Production Show", eventUrl: "https://www.eventproductionshow.co.uk/", organisation: "Mash Media Group", organisationUrl: "https://www.mashmedia.co.uk/", person: null, venue: null } },
@@ -20,6 +21,7 @@ export const LIVE_MODEL_COMPARISON_CASES: FrozenCase[] = [
 export const MODEL_COMPARISON_SCORING = ["lane preservation", "credible entity discovery", "authoritative source use", "identity resolution", "event/organisation/person/venue relationship accuracy", "safe unresolved behaviour", "plausible EventSuite benefit identification", "commercial research advancement", "messaging-angle usefulness", "named buyer/person discovery", "contact eligibility", "legitimate contact route", "unsupported assumptions", "fabricated relationships", "provider/venue/third-party misattribution", "overall commercial usefulness"] as const;
 export const MODEL_COMPARISON_TABLES = ["ai_prospect_candidates", "accounts", "contacts", "product_opportunities", "research_evidence", "outreach_sequences", "outreach_messages"] as const;
 const USD_LIMIT = 5;
+const WEB_SEARCH_CALL_FEE_USD = 0.01;
 const PRICES = { "gpt-4.1-mini": { input: 0.4, cached: 0.1, output: 1.6 }, "gpt-5.6-terra": { input: 2, cached: 0.2, output: 12 } } as const;
 
 function stageFor(body: Record<string, unknown>) {
@@ -41,7 +43,8 @@ function estimatedCallCost(model: keyof typeof PRICES, body: Record<string, unkn
   const input = tokenEstimate(body);
   const output = Number(body.max_output_tokens ?? 0);
   const fixedSearch = model === "gpt-4.1-mini" ? 8000 : 0;
-  return ((input + fixedSearch) * price.input + output * price.output) / 1_000_000 + 0.01;
+  const searchCall = Array.isArray(body.tools) && (body.tools as Array<{ type?: string }>).some((tool) => tool.type === "web_search") ? WEB_SEARCH_CALL_FEE_USD : 0;
+  return ((input + fixedSearch) * price.input + output * price.output) / 1_000_000 + searchCall;
 }
 
 async function readOnlyCounts() {
@@ -118,7 +121,7 @@ export async function runLiveModelComparison() {
     record.httpStatus = response.status;
     record.success = response.ok;
     const clone = response.clone();
-    pending.push(clone.json().then((payload: unknown) => { record.usage = (payload && typeof payload === "object" ? (payload as { usage?: Usage }).usage : null) ?? null; record.webSearchCalls = webSearchCalls(payload); }).catch(() => undefined));
+    pending.push(clone.json().then((payload: unknown) => { const telemetry = structuredOutputTelemetry(payload as StructuredOutputPayload); record.usage = (payload && typeof payload === "object" ? (payload as { usage?: Usage }).usage : null) ?? null; record.webSearchCalls = webSearchCalls(payload); record.webSearchCallCostUsd = record.webSearchCalls * WEB_SEARCH_CALL_FEE_USD; Object.assign(record, telemetry); }).catch(() => undefined));
     return response;
   };
   const runs: Array<{ config: ModelConfig; cases: unknown[] }> = [];
@@ -134,7 +137,7 @@ export async function runLiveModelComparison() {
         let contact: unknown = { blocked: true, reason: "No candidate selected." };
         let failure: string | undefined;
         try {
-          discovered = await discoverProspects({ territory: frozen.territory, focus: "ALL", caseHint: frozen.hint });
+          discovered = await discoverProspects({ territory: frozen.territory, focus: "ALL", caseHint: frozen.hint, discoveryLane: frozen.lane });
           const candidate = selectCandidate(discovered.candidates, frozen);
           if (candidate) contact = await researchEligibleProspectContact(contactInput(candidate));
           const caseCalls = calls.slice(callStart);
@@ -143,6 +146,7 @@ export async function runLiveModelComparison() {
           caseResults.push({ ...frozen, callStatus: "COMPLETED", discovery: { candidateCount: discovered.candidates.length, enrichment: discovered.enrichment, model: discovered.model }, handoffGate: enrichment, candidate: compactCandidate(candidate), contact: compactContact(contact), quality: qualitySignals(frozen, candidate, contact), evidenceUrls: [...new Set([...frozen.evidenceUrls, ...(candidate?.sourceUrls ?? []), ...(candidate?.organisationResolution?.evidence ?? []).map((item) => item.sourceUrl)])] });
         } catch (error) {
           failure = error instanceof Error ? error.message : String(error);
+          if (error instanceof StructuredOutputError) Object.assign(calls[calls.length - 1], error.telemetry);
           for (const call of calls.slice(callStart)) if (call.advancement === "PENDING") call.advancement = call.budgetBlocked ? "STOPPED_COST_CEILING" : "FAILED_SAFE_NO_ADVANCEMENT";
           caseResults.push({ ...frozen, callStatus: failure.includes("COST_CEILING") ? "STOPPED_COST_CEILING" : "FAILED", failure, evidenceUrls: frozen.evidenceUrls });
         }
@@ -154,9 +158,12 @@ export async function runLiveModelComparison() {
     globalThis.fetch = originalFetch;
   }
   const after = await readOnlyCounts();
-  const usage = calls.map((call) => { const u = call.usage ?? {}; const input = u.input_tokens ?? 0; const cached = u.input_tokens_details?.cached_tokens ?? 0; const cacheWrite = u.input_tokens_details?.cache_write_tokens ?? 0; const output = u.output_tokens ?? 0; const searchContent = call.model === "gpt-4.1-mini" ? call.webSearchCalls * 8000 : null; const price = PRICES[call.model as keyof typeof PRICES]; const uncachedInputCost = ((input - cached) * price.input) / 1_000_000; const cachedInputCost = (cached * price.cached) / 1_000_000; const cacheWriteCost = (cacheWrite * price.input * 1.25) / 1_000_000; const outputCost = (output * price.output) / 1_000_000; const searchCost = searchContent === null ? null : (searchContent * price.input) / 1_000_000; return { ...call, inputTokens: input, cachedInputTokens: cached, cacheWriteTokens: cacheWrite, outputTokens: output, reasoningTokens: u.output_tokens_details?.reasoning_tokens ?? 0, searchContentTokens: searchContent, uncachedInputCostUsd: uncachedInputCost, cachedInputCostUsd: cachedInputCost, cacheWriteCostUsd: cacheWriteCost, outputCostUsd: outputCost, searchContentCostUsd: searchCost, totalCostUsd: uncachedInputCost + cachedInputCost + cacheWriteCost + outputCost + (searchCost ?? 0) }; });
+  const usage = calls.map((call) => { const u = call.usage ?? {}; const input = u.input_tokens ?? 0; const cached = u.input_tokens_details?.cached_tokens ?? 0; const cacheWrite = u.input_tokens_details?.cache_write_tokens ?? 0; const output = u.output_tokens ?? 0; const searchContent = call.model === "gpt-4.1-mini" ? call.webSearchCalls * 8000 : null; const price = PRICES[call.model as keyof typeof PRICES]; const uncachedInputCost = ((input - cached) * price.input) / 1_000_000; const cachedInputCost = (cached * price.cached) / 1_000_000; const cacheWriteCost = (cacheWrite * price.input * 1.25) / 1_000_000; const outputCost = (output * price.output) / 1_000_000; const searchCost = searchContent === null ? null : (searchContent * price.input) / 1_000_000; const searchCallCost = call.webSearchCalls * WEB_SEARCH_CALL_FEE_USD; return { ...call, inputTokens: input, cachedInputTokens: cached, cacheWriteTokens: cacheWrite, outputTokens: output, reasoningTokens: u.output_tokens_details?.reasoning_tokens ?? 0, searchContentTokens: searchContent, uncachedInputCostUsd: uncachedInputCost, cachedInputCostUsd: cachedInputCost, cacheWriteCostUsd: cacheWriteCost, outputCostUsd: outputCost, searchContentCostUsd: searchCost, webSearchCallCostUsd: searchCallCost, totalCostUsd: uncachedInputCost + cachedInputCost + cacheWriteCost + outputCost + (searchCost ?? 0) + searchCallCost }; });
+  const totalWebSearchCalls = usage.reduce((sum, call) => sum + call.webSearchCalls, 0);
+  const knownCalculatedCostUsd = usage.reduce((sum, call) => sum + call.totalCostUsd, 0);
+  const unreportedTerraSearchCalls = usage.filter((call) => call.model === "gpt-5.6-terra").reduce((sum, call) => sum + call.webSearchCalls, 0);
   const hardGates = { guessedEmails: 0, inferredOrPatternedEmails: 0, fabricatedPeople: 0, fabricatedOrganisers: 0, thirdPartyContactMisattributions: 0, venueAsOrganiser: 0, providerAsProspect: 0, firstPartyOrCompetitorFailures: 0, productionMutations: 0, outreachActions: 0 };
-  return { comparisonVersion: "live-model-comparison-v1", manifestFrozenBeforeExecution: true, manifest: LIVE_MODEL_COMPARISON_CASES, models: runs.map((run) => ({ ...run.config, cases: run.cases })), promptVersions: AGENT_PROMPT_VERSIONS, scoringCriteria: MODEL_COMPARISON_SCORING, retryCount: 0, costCeilingUsd: USD_LIMIT, accumulatedPreflightEstimateUsd: accumulatedEstimate, usage, hardGates, persistenceProof: { directFunctionImportsOnly: true, forbiddenImports: ["Next API routes", "Supabase client", "repository", "persistence adapter", "outreach module"], writes: false, routes: false, outreach: false, emailSending: false, productionDiscoveryEndpoint: false }, database: { before, after }, pricing: { source: "OpenAI standard pricing pages; estimate from response usage", ratesUsdPerMillionTokens: PRICES, cacheWriteMultiplier: 1.25, gpt41MiniWebSearchFixedContentTokensPerCall: 8000, terraSearchContentTokens: "not separately reported; reported input usage used without adding a fixed block" }, branchExpectation: "feat/ai-revenue-research-team-v1", caseCountPerModel: 4, callsPerModelMaximum: 16 };
+  return { comparisonVersion: "live-model-comparison-v1", manifestFrozenBeforeExecution: true, manifest: LIVE_MODEL_COMPARISON_CASES, models: runs.map((run) => ({ ...run.config, cases: run.cases })), promptVersions: AGENT_PROMPT_VERSIONS, scoringCriteria: MODEL_COMPARISON_SCORING, retryCount: 0, costCeilingUsd: USD_LIMIT, accumulatedPreflightEstimateUsd: accumulatedEstimate, usage, costSummary: { totalWebSearchCalls, explicitWebSearchCallFeesUsd: totalWebSearchCalls * WEB_SEARCH_CALL_FEE_USD, knownCalculatedCostUsd, minimumTotalCostUsd: knownCalculatedCostUsd, unreportedTerraSearchCalls, unreportedTerraSearchContentCost: "not separately reported; no second token block added" }, hardGates, persistenceProof: { directFunctionImportsOnly: true, forbiddenImports: ["Next API routes", "Supabase client", "repository", "persistence adapter", "outreach module"], writes: false, routes: false, outreach: false, emailSending: false, productionDiscoveryEndpoint: false }, database: { before, after }, pricing: { source: "OpenAI standard pricing pages; estimate from response usage", ratesUsdPerMillionTokens: PRICES, cacheWriteMultiplier: 1.25, webSearchCallFeeUsd: WEB_SEARCH_CALL_FEE_USD, gpt41MiniWebSearchFixedContentTokensPerCall: 8000, terraSearchContentTokens: "not separately reported; reported input usage used without adding a fixed block" }, branchExpectation: "feat/ai-revenue-research-team-v1", caseCountPerModel: 4, callsPerModelMaximum: 16 };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

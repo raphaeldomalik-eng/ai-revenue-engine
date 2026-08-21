@@ -3,6 +3,7 @@ import { classifyAccountRelationship, type AccountRelationship } from "./outreac
 import { evaluateProspectIntelligence, type CommercialEvidenceCategory, type CommercialEvidenceItem, type DiscoveryLane, type DiscoveryLaneContext, type OrganisationResolution, type ProspectIntelligence, type SourceSiteClassification, type SourceSiteType } from "./prospect-intelligence.ts";
 import { FIRST_PARTY_SELF, isEventSuiteFirstPartyIdentity } from "./first-party.ts";
 import { AGENT_PROMPT_VERSIONS, COMMERCIAL_RESEARCHER_PROMPT_V1, DISCOVERY_SCOUT_PROMPT_V1, IDENTITY_RESOLVER_PROMPT_V1 } from "./agent-prompts.ts";
+import { parseStrictStructuredOutput, type StructuredOutputPayload, type StructuredOutputTelemetry } from "./structured-output.ts";
 
 export type DiscoveryTerritory = "ZA" | "GB";
 export type DiscoveryFocus = "ALL" | "EGS" | "TICKETING" | "ECC";
@@ -14,7 +15,7 @@ export type DiscoveryEvidence = AiSalesEvidence & { sourceRoles?: DiscoverySourc
 export type EnrichmentEvidence = DiscoveryEvidence;
 export type EnrichmentSkipReason = "BLOCKED" | "REJECTED" | "DUPLICATE" | "FIRST_PARTY_SELF" | "NONE_EVENT_CONNECTION" | "NOT_PLAUSIBLE" | "BUDGET_LIMIT" | "OTHER_SAFE_REASON";
 export type EnrichmentCandidateTelemetry = { status: "SKIPPED" | "ATTEMPTED" | "SUCCEEDED" | "FAILED"; attempted: boolean; succeeded: boolean; materiallyChanged: boolean; skipReason?: EnrichmentSkipReason; gateReason?: string; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; resolutionOutcome?: "NOT_REQUIRED" | "RESOLVED" | "UNRESOLVED"; commercialOutcome?: "PRODUCT_SIGNAL_FOUND" | "VALIDATION_ONLY" | "NO_COMMERCIAL_SIGNAL" | "NOT_RUN"; commerciallyAdvanced?: boolean; promptVersions?: typeof AGENT_PROMPT_VERSIONS };
-export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number };
+export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number; structuredOutputTelemetry?: StructuredOutputTelemetry };
 
 export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; laneContext?: DiscoveryLaneContext | null; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; siteClassifications?: SourceSiteClassification[] };
 export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence & { firstPartyStatus?: typeof FIRST_PARTY_SELF }; sourceUrls: string[]; firstPartyStatus?: typeof FIRST_PARTY_SELF; enrichment: EnrichmentCandidateTelemetry };
@@ -190,10 +191,8 @@ function validCommercialEvidence(value: unknown): value is CommercialEvidenceIte
 
 function normaliseCommercialEvidence(value: unknown): CommercialEvidenceItem[] { return Array.isArray(value) ? value.filter(validCommercialEvidence).slice(0, 24).map((item) => ({ ...item, polarity: item.polarity === "COUNTER" ? "COUNTER" : "SUPPORTING", existingSystem: typeof item.existingSystem === "string" ? item.existingSystem : null })) : []; }
 
-function parseProviderText(payload: { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> }) {
-  const text = (payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("") ?? "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-  if (!text) throw new Error("AI discovery provider returned no structured output.");
-  return JSON.parse(text) as { candidates?: Array<{ candidateRef: string; organisationResolution: unknown; commercialEvidence: unknown; facts: EnrichmentEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[] }> };
+function parseProviderText(payload: StructuredOutputPayload) {
+  return parseStrictStructuredOutput<{ candidates?: Array<{ candidateRef: string; organisationResolution: unknown; commercialEvidence: unknown; facts: EnrichmentEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[] }> }>(payload);
 }
 
 export function applyDiscoveryEnrichment(candidate: EvaluatedDiscoveryCandidate, update: { organisationResolution?: unknown; commercialEvidence?: unknown; facts: EnrichmentEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[] }, territory: DiscoveryTerritory) {
@@ -277,8 +276,8 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
   const dossier = targets.map((candidate, index) => ({ candidateRef: String(index + 1), discoverySignal: candidate.canonicalName, currentCommercialTarget: { name: laneTargetName(candidate), website: candidate.website }, laneContext: candidate.laneContext ?? null, origin: candidate.origin, facts: candidate.facts.map((item) => ({ claim: item.claim, sourceUrl: item.sourceUrl, roles: item.sourceRoles, confidence: item.confidence })), unresolved: candidate.prospectIntelligence.accountCreationReason }));
   const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, ...(reasoning ? { reasoning } : {}), tools: [{ type: "web_search" }], max_output_tokens: 10000, input: `${IDENTITY_RESOLVER_PROMPT_V1}\n${COMMERCIAL_RESEARCHER_PROMPT_V1}\nPerform one bounded handoff for these ${territory === "ZA" ? "South African" : "UK"} candidates. Resolve identity first, then research the resolved organisation and return supporting and counter-evidence for every product lens. The discovery source is never automatically the target website. Return a specific unknown when evidence is insufficient. Dossiers: ${JSON.stringify(dossier)}`, text: { format: { type: "json_schema", name: "prospecting_evidence_enrichment", strict: true, schema: enrichmentSchema } } }) });
   if (!response.ok) return failed();
-  const parsed = parseProviderText(await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> });
-  const updates = new Map((parsed.candidates ?? []).filter((item) => targets[Number(item.candidateRef) - 1]).map((item) => [item.candidateRef, item]));
+  const parsed = parseProviderText(await response.json() as StructuredOutputPayload);
+  const updates = new Map((parsed.value.candidates ?? []).filter((item) => targets[Number(item.candidateRef) - 1]).map((item) => [item.candidateRef, item]));
   let succeeded = 0;
   let materiallyChanged = 0;
   prepared = prepared.map((candidate) => {
@@ -294,7 +293,7 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
     if (changed) materiallyChanged += 1;
     return { ...enriched, enrichment: { status: "SUCCEEDED" as const, attempted: true, succeeded: true, materiallyChanged: changed, gateReason: identityHandoffGate(candidate).reason, organisationResolution: resolution, commercialEvidence: evidence, resolutionOutcome: resolution.status, commercialOutcome: outcome.outcome, commerciallyAdvanced: outcome.advanced, promptVersions: AGENT_PROMPT_VERSIONS } };
   });
-  return { candidates: prepared, telemetry: telemetryFor(prepared, eligible.length, targets.length, succeeded, targets.length - succeeded, materiallyChanged) };
+  return { candidates: prepared, telemetry: { ...telemetryFor(prepared, eligible.length, targets.length, succeeded, targets.length - succeeded, materiallyChanged), structuredOutputTelemetry: parsed.telemetry } };
 }
 
 export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, territory: DiscoveryTerritory): EvaluatedDiscoveryCandidate {
@@ -321,13 +320,13 @@ export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, terri
   return { ...candidate, laneContext, facts, canonicalKey: canonicalDiscoveryKey(identity.name, identity.website), relationship, status, prospectIntelligence, organisationResolution: persistedResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, siteClassifications, sourceUrls, enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, gateReason: allowIdentityHandoff ? "UNVERIFIED_ORGANISER_HINT" : firstPartyStatus ? "FIRST_PARTY_SELF" : "INITIAL_DISCOVERY_GATE", resolutionOutcome: persistedResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
 }
 
-export function parseDiscovery(value: unknown, territory: DiscoveryTerritory) {
+export function parseDiscovery(value: unknown, territory: DiscoveryTerritory, laneOverride?: DiscoveryLane) {
   if (!value || typeof value !== "object" || !Array.isArray((value as { candidates?: unknown }).candidates)) throw new Error("Discovery returned no candidate list.");
   const seen = new Set<string>();
-  return (value as { candidates: DiscoveredCandidate[] }).candidates.filter((candidate) => candidate?.canonicalName?.trim() && candidate.facts?.some((fact) => fact.kind === "FACT" && fact.sourceUrl)).map((candidate) => { const origin = normaliseOrigin(candidate.origin); const website = candidate.website?.trim() || null; const inferredSite = website ? classifySourceSite({ url: website, claims: candidate.facts.map((item) => item.claim), candidateOrigin: origin }) : null; const suppliedSite = candidate.siteClassifications?.find((item) => item.url === website) ?? inferredSite; const providerSignal = origin !== "PERSON_FIRST" && PROVIDER_HOST_PATTERN.test(domainOf(website) ?? ""); const discoveryOnlyEventSite = origin === "EVENT_FIRST" && ["EVENT_OFFICIAL", "TICKETING_PROVIDER", "EVENT_LISTING_DIRECTORY", "VENUE_CALENDAR", "VENUE_OFFICIAL"].includes(suppliedSite?.siteType ?? ""); return evaluateDiscoveryCandidate({ ...candidate, origin, organiserName: candidate.organiserName?.trim() || null, laneContext: normaliseLaneContext(candidate.laneContext, { ...candidate, origin }), siteClassifications: [...(candidate.siteClassifications ?? []), ...(inferredSite ? [inferredSite] : [])], website: providerSignal || discoveryOnlyEventSite ? null : website }, territory); }).filter((candidate) => { if (seen.has(candidate.canonicalKey)) return false; seen.add(candidate.canonicalKey); return true; });
+  return (value as { candidates: DiscoveredCandidate[] }).candidates.filter((candidate) => candidate?.canonicalName?.trim() && candidate.facts?.some((fact) => fact.kind === "FACT" && fact.sourceUrl)).map((candidate) => { const origin = laneOverride ?? normaliseOrigin(candidate.origin); const website = candidate.website?.trim() || null; const inferredSite = website ? classifySourceSite({ url: website, claims: candidate.facts.map((item) => item.claim), candidateOrigin: origin }) : null; const suppliedSite = candidate.siteClassifications?.find((item) => item.url === website) ?? inferredSite; const providerSignal = origin !== "PERSON_FIRST" && PROVIDER_HOST_PATTERN.test(domainOf(website) ?? ""); const discoveryOnlyEventSite = origin === "EVENT_FIRST" && ["EVENT_OFFICIAL", "TICKETING_PROVIDER", "EVENT_LISTING_DIRECTORY", "VENUE_CALENDAR", "VENUE_OFFICIAL"].includes(suppliedSite?.siteType ?? ""); return evaluateDiscoveryCandidate({ ...candidate, origin, organiserName: candidate.organiserName?.trim() || null, laneContext: normaliseLaneContext(candidate.laneContext, { ...candidate, origin }), siteClassifications: [...(candidate.siteClassifications ?? []), ...(inferredSite ? [inferredSite] : [])], website: providerSignal || discoveryOnlyEventSite ? null : website }, territory); }).filter((candidate) => { if (seen.has(candidate.canonicalKey)) return false; seen.add(candidate.canonicalKey); return true; });
 }
 
-export async function discoverProspects(input: { territory: DiscoveryTerritory; focus: DiscoveryFocus; caseHint?: string }) {
+export async function discoverProspects(input: { territory: DiscoveryTerritory; focus: DiscoveryFocus; caseHint?: string; discoveryLane?: DiscoveryLane }) {
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   const reasoning = model === "gpt-5.6-terra" && process.env.OPENAI_REASONING_EFFORT === "medium" ? { effort: "medium" as const } : undefined;
@@ -337,10 +336,9 @@ export async function discoverProspects(input: { territory: DiscoveryTerritory; 
   const caseInstruction = input.caseHint ? `\nThis bounded acceptance case is ${input.caseHint}. Prefer this named signal when current public evidence supports it; otherwise return a safe unresolved result rather than substituting an unrelated target.` : "";
   const response = await fetch("https://api.openai.com/v1/responses", { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, ...(reasoning ? { reasoning } : {}), tools: [{ type: "web_search" }], max_output_tokens: 12000, input: `${DISCOVERY_SCOUT_PROMPT_V1}\nFind up to eight current public EventSuite activity signals in ${territory}, focused on ${focus}. Today is ${new Date().toISOString().slice(0, 10)}. Return diverse evidence-backed signals and do not assign the discovery source as the commercial website.${caseInstruction}`, text: { format: { type: "json_schema", name: "prospecting_quality_foundation", strict: true, schema: candidateSchema } } } ) });
   if (!response.ok) throw new Error(`AI discovery provider failed with HTTP ${response.status}.`);
-  const payload = await response.json() as { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
-  const text = payload.output_text ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text ?? "").join("");
-  if (!text) throw new Error("AI discovery provider returned no structured output.");
-  const initial = parseDiscovery(JSON.parse(text), input.territory);
+  const payload = await response.json() as StructuredOutputPayload;
+  const initialParsed = parseStrictStructuredOutput<{ candidates?: DiscoveredCandidate[] }>(payload);
+  const initial = parseDiscovery(initialParsed.value, input.territory, input.discoveryLane);
   const enrichment = await enrichDiscoveryCandidates(initial, input.territory);
-  return { candidates: enrichment.candidates, provider: "openai", model, enrichment: enrichment.telemetry };
+  return { candidates: enrichment.candidates, provider: "openai", model, discoveryLane: input.discoveryLane, enrichment: enrichment.telemetry, structuredOutputTelemetry: initialParsed.telemetry };
 }
