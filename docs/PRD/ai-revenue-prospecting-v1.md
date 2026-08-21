@@ -192,15 +192,19 @@ REVIEW_REQUIRED must identify the actual unresolved issue: organiser responsibil
 
 Buyer roles may be inferred from the supported hypothesis: marketing/digital/event marketing for EGS; commercial/ticketing/event director for Ticketing; operations/production/event leadership for ECC. A role inference is not a named-person FACT. Named people require public evidence.
 
-Contact research occurs only after sufficient commercial qualification, in this order:
+Bounded Buyer & Contact Research may run when the commercial organisation is resolved, a credible commercial signal or primary problem is evidenced, and no deterministic block applies. Final qualification is not a prerequisite for research eligibility; contactability is part of completing a commercially useful prospect.
 
-1. named relevant buyer with public work email;
-2. named buyer with legitimate public route;
-3. relevant official organisation route;
-4. named buyer without a verified route;
-5. CONTACT_RESEARCH_REQUIRED.
+Contact research should prefer, in this order:
 
-Never guess people, emails, LinkedIn URLs or private contact information. A contact does not authorise outreach.
+1. named relevant buyer with verified public work email;
+2. relevant role or department email with verified target ownership;
+3. verified official organisation email or other direct route;
+4. official contact page/form only;
+5. named buyer without a verified route;
+6. no verified target contact;
+7. explicit third-party contact rejection where a discovered route belongs elsewhere.
+
+Contact research authorises research only. It does not create an Account, establish qualification, set sales readiness or authorise outreach. Never guess people, emails, LinkedIn URLs or private contact information.
 
 ## 15. Autonomy, authority and outreach safety
 
@@ -316,23 +320,23 @@ After core public-web prospecting is quality-proven, the current roadmap is:
 7. Signal-first expansion;
 8. scheduled/background autonomous prospecting only after later quality gates.
 
-This order may evolve from evidence, but represents the current approved product sequencing. The immediate release and quality sequence is:
+This order may evolve from evidence, but represents the current approved product sequencing. The immediate release and quality sequence is now:
 
-1. finish safety and integrity corrections — complete through PR #17;
-2. Revenue Intelligence roadmap documentation — this PRD update in PR #16;
-3. explicitly approve and remove only the known invalid EventSuite self-prospect graph;
-4. run Production Quality Calibration V4;
-5. if needed, make one focused commercial-quality correction against the bottleneck proven by V4;
-6. repeat bounded calibration until a quality decision is reached;
-7. only after core prospecting quality is proven, begin Operator Experience V1 and the future integrations above.
+1. safety and integrity corrections — complete through PR #17;
+2. Operator Experience V1 — merged through PR #22;
+3. AI Revenue Research Team Agent Pack V1 — quality-proven for implementation;
+4. implement the four model-driven research roles plus deterministic gates in one bounded delivery slice;
+5. pass the pack's deterministic regression corpus and a small bounded Preview/replay acceptance sample;
+6. only after the new pipeline is implemented and verified, schedule the next production quality calibration;
+7. continue future integrations only after core prospecting quality is proven at production scale.
 
-The current quality gate is not weakened by this future roadmap. Operator Experience is not unlocked by documentation alone.
+Agent-pack prompt quality is proven for implementation; this does not yet mean the new runtime pipeline or production commercial yield is proven.
 
 ### Current commercial-quality gap
 
 Current prospecting is safer and more observable, but has not yet proven that it reliably delivers valid, commercially qualified prospects. Production Quality Calibration V3 observed 39 discovered candidates, 0 valid qualified prospects, sparse commercial evidence, 0 positive EGS hypotheses, 0 positive Ticketing hypotheses and only an invalid EventSuite self-prospect carrying the positive ECC/qualified result. This remains an unresolved product question, not a completed capability.
 
-Quality Calibration V4 is the next evidence gate. Its purpose is to use the enrichment telemetry to identify whether the bottleneck is candidate discovery quality, enrichment eligibility, enrichment execution, validation evidence, commercial-evidence extraction, EGS/Ticketing/ECC diagnosis, FACT/INFERENCE/UNKNOWN generation, Event Connection, or the qualification/account gate. V4 is diagnostic; it does not authorise autonomous model retraining.
+Quality Calibration V4 is deferred until the Agent Pack V1 runtime is implemented and its deterministic regression and bounded Preview/replay acceptance gates pass. The next calibration must measure the new pipeline's identity resolution, commercial evidence, counter-evidence consumption, contact research and commercial advancement separately from technical model success. Calibration remains diagnostic and does not authorise autonomous model retraining, bulk historical cleanup or outreach.
 
 ## Non-normative implementation status
 
