@@ -33,6 +33,9 @@ test("discovery enrichment sends the strict format under text.format", async () 
     assert.equal(body.text?.format?.type, "json_schema");
     assert.equal(body.text?.format?.strict, true);
     assert.equal(body.text?.format?.name, "prospecting_evidence_enrichment");
+    assert.equal(body.max_tool_calls, 3);
+    assert.deepEqual(body.tools, [{ type: "web_search" }]);
+    assert.equal(seen.length, 1);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = previousKey;

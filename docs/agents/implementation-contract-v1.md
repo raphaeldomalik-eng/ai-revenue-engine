@@ -347,6 +347,19 @@ Verification should be risk-proportional:
 
 Do not run a broad V4 calibration until the agent implementation passes its focused acceptance.
 
+### Bounded Luna acceptance request budget
+
+For the 12-case four-lane UK Phase One acceptance, the OpenAI Responses budget is part of the harness contract, not a prompt-only instruction:
+
+- one Responses API request per case;
+- `max_tool_calls: 3` on the Responses request;
+- only the built-in `web_search` tool enabled for the Scout/research stage;
+- at most three web-search calls per case and 36 across the 12-case run;
+- a known-cost ceiling of USD 0.50;
+- zero retries and no automatic resume.
+
+The harness must retain request shape, response tool-call count, cumulative tool-call count, usage, cost and structured-output telemetry. A response exceeding three web-search calls, or a run exceeding 36, is blocked and cannot be accepted. Search-content tokens remain part of reported input usage and must not be double-counted.
+
 ---
 
 # 17. Implementation completion criteria

@@ -76,6 +76,10 @@ export const LIVE_PHASE_ONE_12_CASES: readonly PhaseOneAcceptanceCase[] = [
 export const PHASE_ONE_12_SCORING = [
   "discovery source/lane preservation", "safe primary identity and relationship separation", "authoritative evidence/provenance", "safe-unresolved/conflict behaviour", "commercial EventSuite-fit usefulness", "buyer-role relevance and Apollo ranking", "contact gates remain unattempted", "hard safety gates remain zero",
 ] as const;
+export const MAX_OPENAI_REQUESTS_PER_CASE = 1;
+export const MAX_TOOL_CALLS_PER_RESPONSE = 3;
+export const MAX_ACCEPTANCE_WEB_SEARCH_CALLS = 36;
+export const KNOWN_COST_CEILING_USD = 0.5;
 
 export type ProviderCounts = { companiesHouse: { search: number; profile: number; officers: number }; googlePlaces: { textSearch: number; details: number }; apollo: { peopleSearch: number; enrichment: number }; openAi: number; openAiWebSearchCalls: number };
 export function emptyProviderCounts(): ProviderCounts { return { companiesHouse: { search: 0, profile: 0, officers: 0 }, googlePlaces: { textSearch: 0, details: 0 }, apollo: { peopleSearch: 0, enrichment: 0 }, openAi: 0, openAiWebSearchCalls: 0 }; }
@@ -117,9 +121,19 @@ function requestCounter(provider: "companiesHouse" | "googlePlaces" | "apollo", 
   return "apolloPeopleSearch";
 }
 class InjectedHarnessFailure extends Error { constructor() { super("INJECTED_FAILURE_AFTER_PROVIDER_ATTEMPT"); this.name = "InjectedHarnessFailure"; } }
+class AcceptanceBudgetFailure extends Error { constructor(message: string) { super(message); this.name = "AcceptanceBudgetFailure"; } }
+export function validateAcceptanceToolBudget(responseToolCalls: number, priorGlobalToolCalls: number) {
+  if (!Number.isInteger(responseToolCalls) || responseToolCalls < 0 || responseToolCalls > MAX_TOOL_CALLS_PER_RESPONSE) throw new AcceptanceBudgetFailure("OPENAI_TOOL_CALL_LIMIT_EXCEEDED");
+  if (!Number.isInteger(priorGlobalToolCalls) || priorGlobalToolCalls < 0 || priorGlobalToolCalls + responseToolCalls > MAX_ACCEPTANCE_WEB_SEARCH_CALLS) throw new AcceptanceBudgetFailure("OPENAI_GLOBAL_TOOL_CALL_LIMIT_EXCEEDED");
+  return true;
+}
+export function isWithinAcceptanceCostCeiling(spentUsd: number, estimatedInputTokens: number, maxOutputTokens = 10_000) {
+  const upperBound = (estimatedInputTokens * 0.2 + maxOutputTokens * 1.2) / 1_000_000 + MAX_TOOL_CALLS_PER_RESPONSE * 0.01;
+  return spentUsd + upperBound <= KNOWN_COST_CEILING_USD;
+}
 
 type OpenAiUsage = { input_tokens?: number; output_tokens?: number; input_tokens_details?: { cached_tokens?: number; cache_creation_tokens?: number }; output_tokens_details?: { reasoning_tokens?: number } };
-type OpenAiDiagnostic = { request: { model: string | null; reasoningEffort: string | null; strictJsonSchema: boolean; schemaName: string | null; maxOutputTokens: number | null }; httpStatus: number | null; responseStatus: string | null; providerErrorCategory: string | null; incompleteReason: string | null; refusalState: "PRESENT" | "ABSENT" | "UNKNOWN"; outputItemTypes: string[]; structuredMessageContent: boolean; parserPath: string | null; schemaValidationResult: "VALID" | "INVALID" | "NOT_REACHED"; usage: OpenAiUsage | null; webSearchCalls: number; errorKind: string | null };
+type OpenAiDiagnostic = { request: { model: string | null; reasoningEffort: string | null; strictJsonSchema: boolean; schemaName: string | null; maxOutputTokens: number | null; maxToolCalls: number | null }; httpStatus: number | null; responseStatus: string | null; providerErrorCategory: string | null; incompleteReason: string | null; refusalState: "PRESENT" | "ABSENT" | "UNKNOWN"; outputItemTypes: string[]; structuredMessageContent: boolean; parserPath: string | null; schemaValidationResult: "VALID" | "INVALID" | "NOT_REACHED"; usage: OpenAiUsage | null; webSearchCalls: number; errorKind: string | null };
 
 function keyPresent(name: string) { return Boolean(process.env[name]?.trim()); }
 function sourceFact(claim: string, sourceUrl: string): DiscoveredCandidate["facts"][number] { return { claim, sourceUrl, sourceTitle: null, kind: "FACT", confidence: "HIGH", sourceRoles: ["DISCOVERY"], eventFreshness: "RECENT_RECURRING_EVIDENCE" }; }
@@ -226,11 +240,10 @@ function openAiFetch(counts: ProviderCounts, diagnostics: { value: OpenAiDiagnos
     const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : {};
     const format = body.text && typeof body.text === "object" && (body.text as Record<string, unknown>).format && typeof (body.text as Record<string, unknown>).format === "object" ? (body.text as Record<string, unknown>).format as Record<string, unknown> : {};
     const schemaName = typeof format.name === "string" ? format.name : null;
-    const request = { model: typeof body.model === "string" ? body.model : null, reasoningEffort: body.reasoning && typeof body.reasoning === "object" && typeof (body.reasoning as Record<string, unknown>).effort === "string" ? (body.reasoning as Record<string, unknown>).effort as string : null, strictJsonSchema: format.type === "json_schema" && format.strict === true, schemaName, maxOutputTokens: typeof body.max_output_tokens === "number" ? body.max_output_tokens : null };
+    const request = { model: typeof body.model === "string" ? body.model : null, reasoningEffort: body.reasoning && typeof body.reasoning === "object" && typeof (body.reasoning as Record<string, unknown>).effort === "string" ? (body.reasoning as Record<string, unknown>).effort as string : null, strictJsonSchema: format.type === "json_schema" && format.strict === true, schemaName, maxOutputTokens: typeof body.max_output_tokens === "number" ? body.max_output_tokens : null, maxToolCalls: typeof body.max_tool_calls === "number" ? body.max_tool_calls : null };
     if (!request.strictJsonSchema || !request.schemaName) throw new Error("HARNESS_STRICT_SCHEMA_REQUEST_INVALID");
     const estimatedInput = Math.ceil((typeof init?.body === "string" ? init.body.length : 0) / 4);
-    const upperBound = (estimatedInput * 0.2 + 10000 * 1.2) / 1_000_000 + 0.01;
-    if (budget.spent + upperBound > 0.5) throw new Error("HARNESS_COST_CEILING_REACHED_BEFORE_REQUEST");
+    if (!isWithinAcceptanceCostCeiling(budget.spent, estimatedInput)) throw new Error("HARNESS_COST_CEILING_REACHED_BEFORE_REQUEST");
     counts.openAi += 1;
     await runtime.providerAttempt("openAi");
     let response: Response;
@@ -245,6 +258,8 @@ function openAiFetch(counts: ProviderCounts, diagnostics: { value: OpenAiDiagnos
     let payload: unknown = null;
     try { payload = await clone.json(); } catch { payload = null; }
     diagnostics.value = diagnosticFromPayload(payload, request, response.status);
+    counts.openAiWebSearchCalls = diagnostics.value.webSearchCalls;
+    validateAcceptanceToolBudget(diagnostics.value.webSearchCalls, runtime.artifact.knownUsageCost.webSearchCalls);
     return response;
   };
 }
@@ -325,7 +340,7 @@ async function runCase(item: PhaseOneAcceptanceCase, budget: { spent: number }, 
     (result as Record<string, unknown>).safeUnresolvedReasons = candidate.organisationResolution?.status === "UNRESOLVED" ? candidate.unknowns : [];
     (result as Record<string, unknown>).commercialAdvancement = { advanced: Boolean(candidate.enrichment.commerciallyAdvanced || candidate.commercialEvidence?.length), reason: candidate.enrichment.commercialOutcome ?? "NOT_RUN" };
   } catch (error) {
-    if (error instanceof InjectedHarnessFailure) throw error;
+    if (error instanceof InjectedHarnessFailure || error instanceof AcceptanceBudgetFailure) throw error;
     (result as Record<string, unknown>).harnessFailure = error instanceof Error ? error.name : "BOUNDED_HARNESS_FAILURE";
     (result as Record<string, unknown>).identityDecision = "SAFE_UNRESOLVED";
   }
@@ -350,7 +365,7 @@ function createRuntime(input: ReturnType<typeof args>): HarnessRuntime {
   const artifactPath = ensureArtifactPath(input.artifactPath);
   const artifact: RunArtifact = {
     artifact: "live-phase-one-12-case-luna-v1", status: "IN_PROGRESS", executionMode: input.dryRun ? "DRY_RUN" : "LIVE", manifestFrozen: true, manifest: LIVE_PHASE_ONE_12_CASES,
-    limits: { sequential: true, retries: 0, perCase: { openAiRequests: 1, webSearchRequests: 1, companiesHouseSearch: 1, companiesHouseProfile: 1, companiesHouseOfficers: 0, googlePlacesTextSearch: 1, googlePlacesDetails: 2, apolloPeopleSearch: 1, apolloEnrichment: 0 }, overall: { openAiRequests: 12, paidCostCeilingUsd: 0.5, persistenceWrites: 0, outreachActions: 0 } },
+    limits: { sequential: true, retries: 0, perCase: { openAiRequests: MAX_OPENAI_REQUESTS_PER_CASE, webSearchCalls: MAX_TOOL_CALLS_PER_RESPONSE, companiesHouseSearch: 1, companiesHouseProfile: 1, companiesHouseOfficers: 0, googlePlacesTextSearch: 1, googlePlacesDetails: 2, apolloPeopleSearch: 1, apolloEnrichment: 0 }, overall: { openAiRequests: 12, webSearchCalls: MAX_ACCEPTANCE_WEB_SEARCH_CALLS, paidCostCeilingUsd: KNOWN_COST_CEILING_USD, persistenceWrites: 0, outreachActions: 0 } },
     currentCase: null, completedCaseIds: [], cases: [], providerCounters: zeroAttemptCounters(), knownUsageCost: { totalKnownCostUsd: 0, webSearchCalls: 0 }, checkpoint: { reason: "INITIALIZED", at: new Date().toISOString(), ordinal: 0 }, failure: null, finalExitStatus: null,
   };
   const checkpoint = async (reason: string) => {

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile, rm } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
-import { LIVE_PHASE_ONE_12_CASES, PHASE_ONE_12_SCORING, validateFrozenManifest } from "../scripts/live-phase-one-12-case-luna-v1.ts";
+import { KNOWN_COST_CEILING_USD, LIVE_PHASE_ONE_12_CASES, MAX_ACCEPTANCE_WEB_SEARCH_CALLS, MAX_OPENAI_REQUESTS_PER_CASE, MAX_TOOL_CALLS_PER_RESPONSE, PHASE_ONE_12_SCORING, isWithinAcceptanceCostCeiling, validateAcceptanceToolBudget, validateFrozenManifest } from "../scripts/live-phase-one-12-case-luna-v1.ts";
 
 test("the frozen Luna acceptance manifest contains three UK cases per lane", () => {
   assert.equal(validateFrozenManifest(), true);
@@ -18,6 +18,18 @@ test("the acceptance scorecard is bounded and excludes contact/persistence actio
   assert.ok(PHASE_ONE_12_SCORING.includes("discovery source/lane preservation"));
   assert.ok(PHASE_ONE_12_SCORING.includes("hard safety gates remain zero"));
   assert.equal((PHASE_ONE_12_SCORING as readonly string[]).some((criterion) => criterion.includes("contact research")), false);
+});
+
+test("the corrected Responses budget is one request, three tool calls per case, and 36 globally", () => {
+  assert.equal(MAX_OPENAI_REQUESTS_PER_CASE, 1);
+  assert.equal(MAX_TOOL_CALLS_PER_RESPONSE, 3);
+  assert.equal(MAX_ACCEPTANCE_WEB_SEARCH_CALLS, 36);
+  assert.equal(KNOWN_COST_CEILING_USD, 0.5);
+  assert.equal(validateAcceptanceToolBudget(3, 33), true);
+  assert.throws(() => validateAcceptanceToolBudget(4, 0), /OPENAI_TOOL_CALL_LIMIT_EXCEEDED/);
+  assert.throws(() => validateAcceptanceToolBudget(1, 36), /OPENAI_GLOBAL_TOOL_CALL_LIMIT_EXCEEDED/);
+  assert.equal(isWithinAcceptanceCostCeiling(0, 1_000), true);
+  assert.equal(isWithinAcceptanceCostCeiling(0.49, 100_000), false);
 });
 
 test("an injected provider failure leaves a sanitized partial artifact", async () => {
