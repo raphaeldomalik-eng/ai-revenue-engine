@@ -41,7 +41,30 @@ test("query-scoped employer evidence remains review-only and cannot enrich impli
   const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: null, linkedinUrl: null, emailAvailability: null, employerDomainOutcome: "DOMAIN_QUERY_SCOPED", employerDomainReason: "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", retrievedAt: "2026-08-21T00:00:00.000Z", status: "REVIEW_REQUIRED", roleClassification: "event leadership", rejectionReason: "EMPLOYER_DOMAIN_QUERY_SCOPED_REQUIRES_REVIEW", provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.net", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: false } } satisfies ApolloBuyerSearchResult;
   const result = await enrichSelectedApolloBuyer({ selected, identity: { accountName: "Mash Media Group", accountWebsite: "https://www.mashmedia.net" } }, { apiKey: "test-key", mode: "enrich_selected", fetchImpl: async () => { calls += 1; return response(200, {}); } });
   assert.equal(result.result, null);
-  assert.equal(result.blockedReason, "SELECTED_PERSON_DID_NOT_PASS_SEARCH_GATES");
+  assert.equal(result.blockedReason, "DOMAIN_QUERY_SCOPED_REQUIRES_EXPLICIT_HUMAN_APPROVAL");
+  assert.equal(calls, 0);
+});
+
+test("explicitly approved query-scoped candidate may request only a verified matching business email", async () => {
+  const seen: Request[] = [];
+  const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: null, linkedinUrl: null, emailAvailability: null, employerDomainOutcome: "DOMAIN_QUERY_SCOPED", employerDomainReason: "CANONICAL_DOMAIN_FILTERED_SEARCH_AND_CURRENT_EMPLOYER_NAME_MATCHED_BUT_PROVIDER_DOMAIN_WAS_OMITTED", retrievedAt: "2026-08-21T00:00:00.000Z", status: "REVIEW_REQUIRED", roleClassification: "event leadership", rejectionReason: "EMPLOYER_DOMAIN_QUERY_SCOPED_REQUIRES_REVIEW", provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.net", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: false } } satisfies ApolloBuyerSearchResult;
+  const result = await enrichSelectedApolloBuyer({ selected, explicitHumanApproval: true, identity: { accountName: "Mash Media Group", accountWebsite: "https://mashmedia.net" } }, { apiKey: "test-key", mode: "enrich_selected", fetchImpl: fetchMock({ person: { id: "p1", name: "Alex Buyer", title: "Event Director", email: "alex@mashmedia.net", email_status: "verified" } }, 200, {}, seen) });
+  const body = await seen[0].clone().json() as Record<string, unknown>;
+  assert.equal(result.result?.emailReady, true);
+  assert.equal(body.domain, "mashmedia.net");
+  assert.equal(body.reveal_personal_emails, false);
+  assert.equal(body.reveal_phone_number, false);
+  assert.equal(body.run_waterfall_email, false);
+  assert.equal(body.run_waterfall_phone, false);
+  assert.equal(seen.length, 1);
+});
+
+test("explicit approval can never override a conflicting employer domain", async () => {
+  let calls = 0;
+  const selected = { provider: "apollo", providerPersonId: "p1", fullName: "Alex Buyer", title: "Event Director", seniority: "director", organisationName: "Mash Media Group", organisationDomain: "other.example", linkedinUrl: null, emailAvailability: null, employerDomainOutcome: "DOMAIN_CONFLICT", employerDomainReason: "RETURNED_EMPLOYER_DOMAIN_DIFFERS_FROM_CANONICAL_DOMAIN", retrievedAt: "2026-08-21T00:00:00.000Z", status: "REJECTED", roleClassification: "event leadership", rejectionReason: "EMPLOYER_DOMAIN_CONFLICT", provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: "https://api.apollo.io/api/v1/mixed_people/api_search", organisationDomain: "mashmedia.net", discoveryLane: "EVENT_FIRST", currentEmployerValidated: true, targetOwnershipValidated: false } } satisfies ApolloBuyerSearchResult;
+  const result = await enrichSelectedApolloBuyer({ selected, explicitHumanApproval: true, identity: { accountName: "Mash Media Group", accountWebsite: "https://mashmedia.net" } }, { apiKey: "test-key", mode: "enrich_selected", fetchImpl: async () => { calls += 1; return response(200, {}); } });
+  assert.equal(result.result, null);
+  assert.equal(result.blockedReason, "DOMAIN_CONFLICT_NOT_ELIGIBLE");
   assert.equal(calls, 0);
 });
 
