@@ -60,6 +60,13 @@ test("Hyve search title and profile company_name normalize to the same active le
   assert.deepEqual(hyveProfile.company?.sicCodes, []);
 });
 
+test("Companies House retains only a sanitized account-category size indicator", async () => {
+  const result = await validateSelectedCompaniesHouseCompany({ company: selectedCompany, organisationName: "Hyve Group" }, { apiKey: "test-key", mode: "validate_selected", fetchImpl: async () => response({ ...searchItem(), accounts: { last_accounts: { type: "small" } }, registered_office_address: { country: "England" } }) });
+  assert.equal(result.outcome, "REGISTRAR_CONFIRMED");
+  assert.equal(result.company?.accountsCategory, "small");
+  assert.equal(JSON.stringify(result).includes("accounts_category"), false);
+});
+
 test("officers are minimized legal officers and never buyer candidates", async () => {
   const result = await getCompaniesHouseOfficers({ company: selectedCompany, validationOutcome: "REGISTRAR_CONFIRMED" }, { apiKey: "test-key", mode: "officers_selected", now: () => "2026-08-21T00:00:00.000Z", fetchImpl: async () => response({ items: [{ name: "Current Director", officer_role: "director", appointed_on: "2020-01-01", address: { postal_code: "XX" }, date_of_birth: { month: 1, year: 1980 } }, { name: "Former Director", officer_role: "director", appointed_on: "2010-01-01", resigned_on: "2019-01-01", nationality: "hidden" }] }) });
   assert.equal(result.outcome, "REGISTRAR_CONFIRMED");

@@ -6,6 +6,7 @@ import { AGENT_PROMPT_VERSIONS, COMMERCIAL_RESEARCHER_PROMPT_V1, DISCOVERY_SCOUT
 import { parseStrictStructuredOutput, type StructuredOutputPayload, type StructuredOutputTelemetry } from "./structured-output.ts";
 import { getGooglePlaceDetails, resolveGooglePlacesVenueComplex, searchGooglePlaces, type GooglePlacesEvidence, type GooglePlacesOptions, type GooglePlacesTelemetry } from "./google-places.ts";
 import { searchCompaniesHouse, type CompaniesHouseIdentityEvidence, type CompaniesHouseOptions, type CompaniesHouseTelemetry } from "./companies-house.ts";
+import { assessPhaseOneCandidate, rankPhaseOneCandidates, type PhaseOneAssessment, type PhaseOneClassification, type PhaseOneEvidence } from "./phase-one.ts";
 
 export type DiscoveryTerritory = "ZA" | "GB";
 export type DiscoveryFocus = "ALL" | "EGS" | "TICKETING" | "ECC";
@@ -19,8 +20,8 @@ export type EnrichmentSkipReason = "BLOCKED" | "REJECTED" | "DUPLICATE" | "FIRST
 export type EnrichmentCandidateTelemetry = { status: "SKIPPED" | "ATTEMPTED" | "SUCCEEDED" | "FAILED"; attempted: boolean; succeeded: boolean; materiallyChanged: boolean; skipReason?: EnrichmentSkipReason; gateReason?: string; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; resolutionOutcome?: "NOT_REQUIRED" | "RESOLVED" | "UNRESOLVED"; commercialOutcome?: "PRODUCT_SIGNAL_FOUND" | "VALIDATION_ONLY" | "NO_COMMERCIAL_SIGNAL" | "NOT_RUN"; commerciallyAdvanced?: boolean; promptVersions?: typeof AGENT_PROMPT_VERSIONS };
 export type EnrichmentRunTelemetry = { firstPassCandidateCount: number; enrichmentEligibleCount: number; enrichmentAttemptedCount: number; enrichmentSucceededCount: number; enrichmentFailedCount: number; enrichmentSkippedCount: number; enrichmentMateriallyChangedCount: number; googlePlaces?: { attemptedCount: number; succeededCount: number; failedCount: number; skippedCount: number; telemetry: GooglePlacesTelemetry[] }; companiesHouse?: { attemptedCount: number; succeededCount: number; failedCount: number; skippedCount: number; telemetry: CompaniesHouseTelemetry[] }; structuredOutputTelemetry?: StructuredOutputTelemetry };
 
-export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; laneContext?: DiscoveryLaneContext | null; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; siteClassifications?: SourceSiteClassification[]; registrarValidation?: CompaniesHouseIdentityEvidence };
-export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence & { firstPartyStatus?: typeof FIRST_PARTY_SELF }; sourceUrls: string[]; firstPartyStatus?: typeof FIRST_PARTY_SELF; enrichment: EnrichmentCandidateTelemetry };
+export type DiscoveredCandidate = { canonicalName: string; organiserName: string | null; website: string | null; origin: DiscoveryOrigin; relationshipHint: AccountRelationship; facts: DiscoveryEvidence[]; inferences: AiSalesEvidence[]; unknowns: string[]; laneContext?: DiscoveryLaneContext | null; organisationResolution?: OrganisationResolution; commercialEvidence?: CommercialEvidenceItem[]; siteClassifications?: SourceSiteClassification[]; registrarValidation?: CompaniesHouseIdentityEvidence; phaseOneEvidence?: PhaseOneEvidence[]; phaseOneClassification?: PhaseOneClassification; phaseOnePriorityScore?: number; phaseOneReason?: string };
+export type EvaluatedDiscoveryCandidate = DiscoveredCandidate & { canonicalKey: string; relationship: AccountRelationship; status: DiscoveryCandidateStatus; prospectIntelligence: ProspectIntelligence & { firstPartyStatus?: typeof FIRST_PARTY_SELF }; sourceUrls: string[]; firstPartyStatus?: typeof FIRST_PARTY_SELF; phaseOneAssessment: PhaseOneAssessment; enrichment: EnrichmentCandidateTelemetry };
 
 export function isFirstPartyCandidate(candidate: Pick<EvaluatedDiscoveryCandidate, "website" | "sourceUrls" | "firstPartyStatus" | "canonicalName" | "organiserName">) {
   return candidate.firstPartyStatus === FIRST_PARTY_SELF || isEventSuiteFirstPartyIdentity({ website: candidate.website, identityName: candidate.organiserName || candidate.canonicalName, sourceUrls: candidate.sourceUrls });
@@ -389,6 +390,7 @@ export async function enrichDiscoveryCandidates(candidates: EvaluatedDiscoveryCa
 }
 
 export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, territory: DiscoveryTerritory): EvaluatedDiscoveryCandidate {
+  const phaseOneAssessment: PhaseOneAssessment = assessPhaseOneCandidate({ lane: candidate.origin, territory, evidence: candidate.phaseOneEvidence });
   const facts = candidate.facts.filter((item) => item.kind === "FACT").map(normaliseFact);
   const laneContext = normaliseLaneContext(candidate.laneContext, candidate);
   const firstPartyStatus = isEventSuiteFirstPartyIdentity({ website: candidate.website, identityName: candidate.organiserName || candidate.canonicalName, sourceUrls: facts.map((item) => item.sourceUrl) }) ? FIRST_PARTY_SELF : undefined;
@@ -409,7 +411,7 @@ export function evaluateDiscoveryCandidate(candidate: DiscoveredCandidate, terri
   const siteClassifications = [...(candidate.siteClassifications ?? []), ...(candidate.website ? [classifySourceSite({ url: candidate.website, claims: facts.map((item) => item.claim), candidateOrigin: candidate.origin })] : []), ...facts.filter((item) => item.sourceUrl).map((item) => classifySourceSite({ url: item.sourceUrl as string, claims: [item.claim], sourceTitle: item.sourceTitle, candidateOrigin: candidate.origin }))].filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index);
   const persistedResolution = { ...organisationResolution, siteClassifications: [...(organisationResolution.siteClassifications ?? []), ...siteClassifications].filter((item, index, all) => all.findIndex((other) => other.url === item.url) === index) };
   const identity = identityKeyParts({ ...candidate, laneContext });
-  return { ...candidate, laneContext, facts, canonicalKey: canonicalDiscoveryKey(identity.name, identity.website), relationship, status, prospectIntelligence, organisationResolution: persistedResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, siteClassifications, sourceUrls, enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, gateReason: allowIdentityHandoff ? "UNVERIFIED_ORGANISER_HINT" : firstPartyStatus ? "FIRST_PARTY_SELF" : "INITIAL_DISCOVERY_GATE", resolutionOutcome: persistedResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
+  return { ...candidate, laneContext, facts, canonicalKey: canonicalDiscoveryKey(identity.name, identity.website), relationship, status, prospectIntelligence, organisationResolution: persistedResolution, commercialEvidence: candidate.commercialEvidence ?? [], firstPartyStatus, siteClassifications, sourceUrls, phaseOneAssessment, phaseOneClassification: phaseOneAssessment.classification, phaseOnePriorityScore: phaseOneAssessment.priorityScore, phaseOneReason: phaseOneAssessment.reason, enrichment: { status: "SKIPPED", attempted: false, succeeded: false, materiallyChanged: false, gateReason: allowIdentityHandoff ? "UNVERIFIED_ORGANISER_HINT" : firstPartyStatus ? "FIRST_PARTY_SELF" : "INITIAL_DISCOVERY_GATE", resolutionOutcome: persistedResolution.status, commercialOutcome: "NOT_RUN" as const, commerciallyAdvanced: false, skipReason: firstPartyStatus ? "FIRST_PARTY_SELF" : "OTHER_SAFE_REASON" } };
 }
 
 export function parseDiscovery(value: unknown, territory: DiscoveryTerritory, laneOverride?: DiscoveryLane) {
@@ -430,7 +432,7 @@ export async function discoverProspects(input: { territory: DiscoveryTerritory; 
   if (!response.ok) throw new Error(`AI discovery provider failed with HTTP ${response.status}.`);
   const payload = await response.json() as StructuredOutputPayload;
   const initialParsed = parseStrictStructuredOutput<{ candidates?: DiscoveredCandidate[] }>(payload);
-  const initial = parseDiscovery(initialParsed.value, input.territory, input.discoveryLane);
+  const initial = rankPhaseOneCandidates(parseDiscovery(initialParsed.value, input.territory, input.discoveryLane));
   const enrichment = await enrichDiscoveryCandidates(initial, input.territory, { googlePlaces: input.googlePlaces, companiesHouse: input.companiesHouse });
   return { candidates: enrichment.candidates, provider: "openai", model, discoveryLane: input.discoveryLane, enrichment: enrichment.telemetry, structuredOutputTelemetry: initialParsed.telemetry };
 }

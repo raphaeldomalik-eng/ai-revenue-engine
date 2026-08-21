@@ -11,6 +11,7 @@ export type CompaniesHouseCompanyEvidence = {
   companyType: string | null;
   incorporationDate: string | null;
   sicCodes: string[];
+  accountsCategory?: string | null;
   registeredRegion: string | null;
   recordUrl: string;
   evidenceTimestamp: string;
@@ -133,6 +134,8 @@ function companyFromApi(value: unknown, timestamp: string): CompaniesHouseCompan
   const number = stringOrNull(item.company_number);
   if (!name || !number) return null;
   const address = item.registered_office_address && typeof item.registered_office_address === "object" ? item.registered_office_address as Record<string, unknown> : null;
+  const accounts = item.accounts && typeof item.accounts === "object" ? item.accounts as Record<string, unknown> : null;
+  const lastAccounts = accounts?.last_accounts && typeof accounts.last_accounts === "object" ? accounts.last_accounts as Record<string, unknown> : null;
   return {
     legalCompanyName: name,
     companyNumber: number,
@@ -140,6 +143,7 @@ function companyFromApi(value: unknown, timestamp: string): CompaniesHouseCompan
     companyType: stringOrNull(item.company_type),
     incorporationDate: stringOrNull(item.date_of_creation),
     sicCodes: safeStringArray(item.sic_codes),
+    accountsCategory: stringOrNull(item.accounts_category) ?? stringOrNull(lastAccounts?.type),
     registeredRegion: stringOrNull(address?.region) ?? stringOrNull(address?.country),
     recordUrl: recordUrl(number),
     evidenceTimestamp: timestamp,
