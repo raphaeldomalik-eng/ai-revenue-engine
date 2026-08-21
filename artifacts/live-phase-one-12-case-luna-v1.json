@@ -1,0 +1,2584 @@
+{
+  "artifact": "live-phase-one-12-case-luna-v1",
+  "status": "COMPLETED",
+  "executionMode": "DRY_RUN",
+  "manifestFrozen": true,
+  "manifest": [
+    {
+      "id": "E01",
+      "lane": "EVENT_FIRST",
+      "startingSignal": "ArcTanGent Festival",
+      "organisationName": "ArcTanGent",
+      "tradingName": "ArcTanGent Festival",
+      "domain": "arctangent.co.uk",
+      "officialOrganisationUrl": "https://arctangent.co.uk",
+      "eventName": "ArcTanGent Festival",
+      "personName": null,
+      "personTitle": null,
+      "venueName": null,
+      "locality": "Bristol, United Kingdom",
+      "companySearchName": "ArcTanGent",
+      "phaseOneEvidence": [
+        {
+          "kind": "INDEPENDENT_ORGANISER",
+          "value": "Independent UK festival organiser",
+          "sourceUrl": "https://arctangent.co.uk",
+          "confidence": "HIGH"
+        }
+      ],
+      "sourceUrls": [
+        "https://arctangent.co.uk"
+      ],
+      "sourceNotes": [
+        "Known EVENT_FIRST safe-unresolved regression."
+      ]
+    },
+    {
+      "id": "E02",
+      "lane": "EVENT_FIRST",
+      "startingSignal": "Event Production Show",
+      "organisationName": "Mash Media Group",
+      "tradingName": "Mash Media",
+      "domain": "mashmedia.net",
+      "officialOrganisationUrl": "https://mashmedia.net",
+      "eventName": "Event Production Show",
+      "personName": null,
+      "personTitle": null,
+      "venueName": null,
+      "locality": "London, United Kingdom",
+      "companySearchName": "Mash Media Group",
+      "phaseOneEvidence": [],
+      "sourceUrls": [
+        "https://www.eventproductionshow.co.uk",
+        "https://mashmedia.net"
+      ],
+      "sourceNotes": [
+        "Established regression corpus case R7; corporate domain corrected to mashmedia.net."
+      ]
+    },
+    {
+      "id": "E03",
+      "lane": "EVENT_FIRST",
+      "startingSignal": "eCommerce Expo",
+      "organisationName": "CloserStill Media",
+      "tradingName": "eCommerce Expo",
+      "domain": "closerstillmedia.com",
+      "officialOrganisationUrl": "https://www.closerstillmedia.com",
+      "eventName": "eCommerce Expo",
+      "personName": null,
+      "personTitle": null,
+      "venueName": null,
+      "locality": "London, United Kingdom",
+      "companySearchName": "CloserStill Media",
+      "phaseOneEvidence": [],
+      "sourceUrls": [
+        "https://www.ecommerceexpo.co.uk",
+        "https://www.closerstillmedia.com"
+      ],
+      "sourceNotes": [
+        "Established regression corpus case R8."
+      ]
+    },
+    {
+      "id": "O01",
+      "lane": "ORGANISATION_FIRST",
+      "startingSignal": "Farnham Maltings regional events programme",
+      "organisationName": "Farnham Maltings Association",
+      "tradingName": "Farnham Maltings",
+      "domain": "farnhammaltings.com",
+      "officialOrganisationUrl": "https://www.farnhammaltings.com",
+      "eventName": null,
+      "personName": null,
+      "personTitle": null,
+      "venueName": null,
+      "locality": "Farnham, United Kingdom",
+      "companySearchName": "Farnham Maltings Association",
+      "phaseOneEvidence": [
+        {
+          "kind": "REGIONAL_SCOPE",
+          "value": "Regional arts and events organisation",
+          "sourceUrl": "https://www.farnhammaltings.com",
+          "confidence": "HIGH"
+        }
+      ],
+      "sourceUrls": [
+        "https://www.farnhammaltings.com"
+      ],
+      "sourceNotes": [
+        "Established regional ORGANISATION_FIRST case."
+      ]
+    },
+    {
+      "id": "O02",
+      "lane": "ORGANISATION_FIRST",
+      "startingSignal": "Hyve Group / World Travel Market London",
+      "organisationName": "Hyve Group",
+      "tradingName": "World Travel Market London",
+      "domain": "hyve.group",
+      "officialOrganisationUrl": "https://hyve.group",
+      "eventName": "World Travel Market London",
+      "personName": null,
+      "personTitle": null,
+      "venueName": null,
+      "locality": "London, United Kingdom",
+      "companySearchName": "Hyve Group",
+      "phaseOneEvidence": [
+        {
+          "kind": "ENTERPRISE_GROUP",
+          "value": "Known international exhibition group; retained as deferred regression coverage",
+          "sourceUrl": "https://hyve.group",
+          "confidence": "HIGH"
+        }
+      ],
+      "sourceUrls": [
+        "https://hyve.group",
+        "https://www.wtm.com"
+      ],
+      "sourceNotes": [
+        "The single known enterprise regression; deferred, not rejected."
+      ]
+    },
+    {
+      "id": "O03",
+      "lane": "ORGANISATION_FIRST",
+      "startingSignal": "British Academy Ideas Festival",
+      "organisationName": "The British Academy",
+      "tradingName": "British Academy Ideas Festival",
+      "domain": "thebritishacademy.ac.uk",
+      "officialOrganisationUrl": "https://www.thebritishacademy.ac.uk",
+      "eventName": "British Academy Ideas Festival",
+      "personName": null,
+      "personTitle": null,
+      "venueName": null,
+      "locality": "London, United Kingdom",
+      "companySearchName": "The British Academy",
+      "phaseOneEvidence": [],
+      "sourceUrls": [
+        "https://www.thebritishacademy.ac.uk/events"
+      ],
+      "sourceNotes": [
+        "Blind UK institutional event/activity case; company size is not used as a gate."
+      ]
+    },
+    {
+      "id": "P01",
+      "lane": "PERSON_FIRST",
+      "startingSignal": "Aaron Casserly Stewart",
+      "organisationName": "The Piece Hall Trust",
+      "tradingName": "The Piece Hall",
+      "domain": "piecehall.co.uk",
+      "officialOrganisationUrl": "https://www.thepiecehall.co.uk",
+      "eventName": null,
+      "personName": "Aaron Casserly Stewart",
+      "personTitle": "Programme & Event Director",
+      "venueName": null,
+      "locality": "Halifax, United Kingdom",
+      "companySearchName": "The Piece Hall Trust",
+      "phaseOneEvidence": [
+        {
+          "kind": "REGIONAL_SCOPE",
+          "value": "Regional venue programme",
+          "sourceUrl": "https://www.thepiecehall.co.uk",
+          "confidence": "HIGH"
+        }
+      ],
+      "sourceUrls": [
+        "https://www.thepiecehall.co.uk"
+      ],
+      "sourceNotes": [
+        "Established PERSON_FIRST corpus case R23."
+      ]
+    },
+    {
+      "id": "P02",
+      "lane": "PERSON_FIRST",
+      "startingSignal": "Ruth Bailey",
+      "organisationName": "Scottish Event Campus",
+      "tradingName": "SEC",
+      "domain": "sec.co.uk",
+      "officialOrganisationUrl": "https://www.sec.co.uk",
+      "eventName": null,
+      "personName": "Ruth Bailey",
+      "personTitle": "Director of Development and Infrastructure",
+      "venueName": null,
+      "locality": "Glasgow, United Kingdom",
+      "companySearchName": "Scottish Event Campus",
+      "phaseOneEvidence": [],
+      "sourceUrls": [
+        "https://www.sec.co.uk/organise-an-event/conferences"
+      ],
+      "sourceNotes": [
+        "Named person published on an official SEC page; size is not inferred from venue capacity."
+      ]
+    },
+    {
+      "id": "P03",
+      "lane": "PERSON_FIRST",
+      "startingSignal": "Tom Edwards",
+      "organisationName": "ExCeL London",
+      "tradingName": "ExCeL London",
+      "domain": "excel.london",
+      "officialOrganisationUrl": "https://www.excel.london",
+      "eventName": null,
+      "personName": "Tom Edwards",
+      "personTitle": "Director of Venue Services",
+      "venueName": null,
+      "locality": "London, United Kingdom",
+      "companySearchName": "ExCeL London",
+      "phaseOneEvidence": [],
+      "sourceUrls": [
+        "https://www.excel.london/news/excel-strengthens-operations-leadership-team"
+      ],
+      "sourceNotes": [
+        "Named person published on an official ExCeL page; size is not inferred from venue capacity."
+      ]
+    },
+    {
+      "id": "V01",
+      "lane": "VENUE_FIRST",
+      "startingSignal": "The Piece Hall",
+      "organisationName": "The Piece Hall Trust",
+      "tradingName": "The Piece Hall",
+      "domain": "piecehall.co.uk",
+      "officialOrganisationUrl": "https://www.thepiecehall.co.uk",
+      "eventName": null,
+      "personName": null,
+      "personTitle": null,
+      "venueName": "The Piece Hall",
+      "locality": "Halifax, United Kingdom",
+      "companySearchName": "The Piece Hall Trust",
+      "phaseOneEvidence": [
+        {
+          "kind": "REGIONAL_SCOPE",
+          "value": "Regional venue",
+          "sourceUrl": "https://www.thepiecehall.co.uk",
+          "confidence": "HIGH"
+        }
+      ],
+      "sourceUrls": [
+        "https://www.thepiecehall.co.uk"
+      ],
+      "sourceNotes": [
+        "Known VENUE_FIRST regression; operator may remain unresolved."
+      ]
+    },
+    {
+      "id": "V02",
+      "lane": "VENUE_FIRST",
+      "startingSignal": "SEC Centre",
+      "organisationName": "Scottish Event Campus",
+      "tradingName": "SEC",
+      "domain": "sec.co.uk",
+      "officialOrganisationUrl": "https://www.sec.co.uk",
+      "eventName": null,
+      "personName": null,
+      "personTitle": null,
+      "venueName": "SEC Centre",
+      "locality": "Glasgow, United Kingdom",
+      "companySearchName": "Scottish Event Campus",
+      "phaseOneEvidence": [],
+      "sourceUrls": [
+        "https://www.sec.co.uk/organise-an-event/conferences"
+      ],
+      "sourceNotes": [
+        "Venue identity case; capacity is not treated as enterprise proof."
+      ]
+    },
+    {
+      "id": "V03",
+      "lane": "VENUE_FIRST",
+      "startingSignal": "ExCeL London",
+      "organisationName": "ExCeL London",
+      "tradingName": "ExCeL London",
+      "domain": "excel.london",
+      "officialOrganisationUrl": "https://www.excel.london",
+      "eventName": null,
+      "personName": null,
+      "personTitle": null,
+      "venueName": "ExCeL London",
+      "locality": "London, United Kingdom",
+      "companySearchName": "ExCeL London",
+      "phaseOneEvidence": [],
+      "sourceUrls": [
+        "https://www.excel.london/"
+      ],
+      "sourceNotes": [
+        "Venue identity case; capacity is not treated as enterprise proof."
+      ]
+    }
+  ],
+  "limits": {
+    "sequential": true,
+    "retries": 0,
+    "perCase": {
+      "openAiRequests": 1,
+      "webSearchRequests": 1,
+      "companiesHouseSearch": 1,
+      "companiesHouseProfile": 1,
+      "companiesHouseOfficers": 0,
+      "googlePlacesTextSearch": 1,
+      "googlePlacesDetails": 2,
+      "apolloPeopleSearch": 1,
+      "apolloEnrichment": 0
+    },
+    "overall": {
+      "openAiRequests": 12,
+      "paidCostCeilingUsd": 0.5,
+      "persistenceWrites": 0,
+      "outreachActions": 0
+    }
+  },
+  "currentCase": null,
+  "completedCaseIds": [
+    "E01",
+    "E02",
+    "E03",
+    "O01",
+    "O02",
+    "O03",
+    "P01",
+    "P02",
+    "P03",
+    "V01",
+    "V02",
+    "V03"
+  ],
+  "cases": [
+    {
+      "id": "E01",
+      "originatingLane": "EVENT_FIRST",
+      "startingSignal": "ArcTanGent Festival",
+      "canonicalOrganisationName": "ArcTanGent",
+      "canonicalDomain": "arctangent.co.uk",
+      "sourceUrls": [
+        "https://arctangent.co.uk"
+      ],
+      "sourceNotes": [
+        "Known EVENT_FIRST safe-unresolved regression."
+      ],
+      "providerSequence": [
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "A documented Phase One focus signal supports priority routing; it is not a proof of company size and does not require SME verification.",
+        "evidence": [
+          {
+            "kind": "INDEPENDENT_ORGANISER",
+            "value": "Independent UK festival organiser",
+            "sourceUrl": "https://arctangent.co.uk",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "identities": {
+        "event": "ArcTanGent Festival",
+        "organisation": "ArcTanGent",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "ArcTanGent",
+          "officialWebsite": "https://dry-run.example",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://dry-run.example",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "E02",
+      "originatingLane": "EVENT_FIRST",
+      "startingSignal": "Event Production Show",
+      "canonicalOrganisationName": "Mash Media Group",
+      "canonicalDomain": "mashmedia.net",
+      "sourceUrls": [
+        "https://www.eventproductionshow.co.uk",
+        "https://mashmedia.net"
+      ],
+      "sourceNotes": [
+        "Established regression corpus case R7; corporate domain corrected to mashmedia.net."
+      ],
+      "providerSequence": [
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "STANDARD_PRIORITY",
+        "priorityScore": 50,
+        "reason": "Company size is unknown and optional; do not guess or spend research calls proving it.",
+        "evidence": []
+      },
+      "identities": {
+        "event": "Event Production Show",
+        "organisation": "Mash Media Group",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "Mash Media Group",
+          "officialWebsite": "https://dry-run.example",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://dry-run.example",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "E03",
+      "originatingLane": "EVENT_FIRST",
+      "startingSignal": "eCommerce Expo",
+      "canonicalOrganisationName": "CloserStill Media",
+      "canonicalDomain": "closerstillmedia.com",
+      "sourceUrls": [
+        "https://www.ecommerceexpo.co.uk",
+        "https://www.closerstillmedia.com"
+      ],
+      "sourceNotes": [
+        "Established regression corpus case R8."
+      ],
+      "providerSequence": [
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "STANDARD_PRIORITY",
+        "priorityScore": 50,
+        "reason": "Company size is unknown and optional; do not guess or spend research calls proving it.",
+        "evidence": []
+      },
+      "identities": {
+        "event": "eCommerce Expo",
+        "organisation": "CloserStill Media",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "CloserStill Media",
+          "officialWebsite": "https://dry-run.example",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://dry-run.example",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "O01",
+      "originatingLane": "ORGANISATION_FIRST",
+      "startingSignal": "Farnham Maltings regional events programme",
+      "canonicalOrganisationName": "Farnham Maltings Association",
+      "canonicalDomain": "farnhammaltings.com",
+      "sourceUrls": [
+        "https://www.farnhammaltings.com"
+      ],
+      "sourceNotes": [
+        "Established regional ORGANISATION_FIRST case."
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "A documented Phase One focus signal supports priority routing; it is not a proof of company size and does not require SME verification.",
+        "evidence": [
+          {
+            "kind": "REGIONAL_SCOPE",
+            "value": "Regional arts and events organisation",
+            "sourceUrl": "https://www.farnhammaltings.com",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "identities": {
+        "event": null,
+        "organisation": "Farnham Maltings Association",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "Farnham Maltings Association",
+          "officialWebsite": "https://farnhammaltings.com",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://farnhammaltings.com",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "O02",
+      "originatingLane": "ORGANISATION_FIRST",
+      "startingSignal": "Hyve Group / World Travel Market London",
+      "canonicalOrganisationName": "Hyve Group",
+      "canonicalDomain": "hyve.group",
+      "sourceUrls": [
+        "https://hyve.group",
+        "https://www.wtm.com"
+      ],
+      "sourceNotes": [
+        "The single known enterprise regression; deferred, not rejected."
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "ENTERPRISE_DEFERRED",
+        "priorityScore": 0,
+        "reason": "Strong public evidence identifies an enterprise or enterprise group; retain for later sequencing rather than reject.",
+        "evidence": [
+          {
+            "kind": "ENTERPRISE_GROUP",
+            "value": "Known international exhibition group; retained as deferred regression coverage",
+            "sourceUrl": "https://hyve.group",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "identities": {
+        "event": "World Travel Market London",
+        "organisation": "Hyve Group",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "Hyve Group",
+          "officialWebsite": "https://hyve.group",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://hyve.group",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "O03",
+      "originatingLane": "ORGANISATION_FIRST",
+      "startingSignal": "British Academy Ideas Festival",
+      "canonicalOrganisationName": "The British Academy",
+      "canonicalDomain": "thebritishacademy.ac.uk",
+      "sourceUrls": [
+        "https://www.thebritishacademy.ac.uk/events"
+      ],
+      "sourceNotes": [
+        "Blind UK institutional event/activity case; company size is not used as a gate."
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "STANDARD_PRIORITY",
+        "priorityScore": 50,
+        "reason": "Company size is unknown and optional; do not guess or spend research calls proving it.",
+        "evidence": []
+      },
+      "identities": {
+        "event": "British Academy Ideas Festival",
+        "organisation": "The British Academy",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "The British Academy",
+          "officialWebsite": "https://thebritishacademy.ac.uk",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://thebritishacademy.ac.uk",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "P01",
+      "originatingLane": "PERSON_FIRST",
+      "startingSignal": "Aaron Casserly Stewart",
+      "canonicalOrganisationName": "The Piece Hall Trust",
+      "canonicalDomain": "piecehall.co.uk",
+      "sourceUrls": [
+        "https://www.thepiecehall.co.uk"
+      ],
+      "sourceNotes": [
+        "Established PERSON_FIRST corpus case R23."
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "A documented Phase One focus signal supports priority routing; it is not a proof of company size and does not require SME verification.",
+        "evidence": [
+          {
+            "kind": "REGIONAL_SCOPE",
+            "value": "Regional venue programme",
+            "sourceUrl": "https://www.thepiecehall.co.uk",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "identities": {
+        "event": null,
+        "organisation": "The Piece Hall Trust",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": {
+          "name": "Aaron Casserly Stewart",
+          "title": "Programme & Event Director",
+          "organisation": "The Piece Hall Trust"
+        }
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "The Piece Hall Trust",
+          "officialWebsite": "https://dry-run.example",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://dry-run.example",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "P02",
+      "originatingLane": "PERSON_FIRST",
+      "startingSignal": "Ruth Bailey",
+      "canonicalOrganisationName": "Scottish Event Campus",
+      "canonicalDomain": "sec.co.uk",
+      "sourceUrls": [
+        "https://www.sec.co.uk/organise-an-event/conferences"
+      ],
+      "sourceNotes": [
+        "Named person published on an official SEC page; size is not inferred from venue capacity."
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "STANDARD_PRIORITY",
+        "priorityScore": 50,
+        "reason": "Company size is unknown and optional; do not guess or spend research calls proving it.",
+        "evidence": []
+      },
+      "identities": {
+        "event": null,
+        "organisation": "Scottish Event Campus",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": {
+          "name": "Ruth Bailey",
+          "title": "Director of Development and Infrastructure",
+          "organisation": "Scottish Event Campus"
+        }
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "Scottish Event Campus",
+          "officialWebsite": "https://dry-run.example",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://dry-run.example",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "P03",
+      "originatingLane": "PERSON_FIRST",
+      "startingSignal": "Tom Edwards",
+      "canonicalOrganisationName": "ExCeL London",
+      "canonicalDomain": "excel.london",
+      "sourceUrls": [
+        "https://www.excel.london/news/excel-strengthens-operations-leadership-team"
+      ],
+      "sourceNotes": [
+        "Named person published on an official ExCeL page; size is not inferred from venue capacity."
+      ],
+      "providerSequence": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "STANDARD_PRIORITY",
+        "priorityScore": 50,
+        "reason": "Company size is unknown and optional; do not guess or spend research calls proving it.",
+        "evidence": []
+      },
+      "identities": {
+        "event": null,
+        "organisation": "ExCeL London",
+        "legalEntity": null,
+        "venue": null,
+        "operator": null,
+        "sourcedPerson": {
+          "name": "Tom Edwards",
+          "title": "Director of Venue Services",
+          "organisation": "ExCeL London"
+        }
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "ExCeL London",
+          "officialWebsite": "https://dry-run.example",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://dry-run.example",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 0,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "V01",
+      "originatingLane": "VENUE_FIRST",
+      "startingSignal": "The Piece Hall",
+      "canonicalOrganisationName": "The Piece Hall Trust",
+      "canonicalDomain": "piecehall.co.uk",
+      "sourceUrls": [
+        "https://www.thepiecehall.co.uk"
+      ],
+      "sourceNotes": [
+        "Known VENUE_FIRST regression; operator may remain unresolved."
+      ],
+      "providerSequence": [
+        "GOOGLE_PLACES_TEXT_SEARCH",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "GOOGLE_PLACES_TEXT_SEARCH",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "PHASE_ONE_PRIORITY",
+        "priorityScore": 100,
+        "reason": "A documented Phase One focus signal supports priority routing; it is not a proof of company size and does not require SME verification.",
+        "evidence": [
+          {
+            "kind": "REGIONAL_SCOPE",
+            "value": "Regional venue",
+            "sourceUrl": "https://www.thepiecehall.co.uk",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "identities": {
+        "event": null,
+        "organisation": "The Piece Hall",
+        "legalEntity": null,
+        "venue": "The Piece Hall",
+        "operator": "The Piece Hall",
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "googlePlaces": {
+        "telemetry": [
+          {
+            "endpointCategory": "TEXT_SEARCH",
+            "mode": "search_only",
+            "fieldMask": "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus",
+            "candidateCount": 1,
+            "matchStatus": "EXACT_OR_STRONG",
+            "httpStatus": 200,
+            "errorCategory": null,
+            "retryCount": 0
+          }
+        ],
+        "identityEvidenceFacts": [
+          {
+            "claim": "Google Places identity evidence lists The Piece Hall as the target venue at London, United Kingdom. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
+            "sourceUrl": "https://places.googleapis.com/v1/places/dry-place",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "The Piece Hall",
+          "officialWebsite": "https://piecehall.co.uk",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://piecehall.co.uk",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 1,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "V02",
+      "originatingLane": "VENUE_FIRST",
+      "startingSignal": "SEC Centre",
+      "canonicalOrganisationName": "Scottish Event Campus",
+      "canonicalDomain": "sec.co.uk",
+      "sourceUrls": [
+        "https://www.sec.co.uk/organise-an-event/conferences"
+      ],
+      "sourceNotes": [
+        "Venue identity case; capacity is not treated as enterprise proof."
+      ],
+      "providerSequence": [
+        "GOOGLE_PLACES_TEXT_SEARCH",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "GOOGLE_PLACES_TEXT_SEARCH",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "STANDARD_PRIORITY",
+        "priorityScore": 50,
+        "reason": "Company size is unknown and optional; do not guess or spend research calls proving it.",
+        "evidence": []
+      },
+      "identities": {
+        "event": null,
+        "organisation": "SEC Centre",
+        "legalEntity": null,
+        "venue": "SEC Centre",
+        "operator": "SEC Centre",
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "googlePlaces": {
+        "telemetry": [
+          {
+            "endpointCategory": "TEXT_SEARCH",
+            "mode": "search_only",
+            "fieldMask": "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus",
+            "candidateCount": 1,
+            "matchStatus": "EXACT_OR_STRONG",
+            "httpStatus": 200,
+            "errorCategory": null,
+            "retryCount": 0
+          }
+        ],
+        "identityEvidenceFacts": [
+          {
+            "claim": "Google Places identity evidence lists SEC Centre as the target venue at London, United Kingdom. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
+            "sourceUrl": "https://places.googleapis.com/v1/places/dry-place",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "SEC Centre",
+          "officialWebsite": "https://sec.co.uk",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://sec.co.uk",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 1,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    },
+    {
+      "id": "V03",
+      "originatingLane": "VENUE_FIRST",
+      "startingSignal": "ExCeL London",
+      "canonicalOrganisationName": "ExCeL London",
+      "canonicalDomain": "excel.london",
+      "sourceUrls": [
+        "https://www.excel.london/"
+      ],
+      "sourceNotes": [
+        "Venue identity case; capacity is not treated as enterprise proof."
+      ],
+      "providerSequence": [
+        "GOOGLE_PLACES_TEXT_SEARCH",
+        "OPENAI_IDENTITY_AND_COMMERCIAL_RESEARCH",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "stages": [
+        "GOOGLE_PLACES_TEXT_SEARCH",
+        "PUBLIC_WEB_IDENTITY_AND_ACTIVITY",
+        "EVENTSUITE_FIT",
+        "COMPANIES_HOUSE_SEARCH",
+        "COMPANIES_HOUSE_PROFILE",
+        "APOLLO_PEOPLE_SEARCH"
+      ],
+      "lanePreserved": true,
+      "phaseOne": {
+        "classification": "STANDARD_PRIORITY",
+        "priorityScore": 50,
+        "reason": "Company size is unknown and optional; do not guess or spend research calls proving it.",
+        "evidence": []
+      },
+      "identities": {
+        "event": null,
+        "organisation": "ExCeL London",
+        "legalEntity": null,
+        "venue": "ExCeL London",
+        "operator": "ExCeL London",
+        "sourcedPerson": null
+      },
+      "conflicts": [],
+      "plausibleEventSuiteBenefit": {
+        "value": true,
+        "reason": "The frozen UK event, organisation, sourced person or venue signal is commercially relevant to EventSuite; proven pain and proven SME status are not required."
+      },
+      "contactResearchAttempted": false,
+      "outreachActions": 0,
+      "persistenceWrites": 0,
+      "apolloCandidates": [],
+      "googlePlaces": {
+        "telemetry": [
+          {
+            "endpointCategory": "TEXT_SEARCH",
+            "mode": "search_only",
+            "fieldMask": "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus",
+            "candidateCount": 1,
+            "matchStatus": "EXACT_OR_STRONG",
+            "httpStatus": 200,
+            "errorCategory": null,
+            "retryCount": 0
+          }
+        ],
+        "identityEvidenceFacts": [
+          {
+            "claim": "Google Places identity evidence lists ExCeL London as the target venue at London, United Kingdom. Business status: OPERATIONAL. This supports venue identity only and does not establish commercial responsibility.",
+            "sourceUrl": "https://places.googleapis.com/v1/places/dry-place",
+            "confidence": "HIGH"
+          }
+        ]
+      },
+      "openAi": {
+        "request": {
+          "model": "gpt-5.6-luna",
+          "reasoningEffort": "medium",
+          "strictJsonSchema": true,
+          "schemaName": "prospecting_evidence_enrichment",
+          "maxOutputTokens": 10000
+        },
+        "httpStatus": 200,
+        "responseStatus": "completed",
+        "providerErrorCategory": null,
+        "incompleteReason": null,
+        "refusalState": "ABSENT",
+        "outputItemTypes": [
+          "web_search_call",
+          "message"
+        ],
+        "structuredMessageContent": true,
+        "parserPath": "responses.output[].message.content[].text",
+        "schemaValidationResult": "VALID",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 40,
+          "input_tokens_details": {
+            "cached_tokens": 0
+          },
+          "output_tokens_details": {
+            "reasoning_tokens": 10
+          }
+        },
+        "webSearchCalls": 1,
+        "errorKind": null,
+        "cost": {
+          "uncachedInputTokens": 100,
+          "cachedInputTokens": 0,
+          "cacheWriteTokens": 0,
+          "outputTokens": 40,
+          "reasoningTokens": 10,
+          "modelCostUsd": 0.000068,
+          "searchContentCostUsd": "included in input_tokens; not separately reported",
+          "explicitWebSearchFeesUsd": 0.01,
+          "totalKnownCostUsd": 0.010068
+        },
+        "enrichment": {
+          "status": "SUCCEEDED",
+          "resolutionOutcome": "RESOLVED",
+          "commercialOutcome": "VALIDATION_ONLY",
+          "commerciallyAdvanced": true
+        },
+        "organisationResolution": {
+          "status": "RESOLVED",
+          "canonicalOrganisationName": "ExCeL London",
+          "officialWebsite": "https://excel.london",
+          "confidence": "HIGH",
+          "evidence": [
+            {
+              "claim": "Dry-run identity fixture preserves the bounded route only.",
+              "sourceUrl": "https://excel.london",
+              "confidence": "HIGH"
+            }
+          ],
+          "relatedOrganisations": []
+        },
+        "commercialEvidence": [],
+        "unknowns": [
+          "Company size is optional metadata and has not been used as an identity or qualification gate.",
+          "Dry-run fixture; no live public-web evidence was requested."
+        ]
+      },
+      "companiesHouseSearch": {
+        "outcome": "REGISTRAR_CONFIRMED",
+        "reason": "One exact active Companies House legal-company match was selected deterministically.",
+        "resultCount": 1
+      },
+      "companiesHouseProfile": {
+        "outcome": "REGISTRAR_CONFLICT",
+        "reason": "The selected profile did not preserve the selected company number and requested legal identity.",
+        "company": null
+      },
+      "apollo": {
+        "httpStatus": 200,
+        "resultCount": 0,
+        "creditCategory": "ZERO_CREDIT_SEARCH",
+        "candidates": []
+      },
+      "identityDecision": "SAFE_REVIEW_OR_ADVANCE",
+      "safeUnresolvedReasons": [],
+      "commercialAdvancement": {
+        "advanced": true,
+        "reason": "VALIDATION_ONLY"
+      },
+      "providerCalls": {
+        "companiesHouse": {
+          "search": 1,
+          "profile": 1,
+          "officers": 0
+        },
+        "googlePlaces": {
+          "textSearch": 1,
+          "details": 0
+        },
+        "apollo": {
+          "peopleSearch": 1,
+          "enrichment": 0
+        },
+        "openAi": 1,
+        "openAiWebSearchCalls": 1
+      },
+      "safety": {
+        "guessedEmails": 0,
+        "inferredEmails": 0,
+        "fabricatedPeople": 0,
+        "fabricatedOrganisers": 0,
+        "thirdPartyContactMisattributions": 0,
+        "venueAsOrganiserErrors": 0,
+        "providerAsProspectErrors": 0,
+        "firstPartyOrCompetitorPromotionFailures": 0,
+        "persistenceWrites": 0,
+        "outreachActions": 0,
+        "contactResearchAttempts": 0,
+        "officersRequests": 0
+      }
+    }
+  ],
+  "providerCounters": {
+    "openAi": {
+      "attempted": 12,
+      "succeeded": 12,
+      "failed": 0
+    },
+    "companiesHouseSearch": {
+      "attempted": 12,
+      "succeeded": 12,
+      "failed": 0
+    },
+    "companiesHouseProfile": {
+      "attempted": 12,
+      "succeeded": 12,
+      "failed": 0
+    },
+    "companiesHouseOfficers": {
+      "attempted": 0,
+      "succeeded": 0,
+      "failed": 0
+    },
+    "googlePlacesTextSearch": {
+      "attempted": 3,
+      "succeeded": 3,
+      "failed": 0
+    },
+    "googlePlacesDetails": {
+      "attempted": 0,
+      "succeeded": 0,
+      "failed": 0
+    },
+    "apolloPeopleSearch": {
+      "attempted": 12,
+      "succeeded": 12,
+      "failed": 0
+    },
+    "apolloEnrichment": {
+      "attempted": 0,
+      "succeeded": 0,
+      "failed": 0
+    }
+  },
+  "knownUsageCost": {
+    "totalKnownCostUsd": 0.12081599999999998,
+    "webSearchCalls": 12
+  },
+  "checkpoint": {
+    "reason": "COMPLETED",
+    "at": "2026-08-21T22:07:06.083Z",
+    "ordinal": 179
+  },
+  "failure": null,
+  "finalExitStatus": 0
+}
