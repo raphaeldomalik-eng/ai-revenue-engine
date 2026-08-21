@@ -42,6 +42,9 @@ export type ApolloBuyerSearchResult = {
   retrievedAt: string;
   status: ApolloStatus;
   roleClassification: string | null;
+  buyerRoutingClassification?: "LIKELY_BUYER" | "INFLUENCER_OR_ROUTE_TO_BUYER" | "IRRELEVANT";
+  buyerRoutingReason?: string;
+  roleRankingScore?: number;
   rejectionReason: string | null;
   provenance: { provider: "apollo"; endpointCategory: "PEOPLE_SEARCH"; sourceUrl: string; organisationDomain: string; discoveryLane: DiscoveryLane; currentEmployerValidated: boolean; targetOwnershipValidated: boolean };
 };
@@ -59,15 +62,31 @@ const PEOPLE_SEARCH_URL = "https://api.apollo.io/api/v1/mixed_people/api_search"
 const AUTH_HEALTH_URL = "https://api.apollo.io/api/v1/auth/health";
 const USAGE_STATS_URL = "https://api.apollo.io/api/v1/usage_stats/api_usage_stats";
 const PERSON_ENRICHMENT_URL = "https://api.apollo.io/api/v1/people/match";
+export const APOLLO_PRIMARY_ROLE_FAMILIES = [
+  "event leadership",
+  "event operations",
+  "venue operations",
+  "commercial leadership",
+  "ticketing or box office",
+  "marketing or audience growth",
+  "digital, technology or product",
+  "procurement or supplier management",
+  "managing director, founder or owner",
+  "event manager, producer or project manager",
+  "freelance event professional",
+] as const;
 const ROLE_FAMILY_TITLES: Record<string, string[]> = {
-  "event leadership": ["event director", "event manager", "organiser", "organizer", "head of events"],
-  "event operations": ["event operations", "operations director", "operations manager", "event producer"],
+  "event leadership": ["event director", "head of events", "director of events", "event portfolio director", "organiser", "organizer"],
+  "event operations": ["event operations", "operations director", "operations manager", "head of operations", "event producer"],
   "venue operations": ["venue director", "venue manager", "venue operations", "general manager"],
   "commercial leadership": ["commercial director", "commercial manager", "revenue director", "business development"],
   "ticketing or box office": ["ticketing", "box office", "registration manager", "admissions manager"],
   "marketing or audience growth": ["marketing director", "marketing manager", "audience development", "audience growth"],
+  "digital, technology or product": ["digital director", "digital manager", "technology director", "technology manager", "product director", "product manager", "head of digital", "head of technology"],
   "procurement or supplier management": ["procurement", "supplier manager", "vendor manager", "purchasing manager"],
   "managing director, founder or owner": ["managing director", "founder", "owner", "chief executive officer", "ceo"],
+  "event manager, producer or project manager": ["event manager", "event producer", "project manager", "programme manager", "program manager"],
+  "freelance event professional": ["freelance event", "freelance producer", "independent event"],
 };
 const ROLE_TOKENS = [...new Set(Object.values(ROLE_FAMILY_TITLES).flat().map((item) => item.toLowerCase()))];
 
@@ -83,8 +102,16 @@ function employerDomainAssessment(input: ApolloBuyerSearchInput, organisationNam
   return { outcome: "DOMAIN_MISSING" as const, reason: "PROVIDER_EMPLOYER_DOMAIN_OMITTED_WITHOUT_TRUSTWORTHY_QUERY_SCOPING" };
 }
 function roleClassification(title: string | null, roleFamilies: string[]) { const value = title?.toLowerCase() ?? ""; const family = roleFamilies.find((item) => (ROLE_FAMILY_TITLES[item.toLowerCase()] ?? [item]).some((token) => value.includes(token.toLowerCase()))); return family ?? (ROLE_TOKENS.find((token) => value.includes(token)) ? "RELEVANT_ROLE_FAMILY" : null); }
+function roleRanking(title: string | null, family: string | null) {
+  const value = title?.toLowerCase() ?? "";
+  if (!family) return { classification: "IRRELEVANT" as const, reason: "TITLE_DID_NOT_MATCH_A_CONFIGURED_EVENTSUITE_ROLE_FAMILY", score: 0 };
+  const likelyBuyerFamilies = new Set(["event leadership", "event operations", "venue operations", "commercial leadership", "ticketing or box office", "marketing or audience growth", "managing director, founder or owner"]);
+  if (likelyBuyerFamilies.has(family)) return { classification: "LIKELY_BUYER" as const, reason: `TITLE_MATCHED_${family.toUpperCase().replaceAll(/[^A-Z0-9]+/g, "_")}`, score: value.includes("director") || value.includes("head") || value.includes("chief") || value.includes("owner") || value.includes("founder") ? 100 : 80 };
+  if (family === "freelance event professional") return { classification: "INFLUENCER_OR_ROUTE_TO_BUYER" as const, reason: "FREELANCE_EVENT_ROLE_REQUIRES_ORGANISATION_AND_BUYING_AUTHORITY_REVIEW", score: 45 };
+  return { classification: "INFLUENCER_OR_ROUTE_TO_BUYER" as const, reason: `TITLE_MATCHED_${family.toUpperCase().replaceAll(/[^A-Z0-9]+/g, "_")}_REQUIRES_BUYING_AUTHORITY_REVIEW`, score: 55 };
+}
 function roleTitles(roleFamilies: string[]) { return [...new Set(roleFamilies.flatMap((family) => ROLE_FAMILY_TITLES[family.toLowerCase()] ?? [family]).map((item) => item.trim()).filter(Boolean))].slice(0, 24); }
-function boundedLimit(limit: number | undefined) { return Math.max(1, Math.min(10, Math.floor(limit ?? 5))); }
+function boundedLimit(limit: number | undefined) { return Math.max(1, Math.min(5, Math.floor(limit ?? 5))); }
 function modeOf(value: string | undefined) { return APOLLO_MODES.includes(value as ApolloMode) ? value as ApolloMode : "disabled"; }
 function telemetry(endpointCategory: ApolloEndpointCategory, mode: ApolloMode, httpStatus: number | null, creditCategory: ApolloTelemetry["creditCategory"], counts?: Partial<Pick<ApolloTelemetry, "resultCount" | "acceptedCount" | "rejectedCount" | "reviewRequiredCount">>, rejectionReasons: string[] = [], headers?: Headers) { return { endpointCategory, mode, resultCount: counts?.resultCount ?? 0, acceptedCount: counts?.acceptedCount ?? 0, rejectedCount: counts?.rejectedCount ?? 0, reviewRequiredCount: counts?.reviewRequiredCount ?? 0, rejectionReasons: [...new Set(rejectionReasons)].slice(0, 12), httpStatus, rateLimit: { retryAfter: headers?.get("retry-after") ?? null, limit: headers?.get("x-ratelimit-limit") ?? null, remaining: headers?.get("x-ratelimit-remaining") ?? null, reset: headers?.get("x-ratelimit-reset") ?? null }, creditCategory }; }
 function configuredApiKey(value: string | undefined) { const trimmed = value?.trim(); return trimmed || undefined; }
@@ -144,7 +171,8 @@ function normalizePerson(raw: ApolloRawPerson, input: ApolloBuyerSearchInput, re
   const classifiedRole = roleClassification(title, input.roleFamilies);
   const rejectionReason = !personId ? "MISSING_PROVIDER_PERSON_ID" : domainAssessment.outcome === "DOMAIN_CONFLICT" ? "EMPLOYER_DOMAIN_CONFLICT" : domainAssessment.outcome === "DOMAIN_QUERY_SCOPED" ? "EMPLOYER_DOMAIN_QUERY_SCOPED_REQUIRES_REVIEW" : domainAssessment.outcome === "DOMAIN_MISSING" ? "EMPLOYER_DOMAIN_MISSING" : !organisationAligned ? "TARGET_ORGANISATION_MISMATCH" : !classifiedRole ? "IRRELEVANT_ROLE" : null;
   const status: ApolloStatus = domainAssessment.outcome === "DOMAIN_CONFLICT" || rejectionReason === "IRRELEVANT_ROLE" ? "REJECTED" : domainAssessment.outcome === "DOMAIN_QUERY_SCOPED" || Boolean(rejectionReason) ? "REVIEW_REQUIRED" : "ACCEPTED";
-  return { provider: "apollo", providerPersonId: personId, fullName, title, seniority: text(raw.seniority), organisationName, organisationDomain, linkedinUrl: text(raw.linkedin_url), emailAvailability: text(raw.email_status) ?? text(raw.contact_email_status), employerDomainOutcome: domainAssessment.outcome, employerDomainReason: domainAssessment.reason, retrievedAt, status, roleClassification: classifiedRole, rejectionReason, provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: PEOPLE_SEARCH_URL, organisationDomain: canonicalDomain(input.organisationDomain), discoveryLane: input.discoveryLane, currentEmployerValidated, targetOwnershipValidated: domainAligned && organisationAligned } };
+  const role = roleRanking(title, classifiedRole);
+  return { provider: "apollo", providerPersonId: personId, fullName, title, seniority: text(raw.seniority), organisationName, organisationDomain, linkedinUrl: text(raw.linkedin_url), emailAvailability: text(raw.email_status) ?? text(raw.contact_email_status), employerDomainOutcome: domainAssessment.outcome, employerDomainReason: domainAssessment.reason, retrievedAt, status, roleClassification: classifiedRole, buyerRoutingClassification: role.classification, buyerRoutingReason: role.reason, roleRankingScore: role.score, rejectionReason, provenance: { provider: "apollo", endpointCategory: "PEOPLE_SEARCH", sourceUrl: PEOPLE_SEARCH_URL, organisationDomain: canonicalDomain(input.organisationDomain), discoveryLane: input.discoveryLane, currentEmployerValidated, targetOwnershipValidated: domainAligned && organisationAligned } };
 }
 
 export async function searchApolloBuyers(input: ApolloBuyerSearchInput, options: ApolloOptions = {}): Promise<ApolloSearchResponse> {
@@ -157,7 +185,7 @@ export async function searchApolloBuyers(input: ApolloBuyerSearchInput, options:
   const raw = response.payload && typeof response.payload === "object" ? response.payload as ApolloRawSearch : {};
   const people = Array.isArray(raw.people) ? raw.people : Array.isArray(raw.contacts) ? raw.contacts : null;
   if (!people) throw new ApolloProviderError("Apollo people search response was malformed.", telemetry("PEOPLE_SEARCH", configured.mode, response.response.status, "ZERO_CREDIT_SEARCH", undefined, ["MALFORMED_RESPONSE"], response.response.headers));
-  const results = people.filter((item): item is ApolloRawPerson => Boolean(item && typeof item === "object")).slice(0, boundedLimit(input.limit)).map((item) => normalizePerson(item, { ...input, organisationDomain: domain }, configured.now!(), true));
+  const results = people.filter((item): item is ApolloRawPerson => Boolean(item && typeof item === "object")).map((item) => normalizePerson(item, { ...input, organisationDomain: domain }, configured.now!(), true)).sort((a, b) => (b.roleRankingScore ?? 0) - (a.roleRankingScore ?? 0)).slice(0, boundedLimit(input.limit));
   const reasons = results.map((item) => item.rejectionReason).filter((item): item is string => Boolean(item));
   return { mode: configured.mode, results, telemetry: telemetry("PEOPLE_SEARCH", configured.mode, response.response.status, "ZERO_CREDIT_SEARCH", { resultCount: results.length, acceptedCount: results.filter((item) => item.status === "ACCEPTED").length, rejectedCount: results.filter((item) => item.status === "REJECTED").length, reviewRequiredCount: results.filter((item) => item.status === "REVIEW_REQUIRED").length }, reasons, response.response.headers) };
 }
@@ -190,4 +218,13 @@ export async function searchEligibleApolloBuyers(input: { candidate: ContactRese
   const eligibility = contactResearchEligibility(input.candidate, input.identity);
   if (!eligibility.eligible) return { blocked: true as const, reason: eligibility.reason, result: null };
   return { blocked: false as const, result: await searchApolloBuyers(input, { ...options, mode: input.mode ?? options.mode }) };
+}
+
+export async function searchPrimaryApolloBuyers(input: { candidate: ContactResearchCandidateState; identity: ContactResearchTargetIdentity; discoveryLane: DiscoveryLane; mode?: ApolloMode }, options: ApolloOptions = {}) {
+  const eligibility = contactResearchEligibility(input.candidate, input.identity);
+  if (!eligibility.eligible) return { blocked: true as const, reason: eligibility.reason, result: null };
+  const organisationName = input.identity.accountName?.trim();
+  const organisationDomain = canonicalDomain(input.identity.accountWebsite ?? "");
+  if (!organisationName || !organisationDomain) return { blocked: true as const, reason: "CANONICAL_ORGANISATION_DOMAIN_REQUIRED", result: null };
+  return { blocked: false as const, result: await searchApolloBuyers({ organisationName, organisationDomain, discoveryLane: input.discoveryLane, roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 5 }, { ...options, mode: input.mode ?? options.mode }) };
 }

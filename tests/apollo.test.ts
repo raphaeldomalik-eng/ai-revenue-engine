@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ApolloProviderError, apolloAuthenticationHealth, apolloUsageStats, buildApolloHeaders, enrichSelectedApolloBuyer, resolveApolloMode, searchApolloBuyers, searchEligibleApolloBuyers, type ApolloBuyerSearchResult } from "../src/ai-sales-team/apollo.ts";
+import { APOLLO_PRIMARY_ROLE_FAMILIES, ApolloProviderError, apolloAuthenticationHealth, apolloUsageStats, buildApolloHeaders, enrichSelectedApolloBuyer, resolveApolloMode, searchApolloBuyers, searchEligibleApolloBuyers, searchPrimaryApolloBuyers, type ApolloBuyerSearchResult } from "../src/ai-sales-team/apollo.ts";
 
 function response(status: number, body: unknown, headers: Record<string, string> = {}) { return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } }); }
 function fetchMock(body: unknown, status = 200, headers: Record<string, string> = {}, seen: Request[] = []) { return async (input: RequestInfo | URL, init?: RequestInit) => { seen.push(new Request(input, init)); return response(status, body, headers); }; }
@@ -101,8 +101,39 @@ test("Apollo search is bounded, domain-filtered and has zero-credit telemetry", 
 test("Apollo validates current employer domain, target ownership and role relevance", async () => {
   const people = [acceptedPerson, { ...acceptedPerson, id: "wrong-domain", organization: { name: "Other Organisation", primary_domain: "other.example" } }, { ...acceptedPerson, id: "irrelevant", title: "Accountant" }, { ...acceptedPerson, id: "missing-employer", organization: null }];
   const result = await searchApolloBuyers({ ...searchInput, limit: 10 }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people }) });
-  assert.deepEqual(result.results.map((item) => item.status), ["ACCEPTED", "REJECTED", "REJECTED", "REVIEW_REQUIRED"]);
-  assert.deepEqual(result.results.map((item) => item.rejectionReason), [null, "EMPLOYER_DOMAIN_CONFLICT", "IRRELEVANT_ROLE", "EMPLOYER_DOMAIN_MISSING"]);
+  assert.deepEqual(result.results.map((item) => item.status), ["ACCEPTED", "REJECTED", "REVIEW_REQUIRED", "REJECTED"]);
+  assert.deepEqual(result.results.map((item) => item.rejectionReason), [null, "EMPLOYER_DOMAIN_CONFLICT", "EMPLOYER_DOMAIN_MISSING", "IRRELEVANT_ROLE"]);
+});
+
+test("Apollo preserves every originating discovery lane, including Hyve organisation-first", async () => {
+  for (const discoveryLane of ["EVENT_FIRST", "ORGANISATION_FIRST", "PERSON_FIRST", "VENUE_FIRST"] as const) {
+    const result = await searchApolloBuyers({ ...searchInput, organisationName: discoveryLane === "ORGANISATION_FIRST" ? "Hyve Group" : searchInput.organisationName, organisationDomain: discoveryLane === "ORGANISATION_FIRST" ? "hyve.group" : searchInput.organisationDomain, discoveryLane, roleFamilies: [...APOLLO_PRIMARY_ROLE_FAMILIES], limit: 5 }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [{ ...acceptedPerson, organization: { name: discoveryLane === "ORGANISATION_FIRST" ? "Hyve Group" : searchInput.organisationName, primary_domain: discoveryLane === "ORGANISATION_FIRST" ? "hyve.group" : "mashmedia.co.uk" } }] }) });
+    assert.equal(result.results[0].provenance.discoveryLane, discoveryLane);
+  }
+});
+
+test("Apollo primary people search ranks bounded role families and never opens a web-contact path", async () => {
+  const candidate = { status: "QUALIFIED", relationship: "PROSPECT", account_id: null, candidate_name: "Hyve Group", organiser_name: "Hyve Group", website: "https://hyve.group", prospect_intelligence: { eventConnection: { state: "CONFIRMED" }, accountCreationEligible: true, primaryEntryOpportunity: "EGS", organisationResolution: { status: "RESOLVED" } } };
+  const result = await searchPrimaryApolloBuyers({ candidate, identity: { accountName: "Hyve Group", accountWebsite: "https://hyve.group" }, discoveryLane: "ORGANISATION_FIRST", mode: "search_only" }, { apiKey: "test-key", mode: "search_only", fetchImpl: fetchMock({ people: [
+    { ...acceptedPerson, id: "hyve-low", title: "Project Manager", organization: { name: "Hyve Group", primary_domain: "hyve.group" } },
+    { ...acceptedPerson, id: "hyve-high", title: "Managing Director", organization: { name: "Hyve Group", primary_domain: "hyve.group" } },
+    { ...acceptedPerson, id: "hyve-irrelevant", title: "Accountant", organization: { name: "Hyve Group", primary_domain: "hyve.group" } },
+  ] }) });
+  assert.equal(result.blocked, false);
+  if (!result.blocked) {
+    assert.equal(result.result.results.length, 3);
+    assert.equal(result.result.results[0].title, "Managing Director");
+    assert.equal(result.result.results[0].buyerRoutingClassification, "LIKELY_BUYER");
+    assert.equal(result.result.results[1].buyerRoutingClassification, "INFLUENCER_OR_ROUTE_TO_BUYER");
+    assert.equal(result.result.results[2].buyerRoutingClassification, "IRRELEVANT");
+  }
+});
+
+test("Apollo primary people search blocks unresolved canonical identity before provider access", async () => {
+  let calls = 0;
+  const result = await searchPrimaryApolloBuyers({ candidate: { status: "QUALIFIED", relationship: "PROSPECT", account_id: null, prospect_intelligence: { eventConnection: { state: "CONFIRMED" }, accountCreationEligible: true, primaryEntryOpportunity: "EGS", organisationResolution: { status: "RESOLVED" } } }, identity: { accountName: "Unresolved Organisation", accountWebsite: null }, discoveryLane: "EVENT_FIRST", mode: "search_only" }, { apiKey: "test-key", mode: "search_only", fetchImpl: async () => { calls += 1; return response(200, { people: [] }); } });
+  assert.deepEqual(result, { blocked: true, reason: "CANONICAL_ORGANISATION_DOMAIN_REQUIRED", result: null });
+  assert.equal(calls, 0);
 });
 
 test("missing key, authentication failure, rate limiting, provider error and malformed response are safe", async () => {

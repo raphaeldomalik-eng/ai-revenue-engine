@@ -1,0 +1,97 @@
+{
+  "acceptanceVersion": "apollo-primary-people-routing-v1",
+  "manifestFrozen": true,
+  "manifest": [
+    { "id": "M01", "name": "Event Production Show", "lane": "EVENT_FIRST", "territory": "GB" },
+    { "id": "M02", "name": "Hyve Group organisation portfolio", "lane": "ORGANISATION_FIRST", "territory": "GB" },
+    { "id": "M03", "name": "Lindiwe Rakharebe person signal", "lane": "PERSON_FIRST", "territory": "ZA" },
+    { "id": "M04", "name": "Cape Town International Convention Centre venue signal", "lane": "VENUE_FIRST", "territory": "ZA" }
+  ],
+  "searchMode": "search_only",
+  "roleFamilies": [
+    "event leadership",
+    "event operations",
+    "venue operations",
+    "commercial leadership",
+    "ticketing or box office",
+    "marketing or audience growth",
+    "digital, technology or product",
+    "procurement or supplier management",
+    "managing director, founder or owner",
+    "event manager, producer or project manager",
+    "freelance event professional"
+  ],
+  "requests": { "peopleSearch": 4, "maximumPeopleSearch": 4, "retries": 0, "enrichment": 0, "emailOrPhoneRequests": 0 },
+  "cases": [
+    {
+      "id": "M01",
+      "lane": "EVENT_FIRST",
+      "canonicalOrganisation": "Mash Media Group",
+      "canonicalDomain": "mashmedia.co.uk",
+      "resultCount": 0,
+      "candidates": [],
+      "safeOutcome": "NO_APOLLO_RESULT",
+      "lanePreserved": true,
+      "httpStatus": 200,
+      "creditCategory": "ZERO_CREDIT_SEARCH"
+    },
+    {
+      "id": "M02",
+      "lane": "ORGANISATION_FIRST",
+      "canonicalOrganisation": "Hyve Group",
+      "canonicalDomain": "hyve.group",
+      "resultCount": 5,
+      "candidates": [
+        { "name": "Karen", "title": "Event Operations Director", "employer": "Hyve Group", "domainOutcome": "DOMAIN_QUERY_SCOPED", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" },
+        { "name": "Rifat", "title": "Event Operations Manager", "employer": "Hyve Group", "domainOutcome": "DOMAIN_QUERY_SCOPED", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" },
+        { "name": "Sally", "title": "Senior Event Operations Manager", "employer": "Hyve Group", "domainOutcome": "DOMAIN_QUERY_SCOPED", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" },
+        { "name": "Lucia", "title": "Senior Event Operations Manager", "employer": "Hyve Group", "domainOutcome": "DOMAIN_QUERY_SCOPED", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" },
+        { "name": "Olivia", "title": "Senior Event Operations Manager", "employer": "Hyve Group", "domainOutcome": "DOMAIN_QUERY_SCOPED", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" }
+      ],
+      "safeOutcome": "REVIEW_ONLY_UNTIL_HUMAN_SELECTION",
+      "lanePreserved": true,
+      "httpStatus": 200,
+      "creditCategory": "ZERO_CREDIT_SEARCH"
+    },
+    {
+      "id": "M03",
+      "lane": "PERSON_FIRST",
+      "canonicalOrganisation": "Durban ICC",
+      "canonicalDomain": "icc.co.za",
+      "resultCount": 3,
+      "candidates": [
+        { "name": "Johannes", "title": "Operations Manager", "employer": "Durban International Convention Centre (Durban ICC)", "domainOutcome": "DOMAIN_QUERY_SCOPED", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" },
+        { "name": "Patrick", "title": "Acting Operations Manager", "employer": "Durban International Convention Centre (Durban ICC)", "domainOutcome": "DOMAIN_QUERY_SCOPED", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" },
+        { "name": "Claudine", "title": "Operations Manager", "employer": "Durban International Convention Centre (Durban ICC)", "domainOutcome": "DOMAIN_QUERY_SCOPED", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" }
+      ],
+      "safeOutcome": "REVIEW_ONLY_UNTIL_HUMAN_SELECTION",
+      "lanePreserved": true,
+      "httpStatus": 200,
+      "creditCategory": "ZERO_CREDIT_SEARCH"
+    },
+    {
+      "id": "M04",
+      "lane": "VENUE_FIRST",
+      "canonicalOrganisation": "Convenco",
+      "canonicalDomain": "cticc.co.za",
+      "resultCount": 1,
+      "candidates": [
+        { "name": "Randale", "title": "Assistant Back of House/Facilities Operations Manager", "employer": "Cape Town International Convention Centre", "domainOutcome": "DOMAIN_MISSING", "status": "REVIEW_REQUIRED", "routing": "LIKELY_BUYER" }
+      ],
+      "safeOutcome": "REVIEW_ONLY_DOMAIN_MISSING",
+      "lanePreserved": true,
+      "httpStatus": 200,
+      "creditCategory": "ZERO_CREDIT_SEARCH"
+    }
+  ],
+  "safety": {
+    "persistence": false,
+    "outreach": false,
+    "openAiCalls": 0,
+    "enrichmentCalls": 0,
+    "personalEmailRequests": 0,
+    "phoneRequests": 0,
+    "providerIdsRetained": false,
+    "rawProviderResponsesRetained": false
+  }
+}

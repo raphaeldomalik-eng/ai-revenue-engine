@@ -9,7 +9,7 @@ const fact = (claim: string, sourceUrl = "https://event.example/source") => ({ c
 const candidate = (overrides: Record<string, unknown> = {}) => ({ canonicalName: "Example Expo", organiserName: "Example Events", website: "https://ticketsza.co.za/example", origin: "EVENT_FIRST" as const, relationshipHint: "PROSPECT" as const, facts: [fact("Example Events organises the annual Example Expo 2026 event.")], inferences: [], unknowns: [], ...overrides });
 
 test("all four V1 roles have stable prompt versions", () => {
-  assert.deepEqual(Object.values(AGENT_PROMPT_VERSIONS), ["discovery-scout-v1-four-lane", "identity-resolver-v1", "commercial-researcher-v1", "buyer-contact-researcher-v1"]);
+  assert.deepEqual(Object.values(AGENT_PROMPT_VERSIONS), ["discovery-scout-v1-four-lane", "identity-resolver-v1", "commercial-researcher-v1", "buyer-contact-researcher-v2-apollo-primary"]);
 });
 
 test("TicketsZA/Tixsa discovery sources never become organiser websites", () => {

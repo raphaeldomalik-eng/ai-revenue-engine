@@ -41,6 +41,25 @@ Commercial, timing and change signals are evidence attached to the lane that fou
 
 Signals may include a new event launch, expansion, additional stages or venues, vendor or volunteer recruitment, registration opening, venue launch, a new event series, programme growth, or procurement/provider-change evidence.
 
+### Buyer discovery after identity resolution
+
+Once deterministic identity gates establish a canonical organisation and
+domain, Apollo Mixed People Search is the primary bounded route for discovering
+people. It may return at most five role-ranked candidates across event
+leadership, operations, venue, commercial, ticketing/box office, marketing,
+digital/technology/product, procurement, executive ownership, event
+manager/producer/project manager and relevant freelance roles. Each candidate
+retains the originating discovery lane and is classified as likely buyer,
+influencer/route-to-buyer or irrelevant.
+
+Apollo search is discovery-only. It does not request personal email, phone or
+waterfall data, does not enrich automatically and does not authorize outreach.
+`DOMAIN_CONFLICT` is rejected; `DOMAIN_QUERY_SCOPED` remains review-only and
+requires explicit human selection before any later business-email enrichment.
+General web contact searching is disabled by default. Zero results and safe
+unresolved outcomes are valid. Qualification remains “Could prospect
+plausibly benefit from EventSuite?” and does not require public proof of pain.
+
 ## 3. Target hierarchy and territories
 
 Primary targets are organisers, promoters, festival operators, conference and exhibition organisers, recurring event businesses, venues with meaningful owned programmes, associations and institutions with substantial recurring activity.
