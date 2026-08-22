@@ -176,3 +176,91 @@ export function runCounts(run: OperatorRun | null, candidates: OperatorCandidate
     contactable: scoped.filter((candidate) => contactState(candidate) === "Verified route available").length,
   };
 }
+
+export const operatorLanguage = Object.freeze({
+  lanes: { EVENT_FIRST: "Event", ORGANISATION_FIRST: "Organisation", PERSON_FIRST: "Person", VENUE_FIRST: "Venue" },
+  resolution: { SAFE_UNRESOLVED: "Needs identity review", REGISTRAR_CONFIRMED: "Company verified" },
+  activity: { ACTIVE_UPCOMING: "Upcoming activity" },
+  relationship: { PROSPECT: "Candidate" },
+  domain: { DOMAIN_QUERY_SCOPED: "Employer likely matched", DOMAIN_MISSING: "Employer needs checking" },
+  contact: { NO_VERIFIED_TARGET_ROUTE: "No verified business email" },
+  draft: { DRAFT_READY: "Ready to review", HUMAN_REVIEW_REQUIRED: "Needs your review", DO_NOT_DRAFT: "Not suitable for email", PENDING_HUMAN_APPROVAL: "Draft awaiting approval", HUMAN_APPROVED_DRAFT: "Draft approved — not sent" },
+  lifecycle: { REJECTED: "Excluded", DUPLICATE: "Already tracked" },
+  pilot: { PILOT_NOT_ENABLED: "Pilot drafting is currently switched off" },
+} as const);
+
+function composerMetadata(candidate: OperatorCandidate) {
+  return asObject(asObject(candidate.account?.metadata).outreachComposer);
+}
+
+export function prospectType(candidate: OperatorCandidate) {
+  return operatorLanguage.lanes[candidate.origin as keyof typeof operatorLanguage.lanes] ?? "Organisation";
+}
+
+export function prospectPriority(candidate: OperatorCandidate) {
+  const value = String(intelligence(candidate).commercialPriority ?? intelligence(candidate).priority ?? "STANDARD").toUpperCase();
+  if (value === "PHASE_ONE_PRIORITY" || value === "HIGH") return "Phase One priority";
+  if (value === "ENTERPRISE_DEFERRED" || value === "DEFERRED") return "Deferred";
+  return "Standard priority";
+}
+
+export function operatorWorkflowState(candidate: OperatorCandidate) {
+  if (candidate.status === "DUPLICATE" || candidate.dedupe_of_candidate_id) return operatorLanguage.lifecycle.DUPLICATE;
+  if (["REJECTED", "BLOCKED"].includes(candidate.status)) return operatorLanguage.lifecycle.REJECTED;
+  if (prospectPriority(candidate) === "Deferred") return "Deferred";
+  const composer = composerMetadata(candidate);
+  if (composer.approved === true || composer.state === "HUMAN_APPROVED_DRAFT") return operatorLanguage.draft.HUMAN_APPROVED_DRAFT;
+  if (composer.pending === true || composer.state === "PENDING_HUMAN_APPROVAL") return operatorLanguage.draft.PENDING_HUMAN_APPROVAL;
+  const value = intelligence(candidate);
+  const resolution = String(value.organisationResolution?.status ?? "UNRESOLVED").toUpperCase();
+  if (needsReview(candidate) || resolution !== "RESOLVED") return "Needs identity review";
+  if (!candidate.contacts?.length) return "Ready for person review";
+  if (contactState(candidate) !== "Verified route available") return "Contact needs review";
+  return "Ready for person review";
+}
+
+export function operatorNextAction(candidate: OperatorCandidate) {
+  switch (operatorWorkflowState(candidate)) {
+    case "Needs identity review": return "Confirm organiser";
+    case "Ready for person review": return candidate.contacts?.length ? "Review people" : "Select person";
+    case "Contact needs review": return "Review email";
+    case operatorLanguage.draft.HUMAN_APPROVED_DRAFT: return "No action";
+    case operatorLanguage.draft.PENDING_HUMAN_APPROVAL: return "Review email";
+    case "Deferred": return "No action";
+    default: return "No action";
+  }
+}
+
+export function operatorWhyRelevant(candidate: OperatorCandidate) {
+  const value = intelligence(candidate);
+  const known = facts(candidate)[0]?.claim ?? asArray<any>(value.commercialEvidence ?? value.evidence)[0]?.claim;
+  if (typeof known === "string" && known.trim()) return known.trim().replace(/\s+/g, " ").slice(0, 155);
+  const eventName = String(asObject(candidate.account?.metadata).eventName ?? candidate.candidate_name ?? "").trim();
+  if (candidate.origin === "EVENT_FIRST") return eventName ? `${eventName} shows event activity relevant to EventSuite.` : "Event activity may be relevant to EventSuite.";
+  if (candidate.origin === "VENUE_FIRST") return "Active venue programming may be relevant to EventSuite.";
+  if (candidate.origin === "PERSON_FIRST") return "Current event-sector activity may lead to a useful route into the organisation.";
+  return `${organisationName(candidate)} is associated with event activity relevant to EventSuite.`;
+}
+
+export function operatorContactState(candidate: OperatorCandidate) {
+  if (candidate.contacts?.some((contact) => contact.email && ["VERIFIED", "VALID"].includes(String(contact.verification_status ?? "").toUpperCase()))) return "Business email verified";
+  if (candidate.contacts?.length) return "Employer likely matched";
+  const state = contactState(candidate);
+  return state === "Research required" ? "Needs review" : "No email found";
+}
+
+export function operatorPersonLabel(candidate: OperatorCandidate) {
+  const contact = candidate.contacts?.[0];
+  if (!contact) return "No person selected";
+  const name = String(contact.full_name ?? contact.name ?? "Person selected");
+  return `${name} · ${operatorContactState(candidate)}`;
+}
+
+export function operatorRoleLabel(value: unknown) {
+  const classification = String(value ?? "").toUpperCase();
+  if (classification === "DIRECT_BUYER_CANDIDATE") return "Likely buyer";
+  if (classification === "ROUTE_TO_BUYER") return "Can introduce us";
+  if (classification === "FREELANCE_EVENT_CONNECTOR") return "Freelance event contact";
+  if (classification === "ACTIVITY_UNVERIFIED") return "Activity needs checking";
+  return "Potential person";
+}
