@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { AiSalesBrief } from "../src/ai-sales-team/model";
 import { canMutateCommercialData, type RevenueAccessState } from "../src/lib/auth/access";
-import { AiOutreachPanel } from "./ai-outreach-panel";
+import { AiOutreachComposerLaunchPanel } from "./ai-outreach-composer-launch-panel";
 
 export function AiSalesTeamView({ access }: { access: RevenueAccessState }) {
   const [companyName, setCompanyName] = useState("");
@@ -69,7 +69,7 @@ export function AiSalesTeamView({ access }: { access: RevenueAccessState }) {
         {prospect?.outreachBlockOrReviewReason ? <p className="card-meta">OUTREACH · {prospect.outreachBlockOrReviewReason}</p> : null}
         {(brief.unknowns ?? []).length ? <p className="card-meta">UNKNOWNS / NEEDS VALIDATION · {brief.unknowns.join(" · ")}</p> : <p className="card-meta">No additional unknowns returned.</p>}
         <p className="card-meta">NEXT ACTION · {prospect?.recommendedNextAction ?? brief.next_best_action?.action ?? "Human review required."}</p>
-        <AiOutreachPanel accountId={brief.account_id} briefId={brief.id} access={access} />
+        <AiOutreachComposerLaunchPanel accountId={brief.account_id} briefId={brief.id} access={access} />
       </article>;
     })}
   </section>;

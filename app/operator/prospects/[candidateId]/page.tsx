@@ -1,6 +1,6 @@
-import { ProspectDetailView } from "../../operator-views";
+import { redirect } from "next/navigation";
 
 export default async function ProspectDetailPage({ params }: { params: Promise<{ candidateId: string }> }) {
   const { candidateId } = await params;
-  return <ProspectDetailView candidateId={candidateId} />;
+  redirect(`/operator/prospects?prospect=${encodeURIComponent(candidateId)}`);
 }

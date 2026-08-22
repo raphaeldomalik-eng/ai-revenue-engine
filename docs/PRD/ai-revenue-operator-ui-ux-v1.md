@@ -538,3 +538,15 @@ The implementation of this PRD is acceptable only when an operator can, without 
 ## 28. Non-goals and safety constraints
 
 This documentation does not implement frontend code, backend changes, schema, migrations, RLS, auth, replay, contact-provenance backend changes, database cleanup, prospecting changes or Quality Calibration V4. It does not alter outreach approval/send behaviour. It must not expose privileged credentials, system prompts, hidden chain-of-thought, API keys or raw authentication material. Durable evaluation feedback and stronger contact-ownership evidence are not represented as available UI capabilities unless backend persistence exists.
+
+## 29. Outreach Composer V1 review surface
+
+The draft-only Outreach Composer is a separate supervised workspace. Operators can inspect approved evidence, the original and revised message versions, deterministic signature insertion, per-message approval/rejection, edits, ratings, reason tags, notes and revision requests. Composer review records are isolated from legacy outreach sending and are never a send, schedule or sequence-enrolment permission.
+
+## 30. Prospect review queue correction
+
+The supervised-pilot Prospect surface is a compact review queue, not a research report. Its default view is Needs review, with Ready for people, Drafts to review, Approved drafts, Deferred, Archive and All as the working views. Search is prominent; secondary prospect, territory, review, contact, email and priority filters remain compact and expandable.
+
+The primary columns are Prospect, Type, Why relevant, Person and email, Status and Next action. Internal lanes, source codes, provider classifications, raw confidence values and repeated unresolved text are presentation details, not primary operator language. A prospect opens in a right-hand drawer with Overview, People, Email and History tabs. The drawer preserves list state, supports a deep-link query, closes with Escape or Back, and uses the progress indicator Prospect → Person → Email → Approval as review progress only.
+
+One plain-language workflow status is shown at a time. Rejected, blocked and duplicate records are kept out of the default queue. The Email tab remains draft-only and uses the isolated Composer review flow; approved state is exactly `Draft approved — not sent`. No Prospect UI action sends, schedules, publishes or enrols email.

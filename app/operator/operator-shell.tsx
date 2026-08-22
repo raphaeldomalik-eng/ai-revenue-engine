@@ -10,6 +10,7 @@ const items = [
   ["/operator/prospects", "Prospects"],
   ["/operator/review", "Needs Review"],
   ["/operator/historical", "Historical / Calibration"],
+  ["/operator/outreach", "Outreach Drafts"],
 ] as const;
 
 export function OperatorShell({ children }: { children: React.ReactNode }) {
@@ -27,7 +28,7 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
         const active = href === "/operator" ? pathname === href : pathname.startsWith(href);
         return <Link className={active ? "operator-nav-link active" : "operator-nav-link"} href={href} key={href} aria-current={active ? "page" : undefined}><span className="nav-marker" />{label}</Link>;
       })}</nav>
-      <div className="operator-sidebar-note"><span className="operator-label">READ-ONLY V1</span><p>Evidence, runs and decisions. No CRM maintenance or outreach actions.</p></div>
+      <div className="operator-sidebar-note"><span className="operator-label">SUPERVISED PILOT</span><p>Review evidence and decide the next action.</p></div>
     </aside>
     <main className="operator-main">{children}</main>
   </div>;
