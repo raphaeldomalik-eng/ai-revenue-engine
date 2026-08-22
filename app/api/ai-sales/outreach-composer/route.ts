@@ -90,6 +90,12 @@ export async function POST(request: Request) {
         if (!body.editedSubject || !body.editedBody) throw new Error("OUTREACH_COMPOSER_REVIEW_INVALID: edited content required");
         return NextResponse.json(await editComposerDraft(client, { versionId: body.versionId, actorId: user.id, subject: body.editedSubject, body: body.editedBody, stage: stage(body.sequenceStage) as "EMAIL_1" | "EMAIL_2" | "EMAIL_3" }));
       }
+      if (body.reviewAction === "APPROVE") {
+        const { data: latestReview, error: latestReviewError } = await client.from("ai_outreach_draft_reviews").select("action").eq("draft_version_id", body.versionId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (latestReviewError) throw new Error("OUTREACH_COMPOSER_REVIEW_STATE_UNAVAILABLE");
+        if (latestReview?.action === "REJECT") throw new Error("OUTREACH_COMPOSER_REJECTED_VERSION");
+        if (latestReview?.action === "APPROVE") throw new Error("OUTREACH_COMPOSER_VERSION_ALREADY_APPROVED");
+      }
       return NextResponse.json(await recordComposerReview(client, { versionId: body.versionId, action: body.reviewAction as any, actorId: user.id, editedSubject: body.editedSubject, editedBody: body.editedBody, relevanceRating: body.relevanceRating, toneRating: body.toneRating, reasonTags: body.reasonTags, note: body.note, stage: stage(body.sequenceStage) as any }));
     }
     throw new Error("OUTREACH_COMPOSER_ACTION_INVALID");
