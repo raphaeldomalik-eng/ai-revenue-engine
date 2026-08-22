@@ -48,14 +48,21 @@ export async function GET(request: Request) {
     ? await client.from("ai_prospect_review_decisions").select("id, candidate_id, decision, reason_code, other_explanation, note, reviewer_id, previous_status, created_at").in("candidate_id", candidateIds).order("created_at", { ascending: false })
     : { data: [], error: null };
   if (decisionsError) return NextResponse.json({ message: "Prospect review history is unavailable until its migration is applied." }, { status: 503 });
+  const { data: approvals, error: approvalsError } = candidateIds.length
+    ? await client.from("ai_prospect_approval_reviews").select("id, candidate_id, decision, reviewer_id, note, created_at").in("candidate_id", candidateIds).order("created_at", { ascending: false })
+    : { data: [], error: null };
+  if (approvalsError) return NextResponse.json({ message: "Prospect approval history is unavailable until its migration is applied." }, { status: 503 });
   const decisionsByCandidate = new Map<string, any[]>();
   for (const decision of decisions ?? []) decisionsByCandidate.set(decision.candidate_id, [...(decisionsByCandidate.get(decision.candidate_id) ?? []), decision]);
+  const approvalsByCandidate = new Map<string, any[]>();
+  for (const approval of approvals ?? []) approvalsByCandidate.set(approval.candidate_id, [...(approvalsByCandidate.get(approval.candidate_id) ?? []), approval]);
   const hydrated = safeCandidates.map((candidate) => ({
     ...candidate,
     account: candidate.account_id ? accountById.get(candidate.account_id) ?? null : null,
     contacts: candidate.account_id ? contactsByAccount.get(candidate.account_id) ?? [] : [],
     evidence: candidate.account_id ? evidenceByAccount.get(candidate.account_id) ?? [] : [],
     review_decisions: decisionsByCandidate.get(candidate.id) ?? [],
+    prospect_approval: approvalsByCandidate.get(candidate.id)?.[0] ?? null,
   }));
   const latestRunId = safeRuns[0]?.id ?? null;
   const selectedRun = runId ? safeRuns.find((run) => run.id === runId) ?? null : null;
@@ -71,6 +78,11 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return NextResponse.json({ code: "PROSPECT_REVIEW_INPUT_INVALID", message: "A valid review decision is required." }, { status: 400 }); }
   if (!body.candidateId) return NextResponse.json({ code: "PROSPECT_ID_REQUIRED", message: "A prospect is required." }, { status: 400 });
   try {
+    if (body.action === "APPROVE_PROSPECT") {
+      const { data, error } = await client.rpc("record_ai_prospect_approval", { p_candidate_id: body.candidateId, p_note: typeof body.note === "string" ? body.note.trim() || null : null, p_reviewer_id: access.userId });
+      if (error) throw new Error(error.message || "PROSPECT_APPROVAL_SAVE_FAILED");
+      return NextResponse.json({ approval: data, message: "Prospect approved for drafting." });
+    }
     if (body.action === "REOPEN" && body.sourceQueue !== "ARCHIVE") throw new Error("PROSPECT_REOPEN_ARCHIVE_ONLY");
     const decision = body.action === "REOPEN" ? { reasonCode: null, otherExplanation: null, note: typeof body.note === "string" ? body.note.trim() || null : null } : validateBlockDecision({ reasonCode: body.reasonCode, otherExplanation: body.otherExplanation, note: body.note });
     if (body.action !== "BLOCK" && body.action !== "REOPEN") throw new Error("PROSPECT_REVIEW_ACTION_INVALID");
@@ -88,7 +100,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Prospect review decision could not be saved.";
     const code = message.includes("PROSPECT_") ? message.match(/PROSPECT_[A-Z_]+/)?.[0] ?? "PROSPECT_REVIEW_SAVE_FAILED" : "PROSPECT_REVIEW_SAVE_FAILED";
-    const status = code.includes("REQUIRED") || code.includes("INVALID") || code.includes("TOO_LONG") || code.includes("EXPLANATION") || code.includes("ARCHIVE_ONLY") ? 400 : code.includes("NOT_FOUND") ? 404 : code.includes("ALREADY") || code.includes("NOT_BLOCKED") ? 409 : 502;
+    const status = code.includes("REQUIRED") || code.includes("INVALID") || code.includes("TOO_LONG") || code.includes("EXPLANATION") || code.includes("ARCHIVE_ONLY") ? 400 : code.includes("NOT_FOUND") ? 404 : code.includes("ALREADY") || code.includes("NOT_BLOCKED") || code.includes("BLOCKED") ? 409 : 502;
     return NextResponse.json({ code, message: code === "PROSPECT_REVIEW_SAVE_FAILED" ? "The review decision could not be saved." : message }, { status });
   }
 }

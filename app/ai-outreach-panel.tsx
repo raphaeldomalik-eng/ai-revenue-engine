@@ -53,7 +53,7 @@ export function AiOutreachPanel({ accountId, briefId, access }: { accountId: str
         {item.status !== "SENT" && canEdit ? <div className="header-actions">
           <button type="button" onClick={() => void act("edit", { messageId: item.id, subject: (document.getElementById(`subject-${item.id}`) as HTMLInputElement).value, messageBody: (document.getElementById(`body-${item.id}`) as HTMLTextAreaElement).value })}>Save edit</button>
           {item.status === "NEEDS_APPROVAL" ? <button type="button" data-message-id={item.id} onClick={() => void act("approve", { messageId: item.id })}>Approve</button> : null}
-          {item.status === "APPROVED" ? <button type="button" data-message-id={item.id} onClick={() => void act("send", { messageId: item.id })}>Send approved email</button> : null}
+          {item.status === "APPROVED" ? <button type="button" disabled title="Sending is disabled during the supervised pilot">Sending disabled during pilot</button> : null}
         </div> : null}
       </article>)}
       {canEdit && sequence.status === "ACTIVE" ? <div className="header-actions"><button type="button" onClick={() => void act("cancel", { sequenceId: sequence.id, reason: "MANUAL_STOP" })}>Cancel sequence</button><button type="button" onClick={() => void act("suppress", { reason: "MANUAL_STOP" })}>Suppress further sends</button></div> : null}

@@ -5,7 +5,7 @@ const fixture = {
   access: "OPERATOR", runs: [{ id: "run-1", territory_code: "ZA", focus: "ALL", status: "COMPLETED", created_at: "2026-08-22T10:00:00Z" }], latestRunId: "run-1",
   candidates: [
     { id: "dsac-1", discovery_run_id: "run-1", canonical_key: "dsac", candidate_name: "Mzansi Roar Festival", organiser_name: "Department of Sport, Arts and Culture (DSAC)", website: null, territory_code: "ZA", origin: "EVENT_FIRST", status: "REVIEW_REQUIRED", relationship: "PROSPECT", facts: [{ claim: "DSAC is seeking a festival promoter for the Mzansi Roar Festival.", sourceUrl: "https://example.org/dsac", sourceTitle: "DSAC notice" }], unknowns: ["Event organiser not confirmed"], prospect_intelligence: { recommendedNextAction: "Confirm organiser", organisationResolution: { status: "UNRESOLVED" }, commercialPriority: "PHASE_ONE_PRIORITY" }, contacts: [], evidence: [], account: null },
-    { id: "ready-1", discovery_run_id: "run-1", canonical_key: "ready", candidate_name: "Event Production Show", organiser_name: "Mash Media Group", website: "https://mashmedia.net", territory_code: "GB", origin: "EVENT_FIRST", status: "QUALIFIED", relationship: "PROSPECT", facts: [{ claim: "Runs a current event production programme.", sourceUrl: "https://mashmedia.net/events", sourceTitle: "Official events" }], unknowns: [], prospect_intelligence: { organisationResolution: { status: "RESOLVED", confidence: "HIGH" }, commercialPriority: "PHASE_ONE_PRIORITY" }, contacts: [{ id: "person-1", full_name: "Charlotte Fewlass", role_title: "Marketing Event Director", email: "charlotte@example.org", verification_status: "VERIFIED", metadata: { buyerRoutingClassification: "DIRECT_BUYER_CANDIDATE" } }], account: { id: "account-1", name: "Mash Media Group", website: "https://mashmedia.net", metadata: { outreachComposer: { drafts: [{ sequenceStage: "EMAIL_1", subject: "Event operations", bodyPlainText: words, approved: true, personalisationEvidenceIds: ["brief-evidence-1"] }] } } }, evidence: [] },
+    { id: "ready-1", discovery_run_id: "run-1", canonical_key: "ready", candidate_name: "Event Production Show", organiser_name: "Mash Media Group", website: "https://mashmedia.net", territory_code: "GB", origin: "EVENT_FIRST", status: "QUALIFIED", relationship: "PROSPECT", facts: [{ claim: "Runs a current event production programme.", sourceUrl: "https://mashmedia.net/events", sourceTitle: "Official events" }], unknowns: [], prospect_intelligence: { organisationResolution: { status: "RESOLVED", confidence: "HIGH" }, commercialPriority: "PHASE_ONE_PRIORITY" }, prospect_approval: { decision: "APPROVED", created_at: "2026-08-22T11:00:00Z" }, contacts: [{ id: "person-1", full_name: "Charlotte Fewlass", role_title: "Marketing Event Director", email: "charlotte@example.org", verification_status: "VERIFIED", metadata: { buyerRoutingClassification: "DIRECT_BUYER_CANDIDATE" } }], account: { id: "account-1", name: "Mash Media Group", website: "https://mashmedia.net", metadata: { outreachComposer: { drafts: [{ sequenceStage: "EMAIL_1", subject: "Event operations", bodyPlainText: words, approved: true, personalisationEvidenceIds: ["brief-evidence-1"] }] } } }, evidence: [] },
     { id: "duplicate-1", discovery_run_id: "run-1", canonical_key: "duplicate", candidate_name: "Historical duplicate", territory_code: "ZA", origin: "ORGANISATION_FIRST", status: "DUPLICATE", relationship: "PROSPECT", facts: [], unknowns: [], prospect_intelligence: {}, contacts: [], account: null },
   ],
 };
@@ -71,8 +71,8 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900
     await expect(page.getByText("No suitable person has been identified yet.", { exact: true })).toBeVisible();
     await page.screenshot({ path: `test-results/prospect-dsac-people-${viewport.width}x${viewport.height}.png`, fullPage: false });
     await page.getByRole("tab", { name: "Email", exact: true }).click();
-    await expect(page.getByText("Confirm identity and select a person with validated ownership before drafting.", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Generate draft", exact: true })).toBeDisabled();
+    await expect(page.getByText("“Approve prospect for drafting” is required before an email draft can be requested.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve prospect first", exact: true })).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page).toHaveURL(/\/operator\/prospects$/);
@@ -83,7 +83,7 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900
     await expect(page.getByText("Charlotte Fewlass", { exact: true })).toBeVisible();
     await page.getByRole("tab", { name: "Email", exact: true }).click();
     await expect(page.getByText("Email 1 — Introduction", { exact: true })).toBeVisible();
-    await expect(page.getByText("Draft approved — not sent", { exact: true })).toBeVisible();
+    await expect(page.getByText("Email approved", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /Send|Schedule|Publish|Enrol|Activate sequence/i })).toHaveCount(0);
     await page.screenshot({ path: `test-results/prospect-review-${viewport.width}x${viewport.height}.png`, fullPage: false });
   });

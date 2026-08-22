@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { contactResearchProductionEnabled, discoveryProductionEnabled, PRODUCTION_ACTIVATION_FLAGS, productionActivation } from "../src/lib/server-production-activation.ts";
+import { contactResearchProductionEnabled, discoveryProductionEnabled, outreachSendingProductionEnabled, PRODUCTION_ACTIVATION_FLAGS, productionActivation } from "../src/lib/server-production-activation.ts";
 
 const emptyEnvironment = {};
 
 test("production activation is default-off and requires both scope flags", () => {
-  assert.deepEqual(productionActivation(emptyEnvironment), { discoveryPilot: false, discoveryPersistence: false, contactResearchPilot: false, contactPersistence: false, outreachComposer: false, outreachComposerPersistence: false });
+  assert.deepEqual(productionActivation(emptyEnvironment), { discoveryPilot: false, discoveryPersistence: false, contactResearchPilot: false, contactPersistence: false, outreachComposer: false, outreachComposerPersistence: false, outreachSending: false });
   assert.equal(discoveryProductionEnabled(emptyEnvironment), false);
   assert.equal(contactResearchProductionEnabled(emptyEnvironment), false);
+  assert.equal(outreachSendingProductionEnabled(emptyEnvironment), false);
   assert.equal(discoveryProductionEnabled({ [PRODUCTION_ACTIVATION_FLAGS.discoveryPilot]: "true" }), false);
   assert.equal(contactResearchProductionEnabled({ [PRODUCTION_ACTIVATION_FLAGS.contactPersistence]: "true" }), false);
   assert.equal(discoveryProductionEnabled({ [PRODUCTION_ACTIVATION_FLAGS.discoveryPilot]: " TRUE ", [PRODUCTION_ACTIVATION_FLAGS.discoveryPersistence]: "true" }), true);
