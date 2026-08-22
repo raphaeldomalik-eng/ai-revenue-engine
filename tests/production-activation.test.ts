@@ -6,7 +6,7 @@ import { contactResearchProductionEnabled, discoveryProductionEnabled, PRODUCTIO
 const emptyEnvironment = {};
 
 test("production activation is default-off and requires both scope flags", () => {
-  assert.deepEqual(productionActivation(emptyEnvironment), { discoveryPilot: false, discoveryPersistence: false, contactResearchPilot: false, contactPersistence: false });
+  assert.deepEqual(productionActivation(emptyEnvironment), { discoveryPilot: false, discoveryPersistence: false, contactResearchPilot: false, contactPersistence: false, outreachComposer: false, outreachComposerPersistence: false });
   assert.equal(discoveryProductionEnabled(emptyEnvironment), false);
   assert.equal(contactResearchProductionEnabled(emptyEnvironment), false);
   assert.equal(discoveryProductionEnabled({ [PRODUCTION_ACTIVATION_FLAGS.discoveryPilot]: "true" }), false);

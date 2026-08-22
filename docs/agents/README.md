@@ -11,6 +11,8 @@
 3. [`regression-corpus-v1.md`](./regression-corpus-v1.md) — known production failure cases that must become deterministic regression fixtures.
 4. [`implementation-contract-v1.md`](./implementation-contract-v1.md) — rules for mapping this pack into the current repository without inventing product behavior.
 5. [`quality-retest-2026-08-21.md`](./quality-retest-2026-08-21.md) — evidence-backed record of the four required boundary/stress cases.
+6. [`outreach-composer-prompt-pack-v1.md`](./outreach-composer-prompt-pack-v1.md) — owner-approved draft-only outreach prompt source of truth.
+7. [`outreach-composer-v1.md`](./outreach-composer-v1.md) — isolated Composer runtime, activation and review contract.
 
 ## Operating model
 

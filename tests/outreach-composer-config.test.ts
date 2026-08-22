@@ -14,6 +14,8 @@ test("approved sender configuration uses Raphael's exact LinkedIn URL", () => {
   assert.ok(OUTREACH_COMPOSER_APPROVED_URL_ALLOWLIST.includes(APPROVED_OUTREACH_COMPOSER_LINKEDIN_URL));
   assert.equal(isApprovedOutreachComposerUrl(APPROVED_OUTREACH_COMPOSER_LINKEDIN_URL), true);
   assert.equal(isApprovedOutreachComposerUrl(`${APPROVED_OUTREACH_COMPOSER_LINKEDIN_URL}?utm_source=test`), false);
+  assert.equal(OUTREACH_COMPOSER_SENDER.trialUrl, "https://app.eventsuite.pro/onboarding");
+  assert.equal(OUTREACH_COMPOSER_SENDER.demoUrl, "https://app.eventsuite.pro/book-demo");
 });
 
 test("approved LinkedIn URL is rendered only by the deterministic signature", () => {

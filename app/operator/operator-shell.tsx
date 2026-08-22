@@ -10,6 +10,7 @@ const items = [
   ["/operator/prospects", "Prospects"],
   ["/operator/review", "Needs Review"],
   ["/operator/historical", "Historical / Calibration"],
+  ["/operator/outreach", "Outreach Drafts"],
 ] as const;
 
 export function OperatorShell({ children }: { children: React.ReactNode }) {

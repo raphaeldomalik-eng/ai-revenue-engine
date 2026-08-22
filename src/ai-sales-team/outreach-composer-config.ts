@@ -5,13 +5,20 @@ export const OUTREACH_COMPOSER_SENDER = Object.freeze({
   fromEmail: "raphael@eventsuite.pro",
   replyTo: "raphael@eventsuite.pro",
   companyName: "EventSuite",
+  trialUrl: "https://app.eventsuite.pro/onboarding",
   demoUrl: "https://app.eventsuite.pro/book-demo",
   linkedinUrl: APPROVED_OUTREACH_COMPOSER_LINKEDIN_URL,
 });
 
 export const OUTREACH_COMPOSER_APPROVED_URL_ALLOWLIST = Object.freeze([
+  OUTREACH_COMPOSER_SENDER.trialUrl,
   OUTREACH_COMPOSER_SENDER.demoUrl,
   OUTREACH_COMPOSER_SENDER.linkedinUrl,
+]);
+
+export const OUTREACH_COMPOSER_BODY_URL_ALLOWLIST = Object.freeze([
+  OUTREACH_COMPOSER_SENDER.trialUrl,
+  OUTREACH_COMPOSER_SENDER.demoUrl,
 ]);
 
 export function isApprovedOutreachComposerUrl(value: string) {

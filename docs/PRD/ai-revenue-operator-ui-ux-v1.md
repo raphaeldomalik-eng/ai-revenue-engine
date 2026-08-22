@@ -538,3 +538,7 @@ The implementation of this PRD is acceptable only when an operator can, without 
 ## 28. Non-goals and safety constraints
 
 This documentation does not implement frontend code, backend changes, schema, migrations, RLS, auth, replay, contact-provenance backend changes, database cleanup, prospecting changes or Quality Calibration V4. It does not alter outreach approval/send behaviour. It must not expose privileged credentials, system prompts, hidden chain-of-thought, API keys or raw authentication material. Durable evaluation feedback and stronger contact-ownership evidence are not represented as available UI capabilities unless backend persistence exists.
+
+## 29. Outreach Composer V1 review surface
+
+The draft-only Outreach Composer is a separate supervised workspace. Operators can inspect approved evidence, the original and revised message versions, deterministic signature insertion, per-message approval/rejection, edits, ratings, reason tags, notes and revision requests. Composer review records are isolated from legacy outreach sending and are never a send, schedule or sequence-enrolment permission.
