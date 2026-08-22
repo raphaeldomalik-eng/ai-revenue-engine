@@ -57,5 +57,5 @@ test("prospects UI provides reason-gated block, archive reopen and plain-languag
   assert.match(source, /Reopen for review/);
   assert.match(source, /History \/ archive/);
   assert.match(source, /Prospect blocked and moved to History \/ archive/);
-  assert.match(source, /onReviewSaved={refresh}/);
+  assert.match(source, /onReviewSaved=\{async \(message\)/);
 });
