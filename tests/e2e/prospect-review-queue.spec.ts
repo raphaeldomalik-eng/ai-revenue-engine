@@ -88,3 +88,50 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900
     await page.screenshot({ path: `test-results/prospect-review-${viewport.width}x${viewport.height}.png`, fullPage: false });
   });
 }
+
+test("mocked two-stage prospect and email approval flow", async ({ page }) => {
+  const currentFixture = structuredClone(fixture) as any;
+  const candidate = currentFixture.candidates.find((item: any) => item.id === "ready-1");
+  candidate.account_id = "account-1";
+  candidate.prospect_approval = null;
+  candidate.account.metadata.outreachComposer = { drafts: [] };
+  await page.route("**/api/operator?view=meta", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) }));
+  await page.route("**/api/operator?view=prospects", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) }));
+  await page.route("**/api/operator", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    const body = route.request().postDataJSON() as { action: string; candidateId: string };
+    if (body.action === "APPROVE_PROSPECT") {
+      candidate.prospect_approval = { decision: "APPROVED", created_at: "2026-08-22T12:00:00Z" };
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Prospect approved for drafting." }) });
+    }
+    return route.continue();
+  });
+  await page.route("**/api/ai-sales/outreach-composer", async (route) => {
+    if (route.request().method() !== "POST") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ drafts: [], versions: [], reviews: [] }) });
+    const body = route.request().postDataJSON() as { action: string };
+    if (body.action === "prepare") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ draftId: "draft-1", versionIds: [], generated: [1, 2, 3].map((stage) => ({ model: { status: "DRAFT_READY", sequenceStage: `EMAIL_${stage}`, subject: `Subject ${stage}`, bodyPlainText: words, personalisationEvidenceIds: ["brief-evidence-1"], claimEvidence: [{ claim: "Current event activity" }] }, renderedBody: `Subject ${stage}\n\n${words}\n\nRaphael Domalik\nEventSuite` })) }) });
+    }
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ id: "review-1" }) });
+  });
+  await page.goto("/operator/prospects");
+  await page.getByRole("tab", { name: /Ready for people/ }).click();
+  await page.getByText("Mash Media Group", { exact: true }).click();
+  await expect(page.getByRole("button", { name: "Approve prospect for drafting", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Approve prospect for drafting", exact: true }).click();
+  await expect(page.getByText("Prospect approved for drafting.", { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Email", exact: true }).click();
+  await page.getByRole("button", { name: "Prepare email draft", exact: true }).click();
+  await expect(page.getByText("Email draft ready for your review", { exact: true })).toHaveCount(3);
+  await expect(page.getByText("Recipient:", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("Current", { exact: false }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Approve email", exact: true })).toHaveCount(3);
+  await page.getByRole("button", { name: "Approve email", exact: true }).first().click();
+  await expect(page.getByText("Email approved", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("Email draft ready for your review", { exact: true })).toHaveCount(2);
+  const secondEmail = page.locator(".email-stage").nth(1);
+  await secondEmail.getByRole("button", { name: "Edit", exact: true }).click();
+  await secondEmail.getByRole("button", { name: "Save edit for approval", exact: true }).click();
+  await expect(secondEmail.getByText("Email draft ready for your review", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Send|Schedule|Publish|Enrol|Activate sequence/i })).toHaveCount(0);
+});
