@@ -38,6 +38,7 @@ export type OperatorCandidate = {
   account?: { id: string; name: string; website?: string | null; metadata?: unknown } | null;
   contacts?: Array<Record<string, unknown>>;
   evidence?: Array<Record<string, unknown>>;
+  review_decisions?: Array<{ id: string; decision: "BLOCKED" | "REOPENED"; reason_code?: string | null; other_explanation?: string | null; note?: string | null; created_at?: string | null }>;
 };
 
 export type OperatorPayload = {

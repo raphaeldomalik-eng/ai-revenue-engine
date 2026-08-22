@@ -13,8 +13,26 @@ const fixture = {
 for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900 }]) {
   test(`mocked prospect review flow at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
+    const currentFixture = structuredClone(fixture);
     await page.route("**/api/operator?view=meta", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) }));
-    await page.route("**/api/operator?view=prospects", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(fixture) }));
+    await page.route("**/api/operator?view=prospects", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) }));
+    await page.route("**/api/operator", async (route) => {
+      if (route.request().method() !== "POST") {
+        if (route.request().url().includes("view=meta")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) });
+        if (route.request().url().includes("view=prospects")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) });
+        return route.continue();
+      }
+      const body = route.request().postDataJSON() as { action: string; candidateId: string; reasonCode?: string; otherExplanation?: string; note?: string };
+      const candidate = currentFixture.candidates.find((item) => item.id === body.candidateId) as any;
+      if (body.action === "BLOCK") {
+        candidate.status = "BLOCKED";
+        candidate.review_decisions = [{ id: "decision-1", candidate_id: candidate.id, decision: "BLOCKED", reason_code: body.reasonCode, other_explanation: body.otherExplanation ?? null, note: body.note ?? null, created_at: "2026-08-22T12:00:00Z" }];
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Prospect blocked and moved to History / archive." }) });
+      }
+      candidate.status = "REVIEW_REQUIRED";
+      candidate.review_decisions = [{ id: "decision-2", candidate_id: candidate.id, decision: "REOPENED", reason_code: null, other_explanation: null, note: null, created_at: "2026-08-22T12:05:00Z" }, ...(candidate.review_decisions ?? [])];
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "Prospect reopened for review." }) });
+    });
     await page.route("**/api/ai-sales/outreach-composer", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ code: "PILOT_NOT_ENABLED", message: "Draft-only pilot is disabled in this mock." }) }));
     await page.goto("/operator/prospects");
     await expect(page.getByRole("heading", { name: "Prospects", exact: true })).toBeVisible();
@@ -27,7 +45,28 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900
     await page.getByText("Department of Sport, Arts and Culture (DSAC)", { exact: true }).click();
     await expect(page.getByRole("dialog", { name: /Department of Sport/ })).toBeVisible();
     await expect(page.getByText("Confirm the event organiser before looking for a buyer.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Block prospect", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Save block decision", exact: true })).toBeDisabled();
+    await page.getByLabel("Why should this prospect leave active review?").selectOption("OTHER");
+    await expect(page.getByRole("button", { name: "Save block decision", exact: true })).toBeDisabled();
+    await page.getByLabel("Short explanation").fill("No credible commercial fit");
+    await page.getByLabel(/Reviewer note/).fill("Keep this feedback for future evaluation only.");
+    await expect(page.getByRole("button", { name: "Save block decision", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Save block decision", exact: true }).click();
+    await expect(page.getByText("Prospect blocked and moved to History / archive.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Close prospect drawer" }).click();
+    await page.getByRole("tab", { name: /History \/ archive/ }).click();
+    await page.getByText("Department of Sport, Arts and Culture (DSAC)", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "Reopen for review", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Reopen for review", exact: true }).click();
+    await expect(page.getByText("This will return the prospect to Needs review.", { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: "Reopen for review", exact: true }).click();
+    await expect(page.getByText("Prospect reopened for review.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Close prospect drawer" }).click();
+    await page.getByRole("tab", { name: /Needs review/ }).click();
+    await expect(page.getByText("Department of Sport, Arts and Culture (DSAC)", { exact: true })).toBeVisible();
     await page.screenshot({ path: `test-results/prospect-dsac-overview-${viewport.width}x${viewport.height}.png`, fullPage: false });
+    await page.getByText("Department of Sport, Arts and Culture (DSAC)", { exact: true }).click();
     await page.getByRole("tab", { name: "People", exact: true }).click();
     await expect(page.getByText("No suitable person has been identified yet.", { exact: true })).toBeVisible();
     await page.screenshot({ path: `test-results/prospect-dsac-people-${viewport.width}x${viewport.height}.png`, fullPage: false });

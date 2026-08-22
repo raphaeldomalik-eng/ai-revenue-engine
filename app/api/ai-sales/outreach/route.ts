@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import { generateOutreachSequence } from "../../../../src/ai-sales-team/outreach";
-import { assertOutreachAccountEligible, sendApprovedOutreachMessage } from "../../../../src/outreach/service";
+import { assertNoBlockedProspect, assertOutreachAccountEligible, sendApprovedOutreachMessage } from "../../../../src/outreach/service";
 import { classifyAccountRelationship, knownRecipient } from "../../../../src/ai-sales-team/outreach-model";
 
 async function actor() {
@@ -36,6 +36,7 @@ export async function POST(request: Request) {
   try {
     if (body.action === "prepare") {
       if (!body.accountId || !body.briefId) return NextResponse.json({ message: "Account and AI Sales Brief are required." }, { status: 400 });
+      await assertNoBlockedProspect(client, body.accountId);
       const { data: accountState, error: accountStateError } = await client.from("accounts").select("name, website, metadata").eq("id", body.accountId).single();
       if (accountStateError) throw accountStateError;
       assertOutreachAccountEligible(accountState);
@@ -73,13 +74,19 @@ export async function POST(request: Request) {
       if (!data) throw new Error("OUTREACH_MESSAGE_IMMUTABLE");
       return NextResponse.json(data);
     }
-    if (body.action === "send" && body.messageId) return NextResponse.json(await sendApprovedOutreachMessage(client, body.messageId, user.id));
+    if (body.action === "send" && body.messageId) {
+      const { data: message, error: messageError } = await client.from("outreach_messages").select("account_id").eq("id", body.messageId).maybeSingle();
+      if (messageError || !message) throw new Error("OUTREACH_MESSAGE_NOT_FOUND");
+      await assertNoBlockedProspect(client, message.account_id);
+      return NextResponse.json(await sendApprovedOutreachMessage(client, body.messageId, user.id));
+    }
     if (body.action === "cancel" && body.sequenceId) {
       await client.from("outreach_sequences").update({ status: "CANCELLED", stop_reason: body.reason || "MANUAL_STOP", updated_at: new Date().toISOString() }).eq("id", body.sequenceId).eq("status", "ACTIVE");
       await client.from("outreach_messages").update({ status: "CANCELLED", updated_at: new Date().toISOString() }).eq("sequence_id", body.sequenceId).in("status", ["NEEDS_APPROVAL", "APPROVED", "SCHEDULED", "FAILED"]);
       return NextResponse.json({ cancelled: true });
     }
     if (body.action === "suppress" && body.accountId) {
+      await assertNoBlockedProspect(client, body.accountId);
       const { error } = await client.from("outreach_suppressions").insert({ account_id: body.accountId, reason: body.reason || "MANUAL_STOP", created_by: user.id });
       if (error) throw error;
       await client.from("outreach_sequences").update({ status: "STOPPED", stop_reason: body.reason || "MANUAL_STOP", updated_at: new Date().toISOString() }).eq("account_id", body.accountId).eq("status", "ACTIVE");
@@ -89,7 +96,7 @@ export async function POST(request: Request) {
     throw new Error("OUTREACH_ACTION_INVALID");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Outreach action failed.";
-    const status = message.includes("NOT_CONFIGURED") ? 503 : message.includes("REQUIRED") || message.includes("INVALID") ? 400 : message.includes("FIRST_PARTY_SELF") || message.includes("OUTREACH_RECIPIENT_UNKNOWN") || message.includes("OUTREACH_APPROVAL_REQUIRED") || message.includes("OUTREACH_STOPPED") || message.includes("OUTREACH_REVIEW_REQUIRED") || message.includes("Competitor") ? 409 : 502;
+    const status = message.includes("NOT_CONFIGURED") ? 503 : message.includes("REQUIRED") || message.includes("INVALID") ? 400 : message.includes("PROSPECT_BLOCKED") || message.includes("FIRST_PARTY_SELF") || message.includes("OUTREACH_RECIPIENT_UNKNOWN") || message.includes("OUTREACH_APPROVAL_REQUIRED") || message.includes("OUTREACH_STOPPED") || message.includes("OUTREACH_REVIEW_REQUIRED") || message.includes("Competitor") ? 409 : 502;
     return NextResponse.json({ code: message.split(":")[0], message }, { status });
   }
 }

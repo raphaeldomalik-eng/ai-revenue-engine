@@ -22,6 +22,7 @@ export async function POST(request: Request) {
   if (!body.candidateId) return NextResponse.json({ message: "A discovery candidate is required." }, { status: 400 });
   const { data: candidate, error } = await state.client.from("ai_prospect_candidates").select("id, status, relationship, account_id, candidate_name, organiser_name, website, facts, prospect_intelligence").eq("id", body.candidateId).maybeSingle();
   if (error || !candidate) return NextResponse.json({ message: "Discovery candidate not found." }, { status: 404 });
+  if (candidate.status === "BLOCKED") return NextResponse.json({ code: "PROSPECT_BLOCKED", message: "This prospect is blocked and cannot receive contact research." }, { status: 409 });
   const { data: account, error: accountError } = candidate.account_id
     ? await state.client.from("accounts").select("name, website").eq("id", candidate.account_id).maybeSingle()
     : { data: null, error: null };
