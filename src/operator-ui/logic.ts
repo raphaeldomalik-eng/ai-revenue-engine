@@ -38,6 +38,7 @@ export type OperatorCandidate = {
   account?: { id: string; name: string; website?: string | null; metadata?: unknown } | null;
   contacts?: Array<Record<string, unknown>>;
   evidence?: Array<Record<string, unknown>>;
+  review_decisions?: Array<{ id: string; decision: "BLOCKED" | "REOPENED"; reason_code?: string | null; other_explanation?: string | null; note?: string | null; created_at?: string | null }>;
 };
 
 export type OperatorPayload = {
@@ -263,4 +264,36 @@ export function operatorRoleLabel(value: unknown) {
   if (classification === "FREELANCE_EVENT_CONNECTOR") return "Freelance event contact";
   if (classification === "ACTIVITY_UNVERIFIED") return "Activity needs checking";
   return "Potential person";
+}
+
+export function operatorActivityLabel(value: unknown) {
+  const activity = String(value ?? "").toUpperCase();
+  const labels: Record<string, string> = {
+    ACTIVE_UPCOMING: "Upcoming activity",
+    ACTIVE_RECURRING: "Recurring activity",
+    RECENT: "Recent activity",
+    HISTORICAL: "Historical activity",
+    NOT_ESTABLISHED: "Activity not established",
+    SAFE_UNRESOLVED: "Identity needs review",
+    DOMAIN_QUERY_SCOPED: "Employer matched by an approved search; human review required",
+    PHASE_ONE_PRIORITY: "Phase One priority",
+    REVIEW_REQUIRED: "Needs review",
+  };
+  return labels[activity] ?? (activity ? activity.replaceAll("_", " ").toLowerCase() : "Activity not recorded");
+}
+
+export function paginationModel(total: number, page: number, pageSize: number) {
+  const safeTotal = Math.max(0, Number.isFinite(total) ? Math.floor(total) : 0);
+  const safePageSize = Math.max(1, Number.isFinite(pageSize) ? Math.floor(pageSize) : 1);
+  const pageCount = Math.max(1, Math.ceil(safeTotal / safePageSize));
+  const currentPage = Math.min(pageCount, Math.max(1, Number.isFinite(page) ? Math.floor(page) : 1));
+  const start = safeTotal === 0 ? 0 : (currentPage - 1) * safePageSize + 1;
+  const end = safeTotal === 0 ? 0 : Math.min(currentPage * safePageSize, safeTotal);
+  return {
+    page: currentPage,
+    pageCount,
+    start,
+    end,
+    rangeLabel: safeTotal === 0 ? "0 prospects" : `Showing ${start}–${end} of ${safeTotal}`,
+  };
 }

@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../src/lib/supabase-server";
+import { validateBlockDecision } from "../../../src/operator-ui/prospect-review";
 
 async function readAccess(client: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const { data: auth } = await client.auth.getUser();
   if (!auth.user) return { error: NextResponse.json({ message: "Sign in is required." }, { status: 401 }) };
   const { data: member, error } = await client.from("revenue_members").select("member_role, active").eq("user_id", auth.user.id).maybeSingle();
   if (error || !member?.active) return { error: NextResponse.json({ message: "Active membership is required." }, { status: 403 }) };
-  return { access: String(member.member_role).toUpperCase() as "VIEWER" | "OPERATOR" | "ADMIN" };
+  return { access: String(member.member_role).toUpperCase() as "VIEWER" | "OPERATOR" | "ADMIN", userId: auth.user.id, memberRole: String(member.member_role).toLowerCase() };
 }
 
 export async function GET(request: Request) {
@@ -42,13 +43,52 @@ export async function GET(request: Request) {
   for (const contact of contactsResult.data ?? []) contactsByAccount.set(contact.account_id, [...(contactsByAccount.get(contact.account_id) ?? []), contact]);
   const evidenceByAccount = new Map<string, any[]>();
   for (const evidence of evidenceResult.data ?? []) evidenceByAccount.set(evidence.account_id, [...(evidenceByAccount.get(evidence.account_id) ?? []), evidence]);
+  const candidateIds = safeCandidates.map((candidate) => candidate.id);
+  const { data: decisions, error: decisionsError } = candidateIds.length
+    ? await client.from("ai_prospect_review_decisions").select("id, candidate_id, decision, reason_code, other_explanation, note, reviewer_id, previous_status, created_at").in("candidate_id", candidateIds).order("created_at", { ascending: false })
+    : { data: [], error: null };
+  if (decisionsError) return NextResponse.json({ message: "Prospect review history is unavailable until its migration is applied." }, { status: 503 });
+  const decisionsByCandidate = new Map<string, any[]>();
+  for (const decision of decisions ?? []) decisionsByCandidate.set(decision.candidate_id, [...(decisionsByCandidate.get(decision.candidate_id) ?? []), decision]);
   const hydrated = safeCandidates.map((candidate) => ({
     ...candidate,
     account: candidate.account_id ? accountById.get(candidate.account_id) ?? null : null,
     contacts: candidate.account_id ? contactsByAccount.get(candidate.account_id) ?? [] : [],
     evidence: candidate.account_id ? evidenceByAccount.get(candidate.account_id) ?? [] : [],
+    review_decisions: decisionsByCandidate.get(candidate.id) ?? [],
   }));
   const latestRunId = safeRuns[0]?.id ?? null;
   const selectedRun = runId ? safeRuns.find((run) => run.id === runId) ?? null : null;
   return NextResponse.json({ access: access.access, view, runs: safeRuns, candidates: hydrated, selectedRun, latestRunId });
+}
+
+export async function POST(request: Request) {
+  const client = await createServerSupabaseClient();
+  const access = await readAccess(client);
+  if (access.error) return access.error;
+  if (!access.userId || !["operator", "admin"].includes(access.memberRole)) return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });
+  let body: { action?: string; candidateId?: string; sourceQueue?: string; reasonCode?: unknown; otherExplanation?: unknown; note?: unknown };
+  try { body = await request.json(); } catch { return NextResponse.json({ code: "PROSPECT_REVIEW_INPUT_INVALID", message: "A valid review decision is required." }, { status: 400 }); }
+  if (!body.candidateId) return NextResponse.json({ code: "PROSPECT_ID_REQUIRED", message: "A prospect is required." }, { status: 400 });
+  try {
+    if (body.action === "REOPEN" && body.sourceQueue !== "ARCHIVE") throw new Error("PROSPECT_REOPEN_ARCHIVE_ONLY");
+    const decision = body.action === "REOPEN" ? { reasonCode: null, otherExplanation: null, note: typeof body.note === "string" ? body.note.trim() || null : null } : validateBlockDecision({ reasonCode: body.reasonCode, otherExplanation: body.otherExplanation, note: body.note });
+    if (body.action !== "BLOCK" && body.action !== "REOPEN") throw new Error("PROSPECT_REVIEW_ACTION_INVALID");
+    if (decision.note && decision.note.length > 1000) throw new Error("PROSPECT_BLOCK_NOTE_TOO_LONG");
+    const { data, error } = await client.rpc("record_ai_prospect_review_decision", {
+      p_candidate_id: body.candidateId,
+      p_decision: body.action === "BLOCK" ? "BLOCKED" : "REOPENED",
+      p_reason_code: decision.reasonCode,
+      p_other_explanation: decision.otherExplanation,
+      p_note: decision.note,
+      p_reviewer_id: access.userId,
+    });
+    if (error) throw new Error(error.message || "PROSPECT_REVIEW_SAVE_FAILED");
+    return NextResponse.json({ decision: data, message: body.action === "BLOCK" ? "Prospect blocked and moved to History / archive." : "Prospect reopened for review." });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Prospect review decision could not be saved.";
+    const code = message.includes("PROSPECT_") ? message.match(/PROSPECT_[A-Z_]+/)?.[0] ?? "PROSPECT_REVIEW_SAVE_FAILED" : "PROSPECT_REVIEW_SAVE_FAILED";
+    const status = code.includes("REQUIRED") || code.includes("INVALID") || code.includes("TOO_LONG") || code.includes("EXPLANATION") || code.includes("ARCHIVE_ONLY") ? 400 : code.includes("NOT_FOUND") ? 404 : code.includes("ALREADY") || code.includes("NOT_BLOCKED") ? 409 : 502;
+    return NextResponse.json({ code, message: code === "PROSPECT_REVIEW_SAVE_FAILED" ? "The review decision could not be saved." : message }, { status });
+  }
 }

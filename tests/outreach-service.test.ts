@@ -18,6 +18,7 @@ test("failed provider submission never becomes SENT", async () => {
         limit() { return chain; },
         update(values: Record<string, unknown>) { updateValues = values; updates.push(values); return chain; },
         async maybeSingle() {
+          if (table === "ai_prospect_candidates") return { data: null, error: null };
           if (table === "accounts") return { data: { metadata: { outreachEligibility: "ELIGIBLE", prospectIntelligence: { outreachEligibility: "ELIGIBLE", salesMotion: "DIRECT", nextBestCommercialAction: { type: "PRODUCT_EXPLORATION", productDestinationUrl: "https://www.eventsuite.pro/", resourceOffer: { canonicalUrl: "https://www.eventsuite.pro/resources" } } } } }, error: null };
           if (table === "outreach_suppressions") return { data: null, error: null };
           if (table === "outreach_messages" && updateValues?.status === "SENDING") return { data: { id: message.id, subject: message.subject, body: message.body }, error: null };

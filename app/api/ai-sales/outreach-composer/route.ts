@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import { outreachComposerProductionEnabled } from "../../../../src/lib/server-production-activation";
-import { assertOutreachAccountEligible } from "../../../../src/outreach/service";
+import { assertNoBlockedProspect, assertOutreachAccountEligible } from "../../../../src/outreach/service";
 import { composerInputFromPersisted } from "../../../../src/ai-sales-team/outreach-composer-input";
 import { createComposerDraft, createComposerSequence, recordComposerReview, reviseComposerDraft } from "../../../../src/ai-sales-team/outreach-composer-persistence";
 
@@ -17,6 +17,7 @@ function stage(value: unknown) { return value === "EMAIL_1" || value === "EMAIL_
 function stopState(value: unknown) { return value === "REPLIED" || value === "REJECTED" || value === "OPTOUT" || value === "UNSUBSCRIBED" || value === "BOUNCED" || value === "INVALID" || value === "BLOCKED" || value === "COMPLETE" ? value : "CLEAR"; }
 
 async function accountInputs(client: any, accountId: string, briefId: string | null, contactId: string | null, details: { stage: any; originalStage?: any; priorMessageBody?: string | null; humanInstruction?: string | null; stopState?: any }) {
+  await assertNoBlockedProspect(client, accountId);
   const [{ data: account, error: accountError }, { data: brief, error: briefError }, { data: contact, error: contactError }] = await Promise.all([
     client.from("accounts").select("id, name, website, metadata").eq("id", accountId).single(),
     briefId ? client.from("ai_sales_briefs").select("id, account_id, facts, inferences, qualification").eq("id", briefId).eq("account_id", accountId).single() : Promise.resolve({ data: null, error: null }),
@@ -73,6 +74,6 @@ export async function POST(request: Request) {
     throw new Error("OUTREACH_COMPOSER_ACTION_INVALID");
   } catch (error) {
     const message = error instanceof Error ? error.message : "Outreach Composer action failed.";
-    return NextResponse.json({ code: message.split(":")[0], message }, { status: message.includes("NOT_FOUND") ? 404 : message.includes("REQUIRED") || message.includes("INVALID") ? 400 : 502 });
+    return NextResponse.json({ code: message.split(":")[0], message }, { status: message.includes("NOT_FOUND") ? 404 : message.includes("REQUIRED") || message.includes("INVALID") ? 400 : message.includes("PROSPECT_BLOCKED") ? 409 : 502 });
   }
 }

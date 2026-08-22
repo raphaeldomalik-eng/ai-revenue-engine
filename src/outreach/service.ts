@@ -5,6 +5,12 @@ import { isEventSuiteFirstPartyTarget } from "../ai-sales-team/first-party.ts";
 
 export type OutreachAccountState = { name?: string | null; website?: string | null; metadata?: Record<string, any> | null };
 
+export async function assertNoBlockedProspect(client: SupabaseClient, accountId: string) {
+  const { data, error } = await client.from("ai_prospect_candidates").select("id").eq("account_id", accountId).eq("status", "BLOCKED").maybeSingle();
+  if (error) throw new Error("PROSPECT_BLOCK_CHECK_FAILED");
+  if (data) throw new Error("PROSPECT_BLOCKED");
+}
+
 export function assertOutreachAccountEligible(account: OutreachAccountState | null | undefined) {
   if (isEventSuiteFirstPartyTarget({ accountName: account?.name, accountWebsite: account?.website })) throw new Error("FIRST_PARTY_SELF");
   const eligibility = account?.metadata?.outreachEligibility ?? "REVIEW_REQUIRED";
@@ -21,6 +27,7 @@ export async function sendApprovedOutreachMessage(client: SupabaseClient, messag
   const { data: account, error: accountError } = await client.from("accounts").select("name, website, metadata").eq("id", message.account_id).single();
   if (accountError) throw accountError;
   const { eligibility, prospectIntelligence } = assertOutreachAccountEligible(account);
+  await assertNoBlockedProspect(client, message.account_id);
   const { data: sequence, error: sequenceError } = await client.from("outreach_sequences").select("status").eq("id", message.sequence_id).single();
   if (sequenceError) throw sequenceError;
   const { data: suppression } = await client.from("outreach_suppressions").select("id").eq("account_id", message.account_id).eq("active", true).or(`contact_id.is.null,contact_id.eq.${message.contact_id ?? "00000000-0000-0000-0000-000000000000"}`).limit(1).maybeSingle();
