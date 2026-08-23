@@ -14,12 +14,13 @@ for (const viewport of [{ width: 1366, height: 768 }, { width: 1440, height: 900
   test(`mocked prospect review flow at ${viewport.width}x${viewport.height}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const currentFixture = structuredClone(fixture);
-    await page.route("**/api/operator?view=meta", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) }));
-    await page.route("**/api/operator?view=prospects", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) }));
-    await page.route("**/api/operator", async (route) => {
+    await page.route("**/api/operator?*view=meta*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) }));
+    await page.route("**/api/operator?*view=prospects*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) }));
+    await page.route("**/api/operator*", async (route) => {
       if (route.request().method() !== "POST") {
         if (route.request().url().includes("view=meta")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) });
         if (route.request().url().includes("view=prospects")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) });
+        if (route.request().url().includes("view=prospect-detail")) { const id = new URL(route.request().url()).searchParams.get("candidateId"); return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...currentFixture, candidates: currentFixture.candidates.filter((item) => item.id === id) }) }); }
         return route.continue();
       }
       const body = route.request().postDataJSON() as { action: string; candidateId: string; reasonCode?: string; otherExplanation?: string; note?: string };
@@ -95,10 +96,10 @@ test("mocked two-stage prospect and email approval flow", async ({ page }) => {
   candidate.account_id = "account-1";
   candidate.prospect_approval = null;
   candidate.account.metadata.outreachComposer = { drafts: [] };
-  await page.route("**/api/operator?view=meta", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) }));
-  await page.route("**/api/operator?view=prospects", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) }));
-  await page.route("**/api/operator", async (route) => {
-    if (route.request().method() !== "POST") return route.continue();
+  await page.route("**/api/operator?*view=meta*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) }));
+  await page.route("**/api/operator?*view=prospects*", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) }));
+  await page.route("**/api/operator*", async (route) => {
+    if (route.request().method() !== "POST") { if (route.request().url().includes("view=meta")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) }); if (route.request().url().includes("view=prospect-detail")) { const id = new URL(route.request().url()).searchParams.get("candidateId"); return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...currentFixture, candidates: currentFixture.candidates.filter((item: any) => item.id === id) }) }); } if (route.request().url().includes("view=prospects")) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(currentFixture) }); return route.continue(); }
     const body = route.request().postDataJSON() as { action: string; candidateId: string };
     if (body.action === "APPROVE_PROSPECT") {
       candidate.prospect_approval = { decision: "APPROVED", created_at: "2026-08-22T12:00:00Z" };
