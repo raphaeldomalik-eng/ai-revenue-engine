@@ -61,13 +61,13 @@ async function prospectList(client: Awaited<ReturnType<typeof createServerSupaba
   const accountIds = [...new Set(safeRows.map((candidate: any) => candidate.account_id).filter(Boolean))];
   const [accountsResult, contactsResult] = accountIds.length ? await Promise.all([
     client.from("accounts").select("id,name,website").in("id", accountIds),
-    client.from("contacts").select("id,account_id,name,full_name,title,role_title,verification_status,metadata").in("account_id", accountIds),
+    client.from("contacts").select("id,account_id,name,full_name,title,role_title,verification_status").in("account_id", accountIds),
   ]) : [{ data: [], error: null }, { data: [], error: null }];
   if (accountsResult.error || contactsResult.error) return NextResponse.json({ message: "Prospect list context could not be loaded." }, { status: 503 });
   const accountById = new Map((accountsResult.data ?? []).map((account: any) => [account.id, account]));
   const contactsByAccount = new Map<string, any[]>();
   for (const contact of contactsResult.data ?? []) {
-    const listContact = { ...contact, email: contact.verification_status && ["VERIFIED", "VALID"].includes(String(contact.verification_status).toUpperCase()) ? "__verified_business_email__" : undefined };
+    const listContact = { id: contact.id, account_id: contact.account_id, name: contact.name, full_name: contact.full_name, title: contact.title, role_title: contact.role_title, verification_status: contact.verification_status, email: contact.verification_status && ["VERIFIED", "VALID"].includes(String(contact.verification_status).toUpperCase()) ? "__verified_business_email__" : undefined };
     contactsByAccount.set(contact.account_id, [...(contactsByAccount.get(contact.account_id) ?? []), listContact]);
   }
   const candidates = safeRows.map((candidate: any) => listCandidate(candidate, candidate.account_id ? accountById.get(candidate.account_id) : null, candidate.account_id ? contactsByAccount.get(candidate.account_id) ?? [] : []));

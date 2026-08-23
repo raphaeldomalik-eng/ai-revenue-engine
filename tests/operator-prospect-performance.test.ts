@@ -10,7 +10,8 @@ test("prospect queue uses a bounded list projection and server pagination", asyn
   assert.match(listSection, /limit\(PROSPECT_LIST_LIMIT\)/);
   assert.match(listSection, /slice\(\(safePage - 1\) \* pageSize, safePage \* pageSize\)/);
   assert.match(listSection, /total: ordered\.length/);
-  assert.match(listSection, /select\("id,account_id,name,full_name,title,role_title,verification_status,metadata"\)/);
+  assert.match(listSection, /select\("id,account_id,name,full_name,title,role_title,verification_status"\)/);
+  assert.doesNotMatch(listSection, /const listContact = \{\.\.\.contact/);
   assert.match(listSection, /Promise\.all/);
 });
 
