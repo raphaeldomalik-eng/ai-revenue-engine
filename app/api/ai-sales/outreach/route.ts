@@ -3,6 +3,7 @@ import { createServerSupabaseClient } from "../../../../src/lib/supabase-server"
 import { generateOutreachSequence } from "../../../../src/ai-sales-team/outreach";
 import { assertNoBlockedProspect, assertOutreachAccountEligible, sendApprovedOutreachMessage } from "../../../../src/outreach/service";
 import { classifyAccountRelationship, knownRecipient } from "../../../../src/ai-sales-team/outreach-model";
+import { outreachSendingProductionEnabled } from "../../../../src/lib/server-production-activation";
 
 async function actor() {
   const client = await createServerSupabaseClient();
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!outreachSendingProductionEnabled()) return NextResponse.json({ code: "PILOT_NOT_ENABLED", message: "Legacy outreach sending is disabled during the supervised Composer pilot." }, { status: 503 });
   const { client, user, member } = await actor();
   if (!user) return NextResponse.json({ message: "Sign in is required." }, { status: 401 });
   if (forbidden(member)) return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });

@@ -39,6 +39,7 @@ export type OperatorCandidate = {
   contacts?: Array<Record<string, unknown>>;
   evidence?: Array<Record<string, unknown>>;
   review_decisions?: Array<{ id: string; decision: "BLOCKED" | "REOPENED"; reason_code?: string | null; other_explanation?: string | null; note?: string | null; created_at?: string | null }>;
+  prospect_approval?: { decision: "APPROVED" | "REVOKED"; reviewer_id?: string | null; created_at?: string | null } | null;
 };
 
 export type OperatorPayload = {

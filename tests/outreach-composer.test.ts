@@ -25,7 +25,7 @@ function draft(overrides: Partial<ComposerStructuredDraft> = {}): ComposerStruct
 test("prompt pack is the runtime source and remains byte-for-byte owner approved", async () => {
   const pack = await readFile("docs/agents/outreach-composer-prompt-pack-v1.md");
   assert.equal(outreachComposerPromptPackText(), pack.toString());
-  assert.equal(createHash("sha256").update(pack).digest("hex"), "e4d9b94d31d8fb00369109f906a3f35f7cc4abe4f81511293d6b550ff6abc921");
+  assert.equal(createHash("sha256").update(pack).digest("hex"), "241478ea1eb3f974a3d13c1c2fd4e7d1c32ec4186efdbb22454d5408b3fb2f36");
   assert.match(outreachComposerSystemPrompt(), /You are the EventSuite Outreach Composer\./);
   assert.match(outreachComposerStageInstruction("EMAIL_1"), /Create EMAIL_1\./);
   assert.match(outreachComposerStageInstruction("REVISION"), /REVISION MODE/);

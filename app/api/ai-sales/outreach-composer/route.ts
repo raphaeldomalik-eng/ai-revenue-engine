@@ -3,7 +3,8 @@ import { createServerSupabaseClient } from "../../../../src/lib/supabase-server"
 import { outreachComposerProductionEnabled } from "../../../../src/lib/server-production-activation";
 import { assertNoBlockedProspect, assertOutreachAccountEligible } from "../../../../src/outreach/service";
 import { composerInputFromPersisted } from "../../../../src/ai-sales-team/outreach-composer-input";
-import { createComposerDraft, createComposerSequence, recordComposerReview, reviseComposerDraft } from "../../../../src/ai-sales-team/outreach-composer-persistence";
+import { createComposerDraft, createComposerSequence, editComposerDraft, recordComposerReview, reviseComposerDraft } from "../../../../src/ai-sales-team/outreach-composer-persistence";
+import { assertProspectApproved } from "../../../../src/ai-sales-team/prospect-email-approval";
 
 function disabled() { return NextResponse.json({ code: "PILOT_NOT_ENABLED", message: "Outreach Composer is disabled until both server-only pilot flags are explicitly enabled." }, { status: 503 }); }
 async function actor() {
@@ -33,8 +34,17 @@ export async function GET(request: Request) {
   const { client, user, member } = await actor();
   if (!user) return NextResponse.json({ message: "Sign in is required." }, { status: 401 });
   if (!member?.active) return NextResponse.json({ message: "Active membership is required." }, { status: 403 });
-  const draftId = new URL(request.url).searchParams.get("draftId");
-  const drafts = draftId ? client.from("ai_outreach_drafts").select("*").eq("id", draftId).maybeSingle() : client.from("ai_outreach_drafts").select("*").order("created_at", { ascending: false }).limit(50);
+  const params = new URL(request.url).searchParams;
+  const draftId = params.get("draftId");
+  const candidateId = params.get("candidateId");
+  const accountId = params.get("accountId");
+  let drafts: any = client.from("ai_outreach_drafts").select("*");
+  if (draftId) drafts = drafts.eq("id", draftId).maybeSingle();
+  else {
+    if (candidateId) drafts = drafts.eq("candidate_id", candidateId);
+    if (accountId) drafts = drafts.eq("account_id", accountId);
+    drafts = drafts.order("created_at", { ascending: false }).limit(50);
+  }
   const { data, error } = await drafts;
   if (error) return NextResponse.json({ message: "Composer persistence is unavailable until its migration is applied." }, { status: 503 });
   const rows = draftId ? (data ? [data] : []) : data ?? [];
@@ -50,14 +60,18 @@ export async function POST(request: Request) {
   const { client, user, member } = await actor();
   if (!user) return NextResponse.json({ message: "Sign in is required." }, { status: 401 });
   if (!member?.active || !["operator", "admin"].includes(member.member_role)) return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });
-  const body = await request.json() as { action?: string; reviewAction?: string; accountId?: string; briefId?: string; contactId?: string; draftId?: string; versionId?: string; sequenceStage?: string; stopState?: string; humanInstruction?: string; revisionNumber?: number; editedSubject?: string; editedBody?: string; relevanceRating?: number; toneRating?: number; reasonTags?: string[]; note?: string };
+  const body = await request.json() as { action?: string; reviewAction?: string; candidateId?: string; accountId?: string; briefId?: string; contactId?: string; draftId?: string; versionId?: string; sequenceStage?: string; stopState?: string; humanInstruction?: string; revisionNumber?: number; editedSubject?: string; editedBody?: string; relevanceRating?: number; toneRating?: number; reasonTags?: string[]; note?: string };
   try {
     if (body.action === "prepare") {
+      if (!body.candidateId) throw new Error("PROSPECT_ID_REQUIRED");
+      await assertProspectApproved(client, body.candidateId);
       if (!body.accountId || !body.briefId) throw new Error("OUTREACH_COMPOSER_ACCOUNT_AND_BRIEF_REQUIRED");
       const input = await accountInputs(client, body.accountId, body.briefId, body.contactId ?? null, { stage: stage(body.sequenceStage), stopState: stopState(body.stopState) });
-      return NextResponse.json(body.sequenceStage && body.sequenceStage !== "EMAIL_1" ? await createComposerDraft(client, input, user.id, body.accountId, body.briefId, body.contactId ?? null) : await createComposerSequence(client, input, user.id, body.accountId, body.briefId, body.contactId ?? null));
+      return NextResponse.json(body.sequenceStage && body.sequenceStage !== "EMAIL_1" ? await createComposerDraft(client, input, user.id, body.accountId, body.briefId, body.contactId ?? null, { candidateId: body.candidateId }) : await createComposerSequence(client, input, user.id, body.accountId, body.briefId, body.contactId ?? null, { candidateId: body.candidateId }));
     }
     if (body.action === "revise") {
+      if (!body.candidateId) throw new Error("PROSPECT_ID_REQUIRED");
+      await assertProspectApproved(client, body.candidateId);
       if (!body.draftId || !body.accountId || !body.versionId) throw new Error("OUTREACH_COMPOSER_REVISION_INPUT_REQUIRED");
       const { data: version, error: versionError } = await client.from("ai_outreach_draft_versions").select("sequence_stage, body_plain_text, revision_number").eq("id", body.versionId).eq("draft_id", body.draftId).single();
       if (versionError || !version) throw new Error("OUTREACH_COMPOSER_VERSION_NOT_FOUND");
@@ -66,9 +80,22 @@ export async function POST(request: Request) {
     }
     if (body.action === "review") {
       if (!body.versionId) throw new Error("OUTREACH_COMPOSER_VERSION_REQUIRED");
-      const { data: reviewVersion, error: reviewVersionError } = await client.from("ai_outreach_draft_versions").select("model_status").eq("id", body.versionId).single();
+      const { data: reviewVersion, error: reviewVersionError } = await client.from("ai_outreach_draft_versions").select("model_status, draft_id, ai_outreach_drafts(candidate_id)").eq("id", body.versionId).single();
       if (reviewVersionError || !reviewVersion) throw new Error("OUTREACH_COMPOSER_VERSION_NOT_FOUND");
       if (reviewVersion.model_status === "DO_NOT_DRAFT") throw new Error("OUTREACH_COMPOSER_REVIEW_BLOCKED");
+      const linkedCandidateId = body.candidateId ?? (reviewVersion as any).ai_outreach_drafts?.candidate_id;
+      if (!linkedCandidateId) throw new Error("PROSPECT_ID_REQUIRED");
+      await assertProspectApproved(client, linkedCandidateId);
+      if (body.reviewAction === "EDIT") {
+        if (!body.editedSubject || !body.editedBody) throw new Error("OUTREACH_COMPOSER_REVIEW_INVALID: edited content required");
+        return NextResponse.json(await editComposerDraft(client, { versionId: body.versionId, actorId: user.id, subject: body.editedSubject, body: body.editedBody, stage: stage(body.sequenceStage) as "EMAIL_1" | "EMAIL_2" | "EMAIL_3" }));
+      }
+      if (body.reviewAction === "APPROVE") {
+        const { data: latestReview, error: latestReviewError } = await client.from("ai_outreach_draft_reviews").select("action").eq("draft_version_id", body.versionId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (latestReviewError) throw new Error("OUTREACH_COMPOSER_REVIEW_STATE_UNAVAILABLE");
+        if (latestReview?.action === "REJECT") throw new Error("OUTREACH_COMPOSER_REJECTED_VERSION");
+        if (latestReview?.action === "APPROVE") throw new Error("OUTREACH_COMPOSER_VERSION_ALREADY_APPROVED");
+      }
       return NextResponse.json(await recordComposerReview(client, { versionId: body.versionId, action: body.reviewAction as any, actorId: user.id, editedSubject: body.editedSubject, editedBody: body.editedBody, relevanceRating: body.relevanceRating, toneRating: body.toneRating, reasonTags: body.reasonTags, note: body.note, stage: stage(body.sequenceStage) as any }));
     }
     throw new Error("OUTREACH_COMPOSER_ACTION_INVALID");

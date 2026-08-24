@@ -47,7 +47,7 @@ test("prospect list uses the compact drawer IA and has no sending control", asyn
   assert.match(source, /Overview.*People.*Email.*History/);
   assert.match(source, /aria-modal=\"true\"/);
   assert.match(source, /Confirm the event organiser before looking for a buyer/);
-  assert.match(source, /Draft approved — not sent/);
+  assert.match(source, /Email approved/);
   assert.doesNotMatch(source, /Send|Schedule|Publish|Enrol|Activate sequence/);
   assert.match(active, /setProspectTypeFilter\(event\.target\.value\); setPage\(1\)/);
   assert.match(active, /setTerritory\(event\.target\.value\); setPage\(1\)/);
@@ -56,9 +56,13 @@ test("prospect list uses the compact drawer IA and has no sending control", asyn
   assert.match(active, /setEmailFilter\(event\.target\.value\); setPage\(1\)/);
   assert.match(active, /setPriority\(event\.target\.value\); setPage\(1\)/);
   assert.match(active, /setQuery\(event\.target\.value\); setPage\(1\)/);
-  assert.match(active, /setQueue\(key\); setPage\(1\)/);
+  assert.match(active, /if \(queue !== key\).*setQueue\(key\); setPage\(1\)/);
   assert.match(source, /onPageSize\(Number\(event\.target\.value\)\); onPage\(1\)/);
-  assert.match(active, /paginationModel\(sorted\.length, page, pageSize\)/);
+  assert.match(source, /data\.total \?\? visible\.length/);
+  assert.match(source, /view=prospect-detail/);
+  assert.match(source, /detailCache/);
+  assert.match(source, /emailBusyKeys/);
+  assert.doesNotMatch(active, /await refresh\(\)/);
   assert.match(active, /ProspectQueueRow[\s\S]*onOpen=\{openDrawer\}/);
   assert.doesNotMatch(active, /<CandidateLink/);
 });
