@@ -43,3 +43,48 @@ test("operator prospect performance stays scoped to list, drawer and email actio
   expect(initialLoadMs).toBeLessThan(5000); expect(filterMs).toBeLessThan(5000); expect(drawerMs).toBeLessThan(5000); expect(emailActionMs).toBeLessThan(5000);
   console.log(JSON.stringify({ performanceMs: { initialQueueLoad: initialLoadMs, filterChange: filterMs, drawerOpen: drawerMs, emailReviewAction: emailActionMs }, providerRequests: 0, mockedComposerRequests: requests.filter((url) => url.includes("/api/ai-sales/")).length }));
 });
+
+test("operator keyset navigation handles next, previous, filter reset, sort reset and drawer deep links", async ({ page }) => {
+  const rows = Array.from({ length: 51 }, (_, index) => candidate(`keyset-${index + 1}`, `Keyset Prospect ${index + 1}`));
+  const listRequests: string[] = [];
+  await page.route("**/api/operator*", async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== "GET") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ message: "ok" }) });
+    if (url.searchParams.get("view") === "meta") return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR" }) });
+    if (url.searchParams.get("view") === "prospect-detail") {
+      const id = url.searchParams.get("candidateId");
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR", candidates: rows.filter((item) => item.id === id), runs: [], latestRunId: "run-1" }) });
+    }
+    listRequests.push(route.request().url());
+    const search = String(url.searchParams.get("search") ?? "").toLowerCase();
+    const filtered = rows.filter((item) => !search || item.candidate_name.toLowerCase().includes(search));
+    const pageNumber = Number(url.searchParams.get("page") ?? "1");
+    const pageSize = Number(url.searchParams.get("pageSize") ?? "25");
+    const start = (pageNumber - 1) * pageSize;
+    const pageRows = filtered.slice(start, start + pageSize);
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ access: "OPERATOR", candidates: pageRows, runs: [], latestRunId: "run-1", total: filtered.length, page: pageNumber, pageSize, pageCount: Math.max(1, Math.ceil(filtered.length / pageSize)), hasNext: start + pageSize < filtered.length, hasPrevious: pageNumber > 1, nextCursor: start + pageSize < filtered.length ? `opaque-next-${pageNumber}` : null, previousCursor: pageNumber > 1 ? `opaque-previous-${pageNumber}` : null, queueCounts: { NEEDS_REVIEW: filtered.length, READY_PEOPLE: 0, DRAFTS: 0, APPROVED: 0, DEFERRED: 0, ARCHIVE: 0, ALL: filtered.length } }) });
+  });
+  await page.goto("/operator/prospects");
+  await expect(page.getByText("Keyset Prospect 1", { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByText("Keyset Prospect 26", { exact: true }).first()).toBeVisible();
+  expect(await page.locator(".pagination").innerText()).toContain("Page 2 of 3");
+  await page.getByRole("button", { name: "Previous", exact: true }).click();
+  await expect(page.getByText("Keyset Prospect 1", { exact: true }).first()).toBeVisible();
+  await page.getByPlaceholder("Search prospects").fill("Keyset Prospect 50");
+  await expect(page.getByText("Keyset Prospect 50", { exact: true }).first()).toBeVisible();
+  await page.getByLabel("Sort").selectOption("name");
+  await expect(page.getByText("Keyset Prospect 50", { exact: true }).first()).toBeVisible();
+  await page.goto("/operator/prospects?prospect=keyset-1");
+  await expect(page.getByRole("dialog", { name: /Keyset Prospect 1/ })).toBeVisible();
+  const nextRequest = listRequests.find((url) => new URL(url).searchParams.get("direction") === "next" && new URL(url).searchParams.get("page") === "2");
+  const previousRequest = listRequests.find((url) => new URL(url).searchParams.get("direction") === "previous" && new URL(url).searchParams.get("page") === "1");
+  const filterRequest = listRequests.find((url) => new URL(url).searchParams.get("search") === "Keyset Prospect 50");
+  const sortRequest = listRequests.find((url) => new URL(url).searchParams.get("sort") === "name");
+  expect(nextRequest && new URL(nextRequest).searchParams.get("cursor")).toBeTruthy();
+  expect(previousRequest && new URL(previousRequest).searchParams.get("cursor")).toBeTruthy();
+  expect(filterRequest && new URL(filterRequest).searchParams.get("page")).toBe("1");
+  expect(filterRequest && new URL(filterRequest).searchParams.get("cursor")).toBeNull();
+  expect(sortRequest && new URL(sortRequest).searchParams.get("page")).toBe("1");
+  expect(sortRequest && new URL(sortRequest).searchParams.get("cursor")).toBeNull();
+});
