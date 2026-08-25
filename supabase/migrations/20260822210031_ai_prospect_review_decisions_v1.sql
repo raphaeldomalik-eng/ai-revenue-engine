@@ -1,0 +1,6 @@
+-- Production compatibility marker only.
+-- Production applied the canonical prospect-review decision migration under
+-- remote version 20260822210031.
+-- The canonical schema SQL remains in 20260822000002.
+-- This marker aligns clean local and remote migration histories and performs
+-- no schema or data operation.
