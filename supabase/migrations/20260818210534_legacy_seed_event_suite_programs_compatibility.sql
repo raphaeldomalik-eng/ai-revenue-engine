@@ -1,0 +1,4 @@
+-- Compatibility marker for remote migration 20260818210534 (seed_event_suite_programs).
+-- Production already applied this remote seed/history event.
+-- No canonical local equivalent exists for this remote-only seed migration.
+-- This marker intentionally contains comments only and no executable SQL.

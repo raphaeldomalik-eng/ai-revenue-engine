@@ -1,0 +1,5 @@
+-- Compatibility marker for remote migration 20260818210522 (foundation).
+-- Production already applied this migration under the remote timestamp.
+-- Proven canonical local equivalent: 20260818000000_foundation.sql.
+-- Production object inventory matches the foundation migration's object family.
+-- This marker intentionally contains comments only and no executable SQL.

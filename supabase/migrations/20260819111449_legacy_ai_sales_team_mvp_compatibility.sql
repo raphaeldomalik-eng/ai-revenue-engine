@@ -1,0 +1,5 @@
+-- Compatibility marker for remote migration 20260819111449 (ai_sales_team_mvp).
+-- Production already applied this migration under the remote timestamp.
+-- Proven canonical local equivalent: 20260819000002_ai_sales_team_mvp.sql.
+-- Production object inventory includes the AI Sales Team MVP object family.
+-- This marker intentionally contains comments only and no executable SQL.
