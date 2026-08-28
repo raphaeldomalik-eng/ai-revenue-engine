@@ -1,48 +1,20 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../src/lib/supabase-server";
 import { validateBlockDecision } from "../../../src/operator-ui/prospect-review";
-import { contextLabel, operatorWorkflowState, type OperatorCandidate } from "../../../src/operator-ui/logic";
-
-const PROSPECT_LIST_FIELDS = "id,discovery_run_id,canonical_key,candidate_name,organiser_name,website,territory_code,origin,status,account_id,relationship,dedupe_of_candidate_id,first_seen_at,last_seen_at,created_at,contact_research,prospect_intelligence";
-const PROSPECT_LIST_LIMIT = 5000;
-
-function listCandidate(candidate: any, account: any, contacts: any[]): OperatorCandidate {
-  return {
-    ...candidate,
-    account: account ? { id: account.id, name: account.name, website: account.website } : null,
-    contacts,
-  };
-}
-
-function isArchive(candidate: OperatorCandidate, latestRunId: string | null) {
-  return ["REJECTED", "BLOCKED", "DUPLICATE"].includes(candidate.status) || Boolean(candidate.dedupe_of_candidate_id) || ["HISTORICAL", "CALIBRATION", "LEGACY"].includes(contextLabel(candidate, latestRunId));
-}
-
-function matchesQueue(candidate: OperatorCandidate, queue: string, latestRunId: string | null) {
-  if (queue === "ALL") return true;
-  if (queue === "ARCHIVE") return isArchive(candidate, latestRunId);
-  if (isArchive(candidate, latestRunId)) return false;
-  const state = operatorWorkflowState(candidate);
-  if (queue === "NEEDS_REVIEW") return ["Needs identity review", "Contact needs review", "Draft awaiting approval"].includes(state);
-  if (queue === "READY_PEOPLE") return state === "Ready for person review";
-  if (queue === "DRAFTS") return state === "Draft awaiting approval";
-  if (queue === "APPROVED") return state === "Draft approved — not sent";
-  if (queue === "DEFERRED") return state === "Deferred";
-  return false;
-}
-
-function listSortValue(candidate: OperatorCandidate, sort: string) {
-  if (sort === "name") return (candidate.organiser_name || candidate.account?.name || candidate.candidate_name).toLowerCase();
-  if (sort === "recent") return new Date(candidate.last_seen_at ?? candidate.created_at ?? 0).getTime();
-  if (sort === "ready") return operatorWorkflowState(candidate);
-  return operatorWorkflowState(candidate);
-}
+import { decodeProspectQueueCursor, encodeProspectQueueCursor, prospectQueueKey } from "../../../src/operator-ui/prospect-queue-cursor";
+const QUEUE_KEYS = new Set(["NEEDS_REVIEW", "READY_PEOPLE", "DRAFTS", "APPROVED", "DEFERRED", "ARCHIVE", "ALL"]);
+const PROSPECT_TYPES = new Set(["ALL", "Event", "Organisation", "Person", "Venue"]);
+const REVIEW_STATES = new Set(["ALL", "Needs identity review", "Ready for person review", "Contact needs review"]);
+const CONTACT_STATES = new Set(["ALL", "PERSON", "NONE"]);
+const EMAIL_STATES = new Set(["ALL", "VERIFIED", "REVIEW"]);
+const PRIORITIES = new Set(["ALL", "Phase One priority", "Standard priority", "Deferred"]);
+const SORTS = new Set(["attention", "recent", "name", "ready"]);
 
 async function prospectList(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, access: any, url: URL) {
   const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get("pageSize") ?? "25", 10) || 25));
   const queue = url.searchParams.get("queue") ?? "NEEDS_REVIEW";
-  const query = (url.searchParams.get("search") ?? "").trim().toLowerCase();
+  const search = (url.searchParams.get("search") ?? "").trim();
   const territory = url.searchParams.get("territory") ?? "ALL";
   const prospectType = url.searchParams.get("prospectType") ?? "ALL";
   const reviewState = url.searchParams.get("reviewState") ?? "ALL";
@@ -50,50 +22,22 @@ async function prospectList(client: Awaited<ReturnType<typeof createServerSupaba
   const emailState = url.searchParams.get("emailState") ?? "ALL";
   const priority = url.searchParams.get("priority") ?? "ALL";
   const sort = url.searchParams.get("sort") ?? "attention";
-
-  const [{ data: runs, error: runsError }, { data: rows, error: rowsError }] = await Promise.all([
-    client.from("ai_prospect_discovery_runs").select("id,territory_code,focus,status,budget,summary,provider,model,error_message,started_at,completed_at,created_at").order("created_at", { ascending: false }).limit(50),
-    client.from("ai_prospect_candidates").select(PROSPECT_LIST_FIELDS).order("last_seen_at", { ascending: false }).limit(PROSPECT_LIST_LIMIT),
+  const direction = url.searchParams.get("direction") === "previous" ? "previous" : "next";
+  if (!QUEUE_KEYS.has(queue) || !PROSPECT_TYPES.has(prospectType) || !REVIEW_STATES.has(reviewState) || !CONTACT_STATES.has(contactState) || !EMAIL_STATES.has(emailState) || !PRIORITIES.has(priority) || !SORTS.has(sort) || search.length > 200) return NextResponse.json({ code: "PROSPECT_FILTER_INVALID", message: "The prospect filter is not valid." }, { status: 400 });
+  const key = prospectQueueKey({ queue, search, territory, prospectType, reviewState, contactState, emailState, priority, sort, pageSize: String(pageSize) });
+  let cursor: Record<string, string> | null;
+  try { cursor = decodeProspectQueueCursor(url.searchParams.get("cursor"), key, page, sort, direction); } catch { return NextResponse.json({ code: "PAGINATION_CURSOR_INVALID", message: "This page cursor is no longer valid. Return to the first page and try again." }, { status: 400 }); }
+  const [{ data: result, error: resultError }, { data: runs, error: runsError }] = await Promise.all([
+    client.rpc("list_ai_prospect_queue", { p_queue: queue, p_search: search, p_territory: territory, p_prospect_type: prospectType, p_review_state: reviewState, p_contact_state: contactState, p_email_state: emailState, p_priority: priority, p_sort: sort, p_page: page, p_page_size: pageSize, p_cursor: cursor, p_direction: direction }),
+    client.from("ai_prospect_discovery_runs").select("id,territory_code,focus,status,budget,summary,provider,model,error_message,started_at,completed_at,created_at").order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1),
   ]);
-  if (runsError || rowsError) return NextResponse.json({ message: "Operator prospect queue is unavailable until discovery persistence is applied." }, { status: 503 });
-
-  const safeRows = rows ?? [];
-  const accountIds = [...new Set(safeRows.map((candidate: any) => candidate.account_id).filter(Boolean))];
-  const [accountsResult, contactsResult] = accountIds.length ? await Promise.all([
-    client.from("accounts").select("id,name,website").in("id", accountIds),
-    client.from("contacts").select("id,account_id,name,full_name,title,role_title,verification_status").in("account_id", accountIds),
-  ]) : [{ data: [], error: null }, { data: [], error: null }];
-  if (accountsResult.error || contactsResult.error) return NextResponse.json({ message: "Prospect list context could not be loaded." }, { status: 503 });
-  const accountById = new Map((accountsResult.data ?? []).map((account: any) => [account.id, account]));
-  const contactsByAccount = new Map<string, any[]>();
-  for (const contact of contactsResult.data ?? []) {
-    const listContact = { id: contact.id, account_id: contact.account_id, name: contact.name, full_name: contact.full_name, title: contact.title, role_title: contact.role_title, verification_status: contact.verification_status, email: contact.verification_status && ["VERIFIED", "VALID"].includes(String(contact.verification_status).toUpperCase()) ? "__verified_business_email__" : undefined };
-    contactsByAccount.set(contact.account_id, [...(contactsByAccount.get(contact.account_id) ?? []), listContact]);
-  }
-  const candidates = safeRows.map((candidate: any) => listCandidate(candidate, candidate.account_id ? accountById.get(candidate.account_id) : null, candidate.account_id ? contactsByAccount.get(candidate.account_id) ?? [] : []));
-  const latestRunId = (runs ?? [])[0]?.id ?? null;
-  const filtered = candidates.filter((candidate) => {
-    const searchable = `${candidate.organiser_name ?? ""} ${candidate.account?.name ?? ""} ${candidate.candidate_name} ${candidate.website ?? ""}`.toLowerCase();
-    const state = operatorWorkflowState(candidate);
-    return matchesQueue(candidate, queue, latestRunId)
-      && (!query || searchable.includes(query))
-      && (territory === "ALL" || candidate.territory_code === territory)
-      && (prospectType === "ALL" || ({ EVENT_FIRST: "Event", ORGANISATION_FIRST: "Organisation", PERSON_FIRST: "Person", VENUE_FIRST: "Venue" } as Record<string, string>)[candidate.origin] === prospectType)
-      && (reviewState === "ALL" || state === reviewState)
-      && (contactState === "ALL" || (contactState === "PERSON" ? Boolean(candidate.contacts?.length) : !candidate.contacts?.length))
-      && (emailState === "ALL" || (emailState === "VERIFIED" ? candidate.contacts?.some((contact) => Boolean(contact.email) && ["VERIFIED", "VALID"].includes(String(contact.verification_status ?? "").toUpperCase())) : !candidate.contacts?.some((contact) => Boolean(contact.email) && ["VERIFIED", "VALID"].includes(String(contact.verification_status ?? "").toUpperCase()))))
-      && (priority === "ALL" || ({ PHASE_ONE_PRIORITY: "Phase One priority", ENTERPRISE_DEFERRED: "Deferred", STANDARD_PRIORITY: "Standard priority" } as Record<string, string>)[String((candidate.prospect_intelligence as any)?.commercialPriority ?? "STANDARD_PRIORITY")] === priority);
-  });
-  const ordered = [...filtered].sort((left, right) => {
-    const a = listSortValue(left, sort); const b = listSortValue(right, sort);
-    const direction = sort === "name" || sort === "ready" ? 1 : -1;
-    return (a < b ? -1 : a > b ? 1 : 0) * direction;
-  });
-  const pageCount = Math.max(1, Math.ceil(ordered.length / pageSize));
-  const safePage = Math.min(pageCount, page);
-  const visible = ordered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const queueCounts = Object.fromEntries(["NEEDS_REVIEW", "READY_PEOPLE", "DRAFTS", "APPROVED", "DEFERRED", "ARCHIVE", "ALL"].map((key) => [key, candidates.filter((candidate) => matchesQueue(candidate, key, latestRunId)).length]));
-  return NextResponse.json({ access: access.access, view: "prospects", runs: runs ?? [], candidates: visible, latestRunId, total: ordered.length, page: safePage, pageSize, pageCount, queueCounts, listLimit: PROSPECT_LIST_LIMIT });
+  if (resultError || runsError || !result) return NextResponse.json({ message: "Operator prospect queue is unavailable until the native pagination migration is applied." }, { status: 503 });
+  const pageData = result as any;
+  const total = Number(pageData.total ?? 0);
+  const pageCount = Math.max(1, Number(pageData.pageCount ?? Math.ceil(total / pageSize)));
+  const nextCursor = pageData.hasNext ? encodeProspectQueueCursor(pageData.lastPosition, key, page, sort) : null;
+  const previousCursor = pageData.hasPrevious ? encodeProspectQueueCursor(pageData.firstPosition, key, page, sort) : null;
+  return NextResponse.json({ access: access.access, view: "prospects", runs: runs ?? [], candidates: Array.isArray(pageData.candidates) ? pageData.candidates : [], latestRunId: runs?.[0]?.id ?? null, total, page: Math.min(pageCount, page), pageSize, pageCount, queueCounts: pageData.queueCounts ?? {}, hasNext: Boolean(nextCursor), hasPrevious: Boolean(previousCursor), nextCursor, previousCursor, returned: Number(pageData.returned ?? 0) });
 }
 
 async function prospectDetail(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, access: any, candidateId: string | null) {

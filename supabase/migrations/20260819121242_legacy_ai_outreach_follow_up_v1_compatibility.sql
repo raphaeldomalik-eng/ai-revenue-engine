@@ -1,0 +1,5 @@
+-- Compatibility marker for remote migration 20260819121242 (ai_outreach_follow_up_v1).
+-- Production already applied this migration under the remote timestamp.
+-- Proven canonical local equivalent: 20260819000003_ai_outreach_follow_up.sql.
+-- Production object inventory includes the outreach follow-up object family.
+-- This marker intentionally contains comments only and no executable SQL.

@@ -1,0 +1,5 @@
+-- Compatibility marker for remote migration 20260818232137 (20260819000001_secure_persistence_foundation).
+-- Production already applied this migration under the remote timestamp.
+-- Proven canonical local equivalent: 20260819000001_secure_persistence_foundation.sql.
+-- Production object inventory matches the secure persistence migration's object family.
+-- This marker intentionally contains comments only and no executable SQL.

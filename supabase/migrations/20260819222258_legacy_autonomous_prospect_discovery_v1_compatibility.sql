@@ -1,0 +1,5 @@
+-- Compatibility marker for remote migration 20260819222258 (autonomous_prospect_discovery_v1).
+-- Production already applied this migration under the remote timestamp.
+-- Proven canonical local equivalent: 20260819000004_autonomous_prospect_discovery_v1.sql.
+-- Production object inventory includes the autonomous discovery object family.
+-- This marker intentionally contains comments only and no executable SQL.
