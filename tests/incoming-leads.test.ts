@@ -45,10 +45,51 @@ test("migration protects intake evidence, keeps access fail-closed and does not 
   assert.match(sql, /INCOMING_SUBMISSION_IMMUTABLE_FIELDS/i);
   assert.match(sql, /activities_incoming_submission_uidx/i);
   assert.match(sql, /alter table public\.contacts alter column account_id drop not null/i);
+  assert.match(sql, /product_code text not null/i);
+  assert.match(sql, /'consentState'/i);
+  assert.match(sql, /v_account_match_count/i);
+  assert.match(sql, /incoming_leads_list_idx/i);
+  assert.match(sql, /revoke all on function public\.ingest_incoming_submission/i);
   assert.match(sql, /active members read incoming submissions/i);
   assert.match(sql, /revoke all on table public\.incoming_submissions, public\.incoming_leads/i);
   assert.match(sql, /create or replace function public\.update_incoming_lead/i);
   assert.doesNotMatch(sql, /send|provider|outbox/i);
+});
+
+test("corrective migration enforces non-production fixture exclusion and anonymous RPC denial", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260828000002_incoming_leads_v1_corrections.sql", import.meta.url), "utf8");
+  assert.match(sql, /incoming_submission_environment_guard/i);
+  assert.match(sql, /new\.environment <> 'PRODUCTION'/i);
+  assert.match(sql, /activities_incoming_lead_idx/i);
+  assert.match(sql, /revoke execute on function public\.ingest_incoming_submission.*from anon/i);
+  assert.match(sql, /revoke execute on function public\.update_incoming_lead.*from anon/i);
+});
+
+test("test-state corrective migration propagates ledger exclusion to the lead projection", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260828000003_incoming_leads_v1_test_projection.sql", import.meta.url), "utf8");
+  assert.match(sql, /sync_incoming_lead_test_state/i);
+  assert.match(sql, /new\.is_test/i);
+  assert.match(sql, /incoming_submission_test_projection_trigger/i);
+  assert.match(sql, /set is_test = true/i);
+});
+
+test("activity compatibility migration uses the live opportunity column", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260828000004_incoming_leads_v1_activity_compatibility.sql", import.meta.url), "utf8");
+  assert.match(sql, /insert into public\.activities\([^)]*opportunity_id/i);
+  assert.doesNotMatch(sql, /activities\([^)]*product_opportunity_id/i);
+  assert.match(sql, /product_code/i);
+});
+
+test("activity idempotency migration provides a conflict constraint", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260828000005_incoming_leads_v1_activity_idempotency.sql", import.meta.url), "utf8");
+  assert.match(sql, /activities_incoming_submission_unique/i);
+  assert.match(sql, /add constraint .*unique \(incoming_submission_id\)/i);
+  assert.match(sql, /drop index if exists public\.activities_incoming_submission_uidx/i);
+});
+
+test("duplicate replay resolves the existing projection from the immutable ledger", async () => {
+  const sql = await readFile(new URL("../supabase/migrations/20260828000006_incoming_leads_v1_duplicate_projection.sql", import.meta.url), "utf8");
+  assert.match(sql, /select incoming_lead_id into v_lead_id from public\.incoming_submissions/i);
 });
 
 test("incoming navigation and API stay separate from outbound prospecting", async () => {

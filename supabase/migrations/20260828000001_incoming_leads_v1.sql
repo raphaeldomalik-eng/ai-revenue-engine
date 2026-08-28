@@ -50,6 +50,7 @@ create table if not exists public.incoming_leads (
   id uuid primary key default gen_random_uuid(),
   canonical_key text not null unique,
   product_id uuid not null references public.products(id),
+  product_code text not null,
   account_id uuid references public.accounts(id) on delete set null,
   contact_id uuid references public.contacts(id) on delete set null,
   product_opportunity_id uuid references public.product_opportunities(id) on delete set null,
@@ -112,7 +113,10 @@ create table if not exists public.incoming_lead_notes (
 create index if not exists incoming_submissions_received_idx on public.incoming_submissions(received_at desc);
 create index if not exists incoming_submissions_email_idx on public.incoming_submissions(normalized_contact_email);
 create index if not exists incoming_leads_attention_idx on public.incoming_leads(is_test, priority_rank desc, follow_up_at, last_activity_at desc);
+create index if not exists incoming_leads_list_idx on public.incoming_leads(priority_rank desc, last_activity_at desc, id desc);
 create index if not exists incoming_leads_source_idx on public.incoming_leads(originating_source_category, latest_source_category);
+create index if not exists incoming_leads_stage_idx on public.incoming_leads(stage, last_activity_at desc, id desc);
+create index if not exists incoming_leads_owner_idx on public.incoming_leads(owner_id, last_activity_at desc, id desc);
 create index if not exists incoming_leads_contact_idx on public.incoming_leads(contact_id, product_id);
 create unique index if not exists incoming_active_opportunity_uidx on public.product_opportunities(account_id, product_id) where metadata->>'incomingLead'='true' and stage not in ('converted','disqualified','lost');
 create index if not exists incoming_lead_changes_lead_idx on public.incoming_lead_changes(incoming_lead_id, created_at desc);
@@ -135,6 +139,7 @@ create or replace function public.incoming_communication_policy(p_category text,
 returns jsonb language sql immutable set search_path = pg_catalog as $$
   select jsonb_build_object(
     'sourceCategory', p_category,
+    'consentState', upper(coalesce(p_consent,'UNKNOWN')),
     'permittedTreatment', case when p_category='DEMO_REQUEST' then 'Transactional acknowledgement and human sales follow-up permitted.' when p_category='TALK_TO_SALES' then 'Direct response to the enquiry permitted.' when p_category='TRIAL_STARTED' then 'Service and activation communication permitted; commercial assistance is separate.' when p_category='PRODUCT_ENQUIRY' then 'Human qualification permitted.' when p_category='NEWSLETTER_SIGNUP' and upper(coalesce(p_consent,'UNKNOWN')) in ('GRANTED','OPTED_IN','VALID') then 'Marketing communication permitted with recorded consent.' when p_category='NEWSLETTER_SIGNUP' then 'No marketing communication until valid consent evidence exists.' when upper(coalesce(p_consent,'UNKNOWN')) in ('GRANTED','OPTED_IN','VALID') then 'Requested resource delivery; marketing nurture is permitted with recorded consent.' else 'Requested resource delivery only; marketing nurture requires valid consent.' end,
     'marketingConsentRequired', p_category in ('RESOURCE_DOWNLOAD','TEMPLATE_DOWNLOAD','NEWSLETTER_SIGNUP'),
     'responseUrgency', case when p_category in ('DEMO_REQUEST','TALK_TO_SALES') then 'IMMEDIATE' when p_category in ('TRIAL_STARTED','PRODUCT_ENQUIRY') then 'SAME_DAY' when p_category='INTERNAL_TEST' then 'NONE' when p_category='NEWSLETTER_SIGNUP' then 'NURTURE' else 'WITHIN_2_DAYS' end,
@@ -149,7 +154,7 @@ create or replace function public.ingest_incoming_submission(p_payload jsonb)
 returns table(submission_id uuid, lead_id uuid, duplicate boolean)
 language plpgsql security definer set search_path = public, private, pg_catalog as $$
 declare
-  v_submission_id uuid; v_lead_id uuid; v_product_id uuid; v_opportunity_id uuid; v_account_id uuid; v_contact_id uuid; v_contact_account_id uuid;
+  v_submission_id uuid; v_lead_id uuid; v_product_id uuid; v_opportunity_id uuid; v_account_id uuid; v_contact_id uuid; v_contact_account_id uuid; v_account_match_count integer;
   v_source_system text := nullif(trim(p_payload->>'sourceSystem'), ''); v_source_record_id text := nullif(trim(p_payload->>'sourceRecordId'), '');
   v_product_code text := nullif(trim(p_payload->>'productCode'), ''); v_category text := upper(nullif(trim(p_payload->>'sourceCategory'), ''));
   v_email text := nullif(lower(trim(p_payload->>'submittedEmail')), ''); v_org text := nullif(trim(p_payload->>'organisationName'), '');
@@ -175,9 +180,13 @@ begin
   if v_product_id is null then update public.incoming_submissions set processing_state='FAILED',processing_error='PRODUCT_NOT_CONFIGURED' where id=v_submission_id; raise exception 'INCOMING_PRODUCT_NOT_CONFIGURED'; end if;
   if v_category = 'INTERNAL_TEST' or v_environment = 'TEST' then update public.incoming_submissions set processing_state='PROCESSED' where id=v_submission_id; return query select v_submission_id,null::uuid,false; return; end if;
 
-  select id into v_account_id from public.accounts where v_org is not null and lower(trim(name))=lower(v_org) limit 1;
   v_org_confidence := upper(coalesce(p_payload->'originalPayload'->>'organisationConfidence',''));
-  if v_account_id is null and v_org is not null and v_org_confidence='HIGH' then
+  select count(*)::integer into v_account_match_count from public.accounts where v_org is not null and lower(trim(name))=lower(v_org);
+  if v_org is not null and (v_org_confidence='AMBIGUOUS' or v_account_match_count > 1) then
+    v_identity_state := 'AMBIGUOUS_ACCOUNT';
+  elsif v_org is not null and v_account_match_count = 1 then
+    select id into v_account_id from public.accounts where lower(trim(name))=lower(v_org) order by id limit 1;
+  elsif v_org is not null and v_org_confidence='HIGH' then
     insert into public.accounts(name,source,metadata) values (v_org,'incoming_lead',jsonb_build_object('createdFromIncomingLead',true)) returning id into v_account_id;
   end if;
   if v_email is not null then
@@ -186,7 +195,7 @@ begin
       insert into public.contacts(account_id,full_name,email,normalized_email,phone,source,metadata) values (v_account_id,p_payload->>'contactName',p_payload->>'submittedEmail',v_email,p_payload->>'phone','incoming_lead',jsonb_build_object('identityKey','exact_normalized_email')) returning id into v_contact_id;
     elsif v_contact_account_id is null and v_account_id is not null then
       update public.contacts set account_id=v_account_id where id=v_contact_id;
-    elsif v_contact_account_id is not null and v_account_id is null then
+    elsif v_contact_account_id is not null and v_account_id is null and v_identity_state <> 'AMBIGUOUS_ACCOUNT' then
       v_account_id := v_contact_account_id;
     elsif v_contact_account_id is not null and v_account_id is not null and v_contact_account_id<>v_account_id then
       v_identity_state := 'AMBIGUOUS_ACCOUNT'; v_account_id := v_contact_account_id;
@@ -201,8 +210,8 @@ begin
   v_activity_type := case v_category when 'DEMO_REQUEST' then 'demo_requested' when 'TALK_TO_SALES' then 'talk_to_sales_submitted' when 'TRIAL_STARTED' then 'trial_started' when 'PRODUCT_ENQUIRY' then 'product_enquiry_submitted' when 'RESOURCE_DOWNLOAD' then 'resource_downloaded' when 'TEMPLATE_DOWNLOAD' then 'template_downloaded' else 'newsletter_signup' end;
   v_summary := coalesce(p_payload->>'sourceDetail',initcap(replace(lower(v_category),'_',' ')));
   if v_lead_id is null then
-    insert into public.incoming_leads(canonical_key,product_id,account_id,contact_id,display_name,organisation_name,country_code,originating_source_category,originating_source_detail,latest_source_category,latest_source_detail,highest_intent_source_category,highest_intent_rank,current_intent,priority,priority_rank,priority_reason,stage,communication_policy,identity_review_state,activity_count,first_activity_at,last_activity_at)
-    values(v_key,v_product_id,v_account_id,v_contact_id,p_payload->>'contactName',v_org,p_payload->>'countryCode',v_category,p_payload->>'sourceDetail',v_category,p_payload->>'sourceDetail',v_category,v_rank,v_intent,v_priority,v_rank,case when v_category='DEMO_REQUEST' then 'Demo request requires immediate response' when v_category='TALK_TO_SALES' then 'Talk-to-sales enquiry requires immediate response' when v_category='TRIAL_STARTED' then 'Trial started and not contacted' when v_category='PRODUCT_ENQUIRY' then 'Product enquiry requires human qualification' when v_category='NEWSLETTER_SIGNUP' then 'Nurture communication only with valid consent' else 'Requested resource delivery; no sales follow-up assumed' end,case when v_category='TRIAL_STARTED' then 'TRIAL_ACTIVE' else 'NEW' end,public.incoming_communication_policy(v_category,v_consent),v_identity_state,1,v_occurred_at,v_occurred_at) returning id into v_lead_id;
+    insert into public.incoming_leads(canonical_key,product_id,product_code,account_id,contact_id,display_name,organisation_name,country_code,originating_source_category,originating_source_detail,latest_source_category,latest_source_detail,highest_intent_source_category,highest_intent_rank,current_intent,priority,priority_rank,priority_reason,stage,communication_policy,identity_review_state,activity_count,first_activity_at,last_activity_at)
+    values(v_key,v_product_id,v_product_code,v_account_id,v_contact_id,p_payload->>'contactName',v_org,p_payload->>'countryCode',v_category,p_payload->>'sourceDetail',v_category,p_payload->>'sourceDetail',v_category,v_rank,v_intent,v_priority,v_rank,case when v_category='DEMO_REQUEST' then 'Demo request requires immediate response' when v_category='TALK_TO_SALES' then 'Talk-to-sales enquiry requires immediate response' when v_category='TRIAL_STARTED' then 'Trial started and not contacted' when v_category='PRODUCT_ENQUIRY' then 'Product enquiry requires human qualification' when v_category='NEWSLETTER_SIGNUP' then 'Nurture communication only with valid consent' else 'Requested resource delivery; no sales follow-up assumed' end,case when v_category='TRIAL_STARTED' then 'TRIAL_ACTIVE' else 'NEW' end,public.incoming_communication_policy(v_category,v_consent),v_identity_state,1,v_occurred_at,v_occurred_at) returning id into v_lead_id;
   else
     select activity_count into v_activity_count from public.incoming_leads where id=v_lead_id;
     update public.incoming_leads set account_id=coalesce(account_id,v_account_id),contact_id=coalesce(contact_id,v_contact_id),display_name=coalesce(display_name,p_payload->>'contactName'),organisation_name=coalesce(organisation_name,v_org),country_code=coalesce(country_code,p_payload->>'countryCode'),latest_source_category=v_category,latest_source_detail=p_payload->>'sourceDetail',highest_intent_source_category=case when v_rank > highest_intent_rank then v_category else highest_intent_source_category end,highest_intent_rank=greatest(highest_intent_rank,v_rank),current_intent=case when v_rank>=5 then 'VERY_HIGH' when v_rank=4 then 'HIGH' when activity_count+1>=3 then 'MEDIUM' when v_category='NEWSLETTER_SIGNUP' then 'NURTURE' else current_intent end,priority=case when v_rank>=5 then 'URGENT' when v_rank=4 then 'HIGH' when activity_count+1>=3 then 'MEDIUM' else priority end,priority_rank=case when v_rank>=5 then 5 when v_rank=4 then 4 when activity_count+1>=3 then 3 else priority_rank end,priority_reason=case when v_rank>=5 then initcap(replace(lower(v_category),'_',' '))||' requires immediate response' when v_rank=4 then initcap(replace(lower(v_category),'_',' '))||' requires human qualification' when activity_count+1>=3 then 'Downloaded '||(activity_count+1)::text||' Event Suite resources recently' else priority_reason end,stage=case when v_rank>=4 and stage in ('NEW','NURTURE') then 'REVIEWING' else stage end,communication_policy=public.incoming_communication_policy(v_category,v_consent),identity_review_state=case when identity_review_state='RESOLVED' then v_identity_state else identity_review_state end,activity_count=activity_count+1,first_activity_at=least(first_activity_at,v_occurred_at),last_activity_at=greatest(last_activity_at,v_occurred_at),updated_at=now() where id=v_lead_id;
@@ -249,6 +258,8 @@ alter table public.incoming_lead_changes enable row level security;
 alter table public.incoming_lead_notes enable row level security;
 revoke all on table public.incoming_submissions, public.incoming_leads, public.incoming_lead_changes, public.incoming_lead_notes from anon, authenticated;
 grant select on table public.incoming_submissions, public.incoming_leads, public.incoming_lead_changes, public.incoming_lead_notes to authenticated;
+revoke all on function public.ingest_incoming_submission(jsonb) from public;
+revoke all on function public.update_incoming_lead(uuid,text,jsonb) from public;
 grant execute on function public.ingest_incoming_submission(jsonb) to authenticated;
 grant execute on function public.update_incoming_lead(uuid,text,jsonb) to authenticated;
 revoke all on function public.incoming_communication_policy(text,text) from public;
