@@ -11,11 +11,17 @@ export async function GET(request: Request) {
   const input = resolveAuthCallbackInput(requestUrl);
   if (input.kind === "invalid") return failureRedirect(requestUrl, input.reason);
 
-  const supabase = await createServerSupabaseClient();
+  const response = NextResponse.redirect(new URL("/", requestUrl.origin));
+  const supabase = await createServerSupabaseClient(response);
   const { error } = input.kind === "code"
     ? await supabase.auth.exchangeCodeForSession(input.code)
     : await supabase.auth.verifyOtp({ token_hash: input.tokenHash, type: "email" });
-  if (error) return failureRedirect(requestUrl, "invalid_link");
+  if (error) {
+    response.headers.set(
+      "location",
+      new URL("/?authError=invalid_link", requestUrl.origin).toString(),
+    );
+  }
 
-  return NextResponse.redirect(new URL("/", requestUrl.origin));
+  return response;
 }

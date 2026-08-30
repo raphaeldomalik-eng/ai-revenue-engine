@@ -27,7 +27,9 @@ test("browser auth client uses PKCE and callback supports code and token-hash in
   assert.match(callback, /exchangeCodeForSession\(input\.code\)/);
   assert.match(callbackInput, /searchParams\.get\(["']token_hash["']\)/);
   assert.match(callback, /verifyOtp\(\{ token_hash: input\.tokenHash, type: ["']email["'] \}\)/);
-  assert.match(callback, /if \(error\) return failureRedirect\(requestUrl, ["']invalid_link["']\)/);
+  assert.match(callback, /response\.headers\.set\(/);
+  assert.match(callback, /authError=invalid_link/);
+  assert.match(callback, /createServerSupabaseClient\(response\)/);
   assert.doesNotMatch(callback, /access_token|refresh_token/);
 
   const serverClient = readFileSync(new URL("../src/lib/supabase-server.ts", import.meta.url), "utf8");
