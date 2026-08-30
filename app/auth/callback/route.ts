@@ -15,13 +15,12 @@ export async function GET(request: Request) {
   const supabase = await createServerSupabaseClient(response);
   const { error } = input.kind === "code"
     ? await supabase.auth.exchangeCodeForSession(input.code)
-    : await supabase.auth.verifyOtp({ token_hash: input.tokenHash, type: "email" });
+    : await supabase.auth.verifyOtp({ token_hash: input.tokenHash, type: input.type });
   if (error) {
     response.headers.set(
       "location",
       new URL("/?authError=invalid_link", requestUrl.origin).toString(),
     );
   }
-
   return response;
 }

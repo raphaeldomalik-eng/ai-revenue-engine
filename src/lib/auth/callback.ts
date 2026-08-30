@@ -1,6 +1,6 @@
 export type AuthCallbackInput =
   | { kind: "code"; code: string }
-  | { kind: "token_hash"; tokenHash: string }
+  | { kind: "token_hash"; tokenHash: string; type: "email" | "magiclink" }
   | { kind: "invalid"; reason: "missing_code" | "invalid_link" };
 
 export function resolveAuthCallbackInput(requestUrl: URL): AuthCallbackInput {
@@ -9,7 +9,7 @@ export function resolveAuthCallbackInput(requestUrl: URL): AuthCallbackInput {
 
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
-  if (tokenHash && type === "email") return { kind: "token_hash", tokenHash };
+  if (tokenHash && (type === "email" || type === "magiclink")) return { kind: "token_hash", tokenHash, type };
 
   return { kind: "invalid", reason: tokenHash || type ? "invalid_link" : "missing_code" };
 }

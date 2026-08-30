@@ -26,7 +26,7 @@ test("browser auth client uses PKCE and callback supports code and token-hash in
   assert.match(callbackInput, /searchParams\.get\(["']code["']\)/);
   assert.match(callback, /exchangeCodeForSession\(input\.code\)/);
   assert.match(callbackInput, /searchParams\.get\(["']token_hash["']\)/);
-  assert.match(callback, /verifyOtp\(\{ token_hash: input\.tokenHash, type: ["']email["'] \}\)/);
+  assert.match(callback, /verifyOtp\(\{ token_hash: input\.tokenHash, type: input\.type \}\)/);
   assert.match(callback, /response\.headers\.set\(/);
   assert.match(callback, /authError=invalid_link/);
   assert.match(callback, /createServerSupabaseClient\(response\)/);
@@ -38,9 +38,10 @@ test("browser auth client uses PKCE and callback supports code and token-hash in
   assert.match(serverClient, /setAll\(cookiesToSet\)/);
 });
 
-test("auth callback accepts code flow and token-hash email flow only", () => {
+test("auth callback accepts code flow and supported token-hash email flows", () => {
   assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?code=abc")), { kind: "code", code: "abc" });
-  assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?token_hash=hash&type=email")), { kind: "token_hash", tokenHash: "hash" });
+  assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?token_hash=hash&type=email")), { kind: "token_hash", tokenHash: "hash", type: "email" });
+  assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?token_hash=hash&type=magiclink")), { kind: "token_hash", tokenHash: "hash", type: "magiclink" });
   assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback")), { kind: "invalid", reason: "missing_code" });
   assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?token_hash=hash")), { kind: "invalid", reason: "invalid_link" });
   assert.deepEqual(resolveAuthCallbackInput(new URL("https://example.test/auth/callback?token_hash=hash&type=recovery")), { kind: "invalid", reason: "invalid_link" });

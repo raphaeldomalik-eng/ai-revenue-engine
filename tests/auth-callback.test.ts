@@ -11,7 +11,11 @@ test("callback input supports both PKCE codes and Supabase email token hashes", 
   );
   assert.deepEqual(
     resolveAuthCallbackInput(new URL("http://localhost:3000/auth/callback?token_hash=one-time-hash&type=email")),
-    { kind: "token_hash", tokenHash: "one-time-hash" },
+    { kind: "token_hash", tokenHash: "one-time-hash", type: "email" },
+  );
+  assert.deepEqual(
+    resolveAuthCallbackInput(new URL("http://localhost:3000/auth/callback?token_hash=one-time-hash&type=magiclink")),
+    { kind: "token_hash", tokenHash: "one-time-hash", type: "magiclink" },
   );
   assert.deepEqual(
     resolveAuthCallbackInput(new URL("http://localhost:3000/auth/callback")),
