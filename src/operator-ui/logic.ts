@@ -42,6 +42,8 @@ export type OperatorCandidate = {
   prospect_approval?: { decision: "APPROVED" | "REVOKED"; reviewer_id?: string | null; created_at?: string | null } | null;
 };
 
+export type RunResultMetric = "found" | "resolved" | "unresolved" | "enriched" | "advanced" | "qualified" | "review" | "rejected" | "contactable";
+
 export type OperatorPayload = {
   access: "VIEWER" | "OPERATOR" | "ADMIN";
   runs: OperatorRun[];
@@ -161,21 +163,54 @@ export function reviewDecision(candidate: OperatorCandidate) {
   return String(value.recommendedNextAction ?? value.nextBestCommercialAction?.type ?? value.outreachBlockOrReviewReason ?? "");
 }
 
-export function runCounts(run: OperatorRun | null, candidates: OperatorCandidate[]) {
+export function dispositionReason(candidate: OperatorCandidate) {
+  const value = intelligence(candidate);
+  return String(value.runResult?.dispositionReason ?? value.outreachBlockOrReviewReason ?? value.accountCreationReason ?? value.recommendedNextAction ?? "No additional disposition reason was recorded.");
+}
+
+export function resultDataQualityWarnings(candidate: OperatorCandidate) {
+  const warnings: string[] = [];
+  if (!asArray(candidate.source_urls).length && !facts(candidate).some((fact) => fact.sourceUrl)) warnings.push("Source not recorded");
+  if (!facts(candidate).length) warnings.push("Evidence not recorded");
+  if (unknowns(candidate).length) warnings.push(`${unknowns(candidate).length} unresolved item${unknowns(candidate).length === 1 ? "" : "s"}`);
+  return warnings;
+}
+
+export function runResultReconciliation(run: OperatorRun | null, candidates: OperatorCandidate[]) {
   const summary = asObject(run?.summary);
+  const persisted = run ? candidates.filter((candidate) => candidate.discovery_run_id === run.id).length : 0;
+  const recordedFound = typeof summary.discovered === "number" ? summary.discovered : persisted;
+  return { recordedFound, persisted, missing: Math.max(0, recordedFound - persisted), complete: recordedFound <= persisted };
+}
+
+export function matchesRunResultMetric(candidate: OperatorCandidate, metric: RunResultMetric) {
+  const value = intelligence(candidate);
+  switch (metric) {
+    case "found": return true;
+    case "resolved": return value.organisationResolution?.status === "RESOLVED";
+    case "unresolved": return value.organisationResolution?.status === "UNRESOLVED";
+    case "enriched": return value.enrichment?.succeeded === true;
+    case "advanced": return value.enrichment?.commerciallyAdvanced === true;
+    case "qualified": return candidate.status === "QUALIFIED";
+    case "review": return candidate.status === "REVIEW_REQUIRED";
+    case "rejected": return ["BLOCKED", "REJECTED"].includes(candidate.status);
+    case "contactable": return contactState(candidate) === "Verified route available";
+  }
+}
+
+export function runCounts(run: OperatorRun | null, candidates: OperatorCandidate[]) {
   const scoped = run ? candidates.filter((candidate) => candidate.discovery_run_id === run.id) : [];
-  const count = (key: string, status?: string) => typeof summary[key] === "number" ? summary[key] : status ? scoped.filter((candidate) => candidate.status === status).length : 0;
   return {
-    found: count("discovered") || scoped.length,
-    resolved: count("resolved") || scoped.filter((candidate) => asObject(candidate.prospect_intelligence).organisationResolution?.status === "RESOLVED").length,
-    unresolved: count("unresolved") || scoped.filter((candidate) => asObject(candidate.prospect_intelligence).organisationResolution?.status === "UNRESOLVED").length,
-    enriched: count("enrichmentSucceededCount"),
-    advanced: count("commerciallyAdvanced"),
-    qualified: count("qualified", "QUALIFIED"),
-    review: count("reviewRequired", "REVIEW_REQUIRED"),
-    rejected: count("blockedOrRejected", "REJECTED"),
-    duplicate: count("duplicates", "DUPLICATE"),
-    contactable: scoped.filter((candidate) => contactState(candidate) === "Verified route available").length,
+    found: runResultReconciliation(run, candidates).recordedFound,
+    resolved: scoped.filter((candidate) => matchesRunResultMetric(candidate, "resolved")).length,
+    unresolved: scoped.filter((candidate) => matchesRunResultMetric(candidate, "unresolved")).length,
+    enriched: scoped.filter((candidate) => matchesRunResultMetric(candidate, "enriched")).length,
+    advanced: scoped.filter((candidate) => matchesRunResultMetric(candidate, "advanced")).length,
+    qualified: scoped.filter((candidate) => matchesRunResultMetric(candidate, "qualified")).length,
+    review: scoped.filter((candidate) => matchesRunResultMetric(candidate, "review")).length,
+    rejected: scoped.filter((candidate) => matchesRunResultMetric(candidate, "rejected")).length,
+    duplicate: scoped.filter((candidate) => candidate.status === "DUPLICATE").length,
+    contactable: scoped.filter((candidate) => matchesRunResultMetric(candidate, "contactable")).length,
   };
 }
 

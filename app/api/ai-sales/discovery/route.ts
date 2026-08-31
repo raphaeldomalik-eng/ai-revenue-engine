@@ -3,6 +3,7 @@ import { canPersistCommercialMemory, discoverProspects, isFirstPartyCandidate, t
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import { FIRST_PARTY_SELF } from "../../../../src/ai-sales-team/first-party";
 import { discoveryProductionEnabled } from "../../../../src/lib/server-production-activation";
+import { deriveDiscoveryRunSummary, discoveryRunSummaryReconciles } from "../../../../src/ai-sales-team/run-results";
 
 async function operatorClient() {
   const client = await createServerSupabaseClient();
@@ -28,16 +29,26 @@ export async function POST(request: Request) {
   if (!state.canRun) return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });
   const body = await request.json() as { territory?: DiscoveryTerritory; focus?: DiscoveryFocus };
   if (!body.territory || !["ZA", "GB"].includes(body.territory) || !body.focus || !["ALL", "EGS", "TICKETING", "ECC"].includes(body.focus)) return NextResponse.json({ message: "A supported territory and focus are required." }, { status: 400 });
-  const { data: run, error: runError } = await state.client.from("ai_prospect_discovery_runs").insert({ territory_code: body.territory, focus: body.focus, status: "RUNNING", created_by: state.userId }).select("id").single();
+  const territoryName = body.territory === "ZA" ? "South Africa" : "United Kingdom";
+  const focusName = body.focus === "ALL" ? "All lenses" : body.focus === "EGS" ? "Event Growth" : body.focus === "TICKETING" ? "Ticketing" : "Event Operations";
+  const provenance = {
+    schemaVersion: "ai-sales-run-results-v1",
+    trigger: "OPERATOR_MANUAL",
+    source: "PUBLIC_WEB_DISCOVERY",
+    discoveryPath: "bounded public-web discovery",
+    researchBrief: `${territoryName} · ${focusName} — Find active event organisations with evidence relevant to this commercial lens.`,
+    rulesetVersion: "autonomous-prospect-discovery-v1",
+    applicationVersion: process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GIT_COMMIT_SHA ?? null,
+  };
+  const { data: run, error: runError } = await state.client.from("ai_prospect_discovery_runs").insert({ territory_code: body.territory, focus: body.focus, status: "RUNNING", created_by: state.userId, summary: { provenance } }).select("id").single();
   if (runError || !run) return NextResponse.json({ message: "Discovery persistence is not available until its migration is applied." }, { status: 503 });
   try {
     const result = await discoverProspects({ territory: body.territory, focus: body.focus });
     const saved = [];
-    let sameRunDuplicateCount = 0;
     for (const candidate of result.candidates) {
       const prior = await state.client.from("ai_prospect_candidates").select("id, account_id, discovery_run_id").eq("canonical_key", candidate.canonicalKey).order("created_at", { ascending: true }).limit(1).maybeSingle();
       if (prior.error) throw prior.error;
-      if (prior.data?.discovery_run_id === run.id) { sameRunDuplicateCount += 1; continue; }
+      if (prior.data?.discovery_run_id === run.id) continue;
       const accountName = candidate.organiserName || candidate.canonicalName;
       const firstPartySelf = isFirstPartyCandidate(candidate);
       let accountId = firstPartySelf ? null : prior.data?.account_id ?? null;
@@ -77,15 +88,22 @@ export async function POST(request: Request) {
       }
       const status = firstPartySelf ? "REJECTED" : prior.data ? "DUPLICATE" : candidate.status;
       const relationship = firstPartySelf ? "UNKNOWN" : candidate.relationship;
-      const prospectIntelligence = { ...candidate.prospectIntelligence, discoveryLane: candidate.origin, laneContext: candidate.laneContext ?? null, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, organisationResolution: candidate.organisationResolution, commercialEvidence: candidate.commercialEvidence, enrichment: candidate.enrichment };
+      const dispositionReason = firstPartySelf
+        ? "FIRST_PARTY_SELF — EventSuite first-party identity is not eligible for commercial memory or outreach."
+        : status === "DUPLICATE"
+          ? "A matching canonical discovery record already exists."
+          : String(candidate.prospectIntelligence.outreachBlockOrReviewReason ?? candidate.prospectIntelligence.accountCreationReason ?? candidate.prospectIntelligence.recommendedNextAction ?? "No additional disposition reason was recorded.");
+      const prospectIntelligence = { ...candidate.prospectIntelligence, discoveryLane: candidate.origin, laneContext: candidate.laneContext ?? null, firstPartyStatus: firstPartySelf ? FIRST_PARTY_SELF : candidate.prospectIntelligence.firstPartyStatus, organisationResolution: candidate.organisationResolution, commercialEvidence: candidate.commercialEvidence, enrichment: candidate.enrichment, runResult: { recordedAt: new Date().toISOString(), disposition: status, dispositionReason, applicationVersion: provenance.applicationVersion, rulesetVersion: provenance.rulesetVersion } };
       const values = { discovery_run_id: run.id, canonical_key: candidate.canonicalKey, candidate_name: candidate.canonicalName, organiser_name: candidate.organiserName, website: candidate.website, territory_code: body.territory, origin: candidate.origin, status, account_id: accountId, relationship, facts: candidate.facts, inferences: candidate.inferences, unknowns: candidate.unknowns, prospect_intelligence: prospectIntelligence, source_urls: candidate.sourceUrls, dedupe_of_candidate_id: prior.data?.id ?? null, last_seen_at: new Date().toISOString() };
       const { data, error } = await state.client.from("ai_prospect_candidates").insert(values).select("*").single();
       if (error) throw error;
       saved.push(data);
     }
-    const counts = { discovered: result.candidates.length, qualified: saved.filter((item) => item.status === "QUALIFIED").length, reviewRequired: saved.filter((item) => item.status === "REVIEW_REQUIRED").length, blockedOrRejected: saved.filter((item) => item.status === "BLOCKED" || item.status === "REJECTED").length, duplicates: saved.filter((item) => item.status === "DUPLICATE").length + sameRunDuplicateCount, ...result.enrichment };
-    await state.client.from("ai_prospect_discovery_runs").update({ status: "COMPLETED", provider: result.provider, model: result.model, summary: counts, completed_at: new Date().toISOString() }).eq("id", run.id);
-    return NextResponse.json({ run: { id: run.id, territory_code: body.territory, focus: body.focus, status: "COMPLETED", summary: counts, ai_prospect_candidates: saved } });
+    const counts = deriveDiscoveryRunSummary(saved, result.enrichment);
+    if (!discoveryRunSummaryReconciles(counts, saved)) throw new Error("DISCOVERY_RESULT_LEDGER_DIVERGENCE");
+    const summary = { ...counts, provenance, reconciliation: { persistedResultCount: saved.length, countersDerivedFrom: "persisted_result_ledger" } };
+    await state.client.from("ai_prospect_discovery_runs").update({ status: "COMPLETED", provider: result.provider, model: result.model, summary, completed_at: new Date().toISOString() }).eq("id", run.id);
+    return NextResponse.json({ run: { id: run.id, territory_code: body.territory, focus: body.focus, status: "COMPLETED", summary, ai_prospect_candidates: saved } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Autonomous discovery failed.";
     await state.client.from("ai_prospect_discovery_runs").update({ status: "FAILED", error_message: message, completed_at: new Date().toISOString() }).eq("id", run.id);

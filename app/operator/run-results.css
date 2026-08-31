@@ -1,0 +1,16 @@
+.operator-stat{border:0;text-align:left;font:inherit;color:inherit}
+button.operator-stat{cursor:pointer}
+button.operator-stat:hover,button.operator-stat.is-active{background:#f1f7db}
+.run-metric-note{margin:9px 0 0;color:#66736b;font-size:11px;line-height:1.45}
+.historical-incomplete{margin-top:18px;border:1px solid #dfc8b1;background:#f8f0e8;padding:15px}
+.historical-incomplete strong{display:block;margin:7px 0;font-size:13px}
+.historical-incomplete p{margin:0;color:#7a6248;font-size:12px;line-height:1.5}
+.run-result-filters{grid-template-columns:2fr 1fr 1fr auto;align-items:end}
+.run-results-table{overflow-x:auto}
+.run-results-table .collection-table{min-width:1080px}
+.run-results-table td{vertical-align:top;max-width:220px}
+.run-results-table td>strong,.run-results-table td>span{display:block}
+.run-results-table td>span{margin-top:4px;color:#7a857f;font-size:11px;line-height:1.4}
+.run-results-table a{color:#55702b;font-size:11px;line-height:1.4}
+@media(max-width:950px){.run-result-filters{grid-template-columns:1fr 1fr}.run-result-filters label:first-child{grid-column:1/-1}}
+@media(max-width:700px){.operator-stats button.operator-stat:nth-child(n+7){display:block}.run-result-filters{grid-template-columns:1fr}.run-result-filters label:first-child{grid-column:auto}.run-results-table .collection-table{min-width:880px}}
