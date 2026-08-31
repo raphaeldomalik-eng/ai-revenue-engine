@@ -54,6 +54,9 @@ test("blocked prospects are excluded before contact research and Composer drafti
 test("prospects UI provides reason-gated block, archive reopen and plain-language feedback", async () => {
   const source = await readFile("app/operator/operator-views.tsx", "utf8");
   assert.match(source, /Block prospect/);
+  assert.match(source, /Block as ticketing company/);
+  assert.match(source, /Organisation name contains .*ticket/);
+  assert.match(source, /drawer-review-section-top/);
   assert.match(source, /Choose a reason/);
   assert.match(source, /Other/);
   assert.match(source, /Save block decision/);
