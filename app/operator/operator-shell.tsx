@@ -5,12 +5,10 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const items = [
-  ["/operator", "AI Sales Team"],
+  ["/operator", "Overview"],
   ["/operator/incoming-leads", "Incoming Leads"],
   ["/operator/runs", "Runs"],
-  ["/operator/prospects", "Prospects"],
-  ["/operator/review", "Needs Review"],
-  ["/operator/historical", "Historical / Calibration"],
+  ["/operator/prospects", "Prospect Inventory"],
   ["/operator/outreach", "Outreach Drafts"],
 ] as const;
 

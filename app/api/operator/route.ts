@@ -9,6 +9,79 @@ const CONTACT_STATES = new Set(["ALL", "PERSON", "NONE"]);
 const EMAIL_STATES = new Set(["ALL", "VERIFIED", "REVIEW"]);
 const PRIORITIES = new Set(["ALL", "Phase One priority", "Standard priority", "Deferred"]);
 const SORTS = new Set(["attention", "recent", "name", "ready"]);
+const INVENTORY_VIEWS = new Set(["ALL", "NEEDS_REVIEW", "QUALIFIED", "CONTACTABLE", "ACTIVE", "REJECTED", "BLOCKED", "DUPLICATES", "HISTORICAL"]);
+
+function inventoryStatus(candidate: any) {
+  if (candidate.status === "DUPLICATE" || candidate.dedupe_of_candidate_id) return "DUPLICATES";
+  if (candidate.status === "BLOCKED") return "BLOCKED";
+  if (candidate.status === "REJECTED") return "REJECTED";
+  if (candidate.status === "QUALIFIED") return "QUALIFIED";
+  if (candidate.status === "REVIEW_REQUIRED") return "NEEDS_REVIEW";
+  return "ACTIVE";
+}
+
+async function prospectInventory(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, access: any, url: URL) {
+  const saved = url.searchParams.get("saved") ?? "NEEDS_REVIEW";
+  const search = (url.searchParams.get("search") ?? "").trim().toLowerCase();
+  const status = url.searchParams.get("status") ?? "ALL";
+  const lane = url.searchParams.get("lane") ?? "ALL";
+  const run = url.searchParams.get("run") ?? "ALL";
+  const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
+  const pageSize = Math.min(100, Math.max(10, Number.parseInt(url.searchParams.get("pageSize") ?? "25", 10) || 25));
+  if (!INVENTORY_VIEWS.has(saved) || search.length > 200) return NextResponse.json({ code: "INVENTORY_FILTER_INVALID", message: "The inventory filter is not valid." }, { status: 400 });
+  const [{ data: candidates, error: candidateError }, { data: runs, error: runsError }] = await Promise.all([
+    client.from("ai_prospect_candidates").select("*").order("updated_at", { ascending: false }).range(0, 9999),
+    client.from("ai_prospect_discovery_runs").select("*").order("created_at", { ascending: false }).limit(50),
+  ]);
+  if (candidateError || runsError) return NextResponse.json({ message: "Prospect inventory is unavailable." }, { status: 503 });
+  const all = candidates ?? [];
+  const accountIds = [...new Set(all.map((candidate) => candidate.account_id).filter(Boolean))];
+  const [accountsResult, contactsResult, decisionsResult] = accountIds.length ? await Promise.all([
+    client.from("accounts").select("id,name,website,metadata").in("id", accountIds),
+    client.from("contacts").select("*").in("account_id", accountIds),
+    client.from("ai_prospect_review_decisions").select("id,candidate_id,decision,reason_code,other_explanation,note,reviewer_id,previous_status,created_at").in("candidate_id", all.map((candidate) => candidate.id)).order("created_at", { ascending: false }),
+  ]) : [{ data: [], error: null }, { data: [], error: null }, { data: [], error: null }];
+  if (accountsResult.error || contactsResult.error || decisionsResult.error) return NextResponse.json({ message: "Prospect inventory evidence is unavailable." }, { status: 503 });
+  const accounts = new Map((accountsResult.data ?? []).map((account) => [account.id, account]));
+  const contacts = new Map<string, any[]>();
+  for (const contact of contactsResult.data ?? []) contacts.set(contact.account_id, [...(contacts.get(contact.account_id) ?? []), contact]);
+  const decisions = new Map<string, any[]>();
+  for (const decision of decisionsResult.data ?? []) decisions.set(decision.candidate_id, [...(decisions.get(decision.candidate_id) ?? []), decision]);
+  const grouped = new Map<string, any[]>();
+  for (const candidate of all) grouped.set(candidate.canonical_key, [...(grouped.get(candidate.canonical_key) ?? []), candidate]);
+  const canonical = [...grouped.values()].map((appearances) => {
+    const ordered = [...appearances].sort((a, b) => new Date(b.updated_at ?? b.created_at ?? 0).getTime() - new Date(a.updated_at ?? a.created_at ?? 0).getTime());
+    const current = ordered[0];
+    return {
+      ...current,
+      account: current.account_id ? accounts.get(current.account_id) ?? null : null,
+      contacts: current.account_id ? contacts.get(current.account_id) ?? [] : [],
+      review_decisions: decisions.get(current.id) ?? [],
+      appearance_count: appearances.length,
+      run_appearances: ordered.map((item) => ({ id: item.id, discovery_run_id: item.discovery_run_id, status: item.status, created_at: item.created_at, territory_code: item.territory_code, origin: item.origin, reason: String(item.prospect_intelligence?.runResult?.dispositionReason ?? item.prospect_intelligence?.outreachBlockOrReviewReason ?? "Not recorded") })),
+    };
+  });
+  const counts = { ALL: canonical.length, NEEDS_REVIEW: 0, QUALIFIED: 0, CONTACTABLE: 0, ACTIVE: 0, REJECTED: 0, BLOCKED: 0, DUPLICATES: 0, HISTORICAL: 0 };
+  for (const item of canonical) {
+    const state = inventoryStatus(item); counts[state as keyof typeof counts] += 1;
+    if ((item.contacts ?? []).some((contact: any) => ["VERIFIED", "VALID"].includes(String(contact.verification_status ?? "").toUpperCase()))) counts.CONTACTABLE += 1;
+    if (new Date(item.last_seen_at ?? item.created_at ?? 0).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000) counts.HISTORICAL += 1;
+  }
+  const filtered = canonical.filter((item) => {
+    const itemState = inventoryStatus(item);
+    const contactable = (item.contacts ?? []).some((contact: any) => ["VERIFIED", "VALID"].includes(String(contact.verification_status ?? "").toUpperCase()));
+    const historical = new Date(item.last_seen_at ?? item.created_at ?? 0).getTime() < Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const haystack = `${item.candidate_name ?? ""} ${item.organiser_name ?? ""} ${item.account?.name ?? ""} ${item.website ?? ""} ${item.canonical_key ?? ""}`.toLowerCase();
+    return (saved === "ALL" || saved === "CONTACTABLE" ? (saved !== "CONTACTABLE" || contactable) : saved === "HISTORICAL" ? historical : itemState === saved)
+      && (status === "ALL" || item.status === status)
+      && (lane === "ALL" || item.origin === lane)
+      && (run === "ALL" || item.run_appearances.some((appearance: any) => appearance.discovery_run_id === run))
+      && (!search || haystack.includes(search));
+  }).sort((a, b) => new Date(b.last_seen_at ?? b.created_at ?? 0).getTime() - new Date(a.last_seen_at ?? a.created_at ?? 0).getTime());
+  const total = filtered.length;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  return NextResponse.json({ access: access.access, view: "inventory", runs: runs ?? [], candidates: filtered.slice((Math.min(page, pageCount) - 1) * pageSize, Math.min(page, pageCount) * pageSize), latestRunId: runs?.[0]?.id ?? null, total, page: Math.min(page, pageCount), pageSize, pageCount, inventoryCounts: counts });
+}
 
 async function prospectList(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, access: any, url: URL) {
   const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
@@ -79,6 +152,7 @@ export async function GET(request: Request) {
   const candidateId = url.searchParams.get("candidateId");
 
   if (view === "prospects") return prospectList(client, access, url);
+  if (view === "inventory") return prospectInventory(client, access, url);
   if (view === "prospect-detail" || view === "prospect") return prospectDetail(client, access, candidateId);
 
   const runsQuery = client.from("ai_prospect_discovery_runs").select("*").order("created_at", { ascending: false }).limit(50);
