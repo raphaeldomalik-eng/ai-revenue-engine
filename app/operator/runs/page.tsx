@@ -1,3 +1,3 @@
-import { RunsInventoryView } from "../runs-inventory-view";
+import { RunsView } from "../operator-views";
 
-export default function RunsPage() { return <RunsInventoryView />; }
+export default function RunsPage() { return <RunsView />; }
