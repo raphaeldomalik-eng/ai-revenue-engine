@@ -1,3 +1,3 @@
-import { ReviewView } from "../operator-views";
+import { redirect } from "next/navigation";
 
-export default function ReviewPage() { return <ReviewView />; }
+export default function ReviewPage() { redirect("/operator/prospects?saved=NEEDS_REVIEW"); }

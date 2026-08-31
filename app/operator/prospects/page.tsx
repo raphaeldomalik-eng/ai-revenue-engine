@@ -1,3 +1,3 @@
-import { ProspectsView } from "../operator-views";
+import { ProspectInventoryView } from "../prospect-inventory-view";
 
-export default function ProspectsPage() { return <ProspectsView />; }
+export default function ProspectsPage() { return <ProspectInventoryView />; }

@@ -1,3 +1,3 @@
-import { HistoricalView } from "../operator-views";
+import { redirect } from "next/navigation";
 
-export default function HistoricalPage() { return <HistoricalView />; }
+export default function HistoricalPage() { redirect("/operator/prospects?saved=HISTORICAL"); }

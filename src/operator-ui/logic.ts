@@ -34,12 +34,15 @@ export type OperatorCandidate = {
   first_seen_at?: string | null;
   last_seen_at?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
   contact_research?: unknown;
   account?: { id: string; name: string; website?: string | null; metadata?: unknown } | null;
   contacts?: Array<Record<string, unknown>>;
   evidence?: Array<Record<string, unknown>>;
   review_decisions?: Array<{ id: string; decision: "BLOCKED" | "REOPENED"; reason_code?: string | null; other_explanation?: string | null; note?: string | null; created_at?: string | null }>;
   prospect_approval?: { decision: "APPROVED" | "REVOKED"; reviewer_id?: string | null; created_at?: string | null } | null;
+  appearance_count?: number;
+  run_appearances?: Array<{ id: string; discovery_run_id: string; status: string; created_at?: string | null; territory_code?: string; origin?: string; reason?: string }>;
 };
 
 export type RunResultMetric = "found" | "resolved" | "unresolved" | "enriched" | "advanced" | "qualified" | "review" | "rejected" | "contactable";
@@ -49,6 +52,11 @@ export type OperatorPayload = {
   runs: OperatorRun[];
   candidates: OperatorCandidate[];
   latestRunId: string | null;
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  pageCount?: number;
+  inventoryCounts?: Record<string, number>;
 };
 
 export const territoryLabels: Record<string, string> = { ZA: "South Africa", GB: "United Kingdom", za: "South Africa", gb: "United Kingdom" };
