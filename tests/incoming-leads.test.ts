@@ -101,3 +101,14 @@ test("incoming navigation and API stay separate from outbound prospecting", asyn
   assert.doesNotMatch(api, /outreach|send/i);
   assert.match(fixtureApi, /NODE_ENV === "production"/);
 });
+
+test("Event Suite receiver is server-to-server only and preserves the immutable intake path", async () => {
+  const migration = await readFile(new URL("../supabase/migrations/20260831180000_event_suite_incoming_leads_receiver_v1.sql", import.meta.url), "utf8");
+  const receiver = await readFile(new URL("../app/api/integrations/event-suite/incoming-leads/route.ts", import.meta.url), "utf8");
+  assert.match(migration, /auth\.role\(\).*service_role/i);
+  assert.match(migration, /unique|on conflict \(source_system,source_record_id\)/i);
+  assert.match(receiver, /timingSafeEqual/);
+  assert.match(receiver, /x-event-suite-signature/);
+  assert.match(receiver, /MAX_AGE_SECONDS/);
+  assert.doesNotMatch(receiver, /NEXT_PUBLIC_.*WEBHOOK_SECRET/);
+});
