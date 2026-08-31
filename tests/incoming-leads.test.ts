@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { communicationPolicy, currentIntent, initialIntent, normalizeEmail, shouldCreateOpportunity, sourceActivityType } from "../src/incoming-leads/domain.ts";
 import { incomingLeadFixtures } from "../src/incoming-leads/fixtures.ts";
+import { describeSourceContext } from "../src/incoming-leads/source-context.ts";
 
 test("normalizes email for exact identity matching without replacing submitted values", () => {
   assert.equal(normalizeEmail(" AVA@Example.COM "), "ava@example.com");
@@ -36,6 +37,28 @@ test("fixtures cover duplicate delivery, repeated activity, two people, ambiguit
   assert.equal(incomingLeadFixtures.filter((fixture) => fixture.submittedEmail?.toLowerCase().includes("northstar-events")).length >= 5, true);
   assert.equal(incomingLeadFixtures.some((fixture) => fixture.sourceCategory === "INTERNAL_TEST"), true);
   assert.equal(incomingLeadFixtures.some((fixture) => fixture.originalPayload.organisationConfidence === "AMBIGUOUS"), true);
+});
+
+test("source context preserves downloaded templates and booking form selections for operator review", () => {
+  const template = describeSourceContext({
+    source_category: "RESOURCE_DOWNLOAD",
+    resource_identifier: "event-run-sheet-template",
+    original_payload: { attributionContext: { contentType: "template", resourceTitle: "Event Run Sheet Template", resourceSlug: "event-run-sheet-template" } },
+  });
+  assert.deepEqual(template.downloadedTemplates, ["Event Run Sheet Template · event-run-sheet-template"]);
+
+  const booking = describeSourceContext({
+    source_category: "DEMO_REQUEST",
+    source_page: "/book-demo",
+    original_payload: { inquiryType: "book_demo", attributionContext: { role: "Venue Director", organizationType: "Festival", primaryInterests: ["Ticketing", "Analytics / Reporting"], operatingScale: "Single venue / team", sourcePage: "/book-demo" } },
+  });
+  assert.equal(booking.isBookingRequest, true);
+  assert.deepEqual(booking.bookingSelections, [
+    { label: "Role", value: "Venue Director" },
+    { label: "Organisation type", value: "Festival" },
+    { label: "Primary interests", value: "Ticketing, Analytics / Reporting" },
+    { label: "Operating scale", value: "Single venue / team" },
+  ]);
 });
 
 test("migration protects intake evidence, keeps access fail-closed and does not add a send path", async () => {
