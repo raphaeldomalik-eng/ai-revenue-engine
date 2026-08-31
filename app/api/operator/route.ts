@@ -217,6 +217,20 @@ export async function GET(request: Request) {
   if (view === "prospect-organisations") return prospectOrganisations(client, access, url);
   if (view === "prospect-detail" || view === "prospect") return prospectDetail(client, access, candidateId);
 
+  if (view === "overview") {
+    const { data: overview, error } = await client.rpc("operator_workspace_overview");
+    if (error || !overview) return NextResponse.json({ message: "Operator overview is unavailable until its read model is applied." }, { status: 503 });
+    return NextResponse.json({ access: access.access, view, overview });
+  }
+
+  if (view === "runs") {
+    const pageSize = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get("pageSize") ?? "50", 10) || 50));
+    const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
+    const { data: runHistory, error } = await client.rpc("list_ai_prospect_run_history", { p_limit: pageSize, p_offset: (page - 1) * pageSize });
+    if (error || !runHistory) return NextResponse.json({ message: "Research run history is unavailable until its read model is applied." }, { status: 503 });
+    return NextResponse.json({ access: access.access, view, runHistory });
+  }
+
   const runsQuery = client.from("ai_prospect_discovery_runs").select("*").order("created_at", { ascending: false }).limit(50);
   const candidatesQuery = runId
     ? client.from("ai_prospect_candidates").select("*").eq("discovery_run_id", runId).order("created_at", { ascending: false }).limit(500)

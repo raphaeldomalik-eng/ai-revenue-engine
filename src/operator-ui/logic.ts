@@ -13,6 +13,51 @@ export type OperatorRun = {
   created_at?: string | null;
 };
 
+export type OperatorOverviewItem = {
+  id: string;
+  kind: string;
+  title: string;
+  detail: string;
+  href: string;
+  createdAt?: string | null;
+};
+
+export type OperatorOverview = {
+  refreshedAt: string;
+  highestValueAction: { kind: string; title: string; detail: string; href: string; count: number };
+  inbound: { needsReview: number; activeGenuine: number; highIntent: number; followUpDue: number; existingCustomerActivity: number; canonicalLeads: number; sourceActivities: number };
+  prospects: { canonical: number; identityDecisions: number; qualificationDecisions: number; contactDecisions: number; qualified: number; contactable: number; draftApproved: number; archived: number };
+  research: { totalRuns: number; completedRuns: number; failedRuns: number; activeOrPartialRuns: number; failedToday: number; stale: boolean; latestRun?: { id?: string; territoryCode?: string; focus?: string; status?: string; startedAt?: string; completedAt?: string; createdAt?: string; found?: number } };
+  attention: OperatorOverviewItem[];
+  recentChanges: OperatorOverviewItem[];
+};
+
+export type OperatorRunHistoryRow = {
+  id: string;
+  territoryCode: string;
+  focus: string;
+  status: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  createdAt?: string | null;
+  requested?: string | null;
+  appearances: number;
+  introductions: number;
+  durationSeconds?: number | null;
+  cost?: string | null;
+  currentDispositions: { review: number; qualified: number; rejected: number; blocked: number; duplicates: number; contactable: number };
+  errorMessage?: string | null;
+};
+
+export type OperatorRunHistory = {
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  summary: { totalRuns: number; completedRuns: number; activeOrPartialRuns: number; failedRuns: number; appearances: number; introductions: number };
+  runs: OperatorRunHistoryRow[];
+};
+
 export type OperatorCandidate = {
   id: string;
   discovery_run_id: string;
@@ -62,6 +107,8 @@ export type OperatorPayload = {
   pageSize?: number;
   pageCount?: number;
   inventoryCounts?: Record<string, number>;
+  overview?: OperatorOverview;
+  runHistory?: OperatorRunHistory;
 };
 
 export const territoryLabels: Record<string, string> = { ZA: "South Africa", GB: "United Kingdom", za: "South Africa", gb: "United Kingdom" };
