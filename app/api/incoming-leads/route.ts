@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../src/lib/supabase-server";
 
-const VIEWS = new Set(["needs-attention", "demo-requests", "talk-to-sales", "trials", "resources", "high-engagement", "follow-ups", "nurture", "converted", "disqualified", "test-excluded", "all"]);
+const VIEWS = new Set(["needs-review", "active-leads", "high-intent", "follow-up-due", "incomplete-data", "existing-customers", "excluded", "all"]);
+const SOURCE_CATEGORIES = new Set(["ALL", "DEMO_REQUEST", "TALK_TO_SALES", "TRIAL_STARTED", "PRODUCT_ENQUIRY", "RESOURCE_DOWNLOAD", "TEMPLATE_DOWNLOAD", "NEWSLETTER_SIGNUP", "INTERNAL_TEST"]);
+const CLASSIFICATIONS = new Set(["ALL", "NEEDS_REVIEW", "GENUINE_PROSPECT", "EXISTING_CUSTOMER", "PARTNER", "SUPPLIER", "COMPETITOR", "TICKETING_PROVIDER", "INTERNAL", "TEST_SYNTHETIC", "OTHER_NON_LEAD"]);
+const INTENTS = new Set(["ALL", "VERY_HIGH", "HIGH", "MEDIUM", "LOW", "NURTURE", "EXCLUDED"]);
+const STAGES = new Set(["ALL", "NEW", "REVIEWING", "QUALIFIED", "CONTACTED", "DEMO_SCHEDULED", "TRIAL_ACTIVE", "PROPOSAL", "NURTURE", "CONVERTED", "DISQUALIFIED", "LOST"]);
+const FOLLOW_UP_STATES = new Set(["ALL", "DUE", "SCHEDULED", "NONE"]);
+const DATA_QUALITY_STATES = new Set(["ALL", "INCOMPLETE", "COMPLETE"]);
+const ENRICHMENT_STATES = new Set(["ALL", "NOT_ELIGIBLE", "BLOCKED_UNTIL_IDENTITY_RESOLVED", "EVIDENCE_AVAILABLE", "NOT_ENRICHED"]);
 
 async function readAccess(client: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
   const { data: auth } = await client.auth.getUser();
@@ -11,25 +18,14 @@ async function readAccess(client: Awaited<ReturnType<typeof createServerSupabase
   return { access: String(member.member_role).toUpperCase() as "VIEWER" | "OPERATOR" | "ADMIN", memberRole: String(member.member_role).toLowerCase(), userId: auth.user.id };
 }
 
-function isOverdue(lead: Record<string, any>) {
-  return Boolean(lead.follow_up_at && new Date(lead.follow_up_at).getTime() < Date.now() && !["CONVERTED", "DISQUALIFIED", "LOST"].includes(lead.stage));
+function oneOf(value: string | null, choices: Set<string>, fallback: string) {
+  return choices.has(value ?? fallback) ? value ?? fallback : null;
 }
 
-function matchesView(lead: Record<string, any>, view: string) {
-  if (view === "all") return true;
-  if (view === "test-excluded") return lead.is_test;
-  if (lead.is_test) return false;
-  if (view === "needs-attention") return ["URGENT", "HIGH"].includes(lead.priority) || isOverdue(lead) || (lead.current_intent === "MEDIUM" && !lead.owner_id);
-  if (view === "demo-requests") return lead.originating_source_category === "DEMO_REQUEST" || lead.latest_source_category === "DEMO_REQUEST";
-  if (view === "talk-to-sales") return lead.originating_source_category === "TALK_TO_SALES" || lead.latest_source_category === "TALK_TO_SALES";
-  if (view === "trials") return lead.originating_source_category === "TRIAL_STARTED" || lead.latest_source_category === "TRIAL_STARTED";
-  if (view === "resources") return ["RESOURCE_DOWNLOAD", "TEMPLATE_DOWNLOAD"].includes(lead.originating_source_category) || ["RESOURCE_DOWNLOAD", "TEMPLATE_DOWNLOAD"].includes(lead.latest_source_category);
-  if (view === "high-engagement") return lead.current_intent === "MEDIUM";
-  if (view === "follow-ups") return Boolean(lead.follow_up_at);
-  if (view === "nurture") return lead.stage === "NURTURE" || ["LOW", "NURTURE"].includes(lead.current_intent);
-  if (view === "converted") return lead.stage === "CONVERTED";
-  if (view === "disqualified") return ["DISQUALIFIED", "LOST"].includes(lead.stage);
-  return true;
+function dateValue(value: string | null, end = false) {
+  if (!value) return null;
+  const parsed = new Date(`${value}${end ? "T23:59:59.999Z" : "T00:00:00.000Z"}`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
 export async function GET(request: Request) {
@@ -48,43 +44,50 @@ export async function GET(request: Request) {
       client.from("activities").select("*").eq("incoming_lead_id", leadId).order("occurred_at", { ascending: false }),
       client.from("revenue_members").select("user_id,member_role,active").eq("active", true),
     ]);
-    if (leadError || changesError || notesError || submissionsError || activitiesError || membersError) return NextResponse.json({ message: "Incoming lead detail is unavailable until the V1 migration is applied." }, { status: 503 });
+    if (leadError || changesError || notesError || submissionsError || activitiesError || membersError) return NextResponse.json({ message: "Incoming Leads data is unavailable until the V1 migration is applied." }, { status: 503 });
     if (!lead) return NextResponse.json({ message: "Incoming lead not found." }, { status: 404 });
-    return NextResponse.json({ access: access.access, lead, changes: changes ?? [], notes: notes ?? [], submissions: submissions ?? [], activities: activities ?? [], members: members ?? [] });
+    const [account, contact, opportunity, evidence] = await Promise.all([
+      lead.account_id ? client.from("accounts").select("id,name,website,organisation_type").eq("id", lead.account_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      lead.contact_id ? client.from("contacts").select("id,full_name,email,phone,role_title,verification_status").eq("id", lead.contact_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      lead.product_opportunity_id ? client.from("product_opportunities").select("id,stage,conversion_route,next_action,metadata").eq("id", lead.product_opportunity_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      lead.account_id ? client.from("research_evidence").select("id,evidence_type,claim,source_url,source_title,observed_at,confidence,created_at").eq("account_id", lead.account_id).order("created_at", { ascending: false }).limit(25) : Promise.resolve({ data: [], error: null }),
+    ]);
+    if (account.error || contact.error || opportunity.error || evidence.error) return NextResponse.json({ message: "Incoming lead enrichment evidence is unavailable." }, { status: 503 });
+    return NextResponse.json({ access: access.access, lead, changes: changes ?? [], notes: notes ?? [], submissions: submissions ?? [], activities: activities ?? [], members: members ?? [], account: account.data, contact: contact.data, opportunity: opportunity.data, evidence: evidence.data ?? [] });
   }
-  const view = url.searchParams.get("view") ?? "needs-attention";
-  if (!VIEWS.has(view)) return NextResponse.json({ message: "Incoming lead view is invalid." }, { status: 400 });
-  const search = (url.searchParams.get("search") ?? "").trim().toLowerCase();
-  if (search.length > 200) return NextResponse.json({ message: "Search is too long." }, { status: 400 });
-  const [{ data: rows, error }, { data: members, error: membersError }] = await Promise.all([
-    client.from("incoming_leads").select("*").order("priority_rank", { ascending: false, nullsFirst: false }).order("last_activity_at", { ascending: false }).limit(1000),
-    client.from("revenue_members").select("user_id,member_role,active").eq("active", true),
-  ]);
-  if (error || membersError) return NextResponse.json({ message: "Incoming Leads data is unavailable until the V1 migration is applied." }, { status: 503 });
-  const all = (rows ?? []) as Record<string, any>[];
-  const source = url.searchParams.get("source") ?? "ALL";
-  const stage = url.searchParams.get("stage") ?? "ALL";
-  const country = url.searchParams.get("country") ?? "ALL";
-  const consent = url.searchParams.get("consent") ?? "ALL";
+
+  const view = oneOf(url.searchParams.get("view"), VIEWS, "needs-review");
+  const source = oneOf(url.searchParams.get("source"), SOURCE_CATEGORIES, "ALL");
+  const classification = oneOf(url.searchParams.get("classification"), CLASSIFICATIONS, "ALL");
+  const intent = oneOf(url.searchParams.get("intent"), INTENTS, "ALL");
+  const stage = oneOf(url.searchParams.get("stage"), STAGES, "ALL");
+  const followUpState = oneOf(url.searchParams.get("followUpState"), FOLLOW_UP_STATES, "ALL");
+  const dataQualityState = oneOf(url.searchParams.get("dataQualityState"), DATA_QUALITY_STATES, "ALL");
+  const enrichmentState = oneOf(url.searchParams.get("enrichmentState"), ENRICHMENT_STATES, "ALL");
+  const search = (url.searchParams.get("search") ?? "").trim();
   const owner = url.searchParams.get("owner") ?? "ALL";
-  const dateFrom = url.searchParams.get("dateFrom") ?? "";
-  const dateTo = url.searchParams.get("dateTo") ?? "";
-  const filtered = all.filter((lead) => {
-    const haystack = `${lead.display_name ?? ""} ${lead.organisation_name ?? ""} ${lead.originating_source_detail ?? ""} ${lead.latest_source_detail ?? ""} ${lead.product_code ?? ""}`.toLowerCase();
-    const activityTime = new Date(lead.last_activity_at).getTime();
-    return matchesView(lead, view) && (!search || haystack.includes(search)) && (source === "ALL" || lead.originating_source_category === source || lead.latest_source_category === source) && (stage === "ALL" || lead.stage === stage) && (country === "ALL" || lead.country_code === country) && (consent === "ALL" || String(lead.communication_policy?.consentState ?? "UNKNOWN") === consent) && (owner === "ALL" || (owner === "UNASSIGNED" ? !lead.owner_id : lead.owner_id === owner)) && (!dateFrom || activityTime >= new Date(`${dateFrom}T00:00:00Z`).getTime()) && (!dateTo || activityTime <= new Date(`${dateTo}T23:59:59Z`).getTime());
-  });
-  const periodStart = Date.now() - 30 * 86400000;
-  const active = all.filter((lead) => !lead.is_test && new Date(lead.last_activity_at).getTime() >= periodStart);
-  const metrics = {
-    newQualified: active.filter((lead) => ["QUALIFIED", "CONTACTED", "DEMO_SCHEDULED", "TRIAL_ACTIVE", "PROPOSAL"].includes(lead.stage)).length,
-    requiringAction: all.filter((lead) => matchesView(lead, "needs-attention")).length,
-    demoAwaitingResponse: active.filter((lead) => lead.latest_source_category === "DEMO_REQUEST" && !lead.last_contacted_at && !["CONVERTED", "DISQUALIFIED", "LOST"].includes(lead.stage)).length,
-    trialsAwaitingEngagement: active.filter((lead) => lead.latest_source_category === "TRIAL_STARTED" && !lead.last_contacted_at && !["CONVERTED", "DISQUALIFIED", "LOST"].includes(lead.stage)).length,
-    overdueFollowUps: all.filter(isOverdue).length,
-    incomingConversionRate: active.length ? Math.round((active.filter((lead) => lead.stage === "CONVERTED").length / active.length) * 100) : null,
-  };
-  return NextResponse.json({ access: access.access, view, leads: filtered, allCount: all.length, metrics, members: members ?? [] });
+  const page = Math.max(1, Math.min(Number(url.searchParams.get("page") ?? 1) || 1, 100000));
+  const pageSize = [25, 50, 100].includes(Number(url.searchParams.get("pageSize"))) ? Number(url.searchParams.get("pageSize")) : 25;
+  if (!view || !source || !classification || !intent || !stage || !followUpState || !dataQualityState || !enrichmentState || search.length > 200) return NextResponse.json({ message: "One or more incoming lead filters are invalid." }, { status: 400 });
+
+  const membersResult = await client.from("revenue_members").select("user_id,member_role,active").eq("active", true);
+  if (membersResult.error) return NextResponse.json({ message: "Incoming Lead members are unavailable." }, { status: 503 });
+  const members = membersResult.data ?? [];
+  const ownerId = owner === "ALL" || owner === "UNASSIGNED" ? null : members.some((member) => member.user_id === owner) ? owner : null;
+  if (!ownerId && owner !== "ALL" && owner !== "UNASSIGNED") return NextResponse.json({ message: "Incoming Lead owner filter is invalid." }, { status: 400 });
+  const [queue, metrics] = await Promise.all([
+    client.rpc("list_incoming_lead_queue", {
+      p_view: view, p_search: search || null, p_source: source, p_classification: classification, p_intent: intent,
+      p_owner_id: ownerId, p_owner_unassigned: owner === "UNASSIGNED", p_stage: stage,
+      p_date_from: dateValue(url.searchParams.get("dateFrom")), p_date_to: dateValue(url.searchParams.get("dateTo"), true),
+      p_follow_up_state: followUpState, p_data_quality_state: dataQualityState, p_enrichment_state: enrichmentState,
+      p_limit: pageSize, p_offset: (page - 1) * pageSize,
+    }),
+    client.rpc("incoming_lead_operational_metrics"),
+  ]);
+  if (queue.error || metrics.error) return NextResponse.json({ message: "Incoming Leads data is unavailable until the operator workspace migration is applied." }, { status: 503 });
+  const leads = queue.data ?? [];
+  return NextResponse.json({ access: access.access, view, leads, totalCount: Number(leads[0]?.total_count ?? 0), metrics: metrics.data ?? {}, members, page, pageSize });
 }
 
 export async function POST(request: Request) {
@@ -92,7 +95,7 @@ export async function POST(request: Request) {
   const access = await readAccess(client);
   if (access.error) return access.error;
   if (access.memberRole !== "operator" && access.memberRole !== "admin") return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });
-  let body: { action?: string; leadId?: string; value?: Record<string, unknown>; payload?: Record<string, unknown> };
+  let body: { action?: string; leadId?: string; leadIds?: string[]; bulkAction?: string; value?: Record<string, unknown>; payload?: Record<string, unknown> };
   try { body = await request.json(); } catch { return NextResponse.json({ message: "A valid JSON request is required." }, { status: 400 }); }
   try {
     if (body.action === "INGEST") {
@@ -101,6 +104,12 @@ export async function POST(request: Request) {
       if (error) throw new Error(error.message);
       return NextResponse.json({ result: data });
     }
+    if (body.action === "BULK") {
+      if (!Array.isArray(body.leadIds) || !body.bulkAction) throw new Error("INCOMING_LEAD_BULK_SELECTION_INVALID");
+      const { data, error } = await client.rpc("bulk_update_incoming_leads", { p_lead_ids: body.leadIds, p_action: body.bulkAction, p_value: body.value ?? {} });
+      if (error) throw new Error(error.message);
+      return NextResponse.json({ count: data, message: `${data} incoming lead${data === 1 ? "" : "s"} updated.` });
+    }
     if (!body.leadId || !body.action) throw new Error("INCOMING_LEAD_INPUT_INVALID");
     const { data, error } = await client.rpc("update_incoming_lead", { p_lead_id: body.leadId, p_action: body.action, p_value: body.value ?? {} });
     if (error) throw new Error(error.message);
@@ -108,7 +117,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Incoming lead action failed.";
     const known = message.match(/INCOMING_[A-Z_]+/)?.[0];
-    const status = known?.includes("NOT_FOUND") ? 404 : known?.includes("REQUIRED") || known?.includes("INVALID") || known?.includes("TOO_LARGE") ? 400 : 502;
-    return NextResponse.json({ code: known ?? "INCOMING_LEAD_ACTION_FAILED", message: known ? message : "Incoming lead action failed." }, { status });
+    const isInput = known?.includes("NOT_FOUND") || known?.includes("REQUIRED") || known?.includes("INVALID") || known?.includes("TOO_LARGE") || known?.includes("EXCLUDED") || known?.includes("RESTORE");
+    return NextResponse.json({ code: known ?? "INCOMING_LEAD_ACTION_FAILED", message: known ? message : "Incoming lead action failed." }, { status: isInput ? 400 : 502 });
   }
 }
