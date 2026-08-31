@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 const items = [
   ["/operator", "AI Sales Team"],
+  ["/operator/incoming-leads", "Incoming Leads"],
   ["/operator/runs", "Runs"],
   ["/operator/prospects", "Prospects"],
   ["/operator/review", "Needs Review"],
