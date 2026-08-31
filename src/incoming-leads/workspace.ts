@@ -40,6 +40,10 @@ export function isExcludedClassification(classification?: string | null) {
   return nonLeadClassifications.has(classification as LeadClassification);
 }
 
+export function isLikelyTicketingOrganisation(organisationName?: string | null) {
+  return Boolean(organisationName?.toLowerCase().includes("ticket"));
+}
+
 export function isOperationalLead(classification?: string | null, isTest = false) {
   return !isTest && ["NEEDS_REVIEW", "GENUINE_PROSPECT"].includes(classification ?? "NEEDS_REVIEW");
 }

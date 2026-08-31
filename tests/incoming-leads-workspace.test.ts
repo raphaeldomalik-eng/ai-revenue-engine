@@ -1,13 +1,19 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { classificationRequiresReason, describeDataQuality, enrichmentEligibility, isExcludedClassification, isOperationalLead, pageRange } from "../src/incoming-leads/workspace.ts";
+import { classificationRequiresReason, describeDataQuality, enrichmentEligibility, isExcludedClassification, isLikelyTicketingOrganisation, isOperationalLead, pageRange } from "../src/incoming-leads/workspace.ts";
 
 test("ticketing providers are excluded from active lead treatment and enrichment eligibility", () => {
   assert.equal(isExcludedClassification("TICKETING_PROVIDER"), true);
   assert.equal(isOperationalLead("TICKETING_PROVIDER"), false);
   assert.equal(enrichmentEligibility({ lead_classification: "TICKETING_PROVIDER", account_id: "account-1", identity_review_state: "RESOLVED" }), "NOT_ELIGIBLE");
   assert.equal(isOperationalLead("GENUINE_PROSPECT"), true);
+});
+
+test("ticketing heuristic is deliberately simple and case-insensitive", () => {
+  assert.equal(isLikelyTicketingOrganisation("Ticketmaster"), true);
+  assert.equal(isLikelyTicketingOrganisation("South Africa Events"), false);
+  assert.equal(isLikelyTicketingOrganisation(null), false);
 });
 
 test("classification reasons are mandatory for non-leads and existing customers", () => {
