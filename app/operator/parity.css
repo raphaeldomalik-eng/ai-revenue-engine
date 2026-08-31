@@ -15,7 +15,7 @@
 
 /* Incoming leads: four operational cards, five saved views, one clear row action. */
 .incoming-metrics { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 12px !important; background: transparent !important; border: 0 !important; margin-bottom: 20px !important; }
-.incoming-metrics > div { min-width: 0; background: #fff !important; border: 1px solid #d5ddd4 !important; border-left: 4px solid #c5e842 !important; padding: 14px 16px !important; }
+.incoming-metrics > div { display: flex; flex-direction: column; gap: 7px; min-width: 0; background: #fff !important; border: 1px solid #d5ddd4 !important; border-left: 4px solid #c5e842 !important; padding: 14px 16px !important; }
 .incoming-metrics > div:nth-child(n+2) { border-left-width: 1px !important; }
 .incoming-metrics span, .incoming-metrics small { color: #65746c !important; }
 .incoming-metrics strong { font-size: 25px !important; }
