@@ -34,6 +34,7 @@
 .incoming-advanced-filter-grid input, .incoming-advanced-filter-grid select { border: 1px solid #cbd4ca; background: #fff; color: #1a2822; padding: 8px; font: 12px Manrope, Arial, sans-serif; }
 .incoming-table .collection-table { min-width: 0 !important; table-layout: fixed !important; }
 .incoming-table .collection-table th:first-child, .incoming-table .collection-table td:first-child, .incoming-table .collection-table th:nth-child(8), .incoming-table .collection-table td:nth-child(8) { display: none !important; }
+.incoming-table .collection-table th:nth-child(7), .incoming-table .collection-table td:nth-child(7) { display: table-cell !important; }
 .incoming-table .collection-table th:nth-child(7) { font-size: 0 !important; }
 .incoming-table .collection-table th:nth-child(7)::after { content: "LAST ACTIVITY"; font-size: 10px; }
 .incoming-sticky-actions { position: static !important; min-width: 0 !important; box-shadow: none !important; background: transparent !important; }
