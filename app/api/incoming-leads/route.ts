@@ -75,7 +75,7 @@ export async function GET(request: Request) {
   const members = membersResult.data ?? [];
   const ownerId = owner === "ALL" || owner === "UNASSIGNED" ? null : members.some((member) => member.user_id === owner) ? owner : null;
   if (!ownerId && owner !== "ALL" && owner !== "UNASSIGNED") return NextResponse.json({ message: "Incoming Lead owner filter is invalid." }, { status: 400 });
-  const [queue, metrics] = await Promise.all([
+  const [queue, metrics, sourceActivities] = await Promise.all([
     client.rpc("list_incoming_lead_queue", {
       p_view: view, p_search: search || null, p_source: source, p_classification: classification, p_intent: intent,
       p_owner_id: ownerId, p_owner_unassigned: owner === "UNASSIGNED", p_stage: stage,
@@ -84,10 +84,11 @@ export async function GET(request: Request) {
       p_limit: pageSize, p_offset: (page - 1) * pageSize,
     }),
     client.rpc("incoming_lead_operational_metrics"),
+    client.from("incoming_submissions").select("id", { count: "exact", head: true }),
   ]);
-  if (queue.error || metrics.error) return NextResponse.json({ message: "Incoming Leads data is unavailable until the operator workspace migration is applied." }, { status: 503 });
+  if (queue.error || metrics.error || sourceActivities.error) return NextResponse.json({ message: "Incoming Leads data is unavailable until the operator workspace migration is applied." }, { status: 503 });
   const leads = queue.data ?? [];
-  return NextResponse.json({ access: access.access, view, leads, totalCount: Number(leads[0]?.total_count ?? 0), metrics: metrics.data ?? {}, members, page, pageSize });
+  return NextResponse.json({ access: access.access, view, leads, totalCount: Number(leads[0]?.total_count ?? 0), metrics: { ...(metrics.data ?? {}), sourceActivities: sourceActivities.count ?? 0 }, members, page, pageSize });
 }
 
 export async function POST(request: Request) {
