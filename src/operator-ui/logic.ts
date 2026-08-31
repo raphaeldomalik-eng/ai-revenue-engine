@@ -37,13 +37,18 @@ export type OperatorCandidate = {
   updated_at?: string | null;
   contact_research?: unknown;
   account?: { id: string; name: string; website?: string | null; metadata?: unknown } | null;
+  identity_resolution?: ProspectIdentityResolution | null;
+  canonical_prospect_organisation?: ProspectOrganisation | null;
   contacts?: Array<Record<string, unknown>>;
   evidence?: Array<Record<string, unknown>>;
-  review_decisions?: Array<{ id: string; decision: "BLOCKED" | "REOPENED"; reason_code?: string | null; other_explanation?: string | null; note?: string | null; created_at?: string | null }>;
+  review_decisions?: Array<{ id: string; decision: "BLOCKED" | "REOPENED" | "QUALIFIED" | "REJECTED" | "DUPLICATED" | "NEXT_ACTION_SET" | "REVIEW_SAVED"; reason_code?: string | null; other_explanation?: string | null; note?: string | null; created_at?: string | null }>;
   prospect_approval?: { decision: "APPROVED" | "REVOKED"; reviewer_id?: string | null; created_at?: string | null } | null;
   appearance_count?: number;
   run_appearances?: Array<{ id: string; discovery_run_id: string; status: string; created_at?: string | null; territory_code?: string; origin?: string; reason?: string }>;
 };
+
+export type ProspectOrganisation = { id: string; name: string; website?: string | null; territory_code?: string | null; source_refs?: unknown };
+export type ProspectIdentityResolution = { id: string; event_prospect_id: string; canonical_organisation_id?: string | null; relationship_type: string; resolution_status: "UNRESOLVED" | "RESOLVED" | "CONFLICTING_EVIDENCE" | "NOT_APPLICABLE"; evidence_refs?: unknown; operator_note?: string | null; actor_id?: string | null; resolved_at?: string | null; idempotency_key?: string; created_at?: string | null };
 
 export type RunResultMetric = "found" | "resolved" | "unresolved" | "enriched" | "advanced" | "qualified" | "review" | "rejected" | "contactable";
 
@@ -97,12 +102,20 @@ export function lensLabel(focus?: string | null) { return focus ? lensLabels[foc
 export function statusLabel(status?: string | null) { return status ? statusLabels[status] ?? status.replaceAll("_", " ") : "Status not recorded"; }
 export function siteTypeLabel(type?: string | null) { return type ? siteTypeLabels[type] ?? type.replaceAll("_", " ") : "Source type not established"; }
 
-export function organisationName(candidate: OperatorCandidate) { return candidate.organiser_name || candidate.account?.name || "ORGANISATION NOT YET RESOLVED"; }
+export function organisationName(candidate: OperatorCandidate) { return candidate.canonical_prospect_organisation?.name || candidate.organiser_name || candidate.account?.name || "ORGANISATION NOT YET RESOLVED"; }
+export function identityResolution(candidate: OperatorCandidate): ProspectIdentityResolution | null {
+  if (candidate.identity_resolution) return candidate.identity_resolution;
+  const value = asObject(intelligence(candidate).organisationResolution);
+  const status = String(value.status ?? "UNRESOLVED").toUpperCase() as ProspectIdentityResolution["resolution_status"];
+  return { id: "derived", event_prospect_id: candidate.id, canonical_organisation_id: typeof value.canonicalOrganisationId === "string" ? value.canonicalOrganisationId : null, relationship_type: String(value.relationshipType ?? (candidate.origin === "EVENT_FIRST" ? "ORGANISES" : "NOT_APPLICABLE")), resolution_status: ["UNRESOLVED", "RESOLVED", "CONFLICTING_EVIDENCE", "NOT_APPLICABLE"].includes(status) ? status : "UNRESOLVED", evidence_refs: value.evidenceRefs ?? value.evidence ?? [], operator_note: typeof value.operatorNote === "string" ? value.operatorNote : null, resolved_at: typeof value.resolvedAt === "string" ? value.resolvedAt : null };
+}
 export function resolutionLabel(candidate: OperatorCandidate) {
-  const resolution = asObject(intelligence(candidate).organisationResolution);
-  const status = String(resolution.status ?? "UNRESOLVED").toUpperCase();
-  if (status !== "RESOLVED") return status === "CONFLICTING" ? "Conflicting evidence" : "Unresolved";
-  return `Resolved · ${String(resolution.confidence ?? "not recorded").replaceAll("_", " ")}`;
+  const resolution = identityResolution(candidate);
+  if (!resolution || resolution.resolution_status === "UNRESOLVED") return "Unresolved";
+  if (resolution.resolution_status === "CONFLICTING_EVIDENCE") return "Conflicting evidence";
+  if (resolution.resolution_status === "NOT_APPLICABLE") return "Not applicable";
+  const confidence = asObject(intelligence(candidate).organisationResolution).confidence;
+  return `Resolved · ${String(confidence ?? "not recorded").replaceAll("_", " ")}`;
 }
 export function discoverySignal(candidate: OperatorCandidate) { return candidate.candidate_name || "Discovery signal not recorded"; }
 export function contactShortLabel(candidate: OperatorCandidate) {
@@ -256,9 +269,10 @@ export function operatorWorkflowState(candidate: OperatorCandidate) {
   const composer = composerMetadata(candidate);
   if (composer.approved === true || composer.state === "HUMAN_APPROVED_DRAFT") return operatorLanguage.draft.HUMAN_APPROVED_DRAFT;
   if (composer.pending === true || composer.state === "PENDING_HUMAN_APPROVAL") return operatorLanguage.draft.PENDING_HUMAN_APPROVAL;
-  const value = intelligence(candidate);
-  const resolution = String(value.organisationResolution?.status ?? "UNRESOLVED").toUpperCase();
-  if (needsReview(candidate) || resolution !== "RESOLVED") return "Needs identity review";
+  const resolution = identityResolution(candidate);
+  const identityRequired = candidate.origin === "EVENT_FIRST" || candidate.origin === "ORGANISATION_FIRST";
+  const unresolved = resolution?.resolution_status === "UNRESOLVED" || resolution?.resolution_status === "CONFLICTING_EVIDENCE" || (identityRequired && resolution?.resolution_status !== "RESOLVED");
+  if (needsReview(candidate) || unresolved) return "Needs identity review";
   if (!candidate.contacts?.length) return "Ready for person review";
   if (contactState(candidate) !== "Verified route available") return "Contact needs review";
   return "Ready for person review";

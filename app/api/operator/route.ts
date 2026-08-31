@@ -30,6 +30,32 @@ function inventoryQuality(candidate: any) {
   return "READY";
 }
 
+async function attachIdentityResolutions(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, candidates: any[]) {
+  const candidateIds = candidates.map((candidate) => candidate.id).filter(Boolean);
+  if (!candidateIds.length) return candidates;
+  const { data: resolutions, error: resolutionError } = await client
+    .from("ai_prospect_identity_resolutions")
+    .select("id,event_prospect_id,canonical_organisation_id,relationship_type,resolution_status,evidence_refs,operator_note,actor_id,resolved_at,idempotency_key,created_at")
+    .in("event_prospect_id", candidateIds)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false });
+  // Keep the existing read-only inventory usable while this additive migration
+  // is being rolled out. Save review still fails closed until the RPC exists.
+  if (resolutionError) return candidates.map((candidate) => ({ ...candidate, identity_resolution: null, canonical_prospect_organisation: null }));
+  const organisationIds = [...new Set((resolutions ?? []).map((item: any) => item.canonical_organisation_id).filter(Boolean))];
+  const { data: organisations, error: organisationError } = organisationIds.length
+    ? await client.from("ai_prospect_organisations").select("id,name,website,territory_code,source_refs").in("id", organisationIds)
+    : { data: [], error: null };
+  if (organisationError) throw new Error("PROSPECT_ORGANISATION_READ_FAILED");
+  const organisationById = new Map((organisations ?? []).map((item: any) => [item.id, item]));
+  const latestByCandidate = new Map<string, any>();
+  for (const resolution of resolutions ?? []) if (!latestByCandidate.has(resolution.event_prospect_id)) latestByCandidate.set(resolution.event_prospect_id, resolution);
+  return candidates.map((candidate) => {
+    const resolution = latestByCandidate.get(candidate.id) ?? null;
+    return { ...candidate, identity_resolution: resolution, canonical_prospect_organisation: resolution?.canonical_organisation_id ? organisationById.get(resolution.canonical_organisation_id) ?? null : null };
+  });
+}
+
 async function prospectInventory(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, access: any, url: URL) {
   const saved = url.searchParams.get("saved") ?? "NEEDS_REVIEW";
   const search = (url.searchParams.get("search") ?? "").trim().toLowerCase();
@@ -46,7 +72,9 @@ async function prospectInventory(client: Awaited<ReturnType<typeof createServerS
   ]);
   if (inventoryError || runsError || !result) return NextResponse.json({ message: "Prospect inventory is unavailable." }, { status: 503 });
   const inventory = result as { candidates?: unknown; total?: unknown; page?: unknown; pageCount?: unknown; inventoryCounts?: Record<string, number> };
-  return NextResponse.json({ access: access.access, view: "inventory", runs: runs ?? [], candidates: Array.isArray(inventory.candidates) ? inventory.candidates : [], latestRunId: runs?.[0]?.id ?? null, total: Number(inventory.total ?? 0), page: Number(inventory.page ?? 1), pageSize, pageCount: Number(inventory.pageCount ?? 1), inventoryCounts: inventory.inventoryCounts ?? {} });
+  let candidates = Array.isArray(inventory.candidates) ? inventory.candidates : [];
+  candidates = await attachIdentityResolutions(client, candidates);
+  return NextResponse.json({ access: access.access, view: "inventory", runs: runs ?? [], candidates, latestRunId: runs?.[0]?.id ?? null, total: Number(inventory.total ?? 0), page: Number(inventory.page ?? 1), pageSize, pageCount: Number(inventory.pageCount ?? 1), inventoryCounts: inventory.inventoryCounts ?? {} });
 
   { /* Legacy in-route projection retained below only until the next migration cleanup. */
   const [{ data: candidates, error: candidateError }, { data: runs, error: runsError }] = await Promise.all([
@@ -143,16 +171,28 @@ async function prospectDetail(client: Awaited<ReturnType<typeof createServerSupa
   if (candidateError || runsError) return NextResponse.json({ message: "Prospect detail is unavailable until discovery persistence is applied." }, { status: 503 });
   if (!candidate) return NextResponse.json({ access: access.access, view: "prospect-detail", runs: runs ?? [], candidates: [], latestRunId: (runs ?? [])[0]?.id ?? null });
   const accountId = candidate.account_id;
-  const [{ data: account, error: accountError }, { data: contacts, error: contactsError }, { data: evidence, error: evidenceError }, { data: decisions, error: decisionsError }, { data: approvals, error: approvalsError }] = await Promise.all([
+  const [{ data: account, error: accountError }, { data: contacts, error: contactsError }, { data: evidence, error: evidenceError }, { data: decisions, error: decisionsError }, { data: approvals, error: approvalsError }, { data: identityResolutions }] = await Promise.all([
     accountId ? client.from("accounts").select("id,name,website,metadata").eq("id", accountId).maybeSingle() : Promise.resolve({ data: null, error: null }),
     accountId ? client.from("contacts").select("*").eq("account_id", accountId) : Promise.resolve({ data: [], error: null }),
     accountId ? client.from("research_evidence").select("*").eq("account_id", accountId) : Promise.resolve({ data: [], error: null }),
     client.from("ai_prospect_review_decisions").select("id,candidate_id,decision,reason_code,other_explanation,note,reviewer_id,previous_status,created_at").eq("candidate_id", candidateId).order("created_at", { ascending: false }),
     client.from("ai_prospect_approval_reviews").select("id,candidate_id,decision,reviewer_id,note,created_at").eq("candidate_id", candidateId).order("created_at", { ascending: false }),
+    client.from("ai_prospect_identity_resolutions").select("id,event_prospect_id,canonical_organisation_id,relationship_type,resolution_status,evidence_refs,operator_note,actor_id,resolved_at,idempotency_key,created_at").eq("event_prospect_id", candidateId).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1),
   ]);
   if (accountError || contactsError || evidenceError || decisionsError || approvalsError) return NextResponse.json({ message: "Prospect detail evidence could not be loaded." }, { status: 503 });
-  const hydrated = { ...candidate, account: account ?? null, contacts: contacts ?? [], evidence: evidence ?? [], review_decisions: decisions ?? [], prospect_approval: approvals?.[0] ?? null };
+  const resolution = identityResolutions?.[0] ?? null;
+  const { data: canonicalOrganisation } = resolution?.canonical_organisation_id ? await client.from("ai_prospect_organisations").select("id,name,website,territory_code,source_refs").eq("id", resolution.canonical_organisation_id).maybeSingle() : { data: null };
+  const hydrated = { ...candidate, account: account ?? null, contacts: contacts ?? [], evidence: evidence ?? [], review_decisions: decisions ?? [], prospect_approval: approvals?.[0] ?? null, identity_resolution: resolution, canonical_prospect_organisation: canonicalOrganisation ?? null };
   return NextResponse.json({ access: access.access, view: "prospect-detail", runs: runs ?? [], candidates: [hydrated], latestRunId: (runs ?? [])[0]?.id ?? null });
+}
+
+async function prospectOrganisations(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, access: any, url: URL) {
+  const search = (url.searchParams.get("search") ?? "").trim();
+  if (search.length > 200) return NextResponse.json({ code: "PROSPECT_ORGANISATION_SEARCH_INVALID", message: "The organisation search is not valid." }, { status: 400 });
+  const query = client.from("ai_prospect_organisations").select("id,name,website,territory_code,source_refs").order("name", { ascending: true }).limit(25);
+  const { data, error } = search ? await query.ilike("name", `%${search}%`) : await query;
+  if (error) return NextResponse.json({ message: "Canonical prospect organisations are unavailable until their migration is applied." }, { status: 503 });
+  return NextResponse.json({ access: access.access, view: "prospect-organisations", organisations: data ?? [] });
 }
 
 async function readAccess(client: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
@@ -174,6 +214,7 @@ export async function GET(request: Request) {
 
   if (view === "prospects") return prospectList(client, access, url);
   if (view === "inventory") return prospectInventory(client, access, url);
+  if (view === "prospect-organisations") return prospectOrganisations(client, access, url);
   if (view === "prospect-detail" || view === "prospect") return prospectDetail(client, access, candidateId);
 
   const runsQuery = client.from("ai_prospect_discovery_runs").select("*").order("created_at", { ascending: false }).limit(50);
@@ -231,7 +272,7 @@ export async function POST(request: Request) {
   const access = await readAccess(client);
   if (access.error) return access.error;
   if (!access.userId || !["operator", "admin"].includes(access.memberRole)) return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });
-  let body: { action?: string; candidateId?: string; sourceQueue?: string; reasonCode?: unknown; otherExplanation?: unknown; note?: unknown; nextAction?: unknown };
+  let body: { action?: string; candidateId?: string; sourceQueue?: string; reasonCode?: unknown; otherExplanation?: unknown; note?: unknown; nextAction?: unknown; resolutionStatus?: unknown; canonicalOrganisationId?: unknown; relationshipType?: unknown; evidenceRefs?: unknown; operatorNote?: unknown; reviewNote?: unknown; newOrganisation?: unknown; outcome?: unknown; idempotencyKey?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ code: "PROSPECT_REVIEW_INPUT_INVALID", message: "A valid review decision is required." }, { status: 400 }); }
   if (!body.candidateId) return NextResponse.json({ code: "PROSPECT_ID_REQUIRED", message: "A prospect is required." }, { status: 400 });
   try {
@@ -239,6 +280,33 @@ export async function POST(request: Request) {
       const { data, error } = await client.rpc("record_ai_prospect_approval", { p_candidate_id: body.candidateId, p_note: typeof body.note === "string" ? body.note.trim() || null : null, p_reviewer_id: access.userId });
       if (error) throw new Error(error.message || "PROSPECT_APPROVAL_SAVE_FAILED");
       return NextResponse.json({ approval: data, message: "Prospect approved for drafting." });
+    }
+    if (body.action === "SAVE_REVIEW") {
+      const resolutionStatus = typeof body.resolutionStatus === "string" ? body.resolutionStatus.trim().toUpperCase() : "";
+      const relationshipType = typeof body.relationshipType === "string" ? body.relationshipType.trim().toUpperCase() : "";
+      const evidenceRefs = Array.isArray(body.evidenceRefs) ? body.evidenceRefs.filter((item): item is string => typeof item === "string" && item.trim().length > 0).slice(0, 50) : [];
+      const outcome = typeof body.outcome === "string" ? body.outcome.trim().toUpperCase() : "";
+      const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
+      if (!resolutionStatus || !relationshipType || !idempotencyKey) throw new Error("PROSPECT_REVIEW_INPUT_INVALID");
+      if (outcome && ["REJECT", "BLOCK", "DUPLICATE"].includes(outcome)) validateBlockDecision({ reasonCode: body.reasonCode, otherExplanation: body.otherExplanation, note: body.reviewNote ?? body.note });
+      const { data, error } = await client.rpc("record_ai_prospect_review", {
+        p_candidate_id: body.candidateId,
+        p_resolution_status: resolutionStatus,
+        p_canonical_organisation_id: typeof body.canonicalOrganisationId === "string" && body.canonicalOrganisationId ? body.canonicalOrganisationId : null,
+        p_relationship_type: relationshipType,
+        p_evidence_refs: evidenceRefs,
+        p_operator_note: typeof body.operatorNote === "string" ? body.operatorNote.trim() || null : null,
+        p_new_organisation: body.newOrganisation && typeof body.newOrganisation === "object" ? body.newOrganisation : null,
+        p_next_action: typeof body.nextAction === "string" ? body.nextAction.trim() || null : null,
+        p_outcome: outcome || null,
+        p_reason_code: typeof body.reasonCode === "string" ? body.reasonCode.trim().toUpperCase() || null : null,
+        p_other_explanation: typeof body.otherExplanation === "string" ? body.otherExplanation.trim() || null : null,
+        p_review_note: typeof body.reviewNote === "string" ? body.reviewNote.trim() || null : typeof body.note === "string" ? body.note.trim() || null : null,
+        p_idempotency_key: idempotencyKey,
+        p_reviewer_id: access.userId,
+      });
+      if (error) throw new Error(error.message || "PROSPECT_REVIEW_SAVE_FAILED");
+      return NextResponse.json({ review: data, message: outcome === "QUALIFY" ? "Review saved and prospect qualified." : outcome === "REJECT" ? "Review saved and prospect rejected." : outcome === "BLOCK" ? "Review saved and prospect blocked." : outcome === "DUPLICATE" ? "Review saved and prospect marked as a duplicate." : "Review saved." });
     }
     const action = body.action;
     if (!["BLOCK", "REOPEN", "QUALIFY", "REJECT", "MARK_DUPLICATE", "RESTORE", "SET_NEXT_ACTION"].includes(String(action))) throw new Error("PROSPECT_REVIEW_ACTION_INVALID");
@@ -263,7 +331,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Prospect review decision could not be saved.";
     const code = message.includes("PROSPECT_") ? message.match(/PROSPECT_[A-Z_]+/)?.[0] ?? "PROSPECT_REVIEW_SAVE_FAILED" : "PROSPECT_REVIEW_SAVE_FAILED";
-    const status = code.includes("REQUIRED") || code.includes("INVALID") || code.includes("TOO_LONG") || code.includes("EXPLANATION") || code.includes("ARCHIVE_ONLY") ? 400 : code.includes("NOT_FOUND") ? 404 : code.includes("ALREADY") || code.includes("NOT_BLOCKED") || code.includes("BLOCKED") ? 409 : 502;
+    const status = code.includes("REQUIRED") || code.includes("INVALID") || code.includes("TOO_LONG") || code.includes("EXPLANATION") || code.includes("ARCHIVE_ONLY") || code.includes("INPUT") || code.includes("STATUS") || code.includes("RELATIONSHIP") || code.includes("EVIDENCE") ? 400 : code.includes("NOT_FOUND") ? 404 : code.includes("ALREADY") || code.includes("NOT_BLOCKED") || code.includes("BLOCKED") || code.includes("GATE_FAILED") ? 409 : 502;
     return NextResponse.json({ code, message: code === "PROSPECT_REVIEW_SAVE_FAILED" ? "The review decision could not be saved." : message }, { status });
   }
 }
