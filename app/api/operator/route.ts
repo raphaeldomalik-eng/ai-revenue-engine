@@ -228,7 +228,9 @@ export async function GET(request: Request) {
     const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
     const { data: runHistory, error } = await client.rpc("list_ai_prospect_run_history", { p_limit: pageSize, p_offset: (page - 1) * pageSize });
     if (error || !runHistory) return NextResponse.json({ message: "Research run history is unavailable until its read model is applied." }, { status: 503 });
-    return NextResponse.json({ access: access.access, view, runHistory });
+    const normalizedRunHistory = Array.isArray(runHistory) ? runHistory[0] ?? null : runHistory;
+    if (!normalizedRunHistory || typeof normalizedRunHistory !== "object") return NextResponse.json({ message: "Research run history returned an invalid read model." }, { status: 503 });
+    return NextResponse.json({ access: access.access, view, runHistory: normalizedRunHistory });
   }
 
   const runsQuery = client.from("ai_prospect_discovery_runs").select("*").order("created_at", { ascending: false }).limit(50);

@@ -144,7 +144,7 @@ export function OverviewView() {
 export function RunsView() {
   const { data, state } = useOperatorData("view=runs"); const [filter, setFilter] = useState("ALL");
   if (state === "loading") return <Loading />; if (state === "error") return <ErrorState />;
-  const history = data.runHistory; if (!history) return <ErrorState />;
+  const history = data.runHistory && !Array.isArray(data.runHistory) ? data.runHistory : null; if (!history || !Array.isArray(history.runs) || !history.summary) return <ErrorState />;
   const latest = history.runs[0]?.id;
   const runs = history.runs.filter((run) => filter === "ALL" || (filter === "LATEST" ? run.id === latest : filter === "FAILED" ? ["FAILED", "ERROR"].includes(run.status.toUpperCase()) : filter === "REVIEW" ? run.currentDispositions.review > 0 : filter === "QUALIFIED" ? run.currentDispositions.qualified > 0 : true));
   const summary = history.summary;
