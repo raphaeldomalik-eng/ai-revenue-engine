@@ -27,14 +27,17 @@ test("blocked status is a hard downstream exclusion", () => {
 test("operator review API and migration are append-only and operator-scoped", async () => {
   const route = await readFile("app/api/operator/route.ts", "utf8");
   const sql = await readFile("supabase/migrations/20260822000002_ai_prospect_review_decisions_v1.sql", "utf8");
-  assert.match(route, /record_ai_prospect_review_decision/);
+  const inventorySql = await readFile("supabase/migrations/20260831170000_prospect_inventory_actions_v1.sql", "utf8");
+  assert.match(route, /record_ai_prospect_inventory_action/);
   assert.match(route, /validateBlockDecision/);
-  assert.match(route, /PROSPECT_REOPEN_ARCHIVE_ONLY/);
   assert.match(sql, /decision text not null check \(decision in \('BLOCKED', 'REOPENED'\)\)/);
   assert.match(sql, /enable row level security/);
   assert.match(sql, /operators create prospect review decisions/);
   assert.match(sql, /security invoker/);
   assert.doesNotMatch(sql, /grant .*update|grant .*delete/i);
+  assert.match(inventorySql, /append-only/i);
+  assert.match(inventorySql, /security invoker/);
+  assert.match(inventorySql, /revoke all on function.*from public, anon/i);
 });
 
 test("blocked prospects are excluded before contact research and Composer drafting", async () => {

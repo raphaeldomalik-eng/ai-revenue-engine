@@ -10,6 +10,8 @@ const EMAIL_STATES = new Set(["ALL", "VERIFIED", "REVIEW"]);
 const PRIORITIES = new Set(["ALL", "Phase One priority", "Standard priority", "Deferred"]);
 const SORTS = new Set(["attention", "recent", "name", "ready"]);
 const INVENTORY_VIEWS = new Set(["ALL", "NEEDS_REVIEW", "QUALIFIED", "CONTACTABLE", "ACTIVE", "REJECTED", "BLOCKED", "DUPLICATES", "HISTORICAL"]);
+const INVENTORY_STATUSES = new Set(["ALL", "REVIEW_REQUIRED", "QUALIFIED", "REJECTED", "BLOCKED", "DUPLICATE"]);
+const INVENTORY_QUALITIES = new Set(["ALL", "READY", "NEEDS_EVIDENCE", "MISSING_SOURCE", "UNRESOLVED"]);
 
 function inventoryStatus(candidate: any) {
   if (candidate.status === "DUPLICATE" || candidate.dedupe_of_candidate_id) return "DUPLICATES";
@@ -20,15 +22,33 @@ function inventoryStatus(candidate: any) {
   return "ACTIVE";
 }
 
+function inventoryQuality(candidate: any) {
+  const intelligence = candidate.prospect_intelligence && typeof candidate.prospect_intelligence === "object" ? candidate.prospect_intelligence : {};
+  if (!Array.isArray(candidate.source_urls) || !candidate.source_urls.length) return "MISSING_SOURCE";
+  if (!Array.isArray(candidate.facts) || !candidate.facts.length) return "NEEDS_EVIDENCE";
+  if ((Array.isArray(candidate.unknowns) && candidate.unknowns.length) || String(intelligence.organisationResolution?.status ?? "").toUpperCase() === "UNRESOLVED") return "UNRESOLVED";
+  return "READY";
+}
+
 async function prospectInventory(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, access: any, url: URL) {
   const saved = url.searchParams.get("saved") ?? "NEEDS_REVIEW";
   const search = (url.searchParams.get("search") ?? "").trim().toLowerCase();
   const status = url.searchParams.get("status") ?? "ALL";
   const lane = url.searchParams.get("lane") ?? "ALL";
   const run = url.searchParams.get("run") ?? "ALL";
+  const quality = url.searchParams.get("quality") ?? "ALL";
   const page = Math.max(1, Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
   const pageSize = Math.min(100, Math.max(10, Number.parseInt(url.searchParams.get("pageSize") ?? "25", 10) || 25));
-  if (!INVENTORY_VIEWS.has(saved) || search.length > 200) return NextResponse.json({ code: "INVENTORY_FILTER_INVALID", message: "The inventory filter is not valid." }, { status: 400 });
+  if (!INVENTORY_VIEWS.has(saved) || !INVENTORY_STATUSES.has(status) || !INVENTORY_QUALITIES.has(quality) || search.length > 200) return NextResponse.json({ code: "INVENTORY_FILTER_INVALID", message: "The inventory filter is not valid." }, { status: 400 });
+  const [{ data: result, error: inventoryError }, { data: runs, error: runsError }] = await Promise.all([
+    client.rpc("list_ai_prospect_inventory", { p_saved: saved, p_search: search, p_status: status, p_lane: lane, p_run: run === "ALL" ? null : run, p_quality: quality, p_page: page, p_page_size: pageSize }),
+    client.from("ai_prospect_discovery_runs").select("*").order("created_at", { ascending: false }).limit(50),
+  ]);
+  if (inventoryError || runsError || !result) return NextResponse.json({ message: "Prospect inventory is unavailable." }, { status: 503 });
+  const inventory = result as { candidates?: unknown; total?: unknown; page?: unknown; pageCount?: unknown; inventoryCounts?: Record<string, number> };
+  return NextResponse.json({ access: access.access, view: "inventory", runs: runs ?? [], candidates: Array.isArray(inventory.candidates) ? inventory.candidates : [], latestRunId: runs?.[0]?.id ?? null, total: Number(inventory.total ?? 0), page: Number(inventory.page ?? 1), pageSize, pageCount: Number(inventory.pageCount ?? 1), inventoryCounts: inventory.inventoryCounts ?? {} });
+
+  { /* Legacy in-route projection retained below only until the next migration cleanup. */
   const [{ data: candidates, error: candidateError }, { data: runs, error: runsError }] = await Promise.all([
     client.from("ai_prospect_candidates").select("*").order("updated_at", { ascending: false }).range(0, 9999),
     client.from("ai_prospect_discovery_runs").select("*").order("created_at", { ascending: false }).limit(50),
@@ -76,11 +96,12 @@ async function prospectInventory(client: Awaited<ReturnType<typeof createServerS
       && (status === "ALL" || item.status === status)
       && (lane === "ALL" || item.origin === lane)
       && (run === "ALL" || item.run_appearances.some((appearance: any) => appearance.discovery_run_id === run))
+      && (quality === "ALL" || inventoryQuality(item) === quality)
       && (!search || haystack.includes(search));
   }).sort((a, b) => new Date(b.last_seen_at ?? b.created_at ?? 0).getTime() - new Date(a.last_seen_at ?? a.created_at ?? 0).getTime());
   const total = filtered.length;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  return NextResponse.json({ access: access.access, view: "inventory", runs: runs ?? [], candidates: filtered.slice((Math.min(page, pageCount) - 1) * pageSize, Math.min(page, pageCount) * pageSize), latestRunId: runs?.[0]?.id ?? null, total, page: Math.min(page, pageCount), pageSize, pageCount, inventoryCounts: counts });
+  return NextResponse.json({ access: access.access, view: "inventory", runs: runs ?? [], candidates: filtered.slice((Math.min(page, pageCount) - 1) * pageSize, Math.min(page, pageCount) * pageSize), latestRunId: runs?.[0]?.id ?? null, total, page: Math.min(page, pageCount), pageSize, pageCount, inventoryCounts: counts }); }
 }
 
 async function prospectList(client: Awaited<ReturnType<typeof createServerSupabaseClient>>, access: any, url: URL) {
@@ -210,7 +231,7 @@ export async function POST(request: Request) {
   const access = await readAccess(client);
   if (access.error) return access.error;
   if (!access.userId || !["operator", "admin"].includes(access.memberRole)) return NextResponse.json({ message: "Active operator access is required." }, { status: 403 });
-  let body: { action?: string; candidateId?: string; sourceQueue?: string; reasonCode?: unknown; otherExplanation?: unknown; note?: unknown };
+  let body: { action?: string; candidateId?: string; sourceQueue?: string; reasonCode?: unknown; otherExplanation?: unknown; note?: unknown; nextAction?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ code: "PROSPECT_REVIEW_INPUT_INVALID", message: "A valid review decision is required." }, { status: 400 }); }
   if (!body.candidateId) return NextResponse.json({ code: "PROSPECT_ID_REQUIRED", message: "A prospect is required." }, { status: 400 });
   try {
@@ -219,20 +240,26 @@ export async function POST(request: Request) {
       if (error) throw new Error(error.message || "PROSPECT_APPROVAL_SAVE_FAILED");
       return NextResponse.json({ approval: data, message: "Prospect approved for drafting." });
     }
-    if (body.action === "REOPEN" && body.sourceQueue !== "ARCHIVE") throw new Error("PROSPECT_REOPEN_ARCHIVE_ONLY");
-    const decision = body.action === "REOPEN" ? { reasonCode: null, otherExplanation: null, note: typeof body.note === "string" ? body.note.trim() || null : null } : validateBlockDecision({ reasonCode: body.reasonCode, otherExplanation: body.otherExplanation, note: body.note });
-    if (body.action !== "BLOCK" && body.action !== "REOPEN") throw new Error("PROSPECT_REVIEW_ACTION_INVALID");
+    const action = body.action;
+    if (!["BLOCK", "REOPEN", "QUALIFY", "REJECT", "MARK_DUPLICATE", "RESTORE", "SET_NEXT_ACTION"].includes(String(action))) throw new Error("PROSPECT_REVIEW_ACTION_INVALID");
+    const needsReason = ["BLOCK", "REJECT", "MARK_DUPLICATE"].includes(String(action));
+    const decision = needsReason ? validateBlockDecision({ reasonCode: body.reasonCode, otherExplanation: body.otherExplanation, note: body.note }) : { reasonCode: null, otherExplanation: null, note: typeof body.note === "string" ? body.note.trim() || null : null };
     if (decision.note && decision.note.length > 1000) throw new Error("PROSPECT_BLOCK_NOTE_TOO_LONG");
-    const { data, error } = await client.rpc("record_ai_prospect_review_decision", {
+    const nextAction = typeof body.nextAction === "string" ? body.nextAction.trim() : null;
+    if (action === "SET_NEXT_ACTION" && (!nextAction || nextAction.length > 500)) throw new Error("PROSPECT_NEXT_ACTION_INVALID");
+    const actionName = action === "REOPEN" || action === "RESTORE" ? "RESTORE" : action ?? "";
+    const { data, error } = await client.rpc("record_ai_prospect_inventory_action", {
       p_candidate_id: body.candidateId,
-      p_decision: body.action === "BLOCK" ? "BLOCKED" : "REOPENED",
+      p_action: actionName,
       p_reason_code: decision.reasonCode,
       p_other_explanation: decision.otherExplanation,
       p_note: decision.note,
+      p_next_action: nextAction,
       p_reviewer_id: access.userId,
     });
     if (error) throw new Error(error.message || "PROSPECT_REVIEW_SAVE_FAILED");
-    return NextResponse.json({ decision: data, message: body.action === "BLOCK" ? "Prospect blocked and moved to History / archive." : "Prospect reopened for review." });
+    const messages: Record<string, string> = { QUALIFY: "Prospect qualified.", REJECT: "Prospect rejected.", BLOCK: "Prospect blocked.", MARK_DUPLICATE: "Prospect marked as a duplicate.", RESTORE: "Prospect restored to review.", SET_NEXT_ACTION: "Next action updated." };
+    return NextResponse.json({ decision: data, message: messages[actionName] ?? "Prospect updated." });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Prospect review decision could not be saved.";
     const code = message.includes("PROSPECT_") ? message.match(/PROSPECT_[A-Z_]+/)?.[0] ?? "PROSPECT_REVIEW_SAVE_FAILED" : "PROSPECT_REVIEW_SAVE_FAILED";
