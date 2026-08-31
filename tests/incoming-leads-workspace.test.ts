@@ -57,5 +57,9 @@ test("operator workspace migration provides audited classification, restore, que
   assert.match(api, /client\.rpc\("bulk_update_incoming_leads"/);
   assert.match(ui, /COMPLETE INTERACTION TIMELINE/);
   assert.match(ui, /database-filtered/);
+  assert.match(ui, /Exclude ticketing/);
+  assert.match(ui, /QuickReviewDrawer/);
+  assert.match(ui, /Undo exclusion/);
+  assert.match(ui, /keyboard triage/);
   assert.match(ui, /No send, schedule, provider or message action exists/);
 });
