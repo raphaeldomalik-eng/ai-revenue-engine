@@ -33,9 +33,13 @@
 .incoming-advanced-filter-grid label { display: flex; flex-direction: column; gap: 5px; color: #65746c; font: 500 9px 'DM Mono', monospace; }
 .incoming-advanced-filter-grid input, .incoming-advanced-filter-grid select { border: 1px solid #cbd4ca; background: #fff; color: #1a2822; padding: 8px; font: 12px Manrope, Arial, sans-serif; }
 .incoming-table .collection-table { min-width: 0 !important; table-layout: fixed !important; }
-.incoming-table .collection-table th:first-child, .incoming-table .collection-table td:first-child, .incoming-table .collection-table th:nth-child(7), .incoming-table .collection-table td:nth-child(7) { display: none !important; }
+.incoming-table .collection-table th:first-child, .incoming-table .collection-table td:first-child, .incoming-table .collection-table th:nth-child(8), .incoming-table .collection-table td:nth-child(8) { display: none !important; }
+.incoming-table .collection-table th:nth-child(7) { font-size: 0 !important; }
+.incoming-table .collection-table th:nth-child(7)::after { content: "LAST ACTIVITY"; font-size: 10px; }
 .incoming-sticky-actions { position: static !important; min-width: 0 !important; box-shadow: none !important; background: transparent !important; }
 .incoming-review-action { color: #1d4034 !important; border: 1px solid #cbd4ca !important; background: #fff !important; padding: 9px 16px !important; }
+.incoming-table .collection-table th:nth-child(7) { width: 11% !important; }
+.incoming-table .collection-table th:nth-child(9) { width: 8% !important; }
 
 /* Prospect inventory: six decision counts and a compact canonical queue. */
 .inventory-counts { display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 8px !important; margin: 0 0 21px !important; }
