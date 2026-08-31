@@ -44,7 +44,7 @@ function useIncomingData(query: string) {
 }
 
 function Header({ title, lede, action }: { title: string; lede: string; action?: React.ReactNode }) {
-  return <header className="operator-page-header"><div><span className="operator-kicker">INCOMING LEADS</span><h1>{title}</h1><p>{lede}</p></div>{action}</header>;
+  return <header className="operator-page-header"><div><span className="operator-kicker">INBOUND TRIAGE</span><h1>{title}</h1><p>{lede}</p></div>{action}</header>;
 }
 
 function QualityLabels({ lead }: { lead: Lead }) {
@@ -80,7 +80,7 @@ function BulkActions({ selectedIds, members, refresh, onComplete }: { selectedId
 export function LegacyIncomingLeadsView() {
   const [view, setView] = useState("needs-review"); const [search, setSearch] = useState(""); const [source, setSource] = useState("ALL"); const [classification, setClassification] = useState("ALL"); const [intent, setIntent] = useState("ALL"); const [owner, setOwner] = useState("ALL"); const [stage, setStage] = useState("ALL"); const [followUpState, setFollowUpState] = useState("ALL"); const [dataQualityState, setDataQualityState] = useState("ALL"); const [enrichmentState, setEnrichmentState] = useState("ALL"); const [dateFrom, setDateFrom] = useState(""); const [dateTo, setDateTo] = useState(""); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(25); const [selected, setSelected] = useState<Set<string>>(new Set());
   const query = useMemo(() => new URLSearchParams({ view, search, source, classification, intent, owner, stage, followUpState, dataQualityState, enrichmentState, dateFrom, dateTo, page: String(page), pageSize: String(pageSize) }).toString(), [classification, dataQualityState, dateFrom, dateTo, enrichmentState, followUpState, intent, owner, page, pageSize, search, source, stage, view]);
-   const { data, state, refresh } = useIncomingData(query);
+  const { data, state, refresh } = useIncomingData(query);
   useEffect(() => setSelected(new Set()), [query]);
   if (state === "loading") return <Loading />; if (state === "error") return <Empty text="Incoming Leads data is unavailable." />;
   const readOnly = data.access === "VIEWER"; const totalPages = Math.max(1, Math.ceil(data.totalCount / pageSize)); const metrics = data.metrics;

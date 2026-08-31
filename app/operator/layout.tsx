@@ -3,6 +3,7 @@ import "./operator.css";
 import "./run-results.css";
 import "./incoming-leads.css";
 import "./incoming-leads-triage.css";
+import "./parity.css";
 
 export default function OperatorLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return <OperatorShell>{children}</OperatorShell>;

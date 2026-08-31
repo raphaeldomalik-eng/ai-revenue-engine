@@ -1,0 +1,53 @@
+/* Final operator workspace parity layer. This file is intentionally imported last. */
+
+.operator-sidebar { width: 230px !important; background: #1d4034 !important; color: #f3f6ef !important; }
+.operator-sidebar a[aria-current="page"] { background: #294d3f !important; color: #fff !important; }
+.operator-main { flex: 1 !important; width: auto !important; max-width: none !important; padding: 34px 34px 72px !important; background: #f7f5ef !important; }
+.operator-page-header { border-bottom-color: #718078 !important; padding-bottom: 25px !important; margin-bottom: 21px !important; }
+.operator-page-header h1, .operator-page-header.compact h1 { font-size: 32px !important; letter-spacing: -.045em; margin: 9px 0 8px; }
+.operator-page-header p { color: #65746c !important; font-size: 13px !important; line-height: 1.45; }
+.operator-button { background: #1d4034 !important; border-color: #1d4034 !important; }
+.operator-button:hover { background: #2a5545 !important; border-color: #2a5545 !important; }
+.operator-stats { background: transparent !important; border: 0 !important; }
+.operator-stat { background: #fff !important; border: 1px solid #d5ddd4 !important; }
+.collection-table-wrap { border-color: #d5ddd4 !important; background: #fff !important; }
+.collection-table th { background: #1d4034 !important; color: #f3f6ef !important; border-bottom-color: #1d4034 !important; }
+
+/* Incoming leads: four operational cards, five saved views, one clear row action. */
+.incoming-metrics { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 12px !important; background: transparent !important; border: 0 !important; margin-bottom: 20px !important; }
+.incoming-metrics > div { min-width: 0; background: #fff !important; border: 1px solid #d5ddd4 !important; border-left: 4px solid #c5e842 !important; padding: 14px 16px !important; }
+.incoming-metrics > div:nth-child(n+2) { border-left-width: 1px !important; }
+.incoming-metrics span, .incoming-metrics small { color: #65746c !important; }
+.incoming-metrics strong { font-size: 25px !important; }
+.incoming-view-tabs { display: flex !important; gap: 8px !important; overflow-x: auto; border: 0 !important; margin-bottom: 18px !important; }
+.incoming-view-tabs button { flex: 0 0 auto; border: 1px solid #d5ddd4 !important; border-bottom: 1px solid #d5ddd4 !important; background: #fff !important; color: #65746c !important; padding: 10px 19px !important; }
+.incoming-view-tabs button:hover, .incoming-view-tabs button.active { border-color: #1d4034 !important; background: #1d4034 !important; color: #fff !important; }
+.incoming-filters { display: grid !important; grid-template-columns: minmax(0, 1fr) auto !important; gap: 14px !important; align-items: center !important; padding: 10px 14px !important; margin-bottom: 22px !important; border: 1px solid #d5ddd4 !important; background: #fff !important; }
+.incoming-filters > label:not(.incoming-search-filter) { display: none !important; }
+.incoming-search-filter { display: flex !important; flex-direction: column; min-width: 0; color: #65746c !important; font: 500 9px 'DM Mono', monospace !important; letter-spacing: .08em; }
+.incoming-search-filter input { box-sizing: border-box; width: 100% !important; margin: 0 !important; border: 0 !important; background: transparent !important; padding: 10px 2px !important; font: 13px Manrope, Arial, sans-serif !important; }
+.incoming-advanced-filters { justify-self: end; position: relative; color: #65746c; font: 500 10px 'DM Mono', monospace; letter-spacing: .08em; }
+.incoming-advanced-filters summary { cursor: pointer; list-style: none; }
+.incoming-advanced-filters summary::-webkit-details-marker { display: none; }
+.incoming-advanced-filter-grid { position: absolute; z-index: 10; right: 0; top: 25px; display: grid; grid-template-columns: repeat(2, 180px); gap: 10px; padding: 13px; border: 1px solid #cbd4ca; background: #fff; box-shadow: 0 12px 28px rgba(24,48,38,.16); }
+.incoming-advanced-filter-grid label { display: flex; flex-direction: column; gap: 5px; color: #65746c; font: 500 9px 'DM Mono', monospace; }
+.incoming-advanced-filter-grid input, .incoming-advanced-filter-grid select { border: 1px solid #cbd4ca; background: #fff; color: #1a2822; padding: 8px; font: 12px Manrope, Arial, sans-serif; }
+.incoming-table .collection-table { min-width: 0 !important; table-layout: fixed !important; }
+.incoming-table .collection-table th:first-child, .incoming-table .collection-table td:first-child, .incoming-table .collection-table th:nth-child(7), .incoming-table .collection-table td:nth-child(7) { display: none !important; }
+.incoming-sticky-actions { position: static !important; min-width: 0 !important; box-shadow: none !important; background: transparent !important; }
+.incoming-review-action { color: #1d4034 !important; border: 1px solid #cbd4ca !important; background: #fff !important; padding: 9px 16px !important; }
+
+/* Prospect inventory: six decision counts and a compact canonical queue. */
+.inventory-counts { display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr)) !important; gap: 8px !important; margin: 0 0 21px !important; }
+.inventory-counts .operator-stat { min-width: 0; padding: 12px 14px !important; }
+.inventory-context, .prospect-queue-tabs { display: none !important; }
+.inventory-filter-panel { display: grid !important; grid-template-columns: minmax(0, 1fr) auto !important; gap: 14px !important; padding: 11px 14px !important; margin-bottom: 20px !important; border: 1px solid #d5ddd4 !important; background: #fff !important; }
+.inventory-filter-panel label:not(.prospect-search), .inventory-filter-panel .clear-filter-button { display: none !important; }
+.inventory-filter-panel .prospect-search { grid-column: 1; min-width: 0; }
+.inventory-filter-panel .prospect-search input { border: 0 !important; padding: 8px 2px !important; }
+.inventory-table .collection-table { min-width: 0 !important; table-layout: fixed !important; }
+.inventory-table .collection-table th:nth-child(2), .inventory-table .collection-table td:nth-child(2), .inventory-table .collection-table th:nth-child(5), .inventory-table .collection-table td:nth-child(5), .inventory-table .collection-table th:nth-child(7), .inventory-table .collection-table td:nth-child(7) { display: none !important; }
+.inventory-action-column { position: static !important; background: transparent !important; }
+
+@media (max-width: 950px) { .operator-sidebar { width: 210px !important; } .operator-main { padding: 30px 24px !important; } .inventory-counts { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
+@media (max-width: 700px) { .operator-sidebar { width: auto !important; } .operator-main { padding: 25px 17px 55px !important; } .incoming-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } .incoming-filters { grid-template-columns: 1fr !important; } .incoming-advanced-filters { justify-self: start; } .incoming-advanced-filter-grid { position: static; grid-template-columns: 1fr 1fr; } .inventory-counts { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } .inventory-filter-panel { grid-template-columns: 1fr !important; } }
