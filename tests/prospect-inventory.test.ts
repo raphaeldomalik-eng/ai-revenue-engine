@@ -11,6 +11,11 @@ test("inventory cancels stale requests and exposes one explicit review save", as
   assert.match(source, /QUALIFY/);
   assert.match(source, /REJECT/);
   assert.match(source, /BLOCK/);
+  assert.match(source, /FAST BLOCK/);
+  assert.match(source, /Block as ticketing company/);
+  assert.match(source, /TICKETING_BLOCK_REASON/);
+  assert.match(source, /action: "BLOCK"/);
+  assert.match(source, /onBlock={saveBlock}/);
   assert.match(source, /DUPLICATE/);
   assert.match(source, /Save review/);
   assert.match(source, /Unsaved review changes/);
