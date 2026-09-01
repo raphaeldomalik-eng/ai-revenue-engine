@@ -144,6 +144,14 @@ export function asArray<T = any>(value: unknown): T[] {
   return Array.isArray(value) ? value as T[] : [];
 }
 
+export function operatorSourceUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const raw = value.trim();
+  if (/^https?:\/\/\S+$/i.test(raw)) return raw;
+  const markdown = raw.match(/^\(\[[^\]]+\]\((https?:\/\/[^)]*)\)\)$/i);
+  return markdown?.[1]?.trim() || null;
+}
+
 export function territoryLabel(code?: string | null) { return code ? territoryLabels[code] ?? code : "Territory not recorded"; }
 export function lensLabel(focus?: string | null) { return focus ? lensLabels[focus] ?? focus : "Lens not recorded"; }
 export function statusLabel(status?: string | null) { return status ? statusLabels[status] ?? status.replaceAll("_", " ") : "Status not recorded"; }

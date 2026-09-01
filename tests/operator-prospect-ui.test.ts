@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { operatorActivityLabel, operatorContactState, operatorNextAction, operatorPersonLabel, operatorRoleLabel, operatorWorkflowState, operatorWhyRelevant, paginationModel, prospectPriority, prospectType, type OperatorCandidate } from "../src/operator-ui/logic.ts";
+import { operatorActivityLabel, operatorContactState, operatorNextAction, operatorPersonLabel, operatorRoleLabel, operatorSourceUrl, operatorWorkflowState, operatorWhyRelevant, paginationModel, prospectPriority, prospectType, type OperatorCandidate } from "../src/operator-ui/logic.ts";
 
 const candidate = (overrides: Partial<OperatorCandidate> = {}): OperatorCandidate => ({
   id: "candidate-1", discovery_run_id: "run-1", canonical_key: "dsac", candidate_name: "Mzansi Roar Festival", organiser_name: "Department of Sport, Arts and Culture (DSAC)", website: null, territory_code: "ZA", origin: "EVENT_FIRST", status: "REVIEW_REQUIRED", relationship: "PROSPECT", facts: [{ claim: "DSAC is seeking a festival promoter for the Mzansi Roar Festival.", sourceUrl: "https://example.org/dsac", sourceTitle: "DSAC notice" }], inferences: [], unknowns: ["Event organiser not confirmed"], prospect_intelligence: { recommendedNextAction: "Confirm organiser", organisationResolution: { status: "UNRESOLVED" }, commercialPriority: "PHASE_ONE_PRIORITY" }, ...overrides,
@@ -37,6 +37,13 @@ test("activity statuses are translated for operators", () => {
   assert.equal(operatorActivityLabel("DOMAIN_QUERY_SCOPED"), "Employer matched by an approved search; human review required");
 });
 
+test("operator source links normalize persisted Markdown URLs safely", () => {
+  assert.equal(operatorSourceUrl("([stepapp.co.za](https://stepapp.co.za/path?x=1))"), "https://stepapp.co.za/path?x=1");
+  assert.equal(operatorSourceUrl("https://example.org/a"), "https://example.org/a");
+  assert.equal(operatorSourceUrl("javascript:alert(1)"), null);
+  assert.equal(operatorSourceUrl("not a url"), null);
+});
+
 test("prospect list uses the compact drawer IA and has no sending control", async () => {
   const source = await readFile("app/operator/operator-views.tsx", "utf8");
   const start = source.lastIndexOf("export function ProspectsView");
@@ -60,6 +67,7 @@ test("prospect list uses the compact drawer IA and has no sending control", asyn
   assert.match(source, /onPageSize\(Number\(event\.target\.value\)\); onPage\?\.\(1\)/);
   assert.match(source, /data\.total \?\? visible\.length/);
   assert.match(source, /view=prospect-detail/);
+  assert.match(source, /operatorSourceUrl/);
   assert.match(source, /detailCache/);
   assert.match(source, /emailBusyKeys/);
   assert.doesNotMatch(active, /await refresh\(\)/);
