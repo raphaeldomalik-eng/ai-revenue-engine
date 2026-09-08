@@ -49,3 +49,15 @@ test("route source places the activation gate before Supabase auth, provider cal
     assert.ok(postSource.indexOf(`if (!${gate}())`) < postSource.indexOf(write));
   }
 });
+
+test("disabled outreach cron reports a successful no-op before any scheduler work", () => {
+  const scheduler = readFileSync("app/api/cron/outreach/route.ts", "utf8");
+  const gate = 'if (!outreachSendingProductionEnabled())';
+  const disabledResponse = 'NextResponse.json({ skipped: true, code: "PILOT_NOT_ENABLED", processed: 0';
+
+  assert.ok(scheduler.includes(`${disabledResponse}, message:`));
+  assert.ok(scheduler.includes('{ status: 200 }'));
+  assert.ok(scheduler.indexOf(gate) < scheduler.indexOf('request.headers.get("authorization")'));
+  assert.ok(scheduler.indexOf(gate) < scheduler.indexOf("createClient("));
+  assert.ok(scheduler.indexOf(gate) < scheduler.indexOf("processDueOutreachMessages("));
+});

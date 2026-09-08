@@ -4,7 +4,7 @@ import { processDueOutreachMessages } from "../../../../src/outreach/service";
 import { outreachSendingProductionEnabled } from "../../../../src/lib/server-production-activation";
 
 export async function GET(request: Request) {
-  if (!outreachSendingProductionEnabled()) return NextResponse.json({ code: "PILOT_NOT_ENABLED", message: "The outreach scheduler is disabled during the supervised Composer pilot." }, { status: 503 });
+  if (!outreachSendingProductionEnabled()) return NextResponse.json({ skipped: true, code: "PILOT_NOT_ENABLED", processed: 0, message: "The outreach scheduler is disabled during the supervised Composer pilot." }, { status: 200 });
   const authorization = request.headers.get("authorization");
   if (!process.env.CRON_SECRET || authorization !== `Bearer ${process.env.CRON_SECRET}`) return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
