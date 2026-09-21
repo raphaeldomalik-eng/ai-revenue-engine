@@ -149,6 +149,7 @@ function unresolved(request: ResearchRequest, purpose: string, message: string, 
 export function createPublicWebProvider(options: PublicWebProviderOptions = {}) {
   return async ({ request, context }: { request: ResearchRequest; context: ResearchContext }): Promise<ProviderResult> => {
     const purpose = request.researchPurpose;
+    if (!["OFFICIAL_WEBSITE", "PUBLIC_CONTACT"].includes(purpose)) return unresolved(request, purpose, "This bounded public-web adapter is limited to official website and public business contact research.");
     const website = targetWebsite(request, context);
     if (!website) return unresolved(request, purpose, "No evidenced public first-party HTTPS website was available for bounded discovery.");
 
