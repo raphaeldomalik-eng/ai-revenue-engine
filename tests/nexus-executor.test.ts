@@ -55,6 +55,7 @@ test("research result preserves contract correlation, evidence separation, and i
 
 test("source discovery validates HTTPS and blocks private targets", async () => {
   assert.equal(isPublicHttpsUrl("http://venue.example"), false);
+  assert.equal(isPublicHttpsUrl("https://user:pass@venue.example"), false);
   assert.equal(isPublicHttpsUrl("https://127.0.0.1"), false);
   await assert.rejects(() => assertPublicNetworkTarget("https://venue.example", async () => [{ address: "10.0.0.7", family: 4 }]));
   assert.throws(() => validateSourceDiscoveryRequest(discovery({ verifiedSourceUrl: "http://venue.example/" })), /INVALID_VERIFIED_SOURCE_URL/);
