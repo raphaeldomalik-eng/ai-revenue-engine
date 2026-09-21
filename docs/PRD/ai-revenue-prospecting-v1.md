@@ -111,6 +111,10 @@ requires explicit human selection before any later business-email enrichment.
 General web contact searching is disabled by default. Zero results and safe
 unresolved outcomes are valid. Qualification remains “Could prospect
 plausibly benefit from EventSuite?” and does not require public proof of pain.
+Apollo coverage is not a commercial signal: a zero result, unavailable provider
+or unsupported organisation type does not mean the account has no buyer, no
+legitimate route, no EventSuite opportunity or no value in its vertical. Retain
+the provider outcome separately from account qualification and market learning.
 
 ## 3. Target hierarchy and territories
 
@@ -118,21 +122,27 @@ Primary targets are organisers, promoters, festival operators, conference and ex
 
 Universities, sports operators, cultural and tourism organisations, charities, event agencies and community operators are situational targets where event evidence supports them.
 
-Initial territories are South Africa and the United Kingdom. Discovery should deliberately include grassroots, regional, community, independent-promoter and smaller-town activity, not only nationally visible events. Europe is deferred.
+Community-led is a vertical or operating-model label, not a size classification. A community event may be large, professionally operated or nationally significant; a small event is not automatically community-led. Preserve vertical, event/organisation scale, geography and commercial evidence as separate dimensions.
+
+Initial market-learning territories are South Africa, the United Kingdom and the United States. Discovery must not exclude grassroots, regional, community, independent-promoter or smaller-town activity, and must retain those attributes as analysis tags. In the first cross-market round, community and underserved activity is neither an automatic qualification nor a protected cohort; it is reported as a subgroup alongside established channels. Europe is deferred.
+
+The workforce must retain a vertical label and evidence basis for every candidate so results can be compared by territory and vertical. An “underserved” label requires observable commercial or operating context; it must not be inferred from a demographic or socioeconomic proxy.
 
 ### Phase One target priority and size handling
 
-Phase One prioritises UK SMEs, independent organisers, regional venues and
-smaller event agencies across all four discovery lanes:
-`EVENT_FIRST`, `ORGANISATION_FIRST`, `PERSON_FIRST` and `VENUE_FIRST`.
-The same priority applies whether the signal begins with an event,
-organisation, person or venue.
+Phase One uses the shared cross-market ICP: independent organisers and
+promoters of recurring, ticketed events with a clear commercial owner, active
+public event evidence and an observable growth or operational problem. This
+applies across South Africa, the United Kingdom and the United States and
+across all four discovery lanes: `EVENT_FIRST`, `ORGANISATION_FIRST`,
+`PERSON_FIRST` and `VENUE_FIRST`. The same priority applies whether the
+signal begins with an event, organisation, person or venue.
 
 Use these deterministic prospect-size classifications:
 
 - `PHASE_ONE_SME` — evidence supports a small or medium independent organiser,
-  regional venue operator or smaller event agency that fits the initial sales
-  motion;
+  regional venue operator or smaller event agency within the shared ICP. This
+  is an initial priority label, not the definition of the whole ICP;
 - `ENTERPRISE_DEFERRED` — strong evidence supports a large enterprise or
   enterprise group outside the Phase One focus. This is deferred, not rejected;
 - `SIZE_UNRESOLVED` — available evidence is insufficient to classify size.
@@ -193,7 +203,9 @@ AI research. The source ownership order is:
 4. Apollo owns provider-native people/employment evidence and selected,
    verified business-email evidence. Mixed People Search is the primary
    bounded people route: maximum five candidates, deterministic ranking, human
-   selection, then initially one enrichment credit.
+   selection, then initially one enrichment credit. Apollo coverage varies by
+   territory, vertical and organisation type; a missing result is provider
+   outcome evidence, not negative account, buyer or opportunity evidence.
 5. AI models interpret ambiguity, relationships, EventSuite fit, role
    classification, commercial context and messaging. AI is not the default
    source for registration facts, venue identity, people discovery or email
@@ -222,6 +234,9 @@ status. This contract does not require a schema change in V1.
   unless uniquely required;
 - do not run AI web-contact discovery when Apollo is available;
 - limit Apollo Search to five people and enrich only after human selection;
+- record whether Apollo was not queried, unavailable, returned zero matches,
+  returned candidates without a verified route, or returned a verified route;
+  do not use any of these provider outcomes as a qualification downgrade;
 - require approval before a second enriched contact;
 - deduplicate by company number, Place ID, canonical domain and event identity;
 - record request counts, model usage and provider cost per prospect.

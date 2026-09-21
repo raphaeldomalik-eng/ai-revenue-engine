@@ -1,31 +1,40 @@
-# AI Revenue Engine — PRD
+# AI Revenue Engine — Product PRD
 
-## Vision
+**Status:** Active product definition V1
+**Initial product:** Event Suite
+**Initial territories:** South Africa, United Kingdom, United States
+**Primary purpose:** Generate repeatable Event Suite revenue through a policy-controlled AI sales and marketing workforce.
 
-One reusable AI Revenue Engine supporting multiple products.
+## Product decision
 
-## Initial product
+The AI Revenue Engine is an evidence-led, supervised AI revenue workforce. It helps Event Suite create, prioritise and progress commercial work across marketing, outbound prospecting, inbound demand and opportunity management.
 
-Event Suite.
+It is not a generic CRM, a bulk-email tool or a collection of autonomous chatbots. Its value comes from turning trusted market and customer evidence into focused revenue actions, preserving the result, and learning which market, customer type, proposition and route produce commercial progress.
 
-## Core commercial program model
+## V1 commercial programme
 
 `Product × Territory × Sales Motion × ICP × Conversion Goal = Commercial Program`
 
-Initial programs cover Event Suite Direct in South Africa and the United Kingdom with self-service and live-demo routes, plus Local Network Operator Recruitment in both territories with opportunity enquiry/application as the primary conversion. A software demo is supporting evidence for LNO, not the primary CTA.
+V1 operates **Event Suite Direct** commercial programmes in:
 
-## Shared capabilities to build later
+- South Africa (`ZA`)
+- United Kingdom (`UK`)
+- United States (`US`)
 
-Market intelligence, prospect research, contact intelligence, qualification, opportunity strategy, route-to-conversion, outreach, response intelligence, RevOps/learning, and Revenue Director.
+The initial conversion route may be self-service, a qualified live demo, or another explicitly approved route. Local Network Operator recruitment remains a separate motion and is not part of this three-market comparison.
 
-The canonical Direct Prospecting & ICP Intelligence V1 policy is documented in [`docs/PRD/direct-prospecting-icp-v1.md`](PRD/direct-prospecting-icp-v1.md). It governs evidence-grounded direct prospecting and ICP decisions without authorising autonomous discovery or outreach.
+Each territory must use an approved territory playbook before external activation. The existing South Africa and United Kingdom playbooks remain draft inputs; a United States playbook must be approved before US outreach, pricing claims or commercial routing are activated.
+
+## Workforce, revenue operations and learning design
+
+The controlling detailed specification is [AI Revenue Workforce V1](PRD/ai-revenue-workforce-v1.md). It defines the revenue lifecycle, agent roles, authority boundaries, sales operating model, success measures, rollout phases and acceptance criteria. [Market Test Operating Protocol V1](PRD/market-test-operating-protocol-v1.md) makes revenue operations measurable without constraining legitimate sales activity, and defines the promotion path to monitored autonomy.
+
+The Direct Prospecting & ICP contract in [direct-prospecting-icp-v1.md](PRD/direct-prospecting-icp-v1.md) remains the controlling policy for identity, evidence, prospect qualification and outreach safety. The prospecting strategy, agent pack, deterministic gates and operator-UI specification remain binding implementation sources where they do not conflict with this product PRD.
 
 ## Human role
 
-Humans initially retain live demos, important commercial conversations, LNO opportunity discussions, commercial negotiation, major relationships, and operator approval.
+The destination is a policy-controlled autonomous workforce, not permanent record-by-record human approval. During testing, humans approve individual external actions to establish quality, safety and commercial baselines. After a workflow earns promotion, the workforce may execute pre-approved actions autonomously within its scope, with monitoring, sampled audit, stop controls and exception escalation. Humans retain commercial strategy, territory activation, pricing/contract exceptions, major relationships and any action outside approved policy.
 
-Design principle: do as much work as possible before somebody needs a human.
+## Current implementation status
 
-## Deferred
-
-Final ICPs and scoring, routing thresholds, competitor evidence, outreach, Gmail, SendGrid, prospecting providers, CRM, OpenAI agents, orchestration, scheduled discovery, auth roles, production domain, and commercial implementation for Allxs/Prestige ID.
+Discovery, identity resolution, commercial research, contact research, operator review, inbound-lead triage and human-reviewed outreach drafting are implemented foundations. Production activation remains explicitly gated. Response intelligence, marketing execution, opportunity management, revenue forecasting and closed-loop learning are required product capabilities but are not yet complete.

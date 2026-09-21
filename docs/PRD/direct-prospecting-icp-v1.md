@@ -3,7 +3,7 @@
 **Status:** Canonical product contract — documentation only  
 **Owner:** AI Revenue Engine  
 **Commercial scope:** Event Suite Direct Sales  
-**Territories:** South Africa and the United Kingdom for activated V1 programs; Europe is strategic direction only
+**Territories:** South Africa, the United Kingdom and the United States for market-learning V1 programs; Europe is strategic direction only
 
 ## 1. Purpose
 
@@ -141,13 +141,17 @@ South Africa is national, not metro-only. Small-town and regional events are val
 
 Small organisers, grassroots events and small venues are important prospects. “Underserved by existing providers” is a valid evidence-backed signal; low volume is not a blocker. Assessment should reflect the UK organiser-controlled payment model and Stripe Connect-style operating expectations where the source supports that fact.
 
+### United States
+
+Community-led, regional, independent and smaller event operators remain discoverable and are recorded as analysis tags alongside established event channels. United States discovery, pricing, messaging and outreach must not be activated until an approved US Direct playbook defines the applicable commercial, consent, privacy, sender and routing rules. Small scale, local geography or a community label is not itself evidence of need or eligibility, and it does not create a separate initial market-test cohort.
+
 ### Europe
 
 Europe remains strategic direction only. V1 must not imply that every European market, language, payment model or commercial program is activated.
 
-## 12. Small operators and regional events
+## 12. Size, community-led and regional events
 
-Small operators are not a lower-value class. A small event may have a high EGS or ECC priority when its audience is active, its owned presence is weak, or its organiser carries disproportionate coordination work. The system should separate size from evidence quality and urgency.
+Small operators are not a lower-value class. Community-led, grassroots, regional and otherwise underserved events remain discoverable and reportable because they may reveal a strong Event Suite wedge; they remain subject to the same identity, evidence, relationship and outreach gates as every other account. In the initial cross-market round they are analysis tags, not protected quotas or separate cohorts. Community-led is not synonymous with small: it may describe a large or professionally operated event. Conversely, a small event is not automatically a community event. A small event may have a high EGS or ECC priority when its audience is active, its owned presence is weak, or its organiser carries disproportionate coordination work. The system should separate size, geography, vertical/operating model and community status from evidence quality, urgency and commercial priority.
 
 ### Required scenario: small regional event with minimal organiser footprint
 
