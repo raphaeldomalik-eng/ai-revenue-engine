@@ -67,6 +67,8 @@ convenience:
   organisation/domain checks. Search is bounded to five candidates; ranking and
   human selection precede one initial verified business-email enrichment.
   `DOMAIN_CONFLICT` is rejected and `DOMAIN_QUERY_SCOPED` remains review-only.
+  A zero match or provider-unavailable result is a people-data coverage outcome,
+  not a qualification, priority or opportunity downgrade.
 - AI may interpret ambiguity and EventSuite fit, but may not replace a
   deterministic source for legal registration, venue identity, people or
   email discovery.

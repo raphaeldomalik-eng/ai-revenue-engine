@@ -289,7 +289,10 @@ rewrite the lane or silently merge separate graph nodes.
 - **Apollo** is the primary provider for people discovery, current roles and
   employers, buyer/influencer candidates and selected verified business-email
   enrichment. Mixed People Search is first, bounded to five candidates; role
-  ranking and human selection precede one initial enrichment.
+  ranking and human selection precede one initial enrichment. Provider coverage
+  may differ by territory, vertical and organisation type. A zero or unavailable
+  result is an unresolved people-data outcome, not evidence against the account,
+  buyer role, EventSuite fit or commercial opportunity.
 - **AI** interprets ambiguity, relationships, EventSuite fit, role relevance,
   commercial context and messaging. AI is not the default source for company
   registration facts, venue identity, people discovery or email discovery.
@@ -1562,7 +1565,8 @@ order where useful:
 
 General web contact searching is disabled by default. A missing Apollo result
 is a safe unresolved outcome and must not be replaced with guessed names,
-emails or phone numbers.
+emails or phone numbers. Preserve the provider outcome separately so a sparse
+Apollo vertical is not mistaken for a weak commercial vertical.
 
 Use third-party sources as discovery clues. Verify target ownership before
 persisting a route as usable.
