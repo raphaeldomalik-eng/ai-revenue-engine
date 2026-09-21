@@ -1,11 +1,15 @@
+import { createHash } from "node:crypto";
 import {
   CONTRACTS,
+  validateResearchRequest,
   validateResearchResult,
   validateSourceDiscoveryResult,
 } from "./contracts.ts";
 import {
   executeResearchRequest,
   executeSourceDiscoveryRequest,
+  type ResearchContext,
+  type ResearchExecutorOptions,
   type NexusResultStore,
 } from "./executor.ts";
 import {
@@ -24,6 +28,9 @@ export type NexusHttpOptions = {
   secret: string;
   store: NexusResultStore;
   now?: () => number;
+  publicWeb?: ResearchExecutorOptions["publicWeb"];
+  researchContext?: (input: Record<string, unknown>) => ResearchContext;
+  researchExecutionVersion?: string;
   executeResearch?: Executor;
   executeSourceDiscovery?: Executor;
 };
@@ -61,6 +68,31 @@ function timestampStatus(timestamp: string | null, now: number) {
   return null;
 }
 
+function versionedUuid(seed: string) {
+  const hex = createHash("sha256").update(seed).digest("hex").slice(0, 32).split("");
+  hex[12] = "4";
+  hex[16] = ["8", "9", "a", "b"][Number.parseInt(hex[16]!, 16) % 4]!;
+  return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20).join("")}`;
+}
+
+function retryEligibleResearchResult(result: Record<string, unknown> | null) {
+  if (!result || result.status !== "UNRESOLVED") return false;
+  const errors = Array.isArray(result.researchErrors) ? result.researchErrors : [];
+  return errors.every((error) => !error || typeof error !== "object" || (error as Record<string, unknown>).retryable !== false);
+}
+
+async function prepareVersionedResearchInput(input: Record<string, unknown>, options: NexusHttpOptions) {
+  if (!options.researchExecutionVersion) return { input };
+  const request = validateResearchRequest(input);
+  const prior = await options.store.get(request.idempotencyKey);
+  if (!retryEligibleResearchResult(prior)) return { input };
+  const requestId = versionedUuid(`nexus-research-request:${options.researchExecutionVersion}:${request.requestId}`);
+  const idempotencyKey = versionedUuid(`nexus-research-idempotency:${options.researchExecutionVersion}:${request.idempotencyKey}`);
+  const refreshed = await options.store.get(idempotencyKey);
+  if (refreshed) return { input, stored: refreshed };
+  return { input: { ...input, requestId, idempotencyKey } };
+}
+
 export async function handleNexusExecuteRequest(request: Request, options: NexusHttpOptions): Promise<Response> {
   if (!options.secret) return json(503, { code: "NEXUS_HMAC_SECRET_NOT_CONFIGURED" });
 
@@ -95,9 +127,11 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
 
   try {
     if (payload.contractVersion === CONTRACTS.RESEARCH_REQUEST) {
+      const prepared = await prepareVersionedResearchInput(payload, options);
+      if (prepared.stored) return json(200, validateResearchResult(prepared.stored));
       const execute = options.executeResearch ?? (async (input, context) =>
-        executeResearchRequest(input, {}, {}, context.store));
-      return json(200, validateResearchResult(await execute(payload, { store: options.store })));
+        executeResearchRequest(input, options.researchContext?.(input as Record<string, unknown>) ?? {}, { publicWeb: options.publicWeb }, context.store));
+      return json(200, validateResearchResult(await execute(prepared.input, { store: options.store })));
     }
     if (payload.contractVersion === CONTRACTS.SOURCE_DISCOVERY_REQUEST) {
       const execute = options.executeSourceDiscovery ?? (async (input, context) =>
