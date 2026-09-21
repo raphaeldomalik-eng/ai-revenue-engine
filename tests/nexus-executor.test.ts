@@ -61,6 +61,17 @@ test("source discovery validates HTTPS and blocks private targets", async () => 
   assert.throws(() => validateSourceDiscoveryRequest(discovery({ requestedExtractors: ["UNKNOWN"] })), /INVALID_SOURCE_EXTRACTORS/);
 });
 
+test("source discovery request accepts known originating products and rejects unknown products", () => {
+  assert.equal(
+    validateSourceDiscoveryRequest(discovery({ originatingProduct: "event_suite_resources" })).originatingProduct,
+    "event_suite_resources",
+  );
+  assert.throws(
+    () => validateSourceDiscoveryRequest(discovery({ originatingProduct: "unknown_product" })),
+    /INVALID_ORIGINATING_PRODUCT/,
+  );
+});
+
 test("source discovery revalidates redirects and respects robots and finite page budget", async () => {
   const requested: string[] = [];
   const response = async (input: RequestInfo | URL) => { const url = String(input); requested.push(url); if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nDisallow: /private\nAllow: /", { status: 200 }); if (url.endsWith("/")) return new Response('<a href="/private">Private</a><a href="/events">Events</a>', { status: 200 }); return new Response("", { status: 200 }); };
