@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ResearchRequest } from "./contracts.ts";
+import { validateResearchRequest, type ResearchRequest } from "./contracts.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 import type { ProviderResult, ResearchContext } from "./executor.ts";
 
@@ -11,24 +11,7 @@ export type PublicWebProviderOptions = {
 };
 
 export function researchContextFromPayload(input: Record<string, unknown>): ResearchContext {
-  const candidate = input.researchContext ?? input.context;
-  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return {};
-  const raw = candidate as Record<string, unknown>;
-  const existingFacts = Array.isArray(raw.existingFacts)
-    ? raw.existingFacts.flatMap((item) => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-      const fact = item as Record<string, unknown>;
-      if (typeof fact.fieldName !== "string" || !fact.fieldName.trim()) return [];
-      return [{ fieldName: fact.fieldName.trim().slice(0, 256), value: bounded(fact.value), evidenceRef: typeof fact.evidenceRef === "string" ? fact.evidenceRef.slice(0, 512) : null }];
-    }).slice(0, 100)
-    : undefined;
-  return {
-    targetName: typeof raw.targetName === "string" ? raw.targetName.trim().slice(0, 512) : null,
-    targetWebsite: typeof raw.targetWebsite === "string" ? raw.targetWebsite.trim().slice(0, 4096) : null,
-    locality: typeof raw.locality === "string" ? raw.locality.trim().slice(0, 512) : null,
-    territory: raw.territory === "GB" || raw.territory === "ZA" ? raw.territory : undefined,
-    existingFacts,
-  };
+  return validateResearchRequest(input).researchContext ?? {};
 }
 
 const DEFAULT_BUDGET: CrawlBudget = {

@@ -3,7 +3,7 @@ import test from "node:test";
 import { createPublicWebProvider, researchContextFromPayload } from "../src/nexus/public-web.ts";
 import { executeResearchRequest, InMemoryNexusResultStore } from "../src/nexus/executor.ts";
 import type { ResearchRequest } from "../src/nexus/contracts.ts";
-import { CONTRACTS } from "../src/nexus/contracts.ts";
+import { CONTRACTS, validateResearchRequest } from "../src/nexus/contracts.ts";
 
 const request = (purpose: ResearchRequest["researchPurpose"] = "OFFICIAL_WEBSITE") => ({
   contractVersion: CONTRACTS.RESEARCH_REQUEST,
@@ -46,8 +46,13 @@ test("PUBLIC_WEB accepts strong first-party identity evidence and extracts busin
 });
 
 test("research context bridge keeps only bounded evidenced fields", () => {
-  const context = researchContextFromPayload({ researchContext: { targetName: " Example Venue ", targetWebsite: " https://example.test/ ", locality: " London ", territory: "GB", existingFacts: [{ fieldName: "placeId", value: "places/example", evidenceRef: "place:example" }, { value: "ignored" }] } });
+  const contextualRequest = validateResearchRequest({ ...request(), researchContext: { targetName: " Example Venue ", targetWebsite: " https://example.test/ ", locality: " London ", territory: "GB", existingFacts: [{ fieldName: "placeId", value: "places/example", evidenceRef: "place:example" }] } });
+  const context = researchContextFromPayload(contextualRequest);
   assert.deepEqual(context, { targetName: "Example Venue", targetWebsite: "https://example.test/", locality: "London", territory: "GB", existingFacts: [{ fieldName: "placeId", value: "places/example", evidenceRef: "place:example" }] });
+});
+
+test("research context bridge rejects arbitrary unvalidated context", () => {
+  assert.throws(() => researchContextFromPayload({ ...request(), researchContext: { targetWebsite: "http://example.test", unexpected: true } }), /INVALID_RESEARCH_CONTEXT/);
 });
 
 test("executor records a real PUBLIC_WEB execution with zero metered cost and preserves replay", async () => {

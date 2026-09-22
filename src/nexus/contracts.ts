@@ -102,6 +102,69 @@ function requestedBy(value: unknown) {
   return { actorType: enumValue(v.actorType, ["SYSTEM", "PRODUCT", "OPERATOR"] as const, "INVALID_REQUESTED_BY_TYPE"), actorId: text(v.actorId, "INVALID_REQUESTED_BY_ID", { max: 256 })! };
 }
 
+function assertOnlyFields(value: Record<string, any>, allowed: ReadonlySet<string>, code: string) {
+  for (const key of Object.keys(value)) if (!allowed.has(key)) fail(code, key);
+}
+
+function boundedResearchValue(value: unknown, depth = 0, maxString = 2048): unknown {
+  if (depth > 5) fail("INVALID_RESEARCH_CONTEXT_FACT_VALUE", "maximum depth exceeded");
+  if (value == null || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) fail("INVALID_RESEARCH_CONTEXT_FACT_VALUE");
+    return value;
+  }
+  if (typeof value === "string") return value.slice(0, maxString);
+  if (Array.isArray(value)) return value.slice(0, 20).map((item) => boundedResearchValue(item, depth + 1, 512));
+  if (typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).slice(0, 20).map(([key, item]) => [
+      key.slice(0, 256),
+      boundedResearchValue(item, depth + 1, 512),
+    ]));
+  }
+  fail("INVALID_RESEARCH_CONTEXT_FACT_VALUE");
+}
+
+export type ResearchContext = {
+  targetName?: string | null;
+  targetWebsite?: string | null;
+  locality?: string | null;
+  territory?: "GB" | "ZA";
+  existingFacts?: Array<{ fieldName: string; value: unknown; evidenceRef?: string | null }>;
+};
+
+function researchContextFact(value: unknown) {
+  const v = object(value, "INVALID_RESEARCH_CONTEXT_FACT");
+  assertOnlyFields(v, new Set(["fieldName", "value", "evidenceRef"]), "INVALID_RESEARCH_CONTEXT_FACT_FIELDS");
+  if (!Object.prototype.hasOwnProperty.call(v, "value")) fail("RESEARCH_CONTEXT_FACT_VALUE_REQUIRED");
+  return {
+    fieldName: text(v.fieldName, "INVALID_RESEARCH_CONTEXT_FACT_FIELD", { max: 256 })!,
+    value: boundedResearchValue(v.value),
+    evidenceRef: v.evidenceRef == null ? null : text(v.evidenceRef, "INVALID_RESEARCH_CONTEXT_FACT_EVIDENCE_REF", { max: 512 }),
+  };
+}
+
+function researchContext(value: unknown): ResearchContext {
+  const v = object(value, "INVALID_RESEARCH_CONTEXT");
+  assertOnlyFields(v, new Set(["targetName", "targetWebsite", "locality", "territory", "existingFacts"]), "INVALID_RESEARCH_CONTEXT_FIELDS");
+  const normalized: ResearchContext = {};
+  if (Object.prototype.hasOwnProperty.call(v, "targetName")) normalized.targetName = text(v.targetName, "INVALID_RESEARCH_CONTEXT_TARGET_NAME", { max: 512, optional: true });
+  if (Object.prototype.hasOwnProperty.call(v, "targetWebsite")) {
+    const website = url(v.targetWebsite, "INVALID_RESEARCH_CONTEXT_WEBSITE", { httpsOnly: true, optional: true });
+    if (website) {
+      const parsed = new URL(website);
+      if (parsed.username || parsed.password) fail("INVALID_RESEARCH_CONTEXT_WEBSITE");
+    }
+    normalized.targetWebsite = website;
+  }
+  if (Object.prototype.hasOwnProperty.call(v, "locality")) normalized.locality = text(v.locality, "INVALID_RESEARCH_CONTEXT_LOCALITY", { max: 512, optional: true });
+  if (Object.prototype.hasOwnProperty.call(v, "territory")) normalized.territory = enumValue(v.territory, ["GB", "ZA"] as const, "INVALID_RESEARCH_CONTEXT_TERRITORY");
+  if (Object.prototype.hasOwnProperty.call(v, "existingFacts")) {
+    if (!Array.isArray(v.existingFacts) || v.existingFacts.length > 100) fail("INVALID_RESEARCH_CONTEXT_FACTS");
+    normalized.existingFacts = v.existingFacts.map(researchContextFact);
+  }
+  return normalized;
+}
+
 export type ResearchRequest = ReturnType<typeof validateResearchRequest>;
 export function validateResearchRequest(input: unknown) {
   const v = object(input, "INVALID_RESEARCH_REQUEST");
@@ -120,6 +183,7 @@ export function validateResearchRequest(input: unknown) {
     existingEvidenceRefs: stringArray(v.existingEvidenceRefs, "INVALID_EVIDENCE_REFS", { maxItems: 200 }),
     requestedBy: requestedBy(v.requestedBy),
     createdAt: iso(v.createdAt, "INVALID_CREATED_AT"),
+    ...(Object.prototype.hasOwnProperty.call(v, "researchContext") ? { researchContext: researchContext(v.researchContext) } : {}),
   });
 }
 
