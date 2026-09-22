@@ -82,8 +82,8 @@ test("PUBLIC_WEB acquires a seed with Place Details and verifies it before promo
 
 test("PUBLIC_WEB verifies a facility on its first-party operator site only with multiple relationship signals", async () => {
   const pages: Record<string, string> = {
-    "https://www.ssisa.test/": '<html><head><title>Sports Science Institute of South Africa | SSISA</title></head><body><h1>Sports Science Institute of South Africa</h1><address>Boundary Road, Newlands, Cape Town, 7700</address><a href="/facilities">Facilities</a></body></html>',
-    "https://www.ssisa.test/facilities": '<html><head><title>Facilities | SSISA</title><meta name="description" content="SSISA offers a Modern Gym, Indoor Swimming pool, High Performance Centre and Multifunctional Conference Centre"></head><body><h1>Facilities</h1><address>Boundary Road, Newlands, Cape Town, 7700</address></body></html>',
+    "https://www.ssisa.test/": '<html><head><title>Sports Science Institute of South Africa | SSISA</title></head><body><h1>Sports Science Institute of South Africa</h1><a href="/facilities">Facilities</a><footer><h5>ADDRESS</h5><p>Boundary Road,<br>Newlands, Cape Town,<br>7700</p><h5>CONTACT US</h5></footer></body></html>',
+    "https://www.ssisa.test/facilities": '<html><head><title>Facilities | SSISA</title><meta name="description" content="SSISA offers a Modern Gym, Indoor Swimming pool, High Performance Centre and Multifunctional Conference Centre"></head><body><h1>Facilities</h1><footer><h5>ADDRESS</h5><p>Boundary Road,<br>Newlands, Cape Town,<br>7700</p><h5>CONTACT US</h5></footer></body></html>',
   };
   const provider = createPublicWebProvider({
     fetchImpl: async (input: RequestInfo | URL) => String(input).endsWith("/robots.txt")
