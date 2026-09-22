@@ -45,6 +45,83 @@ test("PUBLIC_WEB accepts strong first-party identity evidence and extracts busin
   assert.equal(result.evidence.some((item) => String(item.payload).includes("third-party")), false);
 });
 
+test("PUBLIC_WEB acquires a seed with Place Details and verifies it before promotion", async () => {
+  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address></body></html>';
+  const detailCalls: Array<{ googlePlaceId: string; mode: string | undefined }> = [];
+  const provider = createPublicWebProvider({
+    fetchImpl: fetchSite(body),
+    resolveHost: resolver,
+    now: () => "2026-09-21T00:00:00.000Z",
+    placeDetails: async (input, options) => {
+      detailCalls.push({ googlePlaceId: input.googlePlaceId, mode: options?.mode });
+      return {
+        result: {
+          provider: "GOOGLE_PLACES", googlePlaceId: "places/example", displayName: "Example Venue",
+          formattedAddress: "1 High Street, London", types: ["event_venue"], websiteUri: "https://example.test/",
+          websiteDomain: "example.test", businessStatus: "OPERATIONAL", retrievedAt: "2026-09-21T00:00:00.000Z",
+          queryContext: { targetName: "Example Venue", targetWebsite: null, locality: "London", lane: "VENUE_FIRST", targetType: "VENUE" },
+          identityConfidence: "HIGH", matchStatus: "EXACT_OR_STRONG", rejectionReasons: [],
+          sourceUrl: "https://places.googleapis.com/v1/places/places%2Fexample",
+        },
+        telemetry: { endpointCategory: "PLACE_DETAILS", mode: "details_selected", fieldMask: "id,displayName,formattedAddress,types,businessStatus,websiteUri", candidateCount: 1, matchStatus: "EXACT_OR_STRONG", httpStatus: 200, errorCategory: null, retryCount: 0 },
+      };
+    },
+  });
+  const result = await provider({
+    request: request(),
+    context: {
+      targetName: "Example Venue", locality: "London",
+      existingFacts: [{ fieldName: "placeId", value: "places/example", evidenceRef: "place:example" }],
+    },
+  });
+  assert.deepEqual(detailCalls, [{ googlePlaceId: "places/example", mode: "details_selected" }]);
+  assert.equal(result.facts.find((fact) => fact.fieldName === "officialWebsite")?.value, "https://example.test/");
+  assert.deepEqual(result.evidence.map((item) => item.provider), ["GOOGLE_PLACES", "PUBLIC_WEB"]);
+  assert.deepEqual(result.providerUsage?.map((item) => [item.provider, item.callCount]), [["GOOGLE_PLACES", 1], ["PUBLIC_WEB", 1]]);
+});
+
+test("PUBLIC_WEB verifies a facility on its first-party operator site only with multiple relationship signals", async () => {
+  const pages: Record<string, string> = {
+    "https://www.ssisa.test/": '<html><head><title>Sports Science Institute of South Africa | SSISA</title></head><body><h1>Sports Science Institute of South Africa</h1><address>Boundary Road, Newlands, Cape Town, 7700</address><a href="/facilities">Facilities</a></body></html>',
+    "https://www.ssisa.test/facilities": '<html><head><title>Facilities | SSISA</title><meta name="description" content="SSISA offers a Modern Gym, Indoor Swimming pool, High Performance Centre and Multifunctional Conference Centre"></head><body><h1>Facilities</h1><address>Boundary Road, Newlands, Cape Town, 7700</address></body></html>',
+  };
+  const provider = createPublicWebProvider({
+    fetchImpl: async (input: RequestInfo | URL) => String(input).endsWith("/robots.txt")
+      ? new Response("User-agent: *\nAllow: /", { status: 200 })
+      : new Response(pages[String(input)] ?? "", { status: pages[String(input)] ? 200 : 404, headers: { "content-type": "text/html" } }),
+    resolveHost: resolver,
+  });
+  const result = await provider({
+    request: request(),
+    context: {
+      targetName: "SSISA Conference Centre", targetWebsite: "https://www.ssisa.test/", locality: "Cape Town",
+      existingFacts: [
+        { fieldName: "placeId", value: "places/ssisa", evidenceRef: "place:ssisa" },
+        { fieldName: "placeName", value: "SSISA Conference Centre", evidenceRef: "place:ssisa" },
+        { fieldName: "formattedAddress", value: "Boundary Road, Newlands, Cape Town, 7700, South Africa", evidenceRef: "place:ssisa" },
+      ],
+    },
+  });
+  assert.equal(result.facts.some((fact) => fact.fieldName === "officialWebsite"), true);
+  assert.equal((result.evidence.find((item) => item.provider === "PUBLIC_WEB")?.payload as any).verificationPath, "FACILITY_OPERATOR");
+});
+
+test("PUBLIC_WEB does not treat an organisation in the same locality as facility proof", async () => {
+  const body = '<html><head><title>SSISA</title><meta name="description" content="Sports science and wellness services"></head><body><h1>Sports Science Institute of South Africa</h1><address>Boundary Road, Newlands, Cape Town</address></body></html>';
+  const provider = createPublicWebProvider({ fetchImpl: fetchSite(body), resolveHost: resolver });
+  const result = await provider({
+    request: request(),
+    context: {
+      targetName: "SSISA Conference Centre", targetWebsite: "https://ssisa.test/", locality: "Cape Town",
+      existingFacts: [
+        { fieldName: "placeId", value: "places/ssisa", evidenceRef: "place:ssisa" },
+        { fieldName: "placeName", value: "SSISA Conference Centre", evidenceRef: "place:ssisa" },
+      ],
+    },
+  });
+  assert.equal(result.facts.length, 0);
+});
+
 test("research context bridge keeps only bounded evidenced fields", () => {
   const contextualRequest = validateResearchRequest({ ...request(), researchContext: { targetName: " Example Venue ", targetWebsite: " https://example.test/ ", locality: " London ", territory: "GB", existingFacts: [{ fieldName: "placeId", value: "places/example", evidenceRef: "place:example" }] } });
   const context = researchContextFromPayload(contextualRequest);
