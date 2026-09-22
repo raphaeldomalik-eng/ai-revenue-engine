@@ -25,6 +25,6 @@ export async function POST(request: Request) {
     store: new SupabaseNexusResultStore(client),
     publicWeb: createPublicWebProvider(),
     researchContext: researchContextFromPayload,
-    researchExecutionVersion: "resources-v2-public-web-v3",
+    researchExecutionVersion: "resources-v2-public-web-v4",
   });
 }
