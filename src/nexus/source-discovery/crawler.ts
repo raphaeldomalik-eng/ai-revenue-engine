@@ -1,40 +1,20 @@
 import { createHash } from "node:crypto";
-import { lookup } from "node:dns/promises";
-import http from "node:http";
-import https from "node:https";
-import { BlockList, isIP, type LookupFunction } from "node:net";
 import type { SourceExtractor } from "../contracts.ts";
+import {
+  assertPublicNetworkTarget,
+  canonicalHttpsUrl,
+  defaultResolveHost,
+  fetchPinned,
+} from "./network.ts";
+import type { CrawlBudget, CrawlInput, CrawlOutput, CrawlStats, FetchLike, FetchedDocument, ResolveHost } from "./types.ts";
 
-export type ResolveHost = (hostname: string) => Promise<Array<{ address: string; family: number }>>;
-export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-export type CrawlBudget = { maxPages: number; maxRequests: number; maxBytesPerResponse: number; maxRedirects: number; maxRetries: number; timeoutMs: number; minRequestDelayMs: number };
-export type FetchedDocument = { url: string; body: string; contentType: string | null; bytes: number; sourceHash: string; observedAt: string };
-export type CrawlStats = { requestCount: number; pageCount: number; bytesRead: number; redirects: number; blockedCount: number; retries: number; warnings: string[]; status: "COMPLETED" | "PARTIAL" | "BLOCKED" | "FAILED" };
-export type CrawlOutput = { verifiedUrl: string; finalUrl: string; documents: FetchedDocument[]; stats: CrawlStats };
+export { assertPublicNetworkTarget, canonicalHttpsUrl, isPublicHttpsUrl, isPublicNetworkAddress } from "./network.ts";
+export type { CrawlBudget, CrawlInput, CrawlOutput, CrawlStats, FetchLike, FetchedDocument, ResolveHost } from "./types.ts";
 
 const EVENT_PATH = /(^|\/)(events?|gigs?|shows?|tour|live|whats[-_]?on|calendar|concerts?)(\/|$)/i;
 const EVENT_TEXT = /\b(events?|gigs?|shows?|tour dates?|live dates?|what'?s on|calendar|concerts?)\b/i;
-const PRIVATE_IPV4 = new BlockList();
-for (const [address, prefix] of [["0.0.0.0", 8], ["10.0.0.0", 8], ["100.64.0.0", 10], ["127.0.0.0", 8], ["169.254.0.0", 16], ["172.16.0.0", 12], ["192.0.0.0", 24], ["192.0.2.0", 24], ["192.168.0.0", 16], ["198.18.0.0", 15], ["198.51.100.0", 24], ["203.0.113.0", 24], ["224.0.0.0", 3]] as Array<[string, number]>) PRIVATE_IPV4.addSubnet(address, prefix, "ipv4");
-const PRIVATE_IPV6 = new BlockList();
-for (const [address, prefix] of [["::", 128], ["fc00::", 7], ["fe80::", 10], ["ff00::", 8], ["2001:db8::", 32]] as Array<[string, number]>) PRIVATE_IPV6.addSubnet(address, prefix, "ipv6");
-
 function text(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
 function record(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-function hostOf(url: URL): string { return url.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, ""); }
-function embeddedIpv4(address: string): string | null { const value = address.toLowerCase(); const dotted = value.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/); if (dotted) return dotted[1]!; const hex = value.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/); if (!hex) return null; const high = Number.parseInt(hex[1]!, 16); const low = Number.parseInt(hex[2]!, 16); return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`; }
-export function isPublicNetworkAddress(address: string): boolean { const mapped = embeddedIpv4(address); if (mapped) return isPublicNetworkAddress(mapped); const family = isIP(address); if (family === 4) return !PRIVATE_IPV4.check(address, "ipv4"); if (family === 6) return !PRIVATE_IPV6.check(address, "ipv6"); return false; }
-function numericHost(hostname: string): boolean { return /^(?:\d+$|0x[0-9a-f]+$|\d+(?:\.\d+){1,3})$/i.test(hostname) && isIP(hostname) === 0; }
-export function isPublicHttpsUrl(value: string | null | undefined): boolean { if (!value) return false; try { const url = new URL(value); const hostname = hostOf(url); if (url.protocol !== "https:" || url.username || url.password || !hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || hostname.endsWith(".internal") || hostname.endsWith(".onion") || numericHost(hostname)) return false; return isIP(hostname) === 0 || isPublicNetworkAddress(hostname); } catch { return false; } }
-export function canonicalHttpsUrl(value: string, base?: string): string | null { try { const url = base ? new URL(value, base) : new URL(value); url.hash = ""; return isPublicHttpsUrl(url.toString()) ? url.toString() : null; } catch { return null; } }
-const defaultResolveHost: ResolveHost = async (hostname) => { const family = isIP(hostname); if (family) return [{ address: hostname, family }]; return (await lookup(hostname, { all: true, verbatim: true })).map((item) => ({ address: item.address, family: item.family })); };
-export async function assertPublicNetworkTarget(value: string, resolveHost: ResolveHost = defaultResolveHost): Promise<void> { if (!isPublicHttpsUrl(value)) throw new Error("Refused a non-public HTTPS URL."); const addresses = await resolveHost(hostOf(new URL(value))); if (!addresses.length || addresses.some((item) => !isPublicNetworkAddress(item.address))) throw new Error("Refused a hostname resolving to a private or reserved network address."); }
-function pinLookup(addresses: Array<{ address: string; family: number }>): LookupFunction { const primary = addresses[0]; return ((_: string, options: any, callback?: any) => { const cb = typeof options === "function" ? options : callback; if (typeof cb !== "function" || !primary) return; if (options && typeof options === "object" && options.all) cb(null, addresses); else cb(null, primary.address, primary.family); }) as LookupFunction; }
-async function fetchPinned(args: { url: string; resolveHost: ResolveHost; userAgent: string; accept: string; maxBytes: number; timeoutMs: number }): Promise<Response> {
-  const addresses = await (async () => { const family = isIP(hostOf(new URL(args.url))); if (family) return [{ address: hostOf(new URL(args.url)), family }]; const resolved = await args.resolveHost(hostOf(new URL(args.url))); if (!resolved.length || resolved.some((item) => !isPublicNetworkAddress(item.address))) throw new Error("Refused a hostname resolving to a private or reserved network address."); return resolved; })();
-  const url = new URL(args.url); const transport = url.protocol === "https:" ? https : http;
-  return new Promise((resolve, reject) => { const request = transport.request({ protocol: url.protocol, hostname: hostOf(url), servername: isIP(hostOf(url)) ? undefined : hostOf(url), port: url.port || 443, path: `${url.pathname}${url.search}`, method: "GET", headers: { Host: url.host, "User-Agent": args.userAgent, Accept: args.accept }, family: addresses[0]?.family, lookup: pinLookup(addresses) }, (response) => { const chunks: Buffer[] = []; let size = 0; const contentLength = Number(response.headers["content-length"]); if (Number.isFinite(contentLength) && contentLength > args.maxBytes) { request.destroy(); reject(new Error("Response exceeded the discovery size limit.")); return; } response.on("data", (chunk: Buffer) => { size += chunk.length; if (size > args.maxBytes) { request.destroy(); reject(new Error("Response exceeded the discovery size limit.")); return; } chunks.push(chunk); }); response.on("end", () => { const headers = new Headers(); for (const [key, value] of Object.entries(response.headers)) if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : String(value)); resolve(new Response(Buffer.concat(chunks).toString("utf8"), { status: response.statusCode ?? 0, headers })); }); }); request.setTimeout(args.timeoutMs, () => request.destroy(new Error("Discovery request timed out."))); request.on("error", reject); request.end(); });
-}
 function sameOrigin(value: string, base: string): string | null { const normalized = canonicalHttpsUrl(value, base); return normalized && new URL(normalized).origin === new URL(base).origin ? normalized : null; }
 function sleep(ms: number) { return ms > 0 ? new Promise<void>((resolve) => setTimeout(resolve, ms)) : Promise.resolve(); }
 
@@ -97,7 +77,33 @@ function extractDocument(document: FetchedDocument, extractors: SourceExtractor[
 
 async function fetchDocument(args: { url: string; origin: string; budget: CrawlBudget; stats: CrawlStats; fetchImpl?: FetchLike; resolveHost: ResolveHost; userAgent: string }): Promise<FetchedDocument | null> { let current = args.url; let redirects = 0; for (let attempt = 0; attempt <= args.budget.maxRetries; attempt += 1) { if (args.stats.requestCount >= args.budget.maxRequests) throw new Error("Crawl request budget exhausted."); await assertPublicNetworkTarget(current, args.resolveHost); args.stats.requestCount += 1; const response = args.fetchImpl ? await args.fetchImpl(current, { redirect: "manual", headers: { "User-Agent": args.userAgent, Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1" } }) : await fetchPinned({ url: current, resolveHost: args.resolveHost, userAgent: args.userAgent, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1", maxBytes: args.budget.maxBytesPerResponse, timeoutMs: args.budget.timeoutMs }); if ([301, 302, 303, 307, 308].includes(response.status)) { const location = response.headers.get("location"); const next = location ? canonicalHttpsUrl(location, current) : null; if (!next || new URL(next).origin !== args.origin) { args.stats.blockedCount += 1; throw new Error("Redirect target is not an allowed same-origin public HTTPS URL."); } if (redirects >= args.budget.maxRedirects) throw new Error("Redirect budget exhausted."); current = next; redirects += 1; args.stats.redirects += 1; attempt -= 1; continue; } if ((response.status === 429 || response.status >= 500) && attempt < args.budget.maxRetries) { args.stats.retries += 1; await sleep(Math.min(250 * 2 ** attempt, 2000)); continue; } if (!response.ok) throw new Error(`HTTP ${response.status} from ${current}`); const contentLength = Number(response.headers.get("content-length")); if (Number.isFinite(contentLength) && contentLength > args.budget.maxBytesPerResponse) throw new Error("Response exceeded the discovery size limit."); const body = await response.text(); const bytes = Buffer.byteLength(body, "utf8"); if (bytes > args.budget.maxBytesPerResponse) throw new Error("Response exceeded the discovery size limit."); await sleep(args.budget.minRequestDelayMs); return { url: current, body, bytes, contentType: response.headers.get("content-type"), sourceHash: createHash("sha256").update(body).digest("hex"), observedAt: new Date().toISOString() }; } return null; }
 
-export async function crawlVerifiedSource(args: { verifiedUrl: string; requestedExtractors: SourceExtractor[]; budget: CrawlBudget; fetchImpl?: FetchLike; resolveHost?: ResolveHost; userAgent?: string }): Promise<CrawlOutput> { const verifiedUrl = canonicalHttpsUrl(args.verifiedUrl); if (!verifiedUrl) throw new Error("Verified source URL must be public HTTPS."); const origin = new URL(verifiedUrl).origin; const stats: CrawlStats = { requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 0, retries: 0, warnings: [], status: "COMPLETED" }; const resolveHost = args.resolveHost ?? defaultResolveHost; const userAgent = args.userAgent ?? "AiRevenueEngineNexusSourceDiscovery/1.0"; let robotsText = ""; try { const robotsUrl = `${origin}/robots.txt`; await assertPublicNetworkTarget(robotsUrl, resolveHost); const response = args.fetchImpl ? await args.fetchImpl(robotsUrl, { redirect: "manual", headers: { "User-Agent": userAgent, Accept: "text/plain,*/*;q=0.1" } }) : await fetchPinned({ url: robotsUrl, resolveHost, userAgent, accept: "text/plain,*/*;q=0.1", maxBytes: Math.min(args.budget.maxBytesPerResponse, 500_000), timeoutMs: args.budget.timeoutMs }); if (response.ok) robotsText = await response.text(); } catch (error) { stats.warnings.push(`robots.txt could not be checked: ${error instanceof Error ? error.message : "unknown error"}`); stats.status = "BLOCKED"; stats.blockedCount += 1; return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats }; }
+export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput> {
+  const verifiedUrl = canonicalHttpsUrl(args.verifiedUrl);
+  if (!verifiedUrl) throw new Error("Verified source URL must be public HTTPS.");
+  const origin = new URL(verifiedUrl).origin;
+  const stats: CrawlStats = { requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 0, retries: 0, warnings: [], status: "COMPLETED" };
+  const resolveHost = args.resolveHost ?? defaultResolveHost;
+  const userAgent = args.userAgent ?? "AiRevenueEngineNexusSourceDiscovery/1.0";
+  let robotsText = "";
+  try {
+    if (stats.requestCount >= args.budget.maxRequests) throw new Error("Crawl request budget exhausted before robots.txt could be checked.");
+    const robotsUrl = `${origin}/robots.txt`;
+    await assertPublicNetworkTarget(robotsUrl, resolveHost);
+    stats.requestCount += 1;
+    const response = args.fetchImpl
+      ? await args.fetchImpl(robotsUrl, { redirect: "manual", headers: { "User-Agent": userAgent, Accept: "text/plain,*/*;q=0.1" } })
+      : await fetchPinned({ url: robotsUrl, resolveHost, userAgent, accept: "text/plain,*/*;q=0.1", maxBytes: Math.min(args.budget.maxBytesPerResponse, 500_000), timeoutMs: args.budget.timeoutMs });
+    if (response.ok) {
+      const body = await response.text();
+      if (Buffer.byteLength(body, "utf8") > Math.min(args.budget.maxBytesPerResponse, 500_000)) throw new Error("robots.txt exceeded the discovery size limit.");
+      robotsText = body;
+    }
+  } catch (error) {
+    stats.warnings.push(`robots.txt could not be checked: ${error instanceof Error ? error.message : "unknown error"}`);
+    stats.status = "BLOCKED";
+    stats.blockedCount += 1;
+    return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats };
+  }
   if (!robotsAllows(robotsText, verifiedUrl, userAgent)) { stats.status = "BLOCKED"; stats.blockedCount += 1; stats.warnings.push("robots.txt disallows the verified source path."); return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats }; }
   const documents: FetchedDocument[] = []; const queue = [verifiedUrl]; const queued = new Set(queue); while (queue.length && documents.length < args.budget.maxPages) { const next = queue.shift()!; if (!robotsAllows(robotsText, next, userAgent)) { stats.blockedCount += 1; stats.warnings.push(`robots.txt disallows ${next}`); continue; } try { const document = await fetchDocument({ url: next, origin, budget: args.budget, stats, fetchImpl: args.fetchImpl, resolveHost, userAgent }); if (!document) continue; documents.push(document); stats.pageCount += 1; stats.bytesRead += document.bytes; const links = [...new Set([...usefulLinks(document.body, document.url, args.requestedExtractors), ...(args.requestedExtractors.includes("EVENTS") ? eventLinks(document.body, document.url) : [])])]; for (const link of links) if (!queued.has(link) && new URL(link).origin === origin && queued.size < args.budget.maxPages) { queued.add(link); queue.push(link); } } catch (error) { stats.warnings.push(`${next}: ${error instanceof Error ? error.message : "unknown error"}`); if (stats.requestCount >= args.budget.maxRequests) break; } }
   if (stats.requestCount >= args.budget.maxRequests || documents.length >= args.budget.maxPages) stats.warnings.push("Finite crawl budget reached."); if (!documents.length) stats.status = stats.blockedCount ? "BLOCKED" : "FAILED"; else if (stats.warnings.length) stats.status = "PARTIAL"; return { verifiedUrl, finalUrl: documents[0]?.url ?? verifiedUrl, documents, stats }; }
