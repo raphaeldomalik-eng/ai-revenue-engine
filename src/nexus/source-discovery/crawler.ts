@@ -1,72 +1,105 @@
 import { createHash } from "node:crypto";
 import type { SourceExtractor } from "../contracts.ts";
-import { hrefTags, selfClosingTags, tags, visibleText } from "./html.ts";
+import { extractEventsFromDocuments } from "./extractors/events.ts";
+import { extractResourcesFromDocuments } from "./extractors/resources.ts";
 import { discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "./links.ts";
-import {
-  assertPublicNetworkTarget,
-  canonicalHttpsUrl,
-  defaultResolveHost,
-  fetchPinned,
-} from "./network.ts";
+import { assertPublicNetworkTarget, canonicalHttpsUrl, defaultResolveHost, fetchPinned } from "./network.ts";
 import type { CrawlBudget, CrawlInput, CrawlOutput, CrawlStats, FetchLike, FetchedDocument, ResolveHost } from "./types.ts";
 
 export { assertPublicNetworkTarget, canonicalHttpsUrl, isPublicHttpsUrl, isPublicNetworkAddress } from "./network.ts";
 export type { CrawlBudget, CrawlInput, CrawlOutput, CrawlStats, FetchLike, FetchedDocument, ResolveHost } from "./types.ts";
 
-function text(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
-function record(value: unknown): Record<string, unknown> { return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
-function sameOrigin(value: string, base: string): string | null { const normalized = canonicalHttpsUrl(value, base); return normalized && new URL(normalized).origin === new URL(base).origin ? normalized : null; }
-function sleep(ms: number) { return ms > 0 ? new Promise<void>((resolve) => setTimeout(resolve, ms)) : Promise.resolve(); }
-
-function robotsAllows(robotsText: string, targetUrl: string, token: string): boolean { if (!robotsText.trim()) return true; const groups: Array<{ agents: string[]; rules: Array<{ allow: boolean; path: string }> }> = []; let agents: string[] = []; let rules: Array<{ allow: boolean; path: string }> = []; const flush = () => { if (agents.length || rules.length) groups.push({ agents, rules }); agents = []; rules = []; }; for (const raw of robotsText.split(/\r?\n/)) { const line = raw.replace(/#.*$/, "").trim(); const index = line.indexOf(":"); if (!line || index < 0) continue; const key = line.slice(0, index).toLowerCase().trim(); const value = line.slice(index + 1).trim(); if (key === "user-agent") { if (rules.length) flush(); agents.push(value.toLowerCase()); } else if ((key === "allow" || key === "disallow") && agents.length && value) rules.push({ allow: key === "allow", path: value }); } flush(); const normalized = token.toLowerCase(); const specific = groups.filter((group) => group.agents.some((agent) => agent !== "*" && normalized.includes(agent))); const applicable = specific.length ? specific : groups.filter((group) => group.agents.includes("*")); const path = new URL(targetUrl).pathname || "/"; const matching = applicable.flatMap((group) => group.rules).filter((rule) => path.startsWith(rule.path)).sort((a, b) => b.path.length - a.path.length || Number(b.allow) - Number(a.allow)); return matching[0]?.allow ?? true; }
-export { robotsAllows };
-
-function firstMeta(html: string, key: string): string | null { for (const tag of selfClosingTags(html, "meta")) if (tag.attrs.property?.toLowerCase() === key || tag.attrs.name?.toLowerCase() === key) return text(tag.attrs.content); return null; }
-function labelledAddress(html: string): string | null { const match = visibleText(html).match(/\bADDRESS\b\s+(.{5,240}?)(?=\b(?:CONTACT(?:\s+US)?|PHONE|EMAIL|COMPANY)\b|$)/i); return text(match?.[1]); }
-
-function jsonLdNodes(value: unknown, output: Record<string, unknown>[]) { if (Array.isArray(value)) return value.forEach((item) => jsonLdNodes(item, output)); if (!value || typeof value !== "object") return; const item = value as Record<string, unknown>; const types = Array.isArray(item["@type"]) ? item["@type"] : [item["@type"]]; if (types.some((type) => ["Event", "MusicEvent"].includes(String(type)))) output.push(item); Object.values(item).forEach((nested) => { if (nested && typeof nested === "object") jsonLdNodes(nested, output); }); }
-function names(value: unknown): string[] { return (Array.isArray(value) ? value : value ? [value] : []).map((item) => typeof item === "string" ? item : text(record(item).name)).filter((item): item is string => Boolean(item)); }
-function jsonUrl(value: unknown, base: string): string | null { const item = Array.isArray(value) ? value[0] : value; return canonicalHttpsUrl(typeof item === "string" ? item : text(record(item).url) ?? "", base); }
-export type EventEvidence = { title: string; sourceEventUrl: string; sourcePageUrl: string; venueText: string | null; startAt: string | null; endAt: string | null; timezone: string | null; eventStatus: string | null; description: string | null; organiser: string | null; performers: string[]; sourceCategory: string | null; ticketUrl: string | null; ticketDomain: string | null; priceText: string | null; ageRestriction: string | null; eventImageUrl: string | null; sourceFingerprint: string; observedAt: string; state: "DISCOVERED" | "REVIEW_REQUIRED"; confidence: number | null };
-function eventEvidence(node: Record<string, unknown>, sourcePageUrl: string, observedAt: string): EventEvidence | null { const title = text(node.name); if (!title) return null; const location = record(node.location); const address = record(location.address); const offers = Array.isArray(node.offers) ? record(node.offers[0]) : record(node.offers); const sourceEventUrl = jsonUrl(node.url ?? node["@id"], sourcePageUrl) ?? sourcePageUrl; const ticketUrl = jsonUrl(offers.url, sourcePageUrl); const value = { title, sourceEventUrl, sourcePageUrl, venueText: text(location.name), startAt: text(node.startDate), endAt: text(node.endDate), timezone: text(node.timezone), eventStatus: text(node.eventStatus), description: text(node.description)?.slice(0, 10000) ?? null, organiser: text(record(node.organizer).name) ?? text(node.organizer), performers: [...new Set([...names(node.performer), ...names(node.performers)])], sourceCategory: text(node.eventType), ticketUrl, ticketDomain: ticketUrl ? new URL(ticketUrl).hostname : null, priceText: text(record(offers.price).price) ?? text(offers.price), ageRestriction: text(node.typicalAgeRange) ?? text(node.ageRange), eventImageUrl: jsonUrl(node.image, sourcePageUrl), observedAt, state: "DISCOVERED" as const, confidence: null }; return { ...value, sourceFingerprint: createHash("sha256").update(JSON.stringify(value)).digest("hex") }; }
-function extractEvents(html: string, pageUrl: string, observedAt: string): EventEvidence[] { const nodes: Record<string, unknown>[] = []; for (const script of tags(html, "script")) if ((script.attrs.type ?? "").toLowerCase() === "application/ld+json") try { jsonLdNodes(JSON.parse(script.inner.trim()), nodes); } catch { /* malformed structured data remains an unresolved source warning */ } const unique = new Map<string, EventEvidence>(); for (const node of nodes) { const event = eventEvidence(node, pageUrl, observedAt); if (event && !unique.has(event.sourceFingerprint)) unique.set(event.sourceFingerprint, event); } return [...unique.values()]; }
-
-type Extracted = { identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl: string }>; publicContacts: Array<{ type: string; value: string; sourceUrl: string; confidence: number | null; reviewRequired: boolean }>; venueFacts: Array<{ fieldName: string; value: unknown; sourceUrl: string; confidence: number | null; reviewRequired: boolean }>; imageCandidates: Array<{ sourceImageUrl: string; sourcePageUrl: string; filename: string | null; alt: string | null; title: string | null; caption: string | null; width: number | null; height: number | null; mime: string | null; likelyRole: string; exactVenue: boolean | null; discoveredAt: string; originDomain: string; rightsState: "PERMISSION_REQUIRED" }>; eventCandidates: EventEvidence[]; evidenceRefs: string[] };
-function extractDocument(document: FetchedDocument, extractors: SourceExtractor[]): Extracted {
-  const out: Extracted = { identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [] };
-  const addRef = (kind: string, value: string) => { const ref = `source:${document.sourceHash}:${kind}:${createHash("sha256").update(value).digest("hex").slice(0, 16)}`; out.evidenceRefs.push(ref); return ref; };
-  if (extractors.includes("IDENTITY")) {
-    const titleTag = tags(document.body, "title")[0]; const title = text(titleTag ? visibleText(titleTag.inner) : null) ?? firstMeta(document.body, "og:site_name");
-    const headingTag = tags(document.body, "h1")[0]; const heading = text(headingTag ? visibleText(headingTag.inner) : null);
-    const addressTag = tags(document.body, "address")[0]; const address = text(addressTag ? visibleText(addressTag.inner) : null) ?? labelledAddress(document.body);
-    const description = firstMeta(document.body, "description") ?? firstMeta(document.body, "og:description");
-    if (title) { addRef("identity", title); out.identityFacts.push({ fieldName: "siteName", value: title, sourceUrl: document.url }); }
-    if (heading && heading !== title) { addRef("identity", heading); out.identityFacts.push({ fieldName: "explicitVenueName", value: heading, sourceUrl: document.url }); }
-    if (address) { addRef("identity", address); out.identityFacts.push({ fieldName: "address", value: address, sourceUrl: document.url }); }
-    if (description) { addRef("identity", description); out.identityFacts.push({ fieldName: "siteDescription", value: description, sourceUrl: document.url }); }
-  }
-  if (extractors.includes("PUBLIC_CONTACT")) {
-    const seen = new Set<string>();
-    for (const anchor of hrefTags(document.body)) {
-      const href = (anchor.attrs.href ?? "").trim(); let type: string | null = null; let value: string | null = null;
-      if (/^mailto:/i.test(href)) { type = "EMAIL"; value = href.replace(/^mailto:/i, "").split("?")[0]!.trim().toLowerCase(); }
-      else if (/^tel:/i.test(href)) { type = "PHONE"; value = href.replace(/^tel:/i, "").trim(); }
-      else if (/whatsapp|wa\.me/i.test(href)) { type = "WHATSAPP"; value = href; }
-      else if (/messenger|facebook\.com\/messages/i.test(href)) { type = "BUSINESS_MESSAGING"; value = href; }
-      if (type && value && !seen.has(`${type}:${value}`)) { seen.add(`${type}:${value}`); addRef("contact", `${type}:${value}`); out.publicContacts.push({ type, value, sourceUrl: document.url, confidence: type === "EMAIL" ? 0.95 : 0.85, reviewRequired: false }); }
-    }
-    for (const form of tags(document.body, "form")) { const action = form.attrs.action?.trim() ? sameOrigin(form.attrs.action, document.url) : document.url; if (!action || !seen.has(`CONTACT_FORM:${action}`)) { if (!action) continue; seen.add(`CONTACT_FORM:${action}`); addRef("contact", action); out.publicContacts.push({ type: "CONTACT_FORM", value: action, sourceUrl: document.url, confidence: 0.8, reviewRequired: false }); } }
-  }
-  if (extractors.includes("VENUE_FACTS")) {
-    const body = visibleText(document.body); const patterns: Array<[string, RegExp]> = [["capacity", /(?:capacity|up to|standing|seated)\s*[:\-]?\s*[^.]{0,120}\b\d{2,5}\b[^.]{0,80}/i], ["spaces", /(?:rooms?|spaces?|hall|studio|suite|gallery)\s*[:\-]?\s*[^.]{0,180}/i], ["accessibility", /(?:accessible|wheelchair|step[- ]free|disabled access)[^.]{0,180}/i], ["parking", /(?:parking|car park|park and ride)[^.]{0,180}/i], ["publicTransport", /(?:public transport|train station|bus|underground|tube|tram)[^.]{0,180}/i], ["catering", /(?:catering|kitchen|bar|refreshments)[^.]{0,180}/i], ["avProduction", /(?:audio visual|\bAV\b|production|sound system|lighting|projector)[^.]{0,180}/i], ["wifi", /(?:wi[- ]?fi|wireless internet)[^.]{0,180}/i], ["accommodation", /(?:accommodation|hotel rooms?|bedrooms?)[^.]{0,180}/i], ["loadingAccess", /(?:loading bay|loading access|load[- ]?in)[^.]{0,180}/i], ["outdoorSpace", /(?:outdoor space|terrace|garden|courtyard|marquee)[^.]{0,180}/i], ["power", /(?:power supply|three[- ]?phase|power outlets?)[^.]{0,180}/i], ["staging", /(?:staging|stage)[^.]{0,180}/i], ["cloakroom", /(?:cloakroom|coat check)[^.]{0,180}/i]];
-    for (const [fieldName, pattern] of patterns) { const match = body.match(pattern); if (match?.[0]) { const value = match[0].trim(); addRef("venue", `${fieldName}:${value}`); out.venueFacts.push({ fieldName, value, sourceUrl: document.url, confidence: 0.8, reviewRequired: false }); } }
-  }
-  if (extractors.includes("IMAGE_CANDIDATES")) for (const imageTag of selfClosingTags(document.body, "img")) { const src = canonicalHttpsUrl(imageTag.attrs.src ?? "", document.url); if (!src) continue; const image = new URL(src); const filename = image.pathname.split("/").pop() || null; addRef("image", src); out.imageCandidates.push({ sourceImageUrl: src, sourcePageUrl: document.url, filename, alt: text(imageTag.attrs.alt), title: text(imageTag.attrs.title), caption: null, width: Number(imageTag.attrs.width) || null, height: Number(imageTag.attrs.height) || null, mime: null, likelyRole: /logo/i.test(`${filename} ${imageTag.attrs.alt ?? ""}`) ? "LOGO" : "OTHER", exactVenue: null, discoveredAt: document.observedAt, originDomain: image.hostname, rightsState: "PERMISSION_REQUIRED" }); }
-  if (extractors.includes("EVENTS")) { out.eventCandidates.push(...extractEvents(document.body, document.url, document.observedAt)); out.eventCandidates.forEach((event) => addRef("event", event.sourceFingerprint)); }
-  out.evidenceRefs = [...new Set(out.evidenceRefs)]; return out;
+function sleep(ms: number) {
+  return ms > 0 ? new Promise<void>((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
 }
 
-async function fetchDocument(args: { url: string; origin: string; budget: CrawlBudget; stats: CrawlStats; fetchImpl?: FetchLike; resolveHost: ResolveHost; userAgent: string }): Promise<FetchedDocument | null> { let current = args.url; let redirects = 0; for (let attempt = 0; attempt <= args.budget.maxRetries; attempt += 1) { if (args.stats.requestCount >= args.budget.maxRequests) throw new Error("Crawl request budget exhausted."); await assertPublicNetworkTarget(current, args.resolveHost); args.stats.requestCount += 1; const response = args.fetchImpl ? await args.fetchImpl(current, { redirect: "manual", headers: { "User-Agent": args.userAgent, Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1" } }) : await fetchPinned({ url: current, resolveHost: args.resolveHost, userAgent: args.userAgent, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1", maxBytes: args.budget.maxBytesPerResponse, timeoutMs: args.budget.timeoutMs }); if ([301, 302, 303, 307, 308].includes(response.status)) { const location = response.headers.get("location"); const next = location ? canonicalHttpsUrl(location, current) : null; if (!next || new URL(next).origin !== args.origin) { args.stats.blockedCount += 1; throw new Error("Redirect target is not an allowed same-origin public HTTPS URL."); } if (redirects >= args.budget.maxRedirects) throw new Error("Redirect budget exhausted."); current = next; redirects += 1; args.stats.redirects += 1; attempt -= 1; continue; } if ((response.status === 429 || response.status >= 500) && attempt < args.budget.maxRetries) { args.stats.retries += 1; await sleep(Math.min(250 * 2 ** attempt, 2000)); continue; } if (!response.ok) throw new Error(`HTTP ${response.status} from ${current}`); const contentLength = Number(response.headers.get("content-length")); if (Number.isFinite(contentLength) && contentLength > args.budget.maxBytesPerResponse) throw new Error("Response exceeded the discovery size limit."); const body = await response.text(); const bytes = Buffer.byteLength(body, "utf8"); if (bytes > args.budget.maxBytesPerResponse) throw new Error("Response exceeded the discovery size limit."); await sleep(args.budget.minRequestDelayMs); return { url: current, body, bytes, contentType: response.headers.get("content-type"), sourceHash: createHash("sha256").update(body).digest("hex"), observedAt: new Date().toISOString() }; } return null; }
+export function robotsAllows(robotsText: string, targetUrl: string, token: string): boolean {
+  if (!robotsText.trim()) return true;
+  const groups: Array<{ agents: string[]; rules: Array<{ allow: boolean; path: string }> }> = [];
+  let agents: string[] = [];
+  let rules: Array<{ allow: boolean; path: string }> = [];
+  const flush = () => {
+    if (agents.length || rules.length) groups.push({ agents, rules });
+    agents = [];
+    rules = [];
+  };
+  for (const raw of robotsText.split(/\r?\n/)) {
+    const line = raw.replace(/#.*$/, "").trim();
+    const index = line.indexOf(":");
+    if (!line || index < 0) continue;
+    const key = line.slice(0, index).toLowerCase().trim();
+    const value = line.slice(index + 1).trim();
+    if (key === "user-agent") {
+      if (rules.length) flush();
+      agents.push(value.toLowerCase());
+    } else if ((key === "allow" || key === "disallow") && agents.length && value) {
+      rules.push({ allow: key === "allow", path: value });
+    }
+  }
+  flush();
+  const normalized = token.toLowerCase();
+  const specific = groups.filter((group) => group.agents.some((agent) => agent !== "*" && normalized.includes(agent)));
+  const applicable = specific.length ? specific : groups.filter((group) => group.agents.includes("*"));
+  const path = new URL(targetUrl).pathname || "/";
+  const matching = applicable.flatMap((group) => group.rules)
+    .filter((rule) => path.startsWith(rule.path))
+    .sort((a, b) => b.path.length - a.path.length || Number(b.allow) - Number(a.allow));
+  return matching[0]?.allow ?? true;
+}
+
+async function fetchDocument(args: {
+  url: string;
+  origin: string;
+  budget: CrawlBudget;
+  stats: CrawlStats;
+  fetchImpl?: FetchLike;
+  resolveHost: ResolveHost;
+  userAgent: string;
+}): Promise<FetchedDocument | null> {
+  let current = args.url;
+  let redirects = 0;
+  for (let attempt = 0; attempt <= args.budget.maxRetries; attempt += 1) {
+    if (args.stats.requestCount >= args.budget.maxRequests) throw new Error("Crawl request budget exhausted.");
+    try {
+      await assertPublicNetworkTarget(current, args.resolveHost);
+    } catch (error) {
+      args.stats.blockedCount += 1;
+      throw error;
+    }
+    args.stats.requestCount += 1;
+    const response = args.fetchImpl
+      ? await args.fetchImpl(current, { redirect: "manual", headers: { "User-Agent": args.userAgent, Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1" } })
+      : await fetchPinned({ url: current, resolveHost: args.resolveHost, userAgent: args.userAgent, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1", maxBytes: args.budget.maxBytesPerResponse, timeoutMs: args.budget.timeoutMs });
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const location = response.headers.get("location");
+      const next = location ? canonicalHttpsUrl(location, current) : null;
+      if (!next || new URL(next).origin !== args.origin) {
+        args.stats.blockedCount += 1;
+        throw new Error("Redirect target is not an allowed same-origin public HTTPS URL.");
+      }
+      if (redirects >= args.budget.maxRedirects) throw new Error("Redirect budget exhausted.");
+      current = next;
+      redirects += 1;
+      args.stats.redirects += 1;
+      attempt -= 1;
+      continue;
+    }
+    if ((response.status === 429 || response.status >= 500) && attempt < args.budget.maxRetries) {
+      args.stats.retries += 1;
+      await sleep(Math.min(250 * 2 ** attempt, 2000));
+      continue;
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status} from ${current}`);
+    const contentLength = Number(response.headers.get("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > args.budget.maxBytesPerResponse) throw new Error("Response exceeded the discovery size limit.");
+    const body = await response.text();
+    const bytes = Buffer.byteLength(body, "utf8");
+    if (bytes > args.budget.maxBytesPerResponse) throw new Error("Response exceeded the discovery size limit.");
+    await sleep(args.budget.minRequestDelayMs);
+    return { url: current, body, bytes, contentType: response.headers.get("content-type"), sourceHash: createHash("sha256").update(body).digest("hex"), observedAt: new Date().toISOString() };
+  }
+  return null;
+}
 
 export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput> {
   const verifiedUrl = canonicalHttpsUrl(args.verifiedUrl);
@@ -95,8 +128,58 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
     stats.blockedCount += 1;
     return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats };
   }
-  if (!robotsAllows(robotsText, verifiedUrl, userAgent)) { stats.status = "BLOCKED"; stats.blockedCount += 1; stats.warnings.push("robots.txt disallows the verified source path."); return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats }; }
-  const documents: FetchedDocument[] = []; const queue = [verifiedUrl]; const queued = new Set(queue); while (queue.length && documents.length < args.budget.maxPages) { const next = queue.shift()!; if (!robotsAllows(robotsText, next, userAgent)) { stats.blockedCount += 1; stats.warnings.push(`robots.txt disallows ${next}`); continue; } try { const document = await fetchDocument({ url: next, origin, budget: args.budget, stats, fetchImpl: args.fetchImpl, resolveHost, userAgent }); if (!document) continue; documents.push(document); stats.pageCount += 1; stats.bytesRead += document.bytes; const sourceLinks = discoverUsefulSourceUrls(document, args.requestedExtractors); const detailLinks = args.requestedExtractors.includes("EVENTS") && !extractEvents(document.body, document.url, document.observedAt).length ? discoverLikelyEventDetailUrls(document) : []; const links = [...new Set([...sourceLinks, ...detailLinks])]; for (const link of links) if (!queued.has(link) && new URL(link).origin === origin && queued.size < args.budget.maxPages) { queued.add(link); queue.push(link); } } catch (error) { stats.warnings.push(`${next}: ${error instanceof Error ? error.message : "unknown error"}`); if (stats.requestCount >= args.budget.maxRequests) break; } }
-  if (stats.requestCount >= args.budget.maxRequests || documents.length >= args.budget.maxPages) stats.warnings.push("Finite crawl budget reached."); if (!documents.length) stats.status = stats.blockedCount ? "BLOCKED" : "FAILED"; else if (stats.warnings.length) stats.status = "PARTIAL"; return { verifiedUrl, finalUrl: documents[0]?.url ?? verifiedUrl, documents, stats }; }
+  if (!robotsAllows(robotsText, verifiedUrl, userAgent)) {
+    stats.status = "BLOCKED";
+    stats.blockedCount += 1;
+    stats.warnings.push("robots.txt disallows the verified source path.");
+    return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats };
+  }
+  const documents: FetchedDocument[] = [];
+  const queue = [verifiedUrl];
+  const queued = new Set(queue);
+  while (queue.length && documents.length < args.budget.maxPages) {
+    const next = queue.shift()!;
+    if (!robotsAllows(robotsText, next, userAgent)) {
+      stats.blockedCount += 1;
+      stats.warnings.push(`robots.txt disallows ${next}`);
+      continue;
+    }
+    try {
+      const document = await fetchDocument({ url: next, origin, budget: args.budget, stats, fetchImpl: args.fetchImpl, resolveHost, userAgent });
+      if (!document) continue;
+      documents.push(document);
+      stats.pageCount += 1;
+      stats.bytesRead += document.bytes;
+      const sourceLinks = discoverUsefulSourceUrls(document, args.requestedExtractors);
+      const detailLinks = args.requestedExtractors.includes("EVENTS") && !extractEventsFromDocuments([document]).eventCandidates.length
+        ? discoverLikelyEventDetailUrls(document)
+        : [];
+      for (const link of [...new Set([...sourceLinks, ...detailLinks])]) {
+        if (!queued.has(link) && new URL(link).origin === origin && queued.size < args.budget.maxPages) {
+          queued.add(link);
+          queue.push(link);
+        }
+      }
+    } catch (error) {
+      stats.warnings.push(`${next}: ${error instanceof Error ? error.message : "unknown error"}`);
+      if (stats.requestCount >= args.budget.maxRequests) break;
+    }
+  }
+  if (stats.requestCount >= args.budget.maxRequests || documents.length >= args.budget.maxPages) stats.warnings.push("Finite crawl budget reached.");
+  if (!documents.length) stats.status = stats.blockedCount ? "BLOCKED" : "FAILED";
+  else if (stats.warnings.length) stats.status = "PARTIAL";
+  return { verifiedUrl, finalUrl: documents[0]?.url ?? verifiedUrl, documents, stats };
+}
 
-export function extractFromFetchedDocuments(documents: FetchedDocument[], requestedExtractors: SourceExtractor[]) { const merged: Extracted = { identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [] }; for (const document of documents) { const extracted = extractDocument(document, requestedExtractors); merged.identityFacts.push(...extracted.identityFacts); merged.publicContacts.push(...extracted.publicContacts); merged.venueFacts.push(...extracted.venueFacts); merged.imageCandidates.push(...extracted.imageCandidates); merged.eventCandidates.push(...extracted.eventCandidates); merged.evidenceRefs.push(...extracted.evidenceRefs); } const dedupe = <T>(items: T[], key: (item: T) => string) => [...new Map(items.map((item) => [key(item), item])).values()]; return { identityFacts: dedupe(merged.identityFacts, (item) => `${item.fieldName}:${JSON.stringify(item.value)}:${item.sourceUrl}`), publicContacts: dedupe(merged.publicContacts, (item) => `${item.type}:${item.value}`), venueFacts: dedupe(merged.venueFacts, (item) => `${item.fieldName}:${JSON.stringify(item.value)}:${item.sourceUrl}`), imageCandidates: dedupe(merged.imageCandidates, (item) => item.sourceImageUrl), eventCandidates: dedupe(merged.eventCandidates, (item) => item.sourceFingerprint), evidenceRefs: [...new Set(merged.evidenceRefs)] }; }
+export function extractFromFetchedDocuments(documents: FetchedDocument[], requestedExtractors: SourceExtractor[]) {
+  const resources = extractResourcesFromDocuments(documents, requestedExtractors);
+  const events = requestedExtractors.includes("EVENTS")
+    ? extractEventsFromDocuments(documents)
+    : { eventCandidates: [], warnings: [], evidenceRefs: [] };
+  return {
+    ...resources,
+    eventCandidates: events.eventCandidates,
+    evidenceRefs: [...new Set([...resources.evidenceRefs, ...events.evidenceRefs])],
+    warnings: events.warnings,
+  };
+}

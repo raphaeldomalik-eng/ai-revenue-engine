@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   assertPublicNetworkTarget,
   crawlVerifiedSource,
+  extractFromFetchedDocuments,
   isPublicHttpsUrl,
   isPublicNetworkAddress,
   type CrawlBudget,
@@ -180,4 +181,89 @@ test("a source page without structured events can enqueue a bounded event detail
     "https://venue.example/events/2026/jazz-night",
   ]);
   assert.equal(result.stats.pageCount, 3);
+});
+
+test("shared event extraction normalizes nested Event and MusicEvent data without inventing optional facts", () => {
+  const extracted = extractFromFetchedDocuments([document(`
+    <script type="application/ld+json">{
+      "@graph": [
+        {"@type":"WebSite","name":"Venue"},
+        {"@type":["Thing","MusicEvent"],"name":"  Autumn Jazz  ","startDate":"2026-10-22T19:30:00Z",
+         "endDate":"2026-10-22T22:00:00Z","url":"/events/autumn-jazz","eventStatus":"EventScheduled",
+         "description":"Live quartet.","organizer":{"name":"Venue Music"},
+         "performer":[{"name":"The Quartet"},"Guest Artist"],"eventType":"Concert",
+         "location":{"name":"Grand Hall"},"offers":{"url":"https://tickets.example/autumn","price":25},
+         "image":{"url":"/images/autumn.jpg"}}
+      ]
+    }</script>
+    <script type="application/ld+json">{"@type":"Event", malformed}</script>
+  `)], ["EVENTS"]);
+
+  assert.equal(extracted.eventCandidates.length, 1);
+  assert.deepEqual(extracted.eventCandidates[0], {
+    title: "Autumn Jazz",
+    sourceEventUrl: "https://venue.example/events/autumn-jazz",
+    sourcePageUrl: "https://venue.example/",
+    venueText: "Grand Hall",
+    startAt: "2026-10-22T19:30:00Z",
+    endAt: "2026-10-22T22:00:00Z",
+    timezone: null,
+    eventStatus: "EventScheduled",
+    description: "Live quartet.",
+    organiser: "Venue Music",
+    performers: ["The Quartet", "Guest Artist"],
+    sourceCategory: "Concert",
+    ticketUrl: "https://tickets.example/autumn",
+    ticketDomain: "tickets.example",
+    priceText: "25",
+    ageRestriction: null,
+    eventImageUrl: "https://venue.example/images/autumn.jpg",
+    sourceFingerprint: extracted.eventCandidates[0]!.sourceFingerprint,
+    observedAt: "2026-09-22T09:00:00.000Z",
+    state: "DISCOVERED",
+    confidence: null,
+  });
+  assert.match(extracted.warnings.join(" "), /malformed JSON-LD/i);
+});
+
+test("event fingerprints ignore observation time and semantic deduplication prefers canonical URL", () => {
+  const body = `<script type="application/ld+json">{"@type":"Event","name":"Autumn Jazz","startDate":"2026-10-22T19:30:00Z","url":"/events/autumn-jazz","location":{"name":"Grand Hall"}}</script>`;
+  const first = document(body);
+  const second = { ...document(body, "https://venue.example/calendar"), observedAt: "2026-09-23T09:00:00.000Z" };
+  const extracted = extractFromFetchedDocuments([first, second], ["EVENTS"]);
+
+  assert.equal(extracted.eventCandidates.length, 1);
+  assert.equal(
+    extractFromFetchedDocuments([first], ["EVENTS"]).eventCandidates[0]!.sourceFingerprint,
+    extractFromFetchedDocuments([second], ["EVENTS"]).eventCandidates[0]!.sourceFingerprint,
+  );
+});
+
+test("event semantic deduplication falls back to normalized title date and venue and requires a start date", () => {
+  const first = document(`<script type="application/ld+json">[
+    {"@type":"Event","name":" Autumn   Jazz ","startDate":"2026-10-22T19:30:00Z","location":{"name":"Grand Hall"}},
+    {"@type":"Event","name":"No Date","location":{"name":"Grand Hall"}}
+  ]</script>`, "https://venue.example/events");
+  const second = document(`<script type="application/ld+json">{"@type":"MusicEvent","name":"autumn jazz","startDate":"2026-10-22T20:30:00+01:00","location":{"name":" grand hall "}}</script>`, "https://venue.example/calendar");
+  const extracted = extractFromFetchedDocuments([first, second], ["EVENTS"]);
+
+  assert.equal(extracted.eventCandidates.length, 1);
+  assert.equal(extracted.eventCandidates[0]?.title, "Autumn Jazz");
+});
+
+test("each extracted Resource fact carries its own deterministic evidence reference", () => {
+  const extracted = extractFromFetchedDocuments([document(`
+    <title>Example Venue</title><h1>Grand Hall</h1>
+    <a href="mailto:events@example.com">Email</a><a href="tel:+441234567890">Phone</a>
+    <p>Capacity: 500 standing. Step-free access.</p>
+  `)], ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS"]);
+
+  const refs = [
+    ...extracted.identityFacts.map((item) => item.evidenceRef),
+    ...extracted.publicContacts.map((item) => item.evidenceRef),
+    ...extracted.venueFacts.map((item) => item.evidenceRef),
+  ];
+  assert.equal(refs.every(Boolean), true);
+  assert.equal(new Set(refs).size, refs.length);
+  assert.equal(refs.every((ref) => extracted.evidenceRefs.includes(ref)), true);
 });
