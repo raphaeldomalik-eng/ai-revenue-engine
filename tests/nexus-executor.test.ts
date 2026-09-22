@@ -17,6 +17,37 @@ test("Nexus research request validator accepts V1 and fails closed on unknown en
   assert.throws(() => validateResearchRequest(research({ providerAllowances: ["SEARCH_ENGINE"] })), /INVALID_PROVIDER_ALLOWANCES/);
 });
 
+test("research request validation preserves bounded context and remains backward compatible", () => {
+  assert.equal("researchContext" in validateResearchRequest(research()), false);
+  const validated = validateResearchRequest(research({ researchContext: {
+    targetName: " SSISA Conference Centre ",
+    targetWebsite: "https://www.ssisa.com",
+    locality: " Cape Town ",
+    territory: "ZA",
+    existingFacts: [{ fieldName: " placeId ", value: { id: "places/ssisa", aliases: ["SSISA"] }, evidenceRef: " places:ssisa " }],
+  } }));
+  assert.deepEqual(validated.researchContext, {
+    targetName: "SSISA Conference Centre",
+    targetWebsite: "https://www.ssisa.com/",
+    locality: "Cape Town",
+    territory: "ZA",
+    existingFacts: [{ fieldName: "placeId", value: { id: "places/ssisa", aliases: ["SSISA"] }, evidenceRef: "places:ssisa" }],
+  });
+});
+
+test("research request validation rejects unsafe or malformed context", () => {
+  const invalid = (researchContext: unknown) => research({ researchContext });
+  assert.throws(() => validateResearchRequest(invalid({ targetWebsite: "http://www.ssisa.com/" })), /INVALID_RESEARCH_CONTEXT_WEBSITE/);
+  assert.throws(() => validateResearchRequest(invalid({ targetWebsite: "https://user:pass@www.ssisa.com/" })), /INVALID_RESEARCH_CONTEXT_WEBSITE/);
+  assert.throws(() => validateResearchRequest(invalid({ territory: "US" })), /INVALID_RESEARCH_CONTEXT_TERRITORY/);
+  assert.throws(() => validateResearchRequest(invalid({ locality: "x".repeat(513) })), /INVALID_RESEARCH_CONTEXT_LOCALITY/);
+  assert.throws(() => validateResearchRequest(invalid({ existingFacts: Array.from({ length: 101 }, () => ({ fieldName: "placeId", value: "x" })) })), /INVALID_RESEARCH_CONTEXT_FACTS/);
+  assert.throws(() => validateResearchRequest(invalid({ existingFacts: [{ value: "x" }] })), /INVALID_RESEARCH_CONTEXT_FACT_FIELD/);
+  assert.throws(() => validateResearchRequest(invalid({ existingFacts: [{ fieldName: "placeId" }] })), /RESEARCH_CONTEXT_FACT_VALUE_REQUIRED/);
+  assert.throws(() => validateResearchRequest(invalid({ unexpected: true })), /INVALID_RESEARCH_CONTEXT_FIELDS/);
+  assert.throws(() => validateResearchRequest(invalid({ existingFacts: [{ fieldName: "placeId", value: "x", unexpected: true }] })), /INVALID_RESEARCH_CONTEXT_FACT_FIELDS/);
+});
+
 test("research execution never calls an unallowed provider and preserves safe unresolved state", async () => {
   let calls = 0;
   const result = await executeResearchRequest(research({ providerAllowances: ["PUBLIC_WEB"] }), {}, { googlePlaces: async () => { calls += 1; throw new Error("must not run"); } }) as any;
@@ -55,6 +86,7 @@ test("research result preserves contract correlation, evidence separation, and i
 
 test("source discovery validates HTTPS and blocks private targets", async () => {
   assert.equal(isPublicHttpsUrl("http://venue.example"), false);
+  assert.equal(isPublicHttpsUrl("https://user:pass@venue.example"), false);
   assert.equal(isPublicHttpsUrl("https://127.0.0.1"), false);
   await assert.rejects(() => assertPublicNetworkTarget("https://venue.example", async () => [{ address: "10.0.0.7", family: 4 }]));
   assert.throws(() => validateSourceDiscoveryRequest(discovery({ verifiedSourceUrl: "http://venue.example/" })), /INVALID_VERIFIED_SOURCE_URL/);

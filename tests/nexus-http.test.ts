@@ -49,6 +49,13 @@ function signedRequest(payload: Record<string, unknown>, options: { secret?: str
 }
 
 const options = (store = new InMemoryNexusResultStore()) => ({ secret, store, now: () => nowSeconds * 1000 });
+const publicWebResult = async () => ({
+  provider: "PUBLIC_WEB" as const,
+  purpose: "OFFICIAL_WEBSITE",
+  facts: [{ subjectEntityType: "VENUE" as const, canonicalEntityId: null, fieldName: "officialWebsite", value: "https://example.test/", evidenceRef: "research:public-web", confidence: 0.95, observedAt: "2027-01-15T08:00:00.000Z" }],
+  evidence: [{ evidenceRef: "research:public-web", provider: "PUBLIC_WEB" as const, externalRecordId: "public-web:example", sourceUrl: "https://example.test/", observedAt: "2027-01-15T08:00:00.000Z", dataClassification: "PUBLIC" as const, licenceType: "PUBLIC_SOURCE", payload: { source: "fixture" } }],
+  unknowns: [], conflicts: [], cost: { currency: "USD", amount: 0 },
+});
 
 test("accepts a signed supported request and returns a validated result", async () => {
   const response = await handleNexusExecuteRequest(signedRequest(research()), options());
@@ -65,6 +72,77 @@ test("returns the stored result for an identical idempotency key", async () => {
   const second = await handleNexusExecuteRequest(signedRequest(research()), options(store));
   assert.equal(first.status, 200);
   assert.deepEqual(await second.json(), await first.json());
+});
+
+test("refreshes an old unresolved result only through the fixed research capability version", async () => {
+  const store = new InMemoryNexusResultStore();
+  const first = await handleNexusExecuteRequest(signedRequest(research()), options(store));
+  assert.equal((await first.json() as { status: string }).status, "UNRESOLVED");
+  let calls = 0;
+  const refreshed = await handleNexusExecuteRequest(signedRequest(research()), { ...options(store), researchExecutionVersion: "resources-v2-public-web-v1", publicWeb: async () => { calls += 1; return publicWebResult(); } });
+  const refreshedBody = await refreshed.json() as { status: string; requestId: string; idempotencyKey: string };
+  assert.equal(refreshed.status, 200);
+  assert.equal(refreshedBody.status, "COMPLETED");
+  assert.equal(refreshedBody.requestId, ids.requestId);
+  assert.equal(refreshedBody.idempotencyKey, "22222222-2222-4222-8222-222222222222");
+  assert.equal((await store.get(ids.idempotencyKey))?.status, "UNRESOLVED");
+  assert.equal(calls, 1);
+  const replay = await handleNexusExecuteRequest(signedRequest(research()), { ...options(store), researchExecutionVersion: "resources-v2-public-web-v1", publicWeb: async () => { calls += 1; return publicWebResult(); } });
+  assert.deepEqual(await replay.json(), refreshedBody);
+  assert.equal(calls, 1);
+});
+
+test("does not bypass a completed result when a research capability version is configured", async () => {
+  const store = new InMemoryNexusResultStore();
+  const completed = await handleNexusExecuteRequest(signedRequest(research()), { ...options(store), publicWeb: publicWebResult });
+  assert.equal((await completed.json() as { status: string }).status, "COMPLETED");
+  let calls = 0;
+  const replay = await handleNexusExecuteRequest(signedRequest(research()), { ...options(store), researchExecutionVersion: "resources-v2-public-web-v1", publicWeb: async () => { calls += 1; return publicWebResult(); } });
+  assert.equal((await replay.json() as { requestId: string }).requestId, ids.requestId);
+  assert.equal(calls, 0);
+});
+
+test("stable execution identity reuses provider work across regenerated transport ids and rebinds correlation", async () => {
+  const store = new InMemoryNexusResultStore();
+  let calls = 0;
+  const firstPayload = research({
+    requestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    idempotencyKey: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    correlationId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    researchContext: { targetName: "Transport Proof Venue", targetWebsite: "https://example.test/", locality: "London" },
+  });
+  const secondPayload = research({
+    requestId: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    idempotencyKey: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    correlationId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    createdAt: "2027-01-15T08:05:00.000Z",
+    researchContext: { targetName: "Transport Proof Venue", targetWebsite: "https://example.test/", locality: "London" },
+  });
+  const configured = { ...options(store), researchExecutionVersion: "resources-v2-public-web-v2", publicWeb: async () => { calls += 1; return publicWebResult(); } };
+  const first = await handleNexusExecuteRequest(signedRequest(firstPayload), configured);
+  const second = await handleNexusExecuteRequest(signedRequest(secondPayload), configured);
+  const firstBody = await first.json() as any;
+  const secondBody = await second.json() as any;
+  assert.equal(calls, 1);
+  assert.equal(firstBody.requestId, firstPayload.requestId);
+  assert.equal(firstBody.idempotencyKey, firstPayload.idempotencyKey);
+  assert.equal(secondBody.requestId, secondPayload.requestId);
+  assert.equal(secondBody.idempotencyKey, secondPayload.idempotencyKey);
+  assert.deepEqual(secondBody.facts, firstBody.facts);
+  assert.deepEqual(secondBody.evidence, firstBody.evidence);
+});
+
+test("stable execution identity runs again when relevant research context changes", async () => {
+  const store = new InMemoryNexusResultStore();
+  let calls = 0;
+  const configured = { ...options(store), researchExecutionVersion: "resources-v2-public-web-v2", publicWeb: async () => { calls += 1; return publicWebResult(); } };
+  await handleNexusExecuteRequest(signedRequest(research({ researchContext: { targetName: "Transport Proof Venue", targetWebsite: "https://example.test/", locality: "London" } })), configured);
+  await handleNexusExecuteRequest(signedRequest(research({
+    requestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    idempotencyKey: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    researchContext: { targetName: "Transport Proof Venue", targetWebsite: "https://example.test/", locality: "Manchester" },
+  })), configured);
+  assert.equal(calls, 2);
 });
 
 test("rejects missing and incorrect signatures", async () => {

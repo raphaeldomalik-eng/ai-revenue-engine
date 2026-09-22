@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { handleNexusExecuteRequest } from "../../../../../src/nexus/http.ts";
 import { SupabaseNexusResultStore } from "../../../../../src/nexus/persistence.ts";
+import { createPublicWebProvider, researchContextFromPayload } from "../../../../../src/nexus/public-web.ts";
 
 export const runtime = "nodejs";
 
@@ -22,5 +23,8 @@ export async function POST(request: Request) {
   return handleNexusExecuteRequest(request, {
     secret,
     store: new SupabaseNexusResultStore(client),
+    publicWeb: createPublicWebProvider(),
+    researchContext: researchContextFromPayload,
+    researchExecutionVersion: "resources-v2-public-web-v4",
   });
 }
