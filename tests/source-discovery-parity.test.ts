@@ -8,6 +8,8 @@ import {
   type CrawlBudget,
   type ResolveHost,
 } from "../src/nexus/source-discovery/crawler.ts";
+import { discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "../src/nexus/source-discovery/links.ts";
+import type { FetchedDocument } from "../src/nexus/source-discovery/types.ts";
 
 const publicResolver: ResolveHost = async () => [{ address: "93.184.216.34", family: 4 }];
 
@@ -22,6 +24,10 @@ function budget(overrides: Partial<CrawlBudget> = {}): CrawlBudget {
     minRequestDelayMs: 0,
     ...overrides,
   };
+}
+
+function document(body: string, url = "https://venue.example/"): FetchedDocument {
+  return { url, body, contentType: "text/html", bytes: Buffer.byteLength(body), sourceHash: "fixture", observedAt: "2026-09-22T09:00:00.000Z" };
 }
 
 test("shared crawl safety rejects credentials, reserved addresses, mixed DNS, and unsafe redirects", async () => {
@@ -113,4 +119,65 @@ test("shared crawl budgets count a robots denial as one blocked request", async 
   assert.equal(result.stats.pageCount, 0);
   assert.equal(result.stats.blockedCount, 1);
   assert.equal(result.stats.status, "BLOCKED");
+});
+
+test("shared source planning ranks strong first-party event links deterministically", () => {
+  const page = document(`
+    <a href="/about">About</a>
+    <a href="https://tickets.example/events">External events</a>
+    <a href="/calendar">What's on</a>
+    <a href="/events/spring">Spring programme</a>
+    <a href="/events">Events</a>
+    <a href="/events#duplicate">Events duplicate</a>
+  `);
+
+  assert.deepEqual(discoverUsefulSourceUrls(page, ["EVENTS"]), [
+    "https://venue.example/calendar",
+    "https://venue.example/events",
+    "https://venue.example/events/spring",
+  ]);
+});
+
+test("shared detail planning keeps same-origin event detail candidates in stable score order", () => {
+  const page = document(`
+    <a href="/events">Same page</a>
+    <a href="/events/archive">Archive</a>
+    <a href="/events/2026-10-12/jazz-night">Jazz Night — 12 Oct 2026</a>
+    <a href="/events/jazz-night">Jazz Night</a>
+    <a href="/contact/2026">Dated but irrelevant</a>
+    <a href="https://other.example/events/2026/show">External</a>
+    <a href="/events/jazz-night#duplicate">Duplicate</a>
+  `, "https://venue.example/events");
+
+  assert.deepEqual(discoverLikelyEventDetailUrls(page), [
+    "https://venue.example/events/2026-10-12/jazz-night",
+    "https://venue.example/events/archive",
+    "https://venue.example/events/jazz-night",
+  ]);
+});
+
+test("a source page without structured events can enqueue a bounded event detail page", async () => {
+  const requested: string[] = [];
+  const result = await crawlVerifiedSource({
+    verifiedUrl: "https://venue.example/",
+    requestedExtractors: ["EVENTS"],
+    budget: budget({ maxPages: 3, maxRequests: 4, maxRetries: 0 }),
+    resolveHost: publicResolver,
+    fetchImpl: async (input) => {
+      const url = String(input);
+      requested.push(url);
+      if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nAllow: /");
+      if (url === "https://venue.example/") return new Response('<a href="/events">Events</a>');
+      if (url === "https://venue.example/events") return new Response('<a href="/events/2026/jazz-night">Jazz Night 2026</a>');
+      return new Response("<html>detail</html>");
+    },
+  });
+
+  assert.deepEqual(requested, [
+    "https://venue.example/robots.txt",
+    "https://venue.example/",
+    "https://venue.example/events",
+    "https://venue.example/events/2026/jazz-night",
+  ]);
+  assert.equal(result.stats.pageCount, 3);
 });
