@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { SourceExtractor } from "../contracts.ts";
 import { extractEventsFromDocuments } from "./extractors/events.ts";
 import { extractResourcesFromDocuments } from "./extractors/resources.ts";
-import { discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "./links.ts";
+import { calendarFallbackUrl, discoverCalendarUrls, discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "./links.ts";
 import { assertPublicNetworkTarget, canonicalHttpsUrl, defaultResolveHost, fetchPinned } from "./network.ts";
 import type { CrawlBudget, CrawlInput, CrawlOutput, CrawlStats, FetchLike, FetchedDocument, ResolveHost } from "./types.ts";
 
@@ -40,10 +40,16 @@ export function robotsAllows(robotsText: string, targetUrl: string, token: strin
   const normalized = token.toLowerCase();
   const specific = groups.filter((group) => group.agents.some((agent) => agent !== "*" && normalized.includes(agent)));
   const applicable = specific.length ? specific : groups.filter((group) => group.agents.includes("*"));
-  const path = new URL(targetUrl).pathname || "/";
+  const target = new URL(targetUrl);
+  const path = `${target.pathname || "/"}${target.search}`;
   const matching = applicable.flatMap((group) => group.rules)
-    .filter((rule) => path.startsWith(rule.path))
-    .sort((a, b) => b.path.length - a.path.length || Number(b.allow) - Number(a.allow));
+    .filter((rule) => {
+      const anchored = rule.path.endsWith("$");
+      const body = anchored ? rule.path.slice(0, -1) : rule.path;
+      const pattern = body.split("*").map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+      return new RegExp(`^${pattern}${anchored ? "$" : ""}`).test(path);
+    })
+    .sort((a, b) => b.path.replace(/\*/g, "").length - a.path.replace(/\*/g, "").length || Number(b.allow) - Number(a.allow));
   return matching[0]?.allow ?? true;
 }
 
@@ -55,11 +61,17 @@ async function fetchDocument(args: {
   fetchImpl?: FetchLike;
   resolveHost: ResolveHost;
   userAgent: string;
+  calendar?: boolean;
+  robotsText: string;
 }): Promise<FetchedDocument | null> {
   let current = args.url;
   let redirects = 0;
   for (let attempt = 0; attempt <= args.budget.maxRetries; attempt += 1) {
     if (args.stats.requestCount >= args.budget.maxRequests) throw new Error("Crawl request budget exhausted.");
+    if (!robotsAllows(args.robotsText, current, args.userAgent)) {
+      args.stats.blockedCount += 1;
+      throw new Error(`robots.txt disallows ${current}`);
+    }
     try {
       await assertPublicNetworkTarget(current, args.resolveHost);
     } catch (error) {
@@ -67,9 +79,10 @@ async function fetchDocument(args: {
       throw error;
     }
     args.stats.requestCount += 1;
+    const accept = args.calendar ? "text/calendar,*/*;q=0.1" : "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1";
     const response = args.fetchImpl
-      ? await args.fetchImpl(current, { redirect: "manual", headers: { "User-Agent": args.userAgent, Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1" } })
-      : await fetchPinned({ url: current, resolveHost: args.resolveHost, userAgent: args.userAgent, accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1", maxBytes: args.budget.maxBytesPerResponse, timeoutMs: args.budget.timeoutMs });
+      ? await args.fetchImpl(current, { redirect: "manual", headers: { "User-Agent": args.userAgent, Accept: accept } })
+      : await fetchPinned({ url: current, resolveHost: args.resolveHost, userAgent: args.userAgent, accept, maxBytes: args.budget.maxBytesPerResponse, timeoutMs: args.budget.timeoutMs });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
       const next = location ? canonicalHttpsUrl(location, current) : null;
@@ -121,7 +134,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
       const body = await response.text();
       if (Buffer.byteLength(body, "utf8") > Math.min(args.budget.maxBytesPerResponse, 500_000)) throw new Error("robots.txt exceeded the discovery size limit.");
       robotsText = body;
-    }
+    } else if (response.status !== 404) throw new Error(`robots.txt returned HTTP ${response.status}`);
   } catch (error) {
     stats.warnings.push(`robots.txt could not be checked: ${error instanceof Error ? error.message : "unknown error"}`);
     stats.status = "BLOCKED";
@@ -135,29 +148,47 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
     return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats };
   }
   const documents: FetchedDocument[] = [];
-  const queue = [verifiedUrl];
-  const queued = new Set(queue);
-  while (queue.length && documents.length < args.budget.maxPages) {
-    const next = queue.shift()!;
+  const queue: Array<{ url: string; calendar: boolean }> = [{ url: verifiedUrl, calendar: false }];
+  const queuedPages = new Set([verifiedUrl]);
+  const queuedCalendars = new Set<string>();
+  let calendarBudgetTruncated = false;
+  while (queue.length && stats.requestCount < args.budget.maxRequests) {
+    const item = queue.shift()!;
+    const next = item.url;
     if (!robotsAllows(robotsText, next, userAgent)) {
       stats.blockedCount += 1;
       stats.warnings.push(`robots.txt disallows ${next}`);
       continue;
     }
     try {
-      const document = await fetchDocument({ url: next, origin, budget: args.budget, stats, fetchImpl: args.fetchImpl, resolveHost, userAgent });
+      const document = await fetchDocument({ url: next, origin, budget: args.budget, stats, fetchImpl: args.fetchImpl, resolveHost, userAgent, calendar: item.calendar, robotsText });
       if (!document) continue;
       documents.push(document);
-      stats.pageCount += 1;
       stats.bytesRead += document.bytes;
+      if (item.calendar) continue;
+      stats.pageCount += 1;
       const sourceLinks = discoverUsefulSourceUrls(document, args.requestedExtractors);
       const detailLinks = args.requestedExtractors.includes("EVENTS") && !extractEventsFromDocuments([document]).eventCandidates.length
         ? discoverLikelyEventDetailUrls(document)
         : [];
+      if (args.requestedExtractors.includes("EVENTS")) {
+        const explicit = discoverCalendarUrls(document);
+        const fallback = explicit.length || extractEventsFromDocuments([document]).eventCandidates.length ? [] : [calendarFallbackUrl(document)].filter((url): url is string => Boolean(url));
+        for (const url of [...explicit, ...fallback]) {
+          if (queuedCalendars.has(url) || queuedPages.has(url)) continue;
+          if (queuedPages.size + queuedCalendars.size >= args.budget.maxRequests - 1) {
+            calendarBudgetTruncated = true;
+            continue;
+          }
+          queuedCalendars.add(url);
+          queue.unshift({ url, calendar: true });
+        }
+      }
       for (const link of [...new Set([...sourceLinks, ...detailLinks])]) {
-        if (!queued.has(link) && new URL(link).origin === origin && queued.size < args.budget.maxPages) {
-          queued.add(link);
-          queue.push(link);
+        if (/\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i.test(link)) continue;
+        if (!queuedPages.has(link) && new URL(link).origin === origin && queuedPages.size < args.budget.maxPages) {
+          queuedPages.add(link);
+          queue.push({ url: link, calendar: false });
         }
       }
     } catch (error) {
@@ -165,14 +196,14 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
       if (stats.requestCount >= args.budget.maxRequests) break;
     }
   }
-  if (stats.requestCount >= args.budget.maxRequests || documents.length >= args.budget.maxPages) stats.warnings.push("Finite crawl budget reached.");
+  if (queue.length || calendarBudgetTruncated) stats.warnings.push("Finite crawl budget reached.");
   if (!documents.length) stats.status = stats.blockedCount ? "BLOCKED" : "FAILED";
   else if (stats.warnings.length) stats.status = "PARTIAL";
   return { verifiedUrl, finalUrl: documents[0]?.url ?? verifiedUrl, documents, stats };
 }
 
 export function extractFromFetchedDocuments(documents: FetchedDocument[], requestedExtractors: SourceExtractor[]) {
-  const resources = extractResourcesFromDocuments(documents, requestedExtractors);
+  const resources = extractResourcesFromDocuments(documents.filter((document) => !/text\/calendar/i.test(document.contentType ?? "") && !/(?:\.ics|[?&]format=ical)(?:$|&)/i.test(document.url)), requestedExtractors);
   const events = requestedExtractors.includes("EVENTS")
     ? extractEventsFromDocuments(documents)
     : { eventCandidates: [], warnings: [], evidenceRefs: [] };
