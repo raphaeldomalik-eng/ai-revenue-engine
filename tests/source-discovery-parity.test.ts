@@ -371,3 +371,48 @@ test("discoverLikelyEventDetailUrls ignores optional calendar export links", () 
   ]);
 });
 
+test("event detail pages do not recursively enqueue pagination or older event links", async () => {
+  const origin = "https://venue.example";
+  const requested: string[] = [];
+  const crawl = await crawlVerifiedSource({
+    verifiedUrl: `${origin}/events`,
+    requestedExtractors: ["EVENTS"],
+    budget: {
+      maxPages: 2,
+      maxRequests: 5,
+      maxBytesPerResponse: 10_000,
+      maxRedirects: 0,
+      maxRetries: 0,
+      timeoutMs: 1_000,
+      minRequestDelayMs: 0,
+    },
+    resolveHost: async () => [{ address: "93.184.216.34", family: 4 }],
+    fetchImpl: async (input) => {
+      const url = String(input);
+      requested.push(url);
+      if (url.endsWith("robots.txt")) return new Response("User-agent: *\nAllow: /");
+      if (url === `${origin}/events`) {
+        return new Response('<a href="/events/2026/show-1">Show 1</a>');
+      }
+      if (url === `${origin}/events/2026/show-1`) {
+        // Detail page contains navigation to an older event not on the main listing
+        return new Response(`
+          <article>
+            <h1>Show 1</h1>
+            <time datetime="2026-10-01T19:00:00Z"></time>
+            <nav class="eventitem-pagination">
+              <a href="/events/2026/older-unlisted-show">Previous Event</a>
+            </nav>
+          </article>
+        `);
+      }
+      return new Response("not found", { status: 404 });
+    },
+  });
+
+  assert.equal(crawl.stats.status, "COMPLETED");
+  assert.equal(crawl.stats.pageCount, 2);
+  assert.equal(crawl.stats.warnings.length, 0);
+  assert.equal(requested.includes(`${origin}/events/2026/older-unlisted-show`), false);
+});
+

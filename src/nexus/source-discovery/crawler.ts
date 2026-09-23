@@ -149,7 +149,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
     return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats };
   }
   const documents: FetchedDocument[] = [];
-  const queue: Array<{ url: string; calendar: boolean }> = [{ url: verifiedUrl, calendar: false }];
+  const queue: Array<{ url: string; calendar: boolean; kind?: "source" | "detail" }> = [{ url: verifiedUrl, calendar: false, kind: "source" }];
   const queuedPages = new Set([verifiedUrl]);
   const queuedCalendars = new Set<string>();
   let calendarBudgetTruncated = false;
@@ -172,8 +172,9 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
       stats.bytesRead += document.bytes;
       if (item.calendar) continue;
       stats.pageCount += 1;
-      const sourceLinks = discoverUsefulSourceUrls(document, args.requestedExtractors);
-      const detailLinks = args.requestedExtractors.includes("EVENTS") && !extractEventsFromDocuments([document]).eventCandidates.length
+      const isDetail = item.kind === "detail";
+      const sourceLinks = isDetail ? [] : discoverUsefulSourceUrls(document, args.requestedExtractors);
+      const detailLinks = args.requestedExtractors.includes("EVENTS") && !isDetail && !extractEventsFromDocuments([document]).eventCandidates.length
         ? discoverLikelyEventDetailUrls(document)
         : [];
       for (const link of detailLinks) {
@@ -181,7 +182,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
         if (queuedPages.has(link) || new URL(link).origin !== origin) continue;
         if (queuedPages.size < args.budget.maxPages) {
           queuedPages.add(link);
-          queue.push({ url: link, calendar: false });
+          queue.push({ url: link, calendar: false, kind: "detail" });
         } else {
           requiredTraversalIncomplete = true;
           stats.warnings.push("Required HTML pages remain beyond the finite crawl budget.");
@@ -192,7 +193,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
         if (queuedPages.has(link) || new URL(link).origin !== origin) continue;
         if (queuedPages.size < args.budget.maxPages) {
           queuedPages.add(link);
-          queue.push({ url: link, calendar: false });
+          queue.push({ url: link, calendar: false, kind: "source" });
         }
       }
       if (args.requestedExtractors.includes("EVENTS")) {
