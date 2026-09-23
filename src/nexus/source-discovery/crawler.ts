@@ -122,6 +122,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
   const resolveHost = args.resolveHost ?? defaultResolveHost;
   const userAgent = args.userAgent ?? "AiRevenueEngineNexusSourceDiscovery/1.0";
   let robotsText = "";
+  let requiredTraversalIncomplete = false;
   try {
     if (stats.requestCount >= args.budget.maxRequests) throw new Error("Crawl request budget exhausted before robots.txt could be checked.");
     const robotsUrl = `${origin}/robots.txt`;
@@ -157,7 +158,11 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
     const next = item.url;
     if (!robotsAllows(robotsText, next, userAgent)) {
       stats.blockedCount += 1;
-      stats.warnings.push(`robots.txt disallows ${next}`);
+      if (item.calendar) stats.warnings.push(`Optional calendar skipped by robots.txt: ${next}`);
+      else {
+        stats.warnings.push(`robots.txt disallows required HTML source: ${next}`);
+        requiredTraversalIncomplete = true;
+      }
       continue;
     }
     try {
@@ -171,6 +176,13 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
       const detailLinks = args.requestedExtractors.includes("EVENTS") && !extractEventsFromDocuments([document]).eventCandidates.length
         ? discoverLikelyEventDetailUrls(document)
         : [];
+      for (const link of [...new Set([...sourceLinks, ...detailLinks])]) {
+        if (/\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i.test(link)) continue;
+        if (!queuedPages.has(link) && new URL(link).origin === origin && queuedPages.size < args.budget.maxPages) {
+          queuedPages.add(link);
+          queue.push({ url: link, calendar: false });
+        }
+      }
       if (args.requestedExtractors.includes("EVENTS")) {
         const explicit = discoverCalendarUrls(document);
         const fallback = explicit.length || extractEventsFromDocuments([document]).eventCandidates.length ? [] : [calendarFallbackUrl(document)].filter((url): url is string => Boolean(url));
@@ -181,24 +193,26 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
             continue;
           }
           queuedCalendars.add(url);
-          queue.unshift({ url, calendar: true });
-        }
-      }
-      for (const link of [...new Set([...sourceLinks, ...detailLinks])]) {
-        if (/\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i.test(link)) continue;
-        if (!queuedPages.has(link) && new URL(link).origin === origin && queuedPages.size < args.budget.maxPages) {
-          queuedPages.add(link);
-          queue.push({ url: link, calendar: false });
+          queue.push({ url, calendar: true });
         }
       }
     } catch (error) {
-      stats.warnings.push(`${next}: ${error instanceof Error ? error.message : "unknown error"}`);
+      if (item.calendar) stats.warnings.push(`Optional calendar unavailable: ${next}: ${error instanceof Error ? error.message : "unknown error"}`);
+      else {
+        stats.warnings.push(`Required HTML source unavailable: ${next}: ${error instanceof Error ? error.message : "unknown error"}`);
+        requiredTraversalIncomplete = true;
+      }
       if (stats.requestCount >= args.budget.maxRequests) break;
     }
   }
-  if (queue.length || calendarBudgetTruncated) stats.warnings.push("Finite crawl budget reached.");
+  const pendingRequiredHtml = queue.some((item) => !item.calendar);
+  if (pendingRequiredHtml) {
+    requiredTraversalIncomplete = true;
+    stats.warnings.push("Required HTML pages remain beyond the finite crawl budget.");
+  }
+  if (queue.some((item) => item.calendar) || calendarBudgetTruncated) stats.warnings.push("Optional calendar evidence was omitted at the finite crawl budget.");
   if (!documents.length) stats.status = stats.blockedCount ? "BLOCKED" : "FAILED";
-  else if (stats.warnings.length) stats.status = "PARTIAL";
+  else if (requiredTraversalIncomplete) stats.status = "PARTIAL";
   return { verifiedUrl, finalUrl: documents[0]?.url ?? verifiedUrl, documents, stats };
 }
 
