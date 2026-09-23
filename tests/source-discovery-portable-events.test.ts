@@ -190,7 +190,7 @@ test("four HTML pages and three same-origin calendars complete within eight requ
   assert.equal(requested.some((url) => !responses.has(url)), false);
 });
 
-test("calendar candidates dropped by the request bound leave a partial crawl", async () => {
+test("optional calendar candidates dropped by the request bound do not make complete HTML partial", async () => {
   const listing = "https://venue.example/events";
   const first = `${listing}/first`;
   const second = `${listing}/second`;
@@ -206,8 +206,30 @@ test("calendar candidates dropped by the request bound leave a partial crawl", a
     },
   });
   assert.equal(crawl.stats.pageCount, 3);
+  assert.equal(crawl.stats.status, "COMPLETED");
+  assert.match(crawl.stats.warnings.join(" "), /optional calendar.*budget/i);
+});
+
+test("required HTML detail pages still make the crawl partial when the request bound leaves one unfetched", async () => {
+  const origin = "https://venue.example";
+  const urls = ["one", "two", "three"].map((slug) => `${origin}/events/${slug}`);
+  const requested: string[] = [];
+  const crawl = await crawlVerifiedSource({
+    verifiedUrl: `${origin}/events`, requestedExtractors: ["EVENTS"],
+    budget: { maxPages: 4, maxRequests: 3, maxBytesPerResponse: 10_000, maxRedirects: 0, maxRetries: 0, timeoutMs: 1_000, minRequestDelayMs: 0 },
+    resolveHost: async () => [{ address: "93.184.216.34", family: 4 }],
+    fetchImpl: async (input) => {
+      const url = String(input);
+      requested.push(url);
+      if (url.endsWith("robots.txt")) return new Response("User-agent: *\nAllow: /");
+      if (url === `${origin}/events`) return new Response(urls.map((href) => `<a href="${href}">Event</a>`).join(""));
+      return new Response(`<article><h1>Show</h1><time datetime="2026-10-22T19:30:00+01:00"></time></article>`);
+    },
+  });
+  assert.equal(requested.length, 3);
+  assert.equal(crawl.stats.pageCount, 2);
   assert.equal(crawl.stats.status, "PARTIAL");
-  assert.match(crawl.stats.warnings.join(" "), /budget/i);
+  assert.match(crawl.stats.warnings.join(" "), /required HTML.*budget/i);
 });
 
 test("calendar discovery is bounded, same-origin, and refuses robots-disallowed query paths", async () => {
@@ -261,7 +283,8 @@ test("a calendar redirect cannot bypass robots on its same-origin destination", 
   });
   assert.equal(requested.includes("https://venue.example/private.ics"), false);
   assert.equal(crawl.stats.blockedCount > 0, true);
-  assert.equal(crawl.stats.status, "PARTIAL");
+  assert.equal(crawl.stats.status, "COMPLETED");
+  assert.match(crawl.stats.warnings.join(" "), /optional calendar.*robots/i);
 });
 
 test("a robots server failure blocks all source and calendar requests", async () => {
