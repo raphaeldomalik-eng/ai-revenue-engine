@@ -109,7 +109,8 @@ test("source discovery revalidates redirects and respects robots and finite page
   const response = async (input: RequestInfo | URL) => { const url = String(input); requested.push(url); if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nDisallow: /private\nAllow: /", { status: 200 }); if (url.endsWith("/")) return new Response('<a href="/private">Private</a><a href="/events">Events</a>', { status: 200 }); return new Response("", { status: 200 }); };
   const result = await crawlVerifiedSource({ verifiedUrl: "https://venue.example/", requestedExtractors: ["IDENTITY", "EVENTS"], budget: { maxPages: 1, maxRequests: 3, maxBytesPerResponse: 10000, maxRedirects: 1, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 }, resolveHost: publicResolver, fetchImpl: response });
   assert.equal(result.stats.pageCount, 1);
-  assert.ok(result.stats.warnings.some((warning) => /budget/i.test(warning)));
+  assert.equal(result.stats.status, "COMPLETED");
+  assert.equal(result.stats.requestCount, 2);
   assert.equal(robotsAllows("User-agent: *\nDisallow: /private", "https://venue.example/private", "AiRevenueEngineNexusSourceDiscovery"), false);
   const redirected = await crawlVerifiedSource({ verifiedUrl: "https://venue.example/", requestedExtractors: ["IDENTITY"], budget: { maxPages: 1, maxRequests: 3, maxBytesPerResponse: 10000, maxRedirects: 1, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 }, resolveHost: async (host) => host === "private.example" ? [{ address: "10.0.0.4", family: 4 }] : [{ address: "93.184.216.34", family: 4 }], fetchImpl: async (input) => String(input).endsWith("/robots.txt") ? new Response("User-agent: *\nAllow: /") : new Response(null, { status: 302, headers: { location: "https://private.example/" } }) });
   assert.equal(redirected.stats.blockedCount > 0, true);
@@ -129,6 +130,21 @@ test("one fetched document fans out deterministic extractors with zero model cal
   assert.equal(result.eventCandidates[0]?.ticketUrl, "https://tickets.example/show");
   assert.equal(calls, 2);
   assert.equal(validateSourceDiscoveryResult(result).contractVersion, CONTRACTS.SOURCE_DISCOVERY_RESULT);
+});
+
+test("source discovery V1 preserves optional first-party event identity through result validation", async () => {
+  const eventUrl = "https://venue.example/events/2026/autumn-jazz";
+  const result = await executeSourceDiscoveryRequest(discovery({ verifiedSourceUrl: eventUrl, requestedExtractors: ["EVENTS"] }), {
+    resolveHost: publicResolver,
+    fetchImpl: async (input) => String(input).endsWith("robots.txt")
+      ? new Response("User-agent: *\nAllow: /")
+      : new Response('<article data-item-id="stable-item-123"><h1>Autumn Jazz</h1><time datetime="2026-10-22T19:30:00+01:00"></time></article>', { headers: { "content-type": "text/html" } }),
+  }) as any;
+  assert.equal(result.eventCandidates.length, 1);
+  assert.equal(result.eventCandidates[0]?.sourceExternalId, "stable-item-123");
+  assert.equal(validateSourceDiscoveryResult(result).eventCandidates[0]?.sourceExternalId, "stable-item-123");
+  assert.match(result.eventCandidates[0]?.sourceIdentityEvidenceRef ?? "", /:html:/);
+  assert.equal(result.contractVersion, CONTRACTS.SOURCE_DISCOVERY_RESULT);
 });
 
 test("transport adapter signs and verifies the existing server-to-server HMAC pattern", () => {

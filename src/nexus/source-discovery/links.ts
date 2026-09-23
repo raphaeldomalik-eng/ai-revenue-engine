@@ -6,10 +6,14 @@ import type { FetchedDocument } from "./types.ts";
 const EVENT_PATH = /(^|\/)(events?|gigs?|shows?|tour|live|whats[-_]?on|calendar|concerts?)(\/|$)/i;
 const EVENT_TEXT = /\b(events?|gigs?|shows?|tour dates?|live dates?|what'?s on|calendar|concerts?)\b/i;
 const DATE_SIGNAL = /\b(20\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun)\b/i;
+const CALENDAR_URL = /\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i;
 
 function sameOrigin(value: string, base: string): string | null {
   const normalized = canonicalHttpsUrl(value, base);
-  return normalized && new URL(normalized).origin === new URL(base).origin ? normalized : null;
+  if (!normalized || new URL(normalized).origin !== new URL(base).origin) return null;
+  const url = new URL(normalized);
+  for (const key of [...url.searchParams.keys()]) if (/^(?:tracking|utm_[a-z_]+|fbclid|gclid)$/i.test(key)) url.searchParams.delete(key);
+  return url.toString();
 }
 
 function extractorTerms(extractors: SourceExtractor[]): string[] {
@@ -64,4 +68,28 @@ export function discoverLikelyEventDetailUrls(document: FetchedDocument): string
   return [...scored.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([url]) => url);
+}
+
+export function discoverCalendarUrls(document: FetchedDocument): string[] {
+  const found: string[] = [];
+  for (const anchor of hrefTags(document.body)) {
+    const candidate = sameOrigin(anchor.attrs.href ?? "", document.url);
+    if (!candidate || candidate === document.url) continue;
+    const label = visibleText(anchor.inner);
+    if (!CALENDAR_URL.test(candidate) && !/^(?:ics|ical|add to calendar|export calendar)$/i.test(label)) continue;
+    if (new URL(candidate).pathname !== new URL(document.url).pathname && !/\.ics$/i.test(new URL(candidate).pathname)) continue;
+    if (!found.includes(candidate)) found.push(candidate);
+  }
+  return found;
+}
+
+export function calendarFallbackUrl(document: FetchedDocument): string | null {
+  const path = new URL(document.url).pathname;
+  if (!EVENT_PATH.test(path) || path.split("/").filter(Boolean).length < 2) return null;
+  if (!/<article\b/i.test(document.body) || !/<h1\b/i.test(document.body)) return null;
+  if (/<time\b[^>]*datetime=["']\d{4}-\d{2}-\d{2}T/i.test(document.body)) return null;
+  if (discoverCalendarUrls(document).length) return null;
+  const url = new URL(document.url);
+  url.search = "?format=ical";
+  return url.toString();
 }
