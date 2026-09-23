@@ -267,3 +267,107 @@ test("each extracted Resource fact carries its own deterministic evidence refere
   assert.equal(new Set(refs).size, refs.length);
   assert.equal(refs.every((ref) => extracted.evidenceRefs.includes(ref)), true);
 });
+
+test("complete required HTML traversal returns COMPLETED", async () => {
+  const result = await crawlVerifiedSource({
+    verifiedUrl: "https://venue.example/events",
+    requestedExtractors: ["EVENTS"],
+    budget: budget({ maxPages: 5, maxRequests: 10 }),
+    resolveHost: publicResolver,
+    fetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nAllow: /");
+      if (url === "https://venue.example/events") {
+        return new Response(`
+          <a href="/events/2026/gig-1">Gig 1</a>
+          <a href="/events/2026/gig-2">Gig 2</a>
+        `);
+      }
+      return new Response(`
+        <html>
+          <head>
+            <script type="application/ld+json">
+              {"@type":"MusicEvent","name":"Gig","startDate":"2026-10-01T19:00:00Z","url":"${url}"}
+            </script>
+          </head>
+          <body>Detail</body>
+        </html>
+      `);
+    },
+  });
+
+  assert.equal(result.stats.status, "COMPLETED");
+  assert.equal(result.stats.pageCount, 3);
+  assert.equal(result.stats.warnings.length, 0);
+});
+
+test("real required HTML left unfetched triggers PARTIAL", async () => {
+  const result = await crawlVerifiedSource({
+    verifiedUrl: "https://venue.example/events",
+    requestedExtractors: ["EVENTS"],
+    budget: budget({ maxPages: 2, maxRequests: 5 }),
+    resolveHost: publicResolver,
+    fetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nAllow: /");
+      if (url === "https://venue.example/events") {
+        return new Response(`
+          <a href="/events/2026/gig-1">Gig 1</a>
+          <a href="/events/2026/gig-2">Gig 2</a>
+          <a href="/events/2026/gig-3">Gig 3</a>
+        `);
+      }
+      return new Response("<html>Detail</html>");
+    },
+  });
+
+  assert.equal(result.stats.status, "PARTIAL");
+  assert.equal(result.stats.pageCount, 2);
+  assert.match(result.stats.warnings.join(" "), /Required HTML pages remain beyond the finite crawl budget/i);
+});
+
+test("optional calendar omission alone does not trigger PARTIAL", async () => {
+  const result = await crawlVerifiedSource({
+    verifiedUrl: "https://venue.example/events",
+    requestedExtractors: ["EVENTS"],
+    budget: budget({ maxPages: 3, maxRequests: 3 }),
+    resolveHost: publicResolver,
+    fetchImpl: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nAllow: /");
+      if (url === "https://venue.example/events") {
+        return new Response(`
+          <a href="/events/2026/gig-1">Gig 1</a>
+          <a href="/events/2026/gig-1?format=ical">iCal</a>
+        `);
+      }
+      return new Response(`
+        <html>
+          <head>
+            <script type="application/ld+json">
+              {"@type":"MusicEvent","name":"Gig 1","startDate":"2026-10-01T19:00:00Z","url":"${url}"}
+            </script>
+          </head>
+          <body><a href="${url}?format=ical">iCal</a></body>
+        </html>
+      `);
+    },
+  });
+
+  assert.equal(result.stats.status, "COMPLETED");
+  assert.equal(result.stats.pageCount, 2);
+  assert.match(result.stats.warnings.join(" "), /Optional calendar evidence was omitted/i);
+});
+
+test("discoverLikelyEventDetailUrls ignores optional calendar export links", () => {
+  const page = document(`
+    <a href="/events/2026-10-12/jazz-night">Jazz Night — 12 Oct 2026</a>
+    <a href="/events/2026-10-12/jazz-night?format=ical">iCal</a>
+    <a href="/events/2026-10-12/jazz-night.ics">ICS</a>
+  `, "https://venue.example/events");
+
+  assert.deepEqual(discoverLikelyEventDetailUrls(page), [
+    "https://venue.example/events/2026-10-12/jazz-night",
+  ]);
+});
+

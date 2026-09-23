@@ -176,9 +176,21 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
       const detailLinks = args.requestedExtractors.includes("EVENTS") && !extractEventsFromDocuments([document]).eventCandidates.length
         ? discoverLikelyEventDetailUrls(document)
         : [];
-      for (const link of [...new Set([...sourceLinks, ...detailLinks])]) {
+      for (const link of detailLinks) {
         if (/\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i.test(link)) continue;
-        if (!queuedPages.has(link) && new URL(link).origin === origin && queuedPages.size < args.budget.maxPages) {
+        if (queuedPages.has(link) || new URL(link).origin !== origin) continue;
+        if (queuedPages.size < args.budget.maxPages) {
+          queuedPages.add(link);
+          queue.push({ url: link, calendar: false });
+        } else {
+          requiredTraversalIncomplete = true;
+          stats.warnings.push("Required HTML pages remain beyond the finite crawl budget.");
+        }
+      }
+      for (const link of sourceLinks) {
+        if (/\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i.test(link)) continue;
+        if (queuedPages.has(link) || new URL(link).origin !== origin) continue;
+        if (queuedPages.size < args.budget.maxPages) {
           queuedPages.add(link);
           queue.push({ url: link, calendar: false });
         }
@@ -211,6 +223,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
     stats.warnings.push("Required HTML pages remain beyond the finite crawl budget.");
   }
   if (queue.some((item) => item.calendar) || calendarBudgetTruncated) stats.warnings.push("Optional calendar evidence was omitted at the finite crawl budget.");
+  stats.warnings = [...new Set(stats.warnings)];
   if (!documents.length) stats.status = stats.blockedCount ? "BLOCKED" : "FAILED";
   else if (requiredTraversalIncomplete) stats.status = "PARTIAL";
   return { verifiedUrl, finalUrl: documents[0]?.url ?? verifiedUrl, documents, stats };

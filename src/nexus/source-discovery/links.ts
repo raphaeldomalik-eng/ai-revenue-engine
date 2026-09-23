@@ -33,7 +33,7 @@ export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: 
   const scored = new Map<string, number>();
   for (const anchor of hrefTags(document.body)) {
     const normalized = sameOrigin(anchor.attrs.href ?? "", document.url);
-    if (!normalized || normalized === document.url) continue;
+    if (!normalized || normalized === document.url || CALENDAR_URL.test(normalized)) continue;
     const url = new URL(normalized);
     const label = visibleText(anchor.inner);
     const searchable = `${label} ${url.pathname}`.toLowerCase();
@@ -56,12 +56,13 @@ export function discoverLikelyEventDetailUrls(document: FetchedDocument): string
   const scored = new Map<string, number>();
   for (const anchor of hrefTags(document.body)) {
     const normalized = sameOrigin(anchor.attrs.href ?? "", document.url);
-    if (!normalized || normalized === document.url) continue;
+    if (!normalized || normalized === document.url || CALENDAR_URL.test(normalized)) continue;
     const url = new URL(normalized);
     const label = visibleText(anchor.inner);
-    const isDeeper = url.pathname.split("/").filter(Boolean).length > sourceDepth;
+    const segments = url.pathname.split("/").filter(Boolean);
+    const isDeeper = segments.length > sourceDepth;
     const hasDateSignal = DATE_SIGNAL.test(`${label} ${url.pathname}`);
-    if (!EVENT_PATH.test(url.pathname) || (!isDeeper && !hasDateSignal)) continue;
+    if (!EVENT_PATH.test(url.pathname) || (segments.length < 2 && !hasDateSignal) || (!isDeeper && !hasDateSignal)) continue;
     const score = Number(isDeeper) + Number(hasDateSignal) * 2;
     scored.set(normalized, Math.max(score, scored.get(normalized) ?? 0));
   }
