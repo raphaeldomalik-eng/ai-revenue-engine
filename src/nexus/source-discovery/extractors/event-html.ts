@@ -109,3 +109,96 @@ export function extractHtmlEventFacts(document: FetchedDocument): HtmlEventFacts
     eventImageUrl: imageFromPage(document, article),
   };
 }
+
+function londonLocalToUtcIso(dateStr: string, timeStr: string): string {
+  const roughIso = `${dateStr}T${timeStr}Z`;
+  const d = new Date(roughIso);
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    timeZoneName: "shortOffset",
+  });
+  const parts = formatter.formatToParts(d);
+  const tzPart = parts.find((p) => p.type === "timeZoneName")?.value || "GMT";
+  const match = tzPart.match(/GMT([+-]\d+)?/);
+  const offsetHours = match && match[1] ? parseInt(match[1], 10) : 0;
+
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const [hour, min, sec] = timeStr.split(":").map(Number);
+  const utcDate = new Date(Date.UTC(year!, month! - 1, day!, hour! - offsetHours, min!, sec || 0));
+  return utcDate.toISOString();
+}
+
+function normalizeTicketUrl(rawHref: string | null | undefined, base: string): string | null {
+  const trimmed = text(rawHref);
+  if (!trimmed) return null;
+  let candidate = trimmed;
+  if (/^https?:\/\/seetickets\/com\//i.test(candidate)) {
+    candidate = candidate.replace(/^https?:\/\/seetickets\/com\//i, "https://www.seetickets.com/");
+  }
+  if (/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+\//.test(candidate) && !/^https?:\/\//i.test(candidate)) {
+    candidate = `https://${candidate}`;
+  }
+  return canonicalHttpsUrl(candidate, base);
+}
+
+function normalizeImageUrl(rawSrc: string | null | undefined, base: string): string | null {
+  const trimmed = text(rawSrc);
+  if (!trimmed) return null;
+  return canonicalHttpsUrl(trimmed, base);
+}
+
+export function extractHtmlCardEvents(document: FetchedDocument): HtmlEventFacts[] {
+  const cardStarts = [...document.body.matchAll(/<div\b[^>]*\bclass=["'][^"']*\bgrid_item\b[^"']*\bevent\b[^"']*["'][^>]*>/gi)];
+  if (!cardStarts.length) return [];
+  const events: HtmlEventFacts[] = [];
+  for (let i = 0; i < cardStarts.length; i++) {
+    const startIdx = cardStarts[i]!.index;
+    const nextStart = i + 1 < cardStarts.length ? cardStarts[i + 1]!.index : document.body.indexOf("</main>", startIdx);
+    const chunk = document.body.slice(startIdx, nextStart > startIdx ? nextStart : startIdx + 3000);
+    const dateAttr = chunk.match(/data-date=["']([^"']+)["']/i)?.[1]?.trim();
+    if (!dateAttr || !/^\d{4}-\d{2}-\d{2}$/.test(dateAttr)) continue;
+    const artistAttr = chunk.match(/data-artist=["']([^"']+)["']/i)?.[1]?.trim();
+    const rawTitle = chunk.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i)?.[1];
+    const title = text(rawTitle ? visibleText(rawTitle) : null);
+    if (!title) continue;
+
+    const dateText = text(chunk.match(/<p\b[^>]*\bclass=["'][^"']*\bdate\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1]) ?? "";
+    const rawLoc = chunk.match(/<p\b[^>]*\bclass=["'][^"']*\blocation\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1];
+    const locText = text(rawLoc ? visibleText(rawLoc) : null);
+    const rawTicketHref = chunk.match(/<a\b[^>]*\bclass=["'][^"']*\bevent_link\b[^"']*["'][^>]*\bhref=["']([^"']+)["']/i)?.[1];
+    const rawImgSrc = chunk.match(/<img\b[^>]*\bsrc=["']([^"']+)["']/i)?.[1];
+
+    let timeString = "19:00:00";
+    const timeMatch = dateText.match(/^(\d{1,2}):(\d{2})(AM|PM)\b/i);
+    if (timeMatch) {
+      let hour = parseInt(timeMatch[1]!, 10);
+      const min = timeMatch[2]!;
+      const meridiem = timeMatch[3]!.toUpperCase();
+      if (meridiem === "PM" && hour < 12) hour += 12;
+      if (meridiem === "AM" && hour === 12) hour = 0;
+      timeString = `${hour.toString().padStart(2, "0")}:${min}:00`;
+    }
+
+    const startAt = londonLocalToUtcIso(dateAttr, timeString);
+    const artistSlug = artistAttr || title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const sourceEventUrl = `${document.url}#${artistSlug}-${dateAttr}`;
+    const ticketUrl = normalizeTicketUrl(rawTicketHref, document.url);
+    const eventImageUrl = normalizeImageUrl(rawImgSrc, document.url);
+
+    events.push({
+      title,
+      sourceExternalId: null,
+      sourceEventUrl,
+      startAt,
+      endAt: null,
+      timezone: "Europe/London",
+      venueText: locText,
+      description: null,
+      performers: [title],
+      ticketUrl,
+      eventImageUrl,
+    });
+  }
+  return events;
+}
+

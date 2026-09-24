@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { tags } from "../html.ts";
 import { canonicalHttpsUrl } from "../network.ts";
 import type { FetchedDocument } from "../types.ts";
-import { extractHtmlEventFacts, type HtmlEventFacts } from "./event-html.ts";
+import { extractHtmlCardEvents, extractHtmlEventFacts, type HtmlEventFacts } from "./event-html.ts";
 import { parseCalendarDocument, type CalendarEventFacts } from "./event-ics.ts";
 
 function text(value: unknown): string | null {
@@ -139,6 +139,9 @@ export function extractEventsFromDocuments(documents: FetchedDocument[]): { even
     }
     const html = extractHtmlEventFacts(document);
     if (html) htmlFacts.set(html.sourceEventUrl, { facts: html, document });
+    for (const card of extractHtmlCardEvents(document)) {
+      htmlFacts.set(card.sourceEventUrl, { facts: card, document });
+    }
     const nodes: Record<string, unknown>[] = [];
     for (const script of tags(document.body, "script")) {
       if ((script.attrs.type ?? "").toLowerCase() !== "application/ld+json" || !script.inner.trim()) continue;
