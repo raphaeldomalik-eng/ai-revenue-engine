@@ -18,13 +18,13 @@ function sameOrigin(value: string, base: string): string | null {
 
 function extractorTerms(extractors: SourceExtractor[]): string[] {
   return extractors.flatMap((item) => item === "PUBLIC_CONTACT"
-    ? ["contact", "booking", "hire", "venue", "event", "facility", "facilities", "conference"]
+    ? ["contact", "booking", "enquir", "hire", "private", "corporate", "wedding", "event", "conference"]
     : item === "VENUE_FACTS"
-      ? ["venue", "space", "capacity", "facility", "facilities", "access"]
+      ? ["venue", "space", "room", "capacity", "specification", "facilit", "technical", "production", "access", "parking", "transport", "catering", "accommodation"]
       : item === "EVENTS"
         ? ["event", "what", "calendar", "show", "live"]
         : item === "IMAGE_CANDIDATES"
-          ? ["gallery", "space", "venue", "about"]
+          ? ["gallery", "image", "photo", "media", "permission", "licen", "rights", "press", "space", "room", "facilit", "wedding", "corporate", "event", "venue", "about"]
           : ["about", "venue", "facility", "facilities", "conference", "home"]);
 }
 
@@ -35,6 +35,7 @@ export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: 
     const normalized = sameOrigin(anchor.attrs.href ?? "", document.url);
     if (!normalized || normalized === document.url) continue;
     const url = new URL(normalized);
+    if (/\b(?:accessibility-statement|privacy-policy|cookie-policy|terms-of-use|search)\b/i.test(url.pathname)) continue;
     const label = visibleText(anchor.inner);
     const searchable = `${label} ${url.pathname}`.toLowerCase();
     let score = terms.reduce((sum, term) => sum + (searchable.includes(term) ? 1 : 0), 0);
@@ -45,9 +46,30 @@ export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: 
     }
     if (score > 0) scored.set(normalized, Math.max(score, scored.get(normalized) ?? 0));
   }
-  return [...scored.entries()]
+  const ranked = [...scored.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .map(([url]) => url);
+  if (extractors.length < 2) return ranked;
+  const priorities: Array<[SourceExtractor, RegExp]> = [
+    ["PUBLIC_CONTACT", /\b(contact|booking|enquir|private hire|venue hire|corporate|wedding|conference)\b/i],
+    ["EVENTS", /\b(events?|what.?s on|calendar|shows?|gigs?|concerts?)\b/i],
+    ["VENUE_FACTS", /\b(spaces?|rooms?|capacities?|specifications?|facilities|technical|production|accessibility|parking|transport|catering|accommodation)\b/i],
+    ["IMAGE_CANDIDATES", /\b(gallery|image|photo|media|permission|licen[cs]e|rights|press|venue|space|room|about)\b/i],
+    ["IDENTITY", /\b(about|venue|home)\b/i],
+  ];
+  const selected: string[] = [];
+  for (const [kind, pattern] of priorities) {
+    if (!extractors.includes(kind)) continue;
+    const candidates = ranked.filter((url) => !selected.includes(url) && pattern.test(new URL(url).pathname.replace(/[\/_-]/g, " ")));
+    candidates.sort((a, b) => {
+      const aPath = new URL(a).pathname; const bPath = new URL(b).pathname;
+      const aScore = (pattern.test(aPath.replace(/[\/_-]/g, " ")) ? 10 : 0) + (/specification|capacit|spaces?|rooms?/i.test(aPath) ? 5 : 0) - aPath.split("/").filter(Boolean).length;
+      const bScore = (pattern.test(bPath.replace(/[\/_-]/g, " ")) ? 10 : 0) + (/specification|capacit|spaces?|rooms?/i.test(bPath) ? 5 : 0) - bPath.split("/").filter(Boolean).length;
+      return bScore - aScore || (scored.get(b) ?? 0) - (scored.get(a) ?? 0) || a.localeCompare(b);
+    });
+    if (candidates[0]) selected.push(candidates[0]);
+  }
+  return [...selected, ...ranked.filter((url) => !selected.includes(url))];
 }
 
 export function discoverLikelyEventDetailUrls(document: FetchedDocument): string[] {
