@@ -1,0 +1,45 @@
+{
+  "architectureContractRevision": "2026-09-28-v1",
+  "canonicalContractRepository": "raphaeldomalik-eng/Prestige-Nexus",
+  "canonicalContractPath": "docs/architecture/cross-product-architecture-contract.md",
+  "repositoryRole": "EXECUTION_RESEARCH",
+  "owns": [
+    "deterministic first-party crawler",
+    "provider calls",
+    "bounded research",
+    "evidence extraction",
+    "selective AI interpretation"
+  ],
+  "mustNotOwn": [
+    "canonical identity authority",
+    "source/entity classification authority",
+    "product publication",
+    "Event Suite operational state"
+  ],
+  "allowedContracts": [
+    "event-suite.incoming-lead.v1",
+    "nexus.research-request.v1",
+    "nexus.research-result.v1",
+    "nexus.source-discovery-request.v1",
+    "nexus.source-discovery-result.v1",
+    "nexus.source-entity-classification.v1",
+    "nexus.entity-change.v1",
+    "nexus.research-refresh.v1",
+    "nexus.profile-event.v1",
+    "event-suite.claim-verified.v1",
+    "nexus.editorial-link.v1",
+    "nexus.provider-sync.v1",
+    "event-suite.supplier-enquiry.v1",
+    "intelligence.recommendation.v1"
+  ],
+  "forbiddenAddedPatterns": [
+    {
+      "pattern": "(?:Prestige-Nexus|prestige-intelligence|ai-revenue-engine|Prestige-Global-Live-Discovery|Event-project|last-train-home|Ticket-Report|Event-Growth-Studio)/(?:src|app|utils|scripts)",
+      "reason": "Core repositories must communicate through governed boundaries, not sibling implementation imports."
+    },
+    {
+      "pattern": "INSERT\\s+INTO\\s+entity\\.(?:canonical_entity|canonical_venue|canonical_event|canonical_creative_entity|canonical_organisation|external_reference)",
+      "reason": "AI Revenue Engine proposes evidence/facts but must not directly create canonical identity."
+    }
+  ]
+}
