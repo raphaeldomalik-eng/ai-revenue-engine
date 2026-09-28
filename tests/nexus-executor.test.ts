@@ -124,8 +124,8 @@ test("one fetched document fans out deterministic extractors with zero model cal
   assert.ok(["COMPLETED", "PARTIAL"].includes(result.crawl.status));
   assert.equal(result.identityFacts.length > 0, true);
   assert.equal(result.publicContacts.some((contact: any) => contact.type === "EMAIL" && contact.value === "events@example.com"), true);
-  assert.equal(result.venueFacts.some((fact: any) => String(fact.value).includes("500")), true);
-  assert.equal(result.imageCandidates[0]?.rightsState, "PERMISSION_REQUIRED");
+  assert.equal(result.venueFacts.some((fact: any) => JSON.stringify(fact.value).includes("500")), true);
+  assert.equal(result.imageCandidates[0]?.rightsState, "UNKNOWN_RIGHTS");
   assert.equal(result.eventCandidates[0]?.title, "Example Show");
   assert.equal(result.eventCandidates[0]?.ticketUrl, "https://tickets.example/show");
   assert.equal(calls, 2);

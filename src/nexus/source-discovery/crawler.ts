@@ -225,6 +225,6 @@ export function extractFromFetchedDocuments(documents: FetchedDocument[], reques
     ...resources,
     eventCandidates: events.eventCandidates,
     evidenceRefs: [...new Set([...resources.evidenceRefs, ...events.evidenceRefs])],
-    warnings: events.warnings,
+    warnings: [...resources.warnings, ...events.warnings],
   };
 }
