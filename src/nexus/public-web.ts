@@ -148,20 +148,22 @@ function unresolved(request: ResearchRequest, purpose: string, message: string, 
 }
 
 function evidencedPlaceId(context: ResearchContext) {
-  const fact = context.existingFacts?.find((item) => item.fieldName === "placeId" && text(item.value) && text(item.evidenceRef));
+  const fact = context.existingFacts?.find((item) => (item.fieldName === "placeId" || item.fieldName === "google_place_id") && text(item.value) && text(item.evidenceRef));
   return fact ? text(fact.value) : null;
 }
 
 function detailsInput(request: ResearchRequest, context: ResearchContext, googlePlaceId: string): GooglePlacesDetailsInput | null {
   const name = targetName(request, context);
-  if (!name || !context.locality?.trim()) return null;
-  return { googlePlaceId, targetName: name, targetWebsite: null, locality: context.locality.trim(), lane: "VENUE_FIRST", targetType: request.subject.entityType === "ORGANISATION" ? "ORGANISATION" : "VENUE", limit: 1 };
+  if (!name) return null;
+  if (request.subject.entityType === "UNKNOWN") return { googlePlaceId, targetName: name, targetWebsite: null, locality: context.locality ?? null, lane: "EXACT_ID", targetType: "UNCLASSIFIED", limit: 1 };
+  if (!context.locality?.trim()) return null;
+  return { googlePlaceId, targetName: name, targetWebsite: null, locality: context.locality.trim(), lane: request.subject.entityType === "ORGANISATION" ? "ORGANISATION_FIRST" : "VENUE_FIRST", targetType: request.subject.entityType === "ORGANISATION" ? "ORGANISATION" : "VENUE", limit: 1 };
 }
 
 export function createPublicWebProvider(options: PublicWebProviderOptions = {}) {
   return async ({ request, context }: { request: ResearchRequest; context: ResearchContext }): Promise<ProviderResult> => {
     const purpose = request.researchPurpose;
-    if (!["OFFICIAL_WEBSITE", "PUBLIC_CONTACT"].includes(purpose)) return unresolved(request, purpose, "This bounded public-web adapter is limited to official website and public business contact research.");
+    if (!["OFFICIAL_WEBSITE", "PUBLIC_CONTACT", "CONFLICT_RESOLUTION", "SOURCE_ENTITY_CLASSIFICATION"].includes(purpose)) return unresolved(request, purpose, "This bounded public-web adapter is limited to official website, public business contact, conflict, and classification evidence.");
     let website = targetWebsite(request, context);
     let verificationContext = context;
     const seedEvidence: ProviderResult["evidence"] = [];
@@ -189,19 +191,23 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
 
     try {
       providerUsage.push({ provider: "PUBLIC_WEB", callCount: 1, purpose, cost: { currency: "USD", amount: 0 } });
+      const extractors = request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION"
+        ? ["IDENTITY", "PUBLIC_CONTACT", "SOURCE_CLASSIFICATION"] as const
+        : ["IDENTITY", "PUBLIC_CONTACT"] as const;
       const crawl = await crawlVerifiedSource({
         verifiedUrl: website,
-        requestedExtractors: ["IDENTITY", "PUBLIC_CONTACT"],
+        requestedExtractors: [...extractors],
         budget: { ...DEFAULT_BUDGET, ...options.budget },
         fetchImpl: options.fetchImpl,
         resolveHost: options.resolveHost,
       });
-      const extracted = extractFromFetchedDocuments(crawl.documents, ["IDENTITY", "PUBLIC_CONTACT"]);
+      const extracted = extractFromFetchedDocuments(crawl.documents, [...extractors]);
       if (!crawl.documents.length) {
         return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: true } });
       }
       const verification = verifyIdentity(request, verificationContext, extracted.identityFacts);
-      if (!verification.verified) {
+      const neutralEvidence = request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION";
+      if (!verification.verified && !neutralEvidence) {
         return unresolved(request, purpose, "The candidate site did not provide strong same-entity venue identity evidence.", { evidence: seedEvidence, providerUsage });
       }
 
@@ -237,7 +243,14 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
           sourceHashes: crawl.documents.map((item) => item.sourceHash),
         }),
       }];
-      const facts: ProviderResult["facts"] = [{ fieldName: "officialWebsite", value: finalUrl, evidenceRef: ref, confidence: 0.95, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId }];
+      const facts: ProviderResult["facts"] = [{ fieldName: "officialWebsite", value: finalUrl, evidenceRef: ref, confidence: verification.verified ? 0.95 : 0.6, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId }];
+      if (neutralEvidence) {
+        for (const item of extracted.identityFacts) {
+          if (["schemaOrgTypes", "pageTitle", "metaDescription", "classificationSignals", "siteName", "address"].includes(item.fieldName)) {
+            facts.push({ fieldName: item.fieldName, value: item.value, evidenceRef: item.evidenceRef, confidence: 0.7, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId });
+          }
+        }
+      }
       if (purpose === "PUBLIC_CONTACT") {
         for (const contact of contacts) {
           const fieldName = contact.type === "EMAIL" ? "publicContactEmail" : contact.type === "PHONE" ? "publicContactPhone" : contact.type === "CONTACT_FORM" ? "contactFormUrl" : null;

@@ -56,6 +56,7 @@ export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: 
     ["VENUE_FACTS", /\b(spaces?|rooms?|capacities?|specifications?|facilities|technical|production|accessibility|parking|transport|catering|accommodation)\b/i],
     ["IMAGE_CANDIDATES", /\b(gallery|image|photo|media|permission|licen[cs]e|rights|press|venue|space|room|about)\b/i],
     ["IDENTITY", /\b(about|venue|home)\b/i],
+    ["SOURCE_CLASSIFICATION", /\b(about|home|venue|organisation|organization)\b/i],
   ];
   const selected: string[] = [];
   for (const [kind, pattern] of priorities) {

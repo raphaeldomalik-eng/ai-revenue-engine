@@ -195,9 +195,12 @@ test("PUBLIC_WEB safely handles credential-bearing URLs, private redirects, boun
   assert.equal(failureResult.error?.retryable, true);
 });
 
-test("PUBLIC_WEB adapter does not expand into conflict or general research", async () => {
+test("PUBLIC_WEB conflict evidence stays bounded and unsupported purposes fail closed", async () => {
   const provider = createPublicWebProvider({ fetchImpl: fetchSite("<title>Example Venue</title><h1>Example Venue</h1>"), resolveHost: resolver });
-  const result = await provider({ request: request("CONFLICT_RESOLUTION"), context: { targetName: "Example Venue", targetWebsite: "https://example.test/" } });
-  assert.equal(result.facts.length, 0);
-  assert.match(result.unknowns.join(" "), /limited/i);
+  const conflict = await provider({ request: request("CONFLICT_RESOLUTION"), context: { targetName: "Example Venue", targetWebsite: "https://example.test/" } });
+  assert.equal(conflict.facts.some((item) => item.fieldName === "officialWebsite"), true);
+  assert.equal(conflict.facts.every((item) => item.subjectEntityType === "VENUE"), true);
+  const general = await provider({ request: request("VENUE_IDENTITY"), context: { targetName: "Example Venue", targetWebsite: "https://example.test/" } });
+  assert.equal(general.facts.length, 0);
+  assert.match(general.unknowns.join(" "), /limited/i);
 });
