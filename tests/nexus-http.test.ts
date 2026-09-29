@@ -151,6 +151,39 @@ test("a changed research execution version does not reuse the previous execution
   assert.equal(calls, 2);
 });
 
+test("a retryable unresolved execution runs again under the same research version", async () => {
+  const store = new InMemoryNexusResultStore();
+  let calls = 0;
+  const configured = {
+    ...options(store),
+    researchExecutionVersion: "resources-v2-unclassified-evidence-v5",
+    publicWeb: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          provider: "PUBLIC_WEB" as const,
+          purpose: "OFFICIAL_WEBSITE",
+          facts: [],
+          evidence: [],
+          unknowns: ["temporary"],
+          conflicts: [],
+          cost: { currency: "USD", amount: 0 },
+          error: { code: "PUBLIC_WEB_UNAVAILABLE", message: "temporary", retryable: true },
+        };
+      }
+      return publicWebResult();
+    },
+  };
+  const first = await handleNexusExecuteRequest(signedRequest(research({ researchContext: { targetName: "Transport Proof Venue", targetWebsite: "https://example.test/" } })), configured);
+  assert.equal((await first.json() as { status: string }).status, "UNRESOLVED");
+  const second = await handleNexusExecuteRequest(signedRequest(research({ researchContext: { targetName: "Transport Proof Venue", targetWebsite: "https://example.test/" } })), configured);
+  assert.equal((await second.json() as { status: string }).status, "COMPLETED");
+  assert.equal(calls, 2);
+  const replay = await handleNexusExecuteRequest(signedRequest(research({ researchContext: { targetName: "Transport Proof Venue", targetWebsite: "https://example.test/" } })), configured);
+  assert.equal((await replay.json() as { status: string }).status, "COMPLETED");
+  assert.equal(calls, 2);
+});
+
 test("stable execution identity runs again when relevant research context changes", async () => {
   const store = new InMemoryNexusResultStore();
   let calls = 0;

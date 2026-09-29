@@ -143,8 +143,20 @@ function verifyIdentity(request: ResearchRequest, context: ResearchContext, iden
   return { verified: false, path: null, signals: [] as string[] };
 }
 
-function unresolved(request: ResearchRequest, purpose: string, message: string, options: { error?: ProviderResult["error"]; evidence?: ProviderResult["evidence"]; providerUsage?: ProviderResult["providerUsage"] } = {}): ProviderResult {
-  return { provider: "PUBLIC_WEB", purpose, facts: [], evidence: options.evidence ?? [], unknowns: [message], conflicts: [], cost: { currency: "USD", amount: 0 }, ...(options.providerUsage ? { providerUsage: options.providerUsage } : {}), ...(options.error ? { error: options.error } : {}) };
+function unresolved(request: ResearchRequest, purpose: string, message: string, options: { error?: ProviderResult["error"]; evidence?: ProviderResult["evidence"]; facts?: ProviderResult["facts"]; providerUsage?: ProviderResult["providerUsage"] } = {}): ProviderResult {
+  return { provider: "PUBLIC_WEB", purpose, facts: options.facts ?? [], evidence: options.evidence ?? [], unknowns: [message], conflicts: [], cost: { currency: "USD", amount: 0 }, ...(options.providerUsage ? { providerUsage: options.providerUsage } : {}), ...(options.error ? { error: options.error } : {}) };
+}
+
+function httpsCandidate(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return null;
+    if (url.protocol === "http:") url.protocol = "https:";
+    if (url.protocol !== "https:") return null;
+    const candidate = url.toString();
+    return isSocialUrl(candidate) ? null : candidate;
+  } catch { return null; }
 }
 
 function evidencedPlaceId(context: ResearchContext) {
@@ -164,9 +176,11 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
   return async ({ request, context }: { request: ResearchRequest; context: ResearchContext }): Promise<ProviderResult> => {
     const purpose = request.researchPurpose;
     if (!["OFFICIAL_WEBSITE", "PUBLIC_CONTACT", "CONFLICT_RESOLUTION", "SOURCE_ENTITY_CLASSIFICATION"].includes(purpose)) return unresolved(request, purpose, "This bounded public-web adapter is limited to official website, public business contact, conflict, and classification evidence.");
-    let website = targetWebsite(request, context);
+    const suppliedWebsite = targetWebsite(request, context);
+    let website = suppliedWebsite;
     let verificationContext = context;
     const seedEvidence: ProviderResult["evidence"] = [];
+    let seededPlaceFacts: ProviderResult["facts"] = [];
     const providerUsage: NonNullable<ProviderResult["providerUsage"]> = [];
     if (!website) {
       const placeId = evidencedPlaceId(context);
@@ -179,7 +193,20 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
           const observedAt = details.result.retrievedAt;
           const ref = evidenceRef(request, `google-place-${createHash("sha256").update(details.result.googlePlaceId).digest("hex").slice(0, 16)}`);
           seedEvidence.push({ evidenceRef: ref, provider: "GOOGLE_PLACES", externalRecordId: details.result.googlePlaceId, sourceUrl: details.result.sourceUrl, observedAt, dataClassification: "PUBLIC", licenceType: "PROPRIETARY", payload: bounded({ ...details.result, telemetry: details.telemetry }) });
-          if (["EXACT_OR_STRONG", "REVIEW_REQUIRED"].includes(details.result.matchStatus)) website = targetWebsite(request, { ...context, targetWebsite: details.result.websiteUri ?? undefined });
+          const placeFact = (fieldName: string, value: unknown) => ({ fieldName, value, evidenceRef: ref, confidence: 0.8, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId });
+          seededPlaceFacts = [
+            ...(details.result.displayName ? [placeFact("placeName", details.result.displayName)] : []),
+            ...(details.result.formattedAddress ? [placeFact("formattedAddress", details.result.formattedAddress)] : []),
+            placeFact("placeId", details.result.googlePlaceId),
+            ...(details.result.types.length ? [placeFact("providerTypes", details.result.types)] : []),
+            ...(details.result.businessStatus ? [placeFact("businessStatus", details.result.businessStatus)] : []),
+          ];
+          const venueProviderTypes = new Set(["event_venue", "convention_center", "stadium", "auditorium", "performing_arts_theater"]);
+          const organisationProviderTypes = new Set(["association_or_organization", "corporate_office"]);
+          if (details.result.types.some((type) => venueProviderTypes.has(type)) && details.result.types.some((type) => organisationProviderTypes.has(type))) {
+            seededPlaceFacts.push(placeFact("classificationSignals", ["ORGANISATION_VENUE_CONFLICT"]));
+          }
+          if (["EXACT_OR_STRONG", "REVIEW_REQUIRED"].includes(details.result.matchStatus)) website = httpsCandidate(details.result.websiteUri);
           verificationContext = { ...context, existingFacts: [...(context.existingFacts ?? []), ...(details.result.displayName ? [{ fieldName: "placeName", value: details.result.displayName, evidenceRef: ref }] : []), ...(details.result.formattedAddress ? [{ fieldName: "formattedAddress", value: details.result.formattedAddress, evidenceRef: ref }] : [])] };
         }
       } catch (error) {
@@ -187,7 +214,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
         return unresolved(request, purpose, "Place Details could not safely acquire a website seed.", { evidence: seedEvidence, providerUsage, error: { code: "GOOGLE_PLACE_DETAILS_UNAVAILABLE", message: error instanceof Error ? error.message : "Place Details failed safely.", retryable: true } });
       }
     }
-    if (!website) return unresolved(request, purpose, "Place Details returned no safe website candidate for bounded first-party verification.", { evidence: seedEvidence, providerUsage });
+    if (!website) return unresolved(request, purpose, "Place Details returned no safe HTTPS website candidate. Place evidence was retained for Nexus classification.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage });
 
     try {
       providerUsage.push({ provider: "PUBLIC_WEB", callCount: 1, purpose, cost: { currency: "USD", amount: 0 } });
@@ -203,12 +230,12 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       });
       const extracted = extractFromFetchedDocuments(crawl.documents, [...extractors]);
       if (!crawl.documents.length) {
-        return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: true } });
+        return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: true } });
       }
       const verification = verifyIdentity(request, verificationContext, extracted.identityFacts);
       const neutralEvidence = request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION";
-      if (!verification.verified && !neutralEvidence) {
-        return unresolved(request, purpose, "The candidate site did not provide strong same-entity venue identity evidence.", { evidence: seedEvidence, providerUsage });
+      if (!verification.verified && (!neutralEvidence || !suppliedWebsite)) {
+        return unresolved(request, purpose, "The candidate site did not provide strong same-entity identity evidence.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage });
       }
 
       const observedAt = nowOf(options);
@@ -243,7 +270,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
           sourceHashes: crawl.documents.map((item) => item.sourceHash),
         }),
       }];
-      const facts: ProviderResult["facts"] = [{ fieldName: "officialWebsite", value: finalUrl, evidenceRef: ref, confidence: verification.verified ? 0.95 : 0.6, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId }];
+      const facts: ProviderResult["facts"] = [...seededPlaceFacts, { fieldName: "officialWebsite", value: finalUrl, evidenceRef: ref, confidence: verification.verified ? 0.95 : 0.6, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId }];
       if (neutralEvidence) {
         for (const item of extracted.identityFacts) {
           if (["schemaOrgTypes", "pageTitle", "metaDescription", "classificationSignals", "siteName", "address"].includes(item.fieldName)) {
@@ -260,7 +287,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       }
       return { provider: "PUBLIC_WEB", purpose, facts, evidence, unknowns: [], conflicts: [], cost: { currency: "USD", amount: 0 }, providerUsage };
     } catch (error) {
-      return unresolved(request, purpose, "Public-web discovery failed safely without retaining unverified facts.", { evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: error instanceof Error ? error.message : "Public-web provider failed safely.", retryable: true } });
+      return unresolved(request, purpose, "Public-web discovery failed safely without retaining unverified facts.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: error instanceof Error ? error.message : "Public-web provider failed safely.", retryable: true } });
     }
   };
 }
