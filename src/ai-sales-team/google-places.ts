@@ -5,7 +5,7 @@ export type GooglePlacesMode = typeof GOOGLE_PLACES_MODES[number];
 export type GooglePlacesEndpointCategory = "TEXT_SEARCH" | "PLACE_DETAILS";
 export type GooglePlacesMatchStatus = "EXACT_OR_STRONG" | "REVIEW_REQUIRED" | "CONFLICTING" | "NO_MATCH";
 export type GooglePlacesErrorCategory = "MISSING_API_KEY" | "HTTP_ERROR" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TIMEOUT" | "REQUEST_FAILED" | "INVALID_INPUT" | "MODE_NOT_ALLOWED" | null;
-export type GooglePlacesTargetType = "VENUE" | "ORGANISATION";
+export type GooglePlacesTargetType = "VENUE" | "ORGANISATION" | "UNCLASSIFIED";
 
 export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus";
 export const GOOGLE_PLACES_DETAILS_FIELD_MASK = "id,displayName,formattedAddress,types,businessStatus,websiteUri";
@@ -31,7 +31,7 @@ export type GooglePlacesEvidence = {
   websiteDomain: string | null;
   businessStatus: string | null;
   retrievedAt: string;
-  queryContext: { targetName: string; targetWebsite: string | null; locality: string | null; lane: DiscoveryLane; targetType: GooglePlacesTargetType };
+  queryContext: { targetName: string; targetWebsite: string | null; locality: string | null; lane: DiscoveryLane | "EXACT_ID"; targetType: GooglePlacesTargetType };
   identityConfidence: "LOW" | "MEDIUM" | "HIGH";
   matchStatus: GooglePlacesMatchStatus;
   rejectionReasons: string[];
@@ -43,11 +43,15 @@ export type GooglePlacesSearchInput = {
   targetWebsite?: string | null;
   locality?: string | null;
   lane: "VENUE_FIRST" | "ORGANISATION_FIRST";
-  targetType: GooglePlacesTargetType;
+  targetType: Exclude<GooglePlacesTargetType, "UNCLASSIFIED">;
   limit?: number;
 };
 
-export type GooglePlacesDetailsInput = GooglePlacesSearchInput & { googlePlaceId: string };
+export type GooglePlacesDetailsInput = Omit<GooglePlacesSearchInput, "lane" | "targetType"> & {
+  googlePlaceId: string;
+  lane: GooglePlacesSearchInput["lane"] | "EXACT_ID";
+  targetType: GooglePlacesTargetType;
+};
 export type GooglePlacesFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 export type GooglePlacesOptions = { apiKey?: string; mode?: GooglePlacesMode; fetchImpl?: GooglePlacesFetch; now?: () => string; timeoutMs?: number };
 
@@ -100,6 +104,7 @@ function localityMatches(locality: string | null | undefined, address: string | 
   return expectedTokens.length > 0 && expectedTokens.every((token) => addressTokens.has(token));
 }
 function typeMatches(targetType: GooglePlacesTargetType, types: string[]) {
+  if (targetType === "UNCLASSIFIED") return false;
   const venueTypes = ["convention_center", "event_venue", "cultural_center", "stadium", "auditorium", "museum", "performing_arts_theater", "tourist_attraction"];
   const organisationTypes = ["corporate_office", "establishment", "point_of_interest", "locality"];
   const expected = targetType === "VENUE" ? venueTypes : organisationTypes;
@@ -133,7 +138,7 @@ async function request(configured: ReturnType<typeof optionsOf>, endpointCategor
   } finally { clearTimeout(timeout); }
 }
 
-function normalisePlace(raw: RawPlace, input: GooglePlacesSearchInput, configured: ReturnType<typeof optionsOf>, extraReasons: string[] = [], includeWebsiteUri = false): GooglePlacesEvidence | null {
+function normalisePlace(raw: RawPlace, input: GooglePlacesSearchInput | GooglePlacesDetailsInput, configured: ReturnType<typeof optionsOf>, extraReasons: string[] = [], includeWebsiteUri = false): GooglePlacesEvidence | null {
   const id = text(raw.id); if (!id) return null;
   const displayName = text(raw.displayName?.text); const formattedAddress = text(raw.formattedAddress); const types = Array.isArray(raw.types) ? raw.types.filter((item): item is string => typeof item === "string").slice(0, 24) : [];
   const websiteUri = includeWebsiteUri ? text(raw.websiteUri) : null; const websiteDomain = domainOf(websiteUri); const targetDomain = domainOf(input.targetWebsite); const nameAligned = matchName(input.targetName, displayName); const domainAligned = sameDomain(targetDomain, websiteDomain); const localityAligned = localityMatches(input.locality, formattedAddress); const typeAligned = typeMatches(input.targetType, types);
@@ -240,7 +245,7 @@ export async function getGooglePlaceDetails(input: GooglePlacesDetailsInput, opt
   const configured = optionsOf(options); const fieldMask = GOOGLE_PLACES_DETAILS_FIELD_MASK;
   if (configured.mode === "disabled") return { result: null, telemetry: telemetry("PLACE_DETAILS", configured.mode, null, 0, "NO_MATCH", null, "MODE_NOT_ALLOWED") };
   if (configured.mode !== "details_selected") throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, null, "MODE_NOT_ALLOWED");
-  if (!input.googlePlaceId.trim() || !input.targetName.trim()) throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, null, "INVALID_INPUT");
+  if (!input.googlePlaceId.trim() || !input.targetName.trim() || (input.targetType === "UNCLASSIFIED" && input.lane !== "EXACT_ID") || (input.targetType !== "UNCLASSIFIED" && input.lane === "EXACT_ID")) throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, null, "INVALID_INPUT");
   const response = await request(configured, "PLACE_DETAILS", `https://places.googleapis.com/v1/places/${encodeURIComponent(input.googlePlaceId)}`, { method: "GET" }, fieldMask);
   if (!response.payload || typeof response.payload !== "object" || Array.isArray(response.payload)) throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, response.response.status, "MALFORMED_RESPONSE");
   const result = normalisePlace(response.payload as RawPlace, input, configured, [], true);

@@ -64,11 +64,22 @@ test("research execution enforces the request cost ceiling before provider calls
   assert.match(result.researchErrors.map((error: any) => error.code).join(" "), /COST_CEILING_EXCEEDED/);
 });
 
-test("existing evidence prevents unnecessary venue provider execution", async () => {
-  let calls = 0;
-  const result = await executeResearchRequest(research(), { existingFacts: [{ fieldName: "placeId", value: "places/known" }] }, { googlePlaces: async () => { calls += 1; throw new Error("must not run"); } }) as any;
-  assert.equal(calls, 0);
-  assert.equal(result.providerUsage.length, 0);
+test("existing place id uses exact details and does not text-search", async () => {
+  let searches = 0;
+  let details = 0;
+  const result = await executeResearchRequest(research(), { targetName: "Example Venue", existingFacts: [{ fieldName: "placeId", value: "places/known" }] }, {
+    googlePlaces: async () => { searches += 1; throw new Error("must not text search"); },
+    googlePlaceDetails: async (input) => {
+      details += 1;
+      assert.equal(input.googlePlaceId, "places/known");
+      assert.equal(input.lane, "VENUE_FIRST");
+      return { result: { provider: "GOOGLE_PLACES" as const, googlePlaceId: "places/known", displayName: "Example Venue", formattedAddress: "1 High Street", types: ["event_venue"], websiteUri: "https://venue.example/", websiteDomain: "venue.example", businessStatus: "OPERATIONAL", retrievedAt: "2026-09-21T00:00:00.000Z", queryContext: { targetName: "Example Venue", targetWebsite: null, locality: null, lane: "VENUE_FIRST" as const, targetType: "VENUE" as const }, identityConfidence: "HIGH" as const, matchStatus: "EXACT_OR_STRONG" as const, rejectionReasons: [], sourceUrl: "https://places.googleapis.com/v1/places/places/known" }, telemetry: { endpointCategory: "PLACE_DETAILS" as const, mode: "details_selected" as const, fieldMask: "id,displayName,formattedAddress,types,businessStatus,websiteUri", candidateCount: 1, matchStatus: "EXACT_OR_STRONG" as const, httpStatus: 200, errorCategory: null, retryCount: 0 as const } };
+    },
+  }) as any;
+  assert.equal(searches, 0);
+  assert.equal(details, 1);
+  assert.equal(result.facts.every((item: { subjectEntityType: string }) => item.subjectEntityType === "VENUE"), true);
+  assert.equal(result.facts.some((item: { fieldName: string }) => item.fieldName === "providerTypes"), true);
 });
 
 test("research result preserves contract correlation, evidence separation, and idempotency", async () => {

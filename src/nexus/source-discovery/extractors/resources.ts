@@ -245,6 +245,26 @@ function images(doc: FetchedDocument, out: ResourceExtraction) {
       discoveredAt: doc.observedAt, originDomain: image.hostname, ...imageRights, operatorConfirmed: false });
   }
 }
+function classificationEvidence(doc: FetchedDocument, out: ResourceExtraction) {
+  const nodes = structuredNodes(doc);
+  const types = [...new Set(nodes.flatMap((node) => list(node["@type"]).map((type) => (String(type).split(/[\/#]/).pop() ?? "").trim())).filter(Boolean))].slice(0, 24);
+  if (types.length) addIdentity(out, doc, "schemaOrgTypes", types);
+  const title = clean(visibleText(tags(doc.body, "title")[0]?.inner ?? "")) ?? firstMeta(doc.body, "og:title");
+  const description = firstMeta(doc.body, "description") ?? firstMeta(doc.body, "og:description");
+  if (title) addIdentity(out, doc, "pageTitle", title);
+  if (description) addIdentity(out, doc, "metaDescription", description);
+  const text = `${title ?? ""} ${description ?? ""} ${visibleText(doc.body).slice(0, 4000)}`;
+  const signals: string[] = [];
+  if (types.some((type) => /^(?:eventvenue|place|civicstructure|performingartsvenue)$/i.test(type))) signals.push("SCHEMA_PLACE_OR_VENUE");
+  if (types.some((type) => /^(?:organization|localbusiness|corporation|ngo)$/i.test(type))) signals.push("SCHEMA_ORGANISATION");
+  if (/\b(?:festival|fest)\b/i.test(text)) signals.push("FESTIVAL_OR_SERIES_LANGUAGE");
+  if (/\b(?:promot(?:er|ing|es)|presents)\b/i.test(text)) signals.push("PROMOTER_LANGUAGE");
+  if (/\b(?:tickets?|box office|ticketmaster|dice\.fm)\b/i.test(text)) signals.push("TICKETING_OR_MEDIA_LANGUAGE");
+  if (/\b(?:capacity|seating|function rooms?|venue hire|banquet|auditorium)\b/i.test(text)) signals.push("FACILITY_LANGUAGE");
+  if (signals.includes("SCHEMA_ORGANISATION") && (signals.includes("SCHEMA_PLACE_OR_VENUE") || signals.includes("FACILITY_LANGUAGE"))) signals.push("ORGANISATION_VENUE_CONFLICT");
+  if (signals.includes("FESTIVAL_OR_SERIES_LANGUAGE") && (signals.includes("SCHEMA_PLACE_OR_VENUE") || signals.includes("FACILITY_LANGUAGE"))) signals.push("FESTIVAL_PLACE_CONFLICT");
+  if (signals.length) addIdentity(out, doc, "classificationSignals", signals);
+}
 function extractDocument(doc: FetchedDocument, extractors: SourceExtractor[]): ResourceExtraction {
   const out: ResourceExtraction = { identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], evidenceRefs: [], warnings: [] };
   structured(doc, out, extractors);
@@ -261,6 +281,7 @@ function extractDocument(doc: FetchedDocument, extractors: SourceExtractor[]): R
   }
   if (extractors.includes("PUBLIC_CONTACT")) contacts(doc, out);
   if (extractors.includes("VENUE_FACTS")) venueFacts(doc, out);
+  if (extractors.includes("SOURCE_CLASSIFICATION")) classificationEvidence(doc, out);
   if (extractors.includes("IMAGE_CANDIDATES")) images(doc, out);
   return out;
 }

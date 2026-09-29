@@ -124,6 +124,10 @@ async function prepareVersionedResearchInput(input: Record<string, unknown>, opt
   return { input: { ...input, requestId, idempotencyKey }, responseIds: { requestId: request.requestId, idempotencyKey: request.idempotencyKey } };
 }
 
+export function nexusExecutorDisabled(env: NodeJS.ProcessEnv = process.env) {
+  return env.VERCEL_ENV === "production" || env.NEXUS_EXECUTOR_ENABLED !== "true";
+}
+
 export async function handleNexusExecuteRequest(request: Request, options: NexusHttpOptions): Promise<Response> {
   if (!options.secret) return json(503, { code: "NEXUS_HMAC_SECRET_NOT_CONFIGURED" });
 

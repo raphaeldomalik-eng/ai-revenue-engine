@@ -7,14 +7,14 @@ export const CONTRACTS = Object.freeze({
   SOURCE_DISCOVERY_RESULT: "nexus.source-discovery-result.v1",
 });
 
-export const ENTITY_TYPES = ["ORGANISATION", "PLACE", "VENUE", "EVENT", "CREATIVE_ENTITY"] as const;
+export const ENTITY_TYPES = ["ORGANISATION", "PLACE", "VENUE", "EVENT", "CREATIVE_ENTITY", "UNKNOWN"] as const;
 export type EntityType = typeof ENTITY_TYPES[number];
-export const RESEARCH_PURPOSES = ["VENUE_IDENTITY", "OFFICIAL_WEBSITE", "VENUE_OPERATOR", "LEGAL_ORGANISATION", "PUBLIC_CONTACT", "COMMERCIAL_CONTACT", "CONFLICT_RESOLUTION"] as const;
+export const RESEARCH_PURPOSES = ["VENUE_IDENTITY", "OFFICIAL_WEBSITE", "VENUE_OPERATOR", "LEGAL_ORGANISATION", "PUBLIC_CONTACT", "COMMERCIAL_CONTACT", "CONFLICT_RESOLUTION", "SOURCE_ENTITY_CLASSIFICATION"] as const;
 export type ResearchPurpose = typeof RESEARCH_PURPOSES[number];
 export const PROVIDER_ALLOWANCES = ["GOOGLE_PLACES", "PUBLIC_WEB", "COMPANIES_HOUSE", "APOLLO", "OPENAI"] as const;
 export type ProviderAllowance = typeof PROVIDER_ALLOWANCES[number];
 export const ORIGINATING_PRODUCTS = ["prestige_nexus", "event_suite_resources", "last_train_home", "ticket_report", "ai_revenue_engine"] as const;
-export const SOURCE_EXTRACTORS = ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES", "EVENTS"] as const;
+export const SOURCE_EXTRACTORS = ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES", "EVENTS", "SOURCE_CLASSIFICATION"] as const;
 export type SourceExtractor = typeof SOURCE_EXTRACTORS[number];
 
 const PUBLIC_CONTACT_TYPES = ["EMAIL", "PHONE", "CONTACT_FORM", "WHATSAPP", "BUSINESS_MESSAGING"] as const;
@@ -261,6 +261,23 @@ export function outboxArgs(contract: Record<string, any>) { const version = text
 export function stageResearchResult(result: unknown) {
   const validated = validateResearchResult(result);
   const evidenceRefs = new Set(validated.evidence.map((item) => item.evidenceRef));
-  return { contractVersion: validated.contractVersion, requestId: validated.requestId, idempotencyKey: validated.idempotencyKey, rawEvidenceRows: validated.evidence.map((item) => ({ provider_key: item.provider.toLowerCase(), external_record_id: item.externalRecordId, source_url: item.sourceUrl, data_classification: item.dataClassification, licence_type: item.licenceType, observed_at: item.observedAt, raw_payload: item.payload ?? { evidenceRef: item.evidenceRef } })), proposedFactRows: validated.facts.map((item) => { if (item.evidenceRef && !evidenceRefs.has(item.evidenceRef)) fail("FACT_EVIDENCE_REF_NOT_FOUND", item.evidenceRef); return { target_entity_type: item.subjectEntityType, canonical_entity_id: item.canonicalEntityId, field_name: item.fieldName, proposed_value: item.value, confidence: item.confidence ?? 0, review_status: "PROPOSED", evidence_ref: item.evidenceRef }; }), canonicalMutations: 0, autoPromotions: 0 };
+  const proposedFactRows = [];
+  const classificationEvidenceRows = [];
+  for (const item of validated.facts) {
+    if (item.evidenceRef && !evidenceRefs.has(item.evidenceRef)) fail("FACT_EVIDENCE_REF_NOT_FOUND", item.evidenceRef);
+    const row = { field_name: item.fieldName, proposed_value: item.value, confidence: item.confidence ?? 0, evidence_ref: item.evidenceRef };
+    if (item.subjectEntityType === "UNKNOWN") classificationEvidenceRows.push({ ...row, subject_entity_type: "UNKNOWN" as const, review_status: "EVIDENCE_ONLY" as const });
+    else proposedFactRows.push({ target_entity_type: item.subjectEntityType, canonical_entity_id: item.canonicalEntityId, ...row, review_status: "PROPOSED" as const });
+  }
+  return {
+    contractVersion: validated.contractVersion,
+    requestId: validated.requestId,
+    idempotencyKey: validated.idempotencyKey,
+    rawEvidenceRows: validated.evidence.map((item) => ({ provider_key: item.provider.toLowerCase(), external_record_id: item.externalRecordId, source_url: item.sourceUrl, data_classification: item.dataClassification, licence_type: item.licenceType, observed_at: item.observedAt, raw_payload: item.payload ?? { evidenceRef: item.evidenceRef } })),
+    proposedFactRows,
+    classificationEvidenceRows,
+    canonicalMutations: 0,
+    autoPromotions: 0,
+  };
 }
 export function stageSourceDiscoveryResult(result: unknown) { const validated = validateSourceDiscoveryResult(result); return { contractVersion: validated.contractVersion, discoveryRequestId: validated.discoveryRequestId, idempotencyKey: validated.idempotencyKey, evidenceRefs: validated.evidenceRefs, identityFacts: validated.identityFacts, publicContacts: validated.publicContacts, venueFacts: validated.venueFacts, imageCandidates: validated.imageCandidates, eventCandidates: validated.eventCandidates, canonicalMutations: 0, mediaCreates: 0, eventCreates: 0, publicationActions: 0 }; }
