@@ -28,6 +28,7 @@ export type CrawlStats = {
   retries: number;
   warnings: string[];
   status: "COMPLETED" | "PARTIAL" | "BLOCKED" | "FAILED";
+  failureClass?: "TERMINAL" | "RETRYABLE";
 };
 export type CrawlOutput = {
   verifiedUrl: string;

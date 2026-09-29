@@ -33,6 +33,13 @@ function embeddedIpv4(address: string): string | null {
   return `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
 }
 
+export class NetworkRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NetworkRefusal";
+  }
+}
+
 export function isPublicNetworkAddress(address: string): boolean {
   const mapped = embeddedIpv4(address);
   if (mapped) return isPublicNetworkAddress(mapped);
@@ -79,10 +86,10 @@ export const defaultResolveHost: ResolveHost = async (hostname) => {
 };
 
 export async function resolvePublicNetworkAddresses(value: string, resolveHost: ResolveHost = defaultResolveHost) {
-  if (!isPublicHttpsUrl(value)) throw new Error("Refused a non-public HTTPS URL.");
+  if (!isPublicHttpsUrl(value)) throw new NetworkRefusal("Refused a non-public HTTPS URL.");
   const addresses = await resolveHost(hostOf(new URL(value)));
   if (!addresses.length || addresses.some((item) => !isPublicNetworkAddress(item.address))) {
-    throw new Error("Refused a hostname resolving to a private or reserved network address.");
+    throw new NetworkRefusal("Refused a hostname resolving to a private or reserved network address.");
   }
   return addresses;
 }
@@ -129,14 +136,14 @@ export async function fetchPinned(args: {
       const contentLength = Number(response.headers["content-length"]);
       if (Number.isFinite(contentLength) && contentLength > args.maxBytes) {
         request.destroy();
-        reject(new Error("Response exceeded the discovery size limit."));
+        reject(new NetworkRefusal("Response exceeded the discovery size limit."));
         return;
       }
       response.on("data", (chunk: Buffer) => {
         size += chunk.length;
         if (size > args.maxBytes) {
           request.destroy();
-          reject(new Error("Response exceeded the discovery size limit."));
+          reject(new NetworkRefusal("Response exceeded the discovery size limit."));
           return;
         }
         chunks.push(chunk);
