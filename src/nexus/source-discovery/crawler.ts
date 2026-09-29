@@ -3,7 +3,7 @@ import type { SourceExtractor } from "../contracts.ts";
 import { extractEventsFromDocuments } from "./extractors/events.ts";
 import { extractResourcesFromDocuments } from "./extractors/resources.ts";
 import { calendarFallbackUrl, discoverCalendarUrls, discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "./links.ts";
-import { assertPublicNetworkTarget, canonicalHttpsUrl, defaultResolveHost, fetchPinned } from "./network.ts";
+import { assertPublicNetworkTarget, canonicalHttpsUrl, defaultResolveHost, fetchPinned, NetworkRefusal } from "./network.ts";
 import type { CrawlBudget, CrawlInput, CrawlOutput, CrawlStats, FetchLike, FetchedDocument, ResolveHost } from "./types.ts";
 
 export { assertPublicNetworkTarget, canonicalHttpsUrl, isPublicHttpsUrl, isPublicNetworkAddress } from "./network.ts";
@@ -53,6 +53,102 @@ export function robotsAllows(robotsText: string, targetUrl: string, token: strin
   return matching[0]?.allow ?? true;
 }
 
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+class CrawlRefusal extends Error {
+  failureClass: "TERMINAL" | "RETRYABLE";
+
+  constructor(message: string, failureClass: "TERMINAL" | "RETRYABLE") {
+    super(message);
+    this.name = "CrawlRefusal";
+    this.failureClass = failureClass;
+  }
+}
+
+function refusalMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function sameOriginHttpsTarget(location: string | null, current: string, origin: string) {
+  const next = location ? canonicalHttpsUrl(location, current) : null;
+  if (!next || new URL(next).origin !== origin) {
+    throw new CrawlRefusal("Redirect target is not an allowed same-origin public HTTPS URL.", "TERMINAL");
+  }
+  return next;
+}
+
+function rememberFailure(stats: CrawlStats, error: unknown) {
+  if (!(error instanceof CrawlRefusal)) return;
+  if (error.failureClass === "TERMINAL" || stats.failureClass !== "TERMINAL") stats.failureClass = error.failureClass;
+}
+
+async function fetchRobots(args: {
+  origin: string;
+  budget: CrawlBudget;
+  stats: CrawlStats;
+  fetchImpl?: FetchLike;
+  resolveHost: ResolveHost;
+  userAgent: string;
+}) {
+  let current = `${args.origin}/robots.txt`;
+  let redirects = 0;
+  let attempt = 0;
+  const maxBytes = Math.min(args.budget.maxBytesPerResponse, 500_000);
+  for (;;) {
+    if (args.stats.requestCount >= args.budget.maxRequests) {
+      throw new CrawlRefusal("Crawl request budget exhausted before robots.txt could be checked.", "TERMINAL");
+    }
+    try {
+      if (args.fetchImpl) await assertPublicNetworkTarget(current, args.resolveHost);
+    } catch (error) {
+      throw new CrawlRefusal(refusalMessage(error, "Refused a non-public HTTPS URL."), "TERMINAL");
+    }
+    args.stats.requestCount += 1;
+    let response: Response;
+    try {
+      response = args.fetchImpl
+        ? await args.fetchImpl(current, { redirect: "manual", headers: { "User-Agent": args.userAgent, Accept: "text/plain,*/*;q=0.1" } })
+        : await fetchPinned({ url: current, resolveHost: args.resolveHost, userAgent: args.userAgent, accept: "text/plain,*/*;q=0.1", maxBytes, timeoutMs: args.budget.timeoutMs });
+    } catch (error) {
+      if (error instanceof CrawlRefusal) throw error;
+      if (error instanceof NetworkRefusal) throw new CrawlRefusal(error.message, "TERMINAL");
+      throw new CrawlRefusal(refusalMessage(error, "robots.txt request failed."), "RETRYABLE");
+    }
+    if (REDIRECT_STATUSES.has(response.status)) {
+      let next: string;
+      try {
+        next = sameOriginHttpsTarget(response.headers.get("location"), current, args.origin);
+      } catch (error) {
+        args.stats.blockedCount += 1;
+        throw error;
+      }
+      if (redirects >= args.budget.maxRedirects) throw new CrawlRefusal("Redirect budget exhausted.", "TERMINAL");
+      current = next;
+      redirects += 1;
+      args.stats.redirects += 1;
+      attempt = 0;
+      continue;
+    }
+    if ((response.status === 429 || response.status >= 500) && attempt < args.budget.maxRetries) {
+      args.stats.retries += 1;
+      await sleep(Math.min(250 * 2 ** attempt, 2000));
+      attempt += 1;
+      continue;
+    }
+    if (response.status === 429 || response.status >= 500) {
+      throw new CrawlRefusal(`robots.txt returned HTTP ${response.status}`, "RETRYABLE");
+    }
+    if (!response.ok && response.status !== 404) {
+      throw new CrawlRefusal(`robots.txt returned HTTP ${response.status}`, "TERMINAL");
+    }
+    if (response.status === 404) return "";
+    const body = await response.text();
+    if (Buffer.byteLength(body, "utf8") > maxBytes) throw new CrawlRefusal("robots.txt exceeded the discovery size limit.", "TERMINAL");
+    await sleep(args.budget.minRequestDelayMs);
+    return body;
+  }
+}
+
 async function fetchDocument(args: {
   url: string;
   origin: string;
@@ -73,24 +169,33 @@ async function fetchDocument(args: {
       throw new Error(`robots.txt disallows ${current}`);
     }
     try {
-      await assertPublicNetworkTarget(current, args.resolveHost);
+      if (args.fetchImpl) await assertPublicNetworkTarget(current, args.resolveHost);
     } catch (error) {
       args.stats.blockedCount += 1;
-      throw error;
+      throw new CrawlRefusal(refusalMessage(error, "Refused a non-public HTTPS URL."), "TERMINAL");
     }
     args.stats.requestCount += 1;
     const accept = args.calendar ? "text/calendar,*/*;q=0.1" : "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1";
-    const response = args.fetchImpl
-      ? await args.fetchImpl(current, { redirect: "manual", headers: { "User-Agent": args.userAgent, Accept: accept } })
-      : await fetchPinned({ url: current, resolveHost: args.resolveHost, userAgent: args.userAgent, accept, maxBytes: args.budget.maxBytesPerResponse, timeoutMs: args.budget.timeoutMs });
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get("location");
-      const next = location ? canonicalHttpsUrl(location, current) : null;
-      if (!next || new URL(next).origin !== args.origin) {
+    let response: Response;
+    try {
+      response = args.fetchImpl
+        ? await args.fetchImpl(current, { redirect: "manual", headers: { "User-Agent": args.userAgent, Accept: accept } })
+        : await fetchPinned({ url: current, resolveHost: args.resolveHost, userAgent: args.userAgent, accept, maxBytes: args.budget.maxBytesPerResponse, timeoutMs: args.budget.timeoutMs });
+    } catch (error) {
+      if (error instanceof CrawlRefusal) throw error;
+      if (error instanceof NetworkRefusal) throw new CrawlRefusal(error.message, "TERMINAL");
+      throw new CrawlRefusal(refusalMessage(error, "Discovery request failed."), "RETRYABLE");
+    }
+    if (REDIRECT_STATUSES.has(response.status)) {
+      let next: string;
+      try {
+        next = sameOriginHttpsTarget(response.headers.get("location"), current, args.origin);
+      } catch (error) {
         args.stats.blockedCount += 1;
-        throw new Error("Redirect target is not an allowed same-origin public HTTPS URL.");
+        args.stats.failureClass = "TERMINAL";
+        throw error;
       }
-      if (redirects >= args.budget.maxRedirects) throw new Error("Redirect budget exhausted.");
+      if (redirects >= args.budget.maxRedirects) throw new CrawlRefusal("Redirect budget exhausted.", "TERMINAL");
       current = next;
       redirects += 1;
       args.stats.redirects += 1;
@@ -102,7 +207,8 @@ async function fetchDocument(args: {
       await sleep(Math.min(250 * 2 ** attempt, 2000));
       continue;
     }
-    if (!response.ok) throw new Error(`HTTP ${response.status} from ${current}`);
+    if (response.status === 429 || response.status >= 500) throw new CrawlRefusal(`HTTP ${response.status} from ${current}`, "RETRYABLE");
+    if (!response.ok) throw new CrawlRefusal(`HTTP ${response.status} from ${current}`, "TERMINAL");
     const contentLength = Number(response.headers.get("content-length"));
     if (Number.isFinite(contentLength) && contentLength > args.budget.maxBytesPerResponse) throw new Error("Response exceeded the discovery size limit.");
     const body = await response.text();
@@ -124,28 +230,21 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
   let robotsText = "";
   let requiredTraversalIncomplete = false;
   try {
-    if (stats.requestCount >= args.budget.maxRequests) throw new Error("Crawl request budget exhausted before robots.txt could be checked.");
-    const robotsUrl = `${origin}/robots.txt`;
-    await assertPublicNetworkTarget(robotsUrl, resolveHost);
-    stats.requestCount += 1;
-    const response = args.fetchImpl
-      ? await args.fetchImpl(robotsUrl, { redirect: "manual", headers: { "User-Agent": userAgent, Accept: "text/plain,*/*;q=0.1" } })
-      : await fetchPinned({ url: robotsUrl, resolveHost, userAgent, accept: "text/plain,*/*;q=0.1", maxBytes: Math.min(args.budget.maxBytesPerResponse, 500_000), timeoutMs: args.budget.timeoutMs });
-    if (response.ok) {
-      const body = await response.text();
-      if (Buffer.byteLength(body, "utf8") > Math.min(args.budget.maxBytesPerResponse, 500_000)) throw new Error("robots.txt exceeded the discovery size limit.");
-      robotsText = body;
-    } else if (response.status !== 404) throw new Error(`robots.txt returned HTTP ${response.status}`);
+    robotsText = await fetchRobots({ origin, budget: args.budget, stats, fetchImpl: args.fetchImpl, resolveHost, userAgent });
   } catch (error) {
-    stats.warnings.push(`robots.txt could not be checked: ${error instanceof Error ? error.message : "unknown error"}`);
-    stats.status = "BLOCKED";
-    stats.blockedCount += 1;
+    const failureClass = error instanceof CrawlRefusal ? error.failureClass : "RETRYABLE";
+    stats.warnings.push(`robots.txt could not be checked: ${refusalMessage(error, "unknown error")}`);
+    stats.status = failureClass === "RETRYABLE" ? "FAILED" : "BLOCKED";
+    stats.failureClass = failureClass;
+    if (failureClass === "TERMINAL") stats.blockedCount = Math.max(stats.blockedCount, 1);
+    else stats.blockedCount += 1;
     return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats };
   }
   if (!robotsAllows(robotsText, verifiedUrl, userAgent)) {
     stats.status = "BLOCKED";
     stats.blockedCount += 1;
     stats.warnings.push("robots.txt disallows the verified source path.");
+    stats.failureClass = "TERMINAL";
     return { verifiedUrl, finalUrl: verifiedUrl, documents: [], stats };
   }
   const documents: FetchedDocument[] = [];
@@ -197,6 +296,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
         }
       }
     } catch (error) {
+      rememberFailure(stats, error);
       if (item.calendar) stats.warnings.push(`Optional calendar unavailable: ${next}: ${error instanceof Error ? error.message : "unknown error"}`);
       else {
         stats.warnings.push(`Required HTML source unavailable: ${next}: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -213,6 +313,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
   if (queue.some((item) => item.calendar) || calendarBudgetTruncated) stats.warnings.push("Optional calendar evidence was omitted at the finite crawl budget.");
   if (!documents.length) stats.status = stats.blockedCount ? "BLOCKED" : "FAILED";
   else if (requiredTraversalIncomplete) stats.status = "PARTIAL";
+  if (stats.status === "COMPLETED" || stats.status === "PARTIAL") stats.failureClass = undefined;
   return { verifiedUrl, finalUrl: documents[0]?.url ?? verifiedUrl, documents, stats };
 }
 

@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     store: new SupabaseNexusResultStore(client),
     publicWeb: createPublicWebProvider(),
     researchContext: researchContextFromPayload,
+    // Research generation stays v6. Source-discovery replay uses SOURCE_DISCOVERY_EXECUTION_VERSION.
     researchExecutionVersion: "resources-v2-unclassified-evidence-v6",
   });
 }

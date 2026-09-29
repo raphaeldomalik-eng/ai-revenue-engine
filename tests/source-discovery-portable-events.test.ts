@@ -296,5 +296,7 @@ test("a robots server failure blocks all source and calendar requests", async ()
     fetchImpl: async (input) => { requested.push(String(input)); return new Response("unavailable", { status: 503 }); },
   });
   assert.deepEqual(requested, ["https://venue.example/robots.txt"]);
-  assert.equal(crawl.stats.status, "BLOCKED");
+  assert.equal(crawl.stats.status, "FAILED");
+  assert.equal(crawl.stats.failureClass, "RETRYABLE");
+  assert.equal(crawl.documents.length, 0);
 });
