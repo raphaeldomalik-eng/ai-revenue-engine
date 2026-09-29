@@ -8,6 +8,7 @@ import {
 import {
   executeResearchRequest,
   executeSourceDiscoveryRequest,
+  retryableProviderFailure,
   type ResearchContext,
   type ResearchExecutorOptions,
   type NexusResultStore,
@@ -120,7 +121,7 @@ async function prepareVersionedResearchInput(input: Record<string, unknown>, opt
   const requestId = versionedUuid(`nexus-research-request:${identity}`);
   const idempotencyKey = versionedUuid(`nexus-research-idempotency:${identity}`);
   const refreshed = await options.store.get(idempotencyKey);
-  if (refreshed) return { input, stored: rebindResearchResult(refreshed, request.requestId, request.idempotencyKey) };
+  if (refreshed && !retryableProviderFailure(refreshed)) return { input, stored: rebindResearchResult(refreshed, request.requestId, request.idempotencyKey) };
   return { input: { ...input, requestId, idempotencyKey }, responseIds: { requestId: request.requestId, idempotencyKey: request.idempotencyKey } };
 }
 
