@@ -83,6 +83,10 @@ function structured(doc: FetchedDocument, out: ResourceExtraction, extractors: S
       const geo = object(node.geo); const latitude = Number(geo.latitude); const longitude = Number(geo.longitude);
       if (geo.latitude != null && geo.longitude != null && Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) addFact(out, doc, "geo", { latitude, longitude }, 0.9);
       const access = clean(node.accessibilityFeature) ?? clean(node.accessibilitySummary); if (access) addFact(out, doc, "accessibility", access, 0.9);
+      const maximum = String(node.maximumAttendeeCapacity ?? "").trim();
+      if ((place || typed(node, "LocalBusiness")) && /^\d{1,6}$/.test(maximum) && Number(maximum) >= 1 && Number(maximum) <= 100000) {
+        addFact(out, doc, "capacity", { space: null, layout: "unspecified", count: Number(maximum), statement: `maximumAttendeeCapacity ${maximum}` }, 0.9);
+      }
     }
     if (extractors.includes("PUBLIC_CONTACT")) {
       addContact(out, doc, "PHONE", clean(node.telephone), 0.9); addContact(out, doc, "EMAIL", clean(node.email), 0.9);
