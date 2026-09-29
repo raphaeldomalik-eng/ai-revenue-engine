@@ -132,6 +132,25 @@ test("stable execution identity reuses provider work across regenerated transpor
   assert.deepEqual(secondBody.evidence, firstBody.evidence);
 });
 
+test("a changed research execution version does not reuse the previous execution", async () => {
+  const store = new InMemoryNexusResultStore();
+  let calls = 0;
+  const configured = (researchExecutionVersion: string) => ({
+    ...options(store),
+    researchExecutionVersion,
+    publicWeb: async () => { calls += 1; return publicWebResult(); },
+  });
+  const first = await handleNexusExecuteRequest(signedRequest(research()), configured("resources-v2-public-web-v4"));
+  const second = await handleNexusExecuteRequest(signedRequest(research()), configured("resources-v2-unclassified-evidence-v5"));
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+  const secondBody = await second.json();
+  assert.equal(calls, 2);
+  const replay = await handleNexusExecuteRequest(signedRequest(research()), configured("resources-v2-unclassified-evidence-v5"));
+  assert.deepEqual(await replay.json(), secondBody);
+  assert.equal(calls, 2);
+});
+
 test("stable execution identity runs again when relevant research context changes", async () => {
   const store = new InMemoryNexusResultStore();
   let calls = 0;
