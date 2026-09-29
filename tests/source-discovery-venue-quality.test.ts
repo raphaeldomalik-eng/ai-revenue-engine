@@ -344,3 +344,17 @@ test("hire suitability requires an explicit statement rather than the page path"
   assert.equal(weak.venueFacts.some((item) => item.fieldName === "hireSuitability"), false);
   assert.ok(explicit.venueFacts.some((item) => item.fieldName === "hireSuitability" && /wedding receptions/.test(String(item.value))));
 });
+
+test("structured maximumAttendeeCapacity on a same-origin venue is a venue-wide capacity without an invented space", () => {
+  const venue = page("/", `<script type="application/ld+json">{"@context":"https://schema.org","@type":"EventVenue","name":"The Studio","maximumAttendeeCapacity":40}</script>`);
+  const capacities = extractFromFetchedDocuments([venue], ["VENUE_FACTS"]).venueFacts.filter((item) => item.fieldName === "capacity");
+  assert.deepEqual(capacities.map((item) => item.value), [{ space: null, layout: "unspecified", count: 40, statement: "maximumAttendeeCapacity 40" }]);
+  assert.equal(capacities[0]?.reviewRequired, false);
+  assert.equal(extractFromFetchedDocuments([venue], ["VENUE_FACTS"]).venueFacts.some((item) => item.fieldName === "spaces"), false);
+  const foreign = page("/", `<script type="application/ld+json">{"@type":"EventVenue","url":"https://other.example/","maximumAttendeeCapacity":400}</script>`);
+  const organisation = page("/", `<script type="application/ld+json">{"@type":"Organization","maximumAttendeeCapacity":400}</script>`);
+  const invalid = page("/", `<script type="application/ld+json">{"@type":"Place","maximumAttendeeCapacity":"about 40"}</script>`);
+  for (const doc of [foreign, organisation, invalid]) {
+    assert.equal(extractFromFetchedDocuments([doc], ["VENUE_FACTS"]).venueFacts.some((item) => item.fieldName === "capacity"), false);
+  }
+});
