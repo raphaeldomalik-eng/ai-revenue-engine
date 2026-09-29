@@ -80,6 +80,39 @@ test("PUBLIC_WEB acquires a seed with Place Details and verifies it before promo
   assert.deepEqual(result.providerUsage?.map((item) => [item.provider, item.callCount]), [["GOOGLE_PLACES", 1], ["PUBLIC_WEB", 1]]);
 });
 
+test("PUBLIC_WEB upgrades an HTTP Place website and keeps place evidence when the page is a different entity", async () => {
+  const seen: string[] = [];
+  const provider = createPublicWebProvider({
+    fetchImpl: async (input: RequestInfo | URL) => {
+      seen.push(String(input));
+      return fetchSite("<title>City of Cape Town</title><h1>City of Cape Town</h1>")(input);
+    },
+    resolveHost: resolver,
+    placeDetails: async () => ({
+      result: {
+        provider: "GOOGLE_PLACES", googlePlaceId: "places/hall", displayName: "Endlovini Community Hall",
+        formattedAddress: "Khayelitsha, Cape Town", types: ["event_venue", "community_center"], websiteUri: "http://www.capetown.gov.za/",
+        websiteDomain: "www.capetown.gov.za", businessStatus: "OPERATIONAL", retrievedAt: "2026-09-21T00:00:00.000Z",
+        queryContext: { targetName: "Endlovini Community Hall", targetWebsite: null, locality: "Cape Town", lane: "EXACT_ID", targetType: "UNCLASSIFIED" },
+        identityConfidence: "HIGH", matchStatus: "EXACT_OR_STRONG", rejectionReasons: [],
+        sourceUrl: "https://places.googleapis.com/v1/places/places%2Fhall",
+      },
+      telemetry: { endpointCategory: "PLACE_DETAILS", mode: "details_selected", fieldMask: "id,displayName,formattedAddress,types,businessStatus,websiteUri", candidateCount: 1, matchStatus: "EXACT_OR_STRONG", httpStatus: 200, errorCategory: null, retryCount: 0 },
+    }),
+  });
+  const result = await provider({
+    request: request(),
+    context: {
+      targetName: "Endlovini Community Hall", locality: "Cape Town",
+      existingFacts: [{ fieldName: "google_place_id", value: "places/hall", evidenceRef: "place:hall" }],
+    },
+  });
+  assert.equal(seen.some((url) => url.startsWith("https://www.capetown.gov.za")), true);
+  assert.equal(result.facts.some((fact) => fact.fieldName === "officialWebsite"), false);
+  assert.equal(result.facts.some((fact) => fact.fieldName === "formattedAddress"), true);
+  assert.deepEqual(result.facts.find((fact) => fact.fieldName === "providerTypes")?.value, ["event_venue", "community_center"]);
+});
+
 test("PUBLIC_WEB verifies a facility on its first-party operator site only with multiple relationship signals", async () => {
   const pages: Record<string, string> = {
     "https://www.ssisa.test/": '<html><head><title>Sports Science Institute of South Africa | SSISA</title></head><body><h1>Sports Science Institute of South Africa</h1><a href="/facilities">Facilities</a><footer><h5>ADDRESS</h5><p>Boundary Road,<br>Newlands, Cape Town,<br>7700</p><h5>CONTACT US</h5></footer></body></html>',

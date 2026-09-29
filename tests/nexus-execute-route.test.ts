@@ -5,7 +5,7 @@ import { nexusExecutorDisabled } from "../src/nexus/http.ts";
 
 test("preview execution version is the unclassified evidence generation", () => {
   const source = readFileSync(new URL("../app/api/integrations/nexus/execute/route.ts", import.meta.url), "utf8");
-  assert.match(source, /researchExecutionVersion:\s*"resources-v2-unclassified-evidence-v5"/);
+  assert.match(source, /researchExecutionVersion:\s*"resources-v2-unclassified-evidence-v6"/);
   assert.match(source, /nexusExecutorDisabled\(\)/);
 });
 
