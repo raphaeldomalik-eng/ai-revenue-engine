@@ -1,15 +1,16 @@
 import { createHash } from "node:crypto";
 import { searchCompaniesHouse, type CompaniesHouseSearchResult } from "../ai-sales-team/companies-house.ts";
 import { getGooglePlaceDetails, searchGooglePlaces, type GooglePlacesDetailsInput, type GooglePlacesEvidence, type GooglePlacesSearchInput } from "../ai-sales-team/google-places.ts";
+import { createInMemoryGooglePlacesEvidenceStore, type GooglePlacesCallTelemetry, type GooglePlacesEvidenceStore } from "../ai-sales-team/google-places-evidence.ts";
 import { researchCompany } from "../ai-sales-team/research.ts";
 import { CONTRACTS, type ProviderAllowance, type ResearchContext as ContractResearchContext, type ResearchRequest, type SourceDiscoveryRequest, type SourceExtractor, validateResearchRequest, validateResearchResult, validateSourceDiscoveryRequest, validateSourceDiscoveryResult } from "./contracts.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 
 export type ProposedFact = { subjectEntityType: ResearchRequest["subject"]["entityType"]; canonicalEntityId: string | null; fieldName: string; value: unknown; evidenceRef: string | null; confidence: number | null; observedAt: string | null };
-export type ResearchContext = ContractResearchContext & { publicWeb?: { facts?: Array<{ fieldName: string; value: unknown; sourceUrl?: string | null; evidenceRef?: string | null }>; evidence?: Array<{ externalRecordId: string; sourceUrl?: string | null; payload?: unknown }> } };
+export type ResearchContext = ContractResearchContext & { googlePlacesEvidenceStore?: GooglePlacesEvidenceStore; publicWeb?: { facts?: Array<{ fieldName: string; value: unknown; sourceUrl?: string | null; evidenceRef?: string | null }>; evidence?: Array<{ externalRecordId: string; sourceUrl?: string | null; payload?: unknown }> } };
 type Cost = { currency: string; amount: number } | null;
 export type ProviderResult = { provider: ProviderAllowance; purpose: string; facts: ProposedFact[]; evidence: Array<{ evidenceRef: string; provider: ProviderAllowance; externalRecordId: string; sourceUrl: string | null; observedAt: string; dataClassification: "PUBLIC" | "INTERNAL" | "RESTRICTED" | "CONFIDENTIAL" | "PII"; licenceType: string; payload: unknown }>; unknowns: string[]; conflicts: Array<Record<string, unknown>>; cost: Cost; providerUsage?: Array<{ provider: ProviderAllowance; callCount: number; purpose: string; cost: Cost }>; error?: { code: string; message: string; retryable: boolean } };
-export type ResearchExecutorOptions = { estimatedCosts?: Partial<Record<ProviderAllowance, number>>; now?: () => string; googlePlaces?: typeof searchGooglePlaces; googlePlaceDetails?: typeof getGooglePlaceDetails; companiesHouse?: typeof searchCompaniesHouse; publicWeb?: (input: { request: ResearchRequest; context: ResearchContext }) => Promise<ProviderResult>; openAI?: typeof researchCompany };
+export type ResearchExecutorOptions = { estimatedCosts?: Partial<Record<ProviderAllowance, number>>; now?: () => string; googlePlaces?: typeof searchGooglePlaces; googlePlaceDetails?: typeof getGooglePlaceDetails; googlePlacesEvidenceStore?: GooglePlacesEvidenceStore; onGooglePlacesCallTelemetry?: (telemetry: GooglePlacesCallTelemetry) => void | Promise<void>; companiesHouse?: typeof searchCompaniesHouse; publicWeb?: (input: { request: ResearchRequest; context: ResearchContext }) => Promise<ProviderResult>; openAI?: typeof researchCompany };
 export type SourceDiscoveryExecutorOptions = { fetchImpl?: FetchLike; resolveHost?: ResolveHost; now?: () => string };
 
 export interface NexusResultStore { get(key: string): Promise<Record<string, unknown> | null>; set(key: string, result: Record<string, unknown>): Promise<void>; }
@@ -30,20 +31,30 @@ function usageCost(provider: ProviderAllowance, options: ResearchExecutorOptions
 function canSpend(provider: ProviderAllowance, request: ResearchRequest, options: ResearchExecutorOptions, spent: number) { const estimate = options.estimatedCosts?.[provider]; return typeof estimate !== "number" || spent + estimate <= request.costCeiling.amount; }
 function notAllowed(provider: ProviderAllowance, purpose: string): ProviderResult { return { provider, purpose, facts: [], evidence: [], unknowns: [`${provider} is not allowed for this request.`], conflicts: [], cost: null }; }
 
+// One evidence store per research execution, seeded from the shared evidence Event-project supplied,
+// so the Details path and the public-web seed path never pay for the same Place ID twice.
+export function googlePlacesEvidenceStoreFor(context: ResearchContext, options: ResearchExecutorOptions): GooglePlacesEvidenceStore {
+  return options.googlePlacesEvidenceStore ?? createInMemoryGooglePlacesEvidenceStore(context.googlePlacesEvidence ? [context.googlePlacesEvidence] : [], () => nowOf(options));
+}
+
 async function runGoogleDetails(request: ResearchRequest, context: ResearchContext, options: ResearchExecutorOptions, placeId: string): Promise<ProviderResult> {
   const purpose = request.researchPurpose;
   const name = targetName(request, context);
   if (!name) return { provider: "GOOGLE_PLACES", purpose, facts: [], evidence: [], unknowns: ["Exact Place Details requires an evidenced target name."], conflicts: [], cost: null };
   const unclassified = request.subject.entityType === "UNKNOWN";
   const input: GooglePlacesDetailsInput = { googlePlaceId: placeId, targetName: name, targetWebsite: context.targetWebsite ?? null, locality: context.locality ?? null, lane: unclassified ? "EXACT_ID" : request.subject.entityType === "ORGANISATION" ? "ORGANISATION_FIRST" : "VENUE_FIRST", targetType: unclassified ? "UNCLASSIFIED" : request.subject.entityType === "ORGANISATION" ? "ORGANISATION" : "VENUE", limit: 1 };
+  const evidenceStore = context.googlePlacesEvidenceStore ?? googlePlacesEvidenceStoreFor(context, options);
+  let calls: number | null = null;
+  const usage = (callCount: number) => { const cost = callCount > 0 ? usageCost("GOOGLE_PLACES", options) : null; return { cost, providerUsage: [{ provider: "GOOGLE_PLACES" as const, callCount, purpose, cost }] }; };
   try {
-    const details = await (options.googlePlaceDetails ?? getGooglePlaceDetails)(input, { mode: "details_selected" });
+    const details = await (options.googlePlaceDetails ?? getGooglePlaceDetails)(input, { mode: "details_selected", evidenceStore, requestingApplication: request.originatingProduct, workflow: `nexus_research:${purpose}`, now: options.now, onCallTelemetry: async (telemetry) => { calls = (calls ?? 0) + telemetry.googleCalls; await options.onGooglePlacesCallTelemetry?.(telemetry); } });
+    const callCount = details.googleCalls ?? calls ?? 1;
     const item = details.result;
-    if (!item) return { provider: "GOOGLE_PLACES", purpose, facts: [], evidence: [], unknowns: ["Google Place Details returned no provider evidence for the retained Place ID."], conflicts: [], cost: usageCost("GOOGLE_PLACES", options) };
+    if (!item) return { provider: "GOOGLE_PLACES", purpose, facts: [], evidence: [], unknowns: ["Google Place Details returned no provider evidence for the retained Place ID."], conflicts: [], ...usage(callCount) };
     const observedAt = nowOf(options);
     const ref = evidenceRef(request, "GOOGLE_PLACES", item.googlePlaceId);
-    return { provider: "GOOGLE_PLACES", purpose, facts: googleFacts(request, item, ref, observedAt), evidence: [baseEvidence(request, "GOOGLE_PLACES", item.googlePlaceId, item.sourceUrl, { ...item, providerTypesAreNotCanonical: true }, observedAt)], unknowns: [], conflicts: [], cost: usageCost("GOOGLE_PLACES", options) };
-  } catch (error) { return { provider: "GOOGLE_PLACES", purpose, facts: [], evidence: [], unknowns: ["Google Place Details could not safely return provider evidence."], conflicts: [], cost: usageCost("GOOGLE_PLACES", options), error: { code: "GOOGLE_PLACES_UNAVAILABLE", message: error instanceof Error ? error.message : "Provider failed safely.", retryable: true } }; }
+    return { provider: "GOOGLE_PLACES", purpose, facts: googleFacts(request, item, ref, observedAt), evidence: [baseEvidence(request, "GOOGLE_PLACES", item.googlePlaceId, item.sourceUrl, { ...item, providerTypesAreNotCanonical: true, ...(details.evidence ? { googlePlacesEvidence: details.evidence } : {}) }, observedAt)], unknowns: [], conflicts: [], ...usage(callCount) };
+  } catch (error) { return { provider: "GOOGLE_PLACES", purpose, facts: [], evidence: [], unknowns: ["Google Place Details could not safely return provider evidence."], conflicts: [], ...usage(calls ?? 1), error: { code: "GOOGLE_PLACES_UNAVAILABLE", message: error instanceof Error ? error.message : "Provider failed safely.", retryable: true } }; }
 }
 
 async function runGoogle(request: ResearchRequest, context: ResearchContext, options: ResearchExecutorOptions): Promise<ProviderResult> {
@@ -94,8 +105,9 @@ export function sourceDiscoveryReplayable(result: Record<string, unknown> | null
   return false;
 }
 
-export async function executeResearchRequest(input: unknown, context: ResearchContext = {}, options: ResearchExecutorOptions = {}, store: NexusResultStore = new InMemoryNexusResultStore()) {
+export async function executeResearchRequest(input: unknown, suppliedContext: ResearchContext = {}, options: ResearchExecutorOptions = {}, store: NexusResultStore = new InMemoryNexusResultStore()) {
   const request = validateResearchRequest(input); const prior = await store.get(request.idempotencyKey); if (prior && !retryableProviderFailure(prior)) return prior;
+  const context: ResearchContext = { ...suppliedContext, googlePlacesEvidenceStore: suppliedContext.googlePlacesEvidenceStore ?? googlePlacesEvidenceStoreFor(suppliedContext, options) };
   const now = nowOf(options); const facts: ProposedFact[] = []; const evidence: ProviderResult["evidence"] = []; const unknowns: string[] = []; const conflicts: Array<Record<string, unknown>> = []; const errors: Array<{ code: string; message: string; retryable: boolean }> = []; const usage: Array<{ provider: ProviderAllowance; callCount: number; purpose: string; cost: Cost }> = []; let spent = 0; const allowed = new Set(request.providerAllowances); const run = async (provider: ProviderAllowance, operation: () => Promise<ProviderResult>) => { if (!allowed.has(provider)) { unknowns.push(`${provider} is not allowed for this request.`); return; } if (!canSpend(provider, request, options, spent)) { unknowns.push(`The ${provider} execution was skipped because its projected cost exceeds the request ceiling.`); errors.push({ code: "COST_CEILING_EXCEEDED", message: `${provider} was not called because its projected bounded execution exceeds the request cost ceiling.`, retryable: false }); return; } const result = await operation(); const resultUsage = result.providerUsage ?? [{ provider, callCount: 1, purpose: result.purpose, cost: result.cost }]; for (const item of resultUsage) { const cost = item.cost ? { ...item.cost, currency: request.costCeiling.currency } : null; usage.push({ ...item, cost }); if (cost) spent += cost.amount; } facts.push(...result.facts); evidence.push(...result.evidence); unknowns.push(...result.unknowns); conflicts.push(...result.conflicts); if (result.error) errors.push(result.error); };
   const purpose = request.researchPurpose;
   const placeId = retainedPlaceId(context);
