@@ -7,8 +7,10 @@ export const CONTRACTS = Object.freeze({
   RESEARCH_RESULT: "nexus.research-result.v1",
   SOURCE_DISCOVERY_REQUEST: "nexus.source-discovery-request.v1",
   SOURCE_DISCOVERY_RESULT: "nexus.source-discovery-result.v1",
-  OFFICIAL_WEBSITE_DISCOVERY_REQUEST: "nexus.official-website-discovery-request.v1",
-  OFFICIAL_WEBSITE_DISCOVERY_RESULT: "nexus.official-website-discovery-result.v1",
+  // AIRE-internal stage contracts. Not exposed on the cross-product Nexus route until locked
+  // in the canonical Prestige-Nexus contract registry.
+  OFFICIAL_WEBSITE_DISCOVERY_REQUEST: "aire.official-website-discovery-request.v1",
+  OFFICIAL_WEBSITE_DISCOVERY_RESULT: "aire.official-website-discovery-result.v1",
 });
 
 export const ENTITY_TYPES = ["ORGANISATION", "PLACE", "VENUE", "EVENT", "CREATIVE_ENTITY", "UNKNOWN"] as const;

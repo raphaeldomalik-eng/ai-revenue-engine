@@ -335,21 +335,14 @@ test("results replay idempotently while retryable dispositions are re-attempted"
   assert.deepEqual(replay, first);
 });
 
-test("the signed route stays behind the research gate and has no search provider by default", async () => {
+test("the AIRE-internal stage contract is not exposed on the cross-product Nexus route", async () => {
   const secret = "test-secret";
-  const signed = () => {
-    const timestamp = String(Math.floor(Date.parse(NOW) / 1000));
-    const envelope = buildNexusEnvelope(discoveryRequest(), secret, timestamp);
-    return new Request("https://preview.example/api/integrations/nexus/execute", { method: "POST", headers: { "content-type": "application/json", "x-nexus-timestamp": timestamp, "x-nexus-signature": envelope.signature }, body: envelope.body });
-  };
-  const base = { secret, store: new InMemoryNexusResultStore(), now: () => Date.parse(NOW) };
-  const closed = await handleNexusExecuteRequest(signed(), { ...base, allowResearch: false });
-  assert.equal(closed.status, 404);
-  const open = await handleNexusExecuteRequest(signed(), { ...base, allowResearch: true });
-  assert.equal(open.status, 200);
-  const body = await open.json() as any;
-  assert.equal(body.status, "SEARCH_PROVIDER_UNAVAILABLE");
-  assert.equal(body.googlePlacesCalls, 0);
+  const timestamp = String(Math.floor(Date.parse(NOW) / 1000));
+  const envelope = buildNexusEnvelope(discoveryRequest(), secret, timestamp);
+  const request = new Request("https://preview.example/api/integrations/nexus/execute", { method: "POST", headers: { "content-type": "application/json", "x-nexus-timestamp": timestamp, "x-nexus-signature": envelope.signature }, body: envelope.body });
+  const response = await handleNexusExecuteRequest(request, { secret, store: new InMemoryNexusResultStore(), now: () => Date.parse(NOW), allowResearch: true });
+  assert.equal(response.status, 422);
+  assert.equal((await response.json() as any).code, "NEXUS_CONTRACT_UNSUPPORTED");
 });
 
 test("candidate host filter classifies prohibited sources", () => {
