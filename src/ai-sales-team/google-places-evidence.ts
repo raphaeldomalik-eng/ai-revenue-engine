@@ -42,6 +42,15 @@ export const GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS = [...GOOGLE_PLACES_PRO_CLA
 export const GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK = GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS.join(",");
 const APPROVED_DETAILS_FIELDS: ReadonlySet<string> = new Set(GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS);
 
+// Pro classification is the fail-safe default. Enterprise exists only to acquire an official website for a
+// Place that has already passed venue eligibility; nothing upgrades a Pro request to Enterprise implicitly.
+export const GOOGLE_PLACES_DETAILS_PURPOSES = ["VENUE_IDENTITY", "OFFICIAL_WEBSITE"] as const;
+export type GooglePlacesDetailsPurpose = typeof GOOGLE_PLACES_DETAILS_PURPOSES[number];
+export type GooglePlacesDetailsAuthorization =
+  | { purpose: "VENUE_IDENTITY" }
+  | { purpose: "OFFICIAL_WEBSITE"; venueEligible: true; eligibilityRef: string };
+export const GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION: GooglePlacesDetailsAuthorization = Object.freeze({ purpose: "VENUE_IDENTITY" });
+
 export type GooglePlacesMaskClassification = {
   endpoint: GooglePlacesEndpoint;
   fields: string[];
@@ -97,6 +106,19 @@ export function assertApprovedGooglePlacesDetailsFields(fields: string | readonl
   if (list.length === 0) throw new Error("GOOGLE_PLACES_FIELD_MASK_EMPTY");
   for (const field of list) if (!APPROVED_DETAILS_FIELDS.has(field)) throw new Error(`GOOGLE_PLACES_FIELD_NOT_APPROVED:${field}`);
   return list;
+}
+
+export function assertGooglePlacesDetailsAuthorized(fields: string | readonly string[], authorization: GooglePlacesDetailsAuthorization = GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION): string[] {
+  const list = assertApprovedGooglePlacesDetailsFields(fields);
+  if (TIER_RANK[classifyGooglePlacesFieldMask(list).tier] < TIER_RANK.ENTERPRISE) return list;
+  if (authorization?.purpose !== "OFFICIAL_WEBSITE") throw new Error("GOOGLE_PLACES_ENTERPRISE_REQUIRES_OFFICIAL_WEBSITE_PURPOSE");
+  if (authorization.venueEligible !== true || typeof authorization.eligibilityRef !== "string" || !authorization.eligibilityRef.trim()) throw new Error("GOOGLE_PLACES_ENTERPRISE_REQUIRES_VENUE_ELIGIBILITY");
+  return list;
+}
+
+export function googlePlacesDetailsFieldsFor(authorization: GooglePlacesDetailsAuthorization = GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION): string[] {
+  const fields = authorization?.purpose === "OFFICIAL_WEBSITE" ? GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS : GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS;
+  return assertGooglePlacesDetailsAuthorized(fields, authorization);
 }
 
 export type GooglePlacesFieldObservation = { observedAt: string; expiresAt: string; tier: GooglePlacesBillingTier; requestId: string };
@@ -360,6 +382,7 @@ async function serialisePerPlace<T>(store: GooglePlacesEvidenceStore | null, pro
 export async function resolveGooglePlaceDetailsWithEvidence(input: {
   providerPlaceId: string;
   requestedFields: string | readonly string[];
+  authorization?: GooglePlacesDetailsAuthorization;
   store: GooglePlacesEvidenceStore | null;
   requestingApplication: string;
   workflow: string;
@@ -370,6 +393,7 @@ export async function resolveGooglePlaceDetailsWithEvidence(input: {
 }): Promise<GooglePlacesEvidenceResolution> {
   const providerPlaceId = input.providerPlaceId.trim();
   if (!providerPlaceId) throw new Error("GOOGLE_PLACES_PLACE_ID_REQUIRED");
+  assertGooglePlacesDetailsAuthorized(input.requestedFields, input.authorization);
   const now = input.now ?? (() => new Date().toISOString());
   return serialisePerPlace(input.store, providerPlaceId, async () => {
     const record = input.store ? await input.store.get(providerPlaceId) : null;

@@ -26,6 +26,9 @@ const request = (purpose: ResearchRequest["researchPurpose"] = "OFFICIAL_WEBSITE
   createdAt: "2026-09-21T00:00:00Z",
 }) as unknown as ResearchRequest;
 
+const eligibleRequest = () => ({ ...request(), subject: { ...request().subject, canonicalEntityId: "44444444-4444-4444-8444-444444444444" } }) as unknown as ResearchRequest;
+const ELIGIBLE_FACT = { fieldName: "resourcesVenueEligibility", value: "ELIGIBLE", evidenceRef: "classification:venue" };
+
 const resolver = async () => [{ address: "93.184.216.34", family: 4 }];
 function fetchSite(body: string, options: { redirect?: ResponseInit } = {}) {
   return async (input: RequestInfo | URL) => String(input).endsWith("/robots.txt")
@@ -68,10 +71,10 @@ test("PUBLIC_WEB acquires a seed with Place Details and verifies it before promo
     },
   });
   const result = await provider({
-    request: request(),
+    request: eligibleRequest(),
     context: {
       targetName: "Example Venue", locality: "London",
-      existingFacts: [{ fieldName: "placeId", value: "places/example", evidenceRef: "place:example" }],
+      existingFacts: [{ fieldName: "placeId", value: "places/example", evidenceRef: "place:example" }, ELIGIBLE_FACT],
     },
   });
   assert.deepEqual(detailCalls, [{ googlePlaceId: "places/example", mode: "details_selected" }]);
@@ -101,10 +104,10 @@ test("PUBLIC_WEB upgrades an HTTP Place website and keeps place evidence when th
     }),
   });
   const result = await provider({
-    request: request(),
+    request: eligibleRequest(),
     context: {
       targetName: "Endlovini Community Hall", locality: "Cape Town",
-      existingFacts: [{ fieldName: "google_place_id", value: "places/hall", evidenceRef: "place:hall" }],
+      existingFacts: [{ fieldName: "google_place_id", value: "places/hall", evidenceRef: "place:hall" }, ELIGIBLE_FACT],
     },
   });
   assert.equal(seen.some((url) => url.startsWith("https://www.capetown.gov.za")), true);

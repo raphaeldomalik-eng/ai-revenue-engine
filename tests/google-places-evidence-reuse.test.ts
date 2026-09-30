@@ -12,7 +12,10 @@ import {
   planGooglePlaceDetailsFetch,
   validateGooglePlacesEvidenceRecord,
   type GooglePlacesCallTelemetry,
+  type GooglePlacesDetailsAuthorization,
 } from "../src/ai-sales-team/google-places-evidence.ts";
+
+const WEBSITE: GooglePlacesDetailsAuthorization = { purpose: "OFFICIAL_WEBSITE", venueEligible: true, eligibilityRef: "test:venue-eligible" };
 import { executeResearchRequest } from "../src/nexus/executor.ts";
 
 // Any attempt to reach real Google fails the suite.
@@ -90,7 +93,7 @@ test("single-pass reuse: Pro, subset, Enterprise, repeat, later Pro", async (t) 
 
   await t.test("4 Enterprise required after Pro → exactly 1 Enterprise call", async () => {
     clock += 60_000;
-    const run = await details("venue-a", ["id", "displayName", "websiteUri"], options);
+    const run = await details("venue-a", ["id", "displayName", "websiteUri"], { ...options, detailsAuthorization: WEBSITE });
     assert.equal(calls.length, 2);
     assert.equal(run.googleCalls, 1);
     assert.equal(telemetry.at(-1)?.billingTier, "ENTERPRISE");
@@ -106,7 +109,7 @@ test("single-pass reuse: Pro, subset, Enterprise, repeat, later Pro", async (t) 
 
   await t.test("6 Enterprise rerun → 0 calls", async () => {
     clock += 60_000;
-    const run = await details("venue-a", ["websiteUri", "internationalPhoneNumber"], options);
+    const run = await details("venue-a", ["websiteUri", "internationalPhoneNumber"], { ...options, detailsAuthorization: WEBSITE });
     assert.equal(calls.length, 2);
     assert.equal(run.googleCalls, 0);
   });
@@ -140,7 +143,7 @@ test("single-pass reuse: Pro, subset, Enterprise, repeat, later Pro", async (t) 
 test("known-empty Enterprise fields count as obtained (no repeat Enterprise call)", async () => {
   const calls: Call[] = [];
   const store = createInMemoryGooglePlacesEvidenceStore([], now);
-  const options: GooglePlacesOptions = { fetchImpl: mockGoogle(calls), evidenceStore: store };
+  const options: GooglePlacesOptions = { fetchImpl: mockGoogle(calls), evidenceStore: store, detailsAuthorization: WEBSITE };
   await details("venue-b", ["id", "internationalPhoneNumber"], options);
   const second = await details("venue-b", ["id", "internationalPhoneNumber"], options);
   assert.equal(calls.length, 1);
@@ -160,10 +163,10 @@ test("concurrent requests for one Place ID make a single call", async () => {
 test("8 known Place ID bypasses Text Search and reuses shared evidence via the Nexus contract", async () => {
   const calls: Call[] = [];
   const proRecord = mergeGooglePlacesEvidence({ record: null, providerPlaceId: "venue-a", fetchFields: GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS, response: PLACE_DATA["venue-a"], observedAt: now(), requestingApplication: "event_suite_resources", workflow: "resources_census_hydration", statusCode: 200 });
-  const request = (idempotencyKey: string, evidence: unknown) => ({
+  const request = (idempotencyKey: string, evidence: unknown, researchPurpose = "OFFICIAL_WEBSITE") => ({
     contractVersion: "nexus.research-request.v1", requestId: "11111111-1111-4111-8111-111111111111", idempotencyKey, correlationId: "33333333-3333-4333-8333-333333333333", originatingProduct: "event_suite_resources",
-    subject: { canonicalEntityId: null, candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: "cand-1" }, entityType: "VENUE" }, researchPurpose: "VENUE_IDENTITY", requestedFactTypes: ["placeId"], providerAllowances: ["GOOGLE_PLACES"], costCeiling: { currency: "USD", amount: 1 }, freshnessRequirements: { maxAgeHours: 720 }, existingEvidenceRefs: [],
-    researchContext: { targetName: "Grand Hall", locality: "Cape Town", existingFacts: [{ fieldName: "placeId", value: "venue-a" }], googlePlacesEvidence: evidence },
+    subject: { canonicalEntityId: "44444444-4444-4444-8444-444444444444", candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: "cand-1" }, entityType: "VENUE" }, researchPurpose, requestedFactTypes: ["placeId"], providerAllowances: ["GOOGLE_PLACES"], costCeiling: { currency: "USD", amount: 1 }, freshnessRequirements: { maxAgeHours: 720 }, existingEvidenceRefs: [],
+    researchContext: { targetName: "Grand Hall", locality: "Cape Town", existingFacts: [{ fieldName: "placeId", value: "venue-a" }, { fieldName: "resourcesVenueEligibility", value: "ELIGIBLE", evidenceRef: "classification:venue-a" }], googlePlacesEvidence: evidence },
     requestedBy: { actorType: "PRODUCT", actorId: "event_suite_resources" }, createdAt: now(),
   });
   const executorOptions = {
@@ -172,10 +175,14 @@ test("8 known Place ID bypasses Text Search and reuses shared evidence via the N
     googlePlaceDetails: ((detailsInput, detailsOptions) => getGooglePlaceDetails(detailsInput, { ...detailsOptions, apiKey: "test-key", fetchImpl: mockGoogle(calls) })) as typeof getGooglePlaceDetails,
   };
   const { validateResearchRequest } = await import("../src/nexus/contracts.ts");
+  const identity = validateResearchRequest(request("22222222-2222-4222-8222-222222222220", proRecord, "VENUE_IDENTITY"));
+  const identityResult = await executeResearchRequest(identity, identity.researchContext, executorOptions) as Record<string, any>;
+  assert.equal(calls.length, 0, "identity research reuses fresh Pro evidence and never upgrades to Enterprise");
+  assert.equal(identityResult.providerUsage[0].callCount, 0);
   const first = validateResearchRequest(request("22222222-2222-4222-8222-222222222221", proRecord));
   const firstResult = await executeResearchRequest(first, first.researchContext, executorOptions) as Record<string, any>;
   assert.equal(calls.filter((call) => call.url.includes(":searchText")).length, 0);
-  assert.equal(calls.length, 1, "Pro census evidence exists; exactly one Enterprise call fills the website");
+  assert.equal(calls.length, 1, "Pro census evidence exists; exactly one Enterprise call fills the website for an eligible venue");
   assert.equal(classifyGooglePlacesFieldMask(calls[0].fieldMask).tier, "ENTERPRISE");
   assert.equal(firstResult.providerUsage[0].callCount, 1);
   const returned = validateGooglePlacesEvidenceRecord(firstResult.evidence[0].payload.googlePlacesEvidence);
@@ -229,7 +236,7 @@ test("September incident pattern: census Pro, later Enterprise enrichment, repea
   const ids = ["venue-a", "venue-b"];
   const pass = async (options: GooglePlacesOptions) => {
     for (const id of ids) await details(id, GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS, { ...options, workflow: "resources_census_hydration" });
-    for (const id of ids) await details(id, GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK.split(","), { ...options, workflow: "nexus_research:VENUE_IDENTITY" });
+    for (const id of ids) await details(id, GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK.split(","), { ...options, workflow: "nexus_research:OFFICIAL_WEBSITE", detailsAuthorization: WEBSITE });
     for (const id of ids) await details(id, GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS, { ...options, workflow: "resources_census_hydration" });
   };
   const before: Call[] = [];
