@@ -26,7 +26,7 @@ const request = (purpose: ResearchRequest["researchPurpose"] = "OFFICIAL_WEBSITE
   createdAt: "2026-09-21T00:00:00Z",
 }) as unknown as ResearchRequest;
 
-const eligibleRequest = () => ({ ...request(), subject: { ...request().subject, canonicalEntityId: "44444444-4444-4444-8444-444444444444" } }) as unknown as ResearchRequest;
+const eligibleRequest = () => ({ ...request(), providerAllowances: ["PUBLIC_WEB", "GOOGLE_PLACES"], subject: { ...request().subject, canonicalEntityId: "44444444-4444-4444-8444-444444444444" } }) as unknown as ResearchRequest;
 const ELIGIBLE_FACT = { fieldName: "resourcesVenueEligibility", value: "ELIGIBLE", evidenceRef: "classification:venue" };
 
 const resolver = async () => [{ address: "93.184.216.34", family: 4 }];

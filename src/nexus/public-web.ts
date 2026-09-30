@@ -66,7 +66,7 @@ function nameMatches(target: string, candidate: string) {
 }
 function tokenOverlap(left: string, right: string) { const rightTokens = tokens(right); return [...tokens(left)].filter((token) => rightTokens.has(token)); }
 function hostOf(value: string) { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); }
-function isSocialUrl(value: string) {
+export function isSocialUrl(value: string) {
   const host = hostOf(value);
   return [...SOCIAL_HOSTS].some((socialHost) => host === socialHost || host.endsWith(`.${socialHost}`));
 }
@@ -97,14 +97,17 @@ function bounded(value: unknown, max = 2048): unknown {
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).slice(0, 20).map(([key, item]) => [key, bounded(item, 512)]));
   return value;
 }
-function businessEmail(value: string) {
+export function businessEmail(value: string) {
   const [mailbox, domain] = value.toLowerCase().split("@");
   return Boolean(mailbox && domain && BUSINESS_MAILBOXES.has(mailbox) && domain.includes("."));
 }
 
 function verifyIdentity(request: ResearchRequest, context: ResearchContext, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
-  const name = targetName(request, context);
-  if (!name) return { verified: false, path: null, signals: [] as string[] };
+  return verifyFirstPartyIdentity(targetName(request, context), context, identityFacts);
+}
+
+export function verifyFirstPartyIdentity(name: string | null, context: Pick<ResearchContext, "locality" | "existingFacts">, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
+  if (!name) return { verified: false, path: null, signals: [] as string[], nameSignal: false, locationSignal: false };
   const values = identityFacts.filter((item) => ["siteName", "explicitVenueName"].includes(item.fieldName)).map((item) => text(item.value)).filter((item): item is string => Boolean(item));
   const nameSignal = values.some((value) => nameMatches(name, value));
 
@@ -124,7 +127,7 @@ function verifyIdentity(request: ResearchRequest, context: ResearchContext, iden
       && context.existingFacts?.some((item) => item.fieldName === "placeName" && nameMatches(name, text(item.value) ?? "")),
   );
   if (nameSignal && (!locationRequired || locationSignal) && (locationSignal || (hasTitle && hasHeading) || existingPlaceEvidence)) {
-    return { verified: true, path: "DIRECT" as const, signals: ["direct venue name", ...(locationSignal ? ["location alignment"] : []), ...(existingPlaceEvidence ? ["known Place identity"] : [])] };
+    return { verified: true, path: "DIRECT" as const, signals: ["direct venue name", ...(locationSignal ? ["location alignment"] : []), ...(existingPlaceEvidence ? ["known Place identity"] : [])], nameSignal, locationSignal };
   }
 
   const siteNames = identityFacts.filter((item) => item.fieldName === "siteName").map((item) => text(item.value)).filter((item): item is string => Boolean(item));
@@ -138,9 +141,9 @@ function verifyIdentity(request: ResearchRequest, context: ResearchContext, iden
     try { return Boolean(item.sourceUrl && new URL(item.sourceUrl).pathname !== "/"); } catch { return false; }
   });
   if (existingPlaceEvidence && organisationSignal && facilitySignal && relationshipPageSignal && locationSignal) {
-    return { verified: true, path: "FACILITY_OPERATOR" as const, signals: ["known Place identity", "first-party organisation alignment", "explicit facility relationship", "linked facility page", "location alignment"] };
+    return { verified: true, path: "FACILITY_OPERATOR" as const, signals: ["known Place identity", "first-party organisation alignment", "explicit facility relationship", "linked facility page", "location alignment"], nameSignal, locationSignal };
   }
-  return { verified: false, path: null, signals: [] as string[] };
+  return { verified: false, path: null, signals: [] as string[], nameSignal: nameSignal || (organisationSignal && facilitySignal), locationSignal };
 }
 
 function unresolved(request: ResearchRequest, purpose: string, message: string, options: { error?: ProviderResult["error"]; evidence?: ProviderResult["evidence"]; facts?: ProviderResult["facts"]; providerUsage?: ProviderResult["providerUsage"] } = {}): ProviderResult {
@@ -182,6 +185,9 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
     const seedEvidence: ProviderResult["evidence"] = [];
     let seededPlaceFacts: ProviderResult["facts"] = [];
     const providerUsage: NonNullable<ProviderResult["providerUsage"]> = [];
+    if (!website && !request.providerAllowances.includes("GOOGLE_PLACES")) {
+      return unresolved(request, purpose, "No evidenced public first-party HTTPS website was held. A Place ID is identity context only; Google Places is not authorised for this request, so no website seed was fetched.");
+    }
     if (!website) {
       const placeId = evidencedPlaceId(context);
       const input = placeId ? detailsInput(request, context, placeId) : null;
