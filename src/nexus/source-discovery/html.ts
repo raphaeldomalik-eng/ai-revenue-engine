@@ -50,6 +50,15 @@ export function visibleText(html: string): string {
   ).trim();
 }
 
+/** Navigation anchors only. Script, style, template, and comment copies are not fetchable links. */
+export function documentNavigationHtml(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<template\b[^>]*>[\s\S]*?<\/template>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ");
+}
+
 export function hrefTags(html: string): HtmlTag[] {
-  return tags(html, "a");
+  return tags(documentNavigationHtml(html), "a");
 }

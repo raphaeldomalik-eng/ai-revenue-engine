@@ -103,10 +103,17 @@ export function isPublicHttpsUrl(value: string | null | undefined): boolean {
   }
 }
 
+/** Quote and backslash artefacts come from script-escaped markup, not from a navigable href. */
+export function isArtefactHref(value: string): boolean {
+  return /["'\\]/.test(value) || /%(?:22|27|5c)/i.test(value);
+}
+
 export function canonicalHttpsUrl(value: string, base?: string): string | null {
   try {
+    if (isArtefactHref(value)) return null;
     const url = base ? new URL(value, base) : new URL(value);
     url.hash = "";
+    if (isArtefactHref(url.pathname) || isArtefactHref(url.href)) return null;
     return isPublicHttpsUrl(url.toString()) ? url.toString() : null;
   } catch {
     return null;
