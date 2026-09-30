@@ -210,3 +210,40 @@ test("a previous source-discovery generation is not replayed", async () => {
   assert.notEqual(recovered, failed);
   assert.equal(await store.get(failedKey), failed);
 });
+
+test("an unversioned completed result is not replayed into a venue-email acquisition", async () => {
+  const store = new InMemoryNexusResultStore();
+  const idempotencyKey = "22222222-2222-4222-8222-22222222222c";
+  const legacy = { crawl: { status: "COMPLETED", retryable: false, pageCount: 1, warnings: [] }, idempotencyKey, publicContacts: [] };
+  await store.set(idempotencyKey, legacy);
+  const { fetchImpl, requested } = site({
+    "/": html('<a href="mailto:info@venue.example">info@venue.example</a>'),
+  });
+  const result = await executeSourceDiscoveryRequest(request({
+    idempotencyKey,
+    discoveryRequestId: "44444444-4444-4444-8444-444444444443",
+  }), { resolveHost: publicResolver, fetchImpl }, store) as any;
+  assert.equal(requested.length > 0, true);
+  assert.notEqual(result, legacy);
+  assert.equal(result.crawl.emailOutcome, "EMAIL_FOUND");
+  assert.equal(await store.get(idempotencyKey), legacy);
+
+  const kept = new InMemoryNexusResultStore();
+  const otherKey = "22222222-2222-4222-8222-22222222222d";
+  const otherLegacy = { crawl: { status: "COMPLETED", retryable: false }, idempotencyKey: otherKey };
+  await kept.set(otherKey, otherLegacy);
+  let calls = 0;
+  const replayed = await executeSourceDiscoveryRequest(request({
+    originatingProduct: "last_train_home",
+    idempotencyKey: otherKey,
+    discoveryRequestId: "44444444-4444-4444-8444-444444444444",
+    subjectReference: { canonicalEntityId: null, candidateReference: { sourceSystem: "last_train_home", sourceRecordId: "Example Venue" }, entityType: "VENUE" },
+    requestedExtractors: ["IDENTITY"],
+  }), {
+    resolveHost: publicResolver,
+    fetchImpl: async () => { calls += 1; return html("<h1>Example Venue</h1>"); },
+  }, kept);
+  assert.equal(replayed, otherLegacy);
+  assert.equal(calls, 0);
+  assert.equal(await kept.get(otherKey), otherLegacy);
+});

@@ -138,14 +138,15 @@ export function boundCrawlWarnings(warnings: string[]) {
 }
 export async function executeSourceDiscoveryRequest(input: unknown, options: SourceDiscoveryExecutorOptions = {}, store: NexusResultStore = new InMemoryNexusResultStore()) {
   const request = validateSourceDiscoveryRequest(input);
+  const emailGoal = venueEmailAcquisitionRequested(request);
   const versionedKey = sourceDiscoveryExecutionKey(request.idempotencyKey);
   const versioned = await store.get(versionedKey);
   if (sourceDiscoveryReplayable(versioned)) return versioned;
-  if (!versioned) {
+  // v1 stored the client idempotency key with no email outcome. An email acquisition must not reuse it.
+  if (!emailGoal && !versioned) {
     const legacy = await store.get(request.idempotencyKey);
     if (legacy && sourceDiscoveryReplayable(legacy)) return legacy;
   }
-  const emailGoal = venueEmailAcquisitionRequested(request);
   const requestedExtractors = emailGoal && !request.requestedExtractors.includes("PUBLIC_CONTACT")
     ? [...request.requestedExtractors, "PUBLIC_CONTACT" as SourceExtractor]
     : request.requestedExtractors as SourceExtractor[];
