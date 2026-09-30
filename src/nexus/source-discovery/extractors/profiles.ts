@@ -1,4 +1,5 @@
 import type { SourceExtractor } from "../../contracts.ts";
+import { acceptVenueEmail } from "../../venue-email.ts";
 import { calendarFallbackUrl, discoverCalendarUrls, discoverLikelyEventDetailUrls } from "../links.ts";
 import { pathWords, type Dimension, type DocumentObservation, type ExtractorProfile, type ProfileCandidate, type ProfileState } from "../planner.ts";
 import type { SiteIdentity } from "../site-identity.ts";
@@ -14,24 +15,33 @@ const CONTACT_LINK = /\b(?:contact|enquir\w*|inquir\w*|bookings?|book[- ]?(?:now
 const CONTACT_PAGE = /\b(?:contact|enquir\w*|book\w*|hire|get-in-touch)\b/i;
 const DIRECT_PURPOSES = new Set(["SALES_HIRE", "BOOKINGS", "ENQUIRIES"]);
 
-export const publicContactProfile: ExtractorProfile = {
-  extractor: "PUBLIC_CONTACT",
-  dimensions: ["PUBLIC_CONTACT:DIRECT"],
-  priorityDimensions: ["PUBLIC_CONTACT:DIRECT"],
-  strategy: "LINK_FOLLOWING",
-  linkDimensions: (url, label) => (matches(CONTACT_LINK, url, label) ? ["PUBLIC_CONTACT:DIRECT"] : []),
-  linkStrength: (url) => (/contact|hire/i.test(new URL(url).pathname) ? 2 : 1),
-  pdfDimensions: () => null,
-  observe(document, observation, state) {
-    const contactPage = CONTACT_PAGE.test(new URL(document.url).pathname);
-    for (const contact of observation.resources().publicContacts) {
-      if (contact.reviewRequired) continue;
-      if ((contact.type === "EMAIL" || contact.type === "PHONE") && DIRECT_PURPOSES.has(contact.purpose)) state.direct = true;
-      if (contactPage && ["EMAIL", "PHONE", "CONTACT_FORM"].includes(contact.type)) state.direct = true;
-    }
-  },
-  satisfied: (state) => (state.direct ? ["PUBLIC_CONTACT:DIRECT"] : []),
-};
+/** DIRECT stays satisfied by phone or a contact-page form. EMAIL is a separate sufficiency goal. */
+export function publicContactProfile(options: { emailGoal?: boolean; venueName?: string } = {}): ExtractorProfile {
+  const emailGoal = options.emailGoal === true;
+  const dimensions = emailGoal ? ["PUBLIC_CONTACT:DIRECT", "PUBLIC_CONTACT:EMAIL"] : ["PUBLIC_CONTACT:DIRECT"];
+  return {
+    extractor: "PUBLIC_CONTACT",
+    dimensions,
+    priorityDimensions: emailGoal ? ["PUBLIC_CONTACT:EMAIL"] : ["PUBLIC_CONTACT:DIRECT"],
+    strategy: emailGoal ? "GAP_PLANNED" : "LINK_FOLLOWING",
+    linkDimensions: (url, label) => (matches(CONTACT_LINK, url, label) ? dimensions : []),
+    linkStrength: (url) => (/contact|hire/i.test(new URL(url).pathname) ? 2 : 1),
+    pdfDimensions: () => null,
+    observe(document, observation, state) {
+      const contactPage = CONTACT_PAGE.test(new URL(document.url).pathname);
+      for (const contact of observation.resources().publicContacts) {
+        if (contact.reviewRequired) continue;
+        if ((contact.type === "EMAIL" || contact.type === "PHONE") && DIRECT_PURPOSES.has(contact.purpose)) state.direct = true;
+        if (contactPage && ["EMAIL", "PHONE", "CONTACT_FORM"].includes(contact.type)) state.direct = true;
+        if (emailGoal && contact.type === "EMAIL" && acceptVenueEmail(contact.value, document.url, options.venueName ?? "").accepted) state.email = true;
+      }
+    },
+    satisfied: (state) => [
+      ...(state.direct ? ["PUBLIC_CONTACT:DIRECT"] : []),
+      ...(state.email ? ["PUBLIC_CONTACT:EMAIL"] : []),
+    ],
+  };
+}
 
 const VENUE_SIGNALS: Array<[Dimension, RegExp]> = [
   ["VENUE_FACTS:SPACES", /\b(?:spaces?|rooms?|venues?|halls?|suites?|floor[- ]?plans?|function|studios?|theatres?|auditori\w*|hire|weddings?|conferences?|corporate|meetings?|private[- ](?:hire|events?|dining)|parties|celebrations?|exhibitions?|filming)\b/i],
@@ -151,8 +161,8 @@ export const sourceClassificationProfile: ExtractorProfile = {
 };
 
 /** Registry order is also the round-robin order in which open dimensions share the budget. */
-export function profilesFor(extractors: SourceExtractor[], site?: SiteIdentity): ExtractorProfile[] {
-  const registry: ExtractorProfile[] = [publicContactProfile, eventsProfile(site), venueFactsProfile, imageCandidatesProfile, identityProfile, sourceClassificationProfile];
+export function profilesFor(extractors: SourceExtractor[], site?: SiteIdentity, options: { emailGoal?: boolean; venueName?: string } = {}): ExtractorProfile[] {
+  const registry: ExtractorProfile[] = [publicContactProfile(options), eventsProfile(site), venueFactsProfile, imageCandidatesProfile, identityProfile, sourceClassificationProfile];
   return registry.filter((profile) => extractors.includes(profile.extractor));
 }
 

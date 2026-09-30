@@ -80,6 +80,8 @@ export type CrawlObservability = {
   dimensionsSatisfied: Dimension[];
   dimensionsMissing: Dimension[];
   stopReason: CrawlStopReason;
+  /** Contact-page candidates still queued when the crawl stopped. Zero means none remained. */
+  contactPathsRemaining: number;
   finalStatus: CrawlStats["status"];
   subjectType: EntityType;
   extractors: SourceExtractor[];
@@ -128,6 +130,9 @@ export type CrawlInput = {
   freshnessMaxAgeHours?: number;
   renderAdapter?: RenderAdapter;
   renderPolicy?: RenderPolicy;
+  /** When set, PUBLIC_CONTACT:EMAIL stays open until an accepted venue email is evidenced. */
+  emailGoal?: boolean;
+  venueName?: string;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;
 };

@@ -5,6 +5,8 @@ import { createInMemoryGooglePlacesEvidenceStore, type GooglePlacesCallTelemetry
 import { researchCompany } from "../ai-sales-team/research.ts";
 import { CONTRACTS, officialWebsiteDetailsAuthorization, type ProviderAllowance, type ResearchContext as ContractResearchContext, type ResearchRequest, type SourceDiscoveryRequest, type SourceExtractor, validateResearchRequest, validateResearchResult, validateSourceDiscoveryRequest, validateSourceDiscoveryResult } from "./contracts.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type CrawlObservability, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
+import { deriveEmailAcquisitionOutcome } from "./source-discovery/email-outcome.ts";
+import { acceptVenueEmail } from "./venue-email.ts";
 import { crawlLogLine, extractorYields } from "./source-discovery/observability.ts";
 import type { DocumentCache } from "./source-discovery/types.ts";
 
@@ -83,7 +85,12 @@ export function retryableProviderFailure(result: Record<string, unknown> | null)
 // Source discovery has its own execution generation. Research stays on
 // resources-v2-unclassified-evidence-v6. v1 was the unversioned client-key cache,
 // which replayed repairable crawl failures such as the robots.txt HTTP 301 block.
-export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v2";
+export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v3";
+
+/** Resources venue acquisition always searches for an evidenced email. Other callers must ask for VENUE_EMAIL. */
+export function venueEmailAcquisitionRequested(request: { acquisitionGoal?: string | null; originatingProduct: string; subjectReference: { entityType: string } }) {
+  return request.acquisitionGoal === "VENUE_EMAIL" || (request.originatingProduct === "event_suite_resources" && request.subjectReference.entityType === "VENUE");
+}
 
 function versionedUuid(seed: string) {
   const hex = createHash("sha256").update(seed).digest("hex").slice(0, 32).split("");
@@ -131,15 +138,81 @@ export function boundCrawlWarnings(warnings: string[]) {
 }
 export async function executeSourceDiscoveryRequest(input: unknown, options: SourceDiscoveryExecutorOptions = {}, store: NexusResultStore = new InMemoryNexusResultStore()) {
   const request = validateSourceDiscoveryRequest(input);
+  const emailGoal = venueEmailAcquisitionRequested(request);
   const versionedKey = sourceDiscoveryExecutionKey(request.idempotencyKey);
   const versioned = await store.get(versionedKey);
   if (sourceDiscoveryReplayable(versioned)) return versioned;
-  if (!versioned) {
+  // v1 stored the client idempotency key with no email outcome. An email acquisition must not reuse it.
+  if (!emailGoal && !versioned) {
     const legacy = await store.get(request.idempotencyKey);
     if (legacy && sourceDiscoveryReplayable(legacy)) return legacy;
   }
-  const now = nowOf(options); let crawl; try { crawl = await crawlVerifiedSource({ verifiedUrl: request.verifiedSourceUrl, requestedExtractors: request.requestedExtractors as SourceExtractor[], budget: request.crawlBudget as CrawlBudget, subjectType: request.subjectReference.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost, documentCache: options.documentCache, freshnessMaxAgeHours: request.freshnessRequirements.maxAgeHours ?? undefined }); } catch (error) { const result = validateSourceDiscoveryResult({ contractVersion: CONTRACTS.SOURCE_DISCOVERY_RESULT, discoveryRequestId: request.discoveryRequestId, idempotencyKey: request.idempotencyKey, subjectReference: request.subjectReference, source: { verifiedUrl: request.verifiedSourceUrl, finalUrl: request.verifiedSourceUrl, observedAt: now, sourceHash: createHash("sha256").update(request.verifiedSourceUrl).digest("hex") }, crawl: { status: "FAILED", warnings: boundCrawlWarnings([error instanceof Error ? error.message : "Source discovery failed safely."]), requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 1, retryable: true }, identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [] }); await store.set(versionedKey, result); return result; }
-  const extracted = extractFromFetchedDocuments(crawl.documents, request.requestedExtractors); const sourceHash = createHash("sha256").update(crawl.documents.map((document) => `${document.url}:${document.sourceHash}`).join("\n")).digest("hex"); const identityFacts = extracted.identityFacts.map((item) => sourceFact(request, item.fieldName, item.value, item.sourceUrl, item.evidenceRef, now)); const publicContacts = extracted.publicContacts.map((item) => ({ type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired })); const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired })); const warnings = boundCrawlWarnings([...crawl.stats.warnings, ...extracted.warnings]); const crawlStatus = crawl.stats.status === "COMPLETED" && warnings.length ? "PARTIAL" : crawl.stats.status; const result = validateSourceDiscoveryResult({ contractVersion: CONTRACTS.SOURCE_DISCOVERY_RESULT, discoveryRequestId: request.discoveryRequestId, idempotencyKey: request.idempotencyKey, subjectReference: request.subjectReference, source: { verifiedUrl: request.verifiedSourceUrl, finalUrl: crawl.finalUrl, observedAt: now, sourceHash }, crawl: { status: crawlStatus, warnings, requestCount: crawl.stats.requestCount, pageCount: crawl.stats.pageCount, bytesRead: crawl.stats.bytesRead, redirects: crawl.stats.redirects, blockedCount: crawl.stats.blockedCount, retryable: crawlStatus !== "COMPLETED" && crawlStatus !== "PARTIAL" && crawl.stats.failureClass === "RETRYABLE" }, identityFacts, publicContacts, venueFacts, imageCandidates: extracted.imageCandidates.map((item) => ({ ...item, discoveredAt: now })), eventCandidates: extracted.eventCandidates, evidenceRefs: extracted.evidenceRefs }); if (crawl.observability) await reportCrawlObservability({ ...crawl.observability, extractorYields: extractorYields(extracted) }, options); await store.set(versionedKey, result); return result;
+  const requestedExtractors = emailGoal && !request.requestedExtractors.includes("PUBLIC_CONTACT")
+    ? [...request.requestedExtractors, "PUBLIC_CONTACT" as SourceExtractor]
+    : request.requestedExtractors as SourceExtractor[];
+  const venueName = request.venueName ?? "";
+  const now = nowOf(options);
+  let crawl;
+  try {
+    crawl = await crawlVerifiedSource({
+      verifiedUrl: request.verifiedSourceUrl,
+      requestedExtractors,
+      budget: request.crawlBudget as CrawlBudget,
+      subjectType: request.subjectReference.entityType,
+      fetchImpl: options.fetchImpl,
+      resolveHost: options.resolveHost,
+      documentCache: options.documentCache,
+      freshnessMaxAgeHours: request.freshnessRequirements.maxAgeHours ?? undefined,
+      emailGoal,
+      venueName,
+    });
+  } catch (error) {
+    const result = validateSourceDiscoveryResult({
+      contractVersion: CONTRACTS.SOURCE_DISCOVERY_RESULT,
+      discoveryRequestId: request.discoveryRequestId,
+      idempotencyKey: request.idempotencyKey,
+      subjectReference: request.subjectReference,
+      source: { verifiedUrl: request.verifiedSourceUrl, finalUrl: request.verifiedSourceUrl, observedAt: now, sourceHash: createHash("sha256").update(request.verifiedSourceUrl).digest("hex") },
+      crawl: { status: "FAILED", warnings: boundCrawlWarnings([error instanceof Error ? error.message : "Source discovery failed safely."]), requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 1, retryable: true, emailOutcome: emailGoal ? "TRANSIENT_FAILURE" : "EMAIL_NOT_REQUESTED" },
+      identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [], guideEmailReady: false,
+    });
+    await store.set(versionedKey, result);
+    return result;
+  }
+  const extracted = extractFromFetchedDocuments(crawl.documents, requestedExtractors);
+  const sourceHash = createHash("sha256").update(crawl.documents.map((document) => `${document.url}:${document.sourceHash}`).join("\n")).digest("hex");
+  const identityFacts = extracted.identityFacts.map((item) => sourceFact(request, item.fieldName, item.value, item.sourceUrl, item.evidenceRef, now));
+  const publicContacts = extracted.publicContacts.map((item) => ({ type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
+  const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
+  const warnings = boundCrawlWarnings([...crawl.stats.warnings, ...extracted.warnings]);
+  const crawlStatus = crawl.stats.status === "COMPLETED" && warnings.length ? "PARTIAL" : crawl.stats.status;
+  const retryable = crawlStatus !== "COMPLETED" && crawlStatus !== "PARTIAL" && crawl.stats.failureClass === "RETRYABLE";
+  const emailFound = emailGoal && publicContacts.some((contact) => contact.type === "EMAIL" && !contact.reviewRequired && acceptVenueEmail(contact.value, contact.sourceUrl, venueName).accepted);
+  const emailOutcome = deriveEmailAcquisitionOutcome({
+    emailGoal,
+    emailFound,
+    status: crawlStatus,
+    retryable,
+    stopReason: crawl.observability?.stopReason ?? null,
+    renderNeeded: (crawl.observability?.renderNeededButUnavailable.length ?? 0) > 0,
+    contactPathsRemaining: crawl.observability?.contactPathsRemaining ?? 0,
+  });
+  const result = validateSourceDiscoveryResult({
+    contractVersion: CONTRACTS.SOURCE_DISCOVERY_RESULT,
+    discoveryRequestId: request.discoveryRequestId,
+    idempotencyKey: request.idempotencyKey,
+    subjectReference: request.subjectReference,
+    source: { verifiedUrl: request.verifiedSourceUrl, finalUrl: crawl.finalUrl, observedAt: now, sourceHash },
+    crawl: { status: crawlStatus, warnings, requestCount: crawl.stats.requestCount, pageCount: crawl.stats.pageCount, bytesRead: crawl.stats.bytesRead, redirects: crawl.stats.redirects, blockedCount: crawl.stats.blockedCount, retryable, emailOutcome },
+    identityFacts, publicContacts, venueFacts,
+    imageCandidates: extracted.imageCandidates.map((item) => ({ ...item, discoveredAt: now })),
+    eventCandidates: extracted.eventCandidates,
+    evidenceRefs: extracted.evidenceRefs,
+    guideEmailReady: emailFound,
+  });
+  if (crawl.observability) await reportCrawlObservability({ ...crawl.observability, extractorYields: extractorYields(extracted) }, options);
+  await store.set(versionedKey, result);
+  return result;
 }
 
 async function reportCrawlObservability(observability: CrawlObservability, options: SourceDiscoveryExecutorOptions) {

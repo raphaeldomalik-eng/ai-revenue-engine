@@ -1,3 +1,5 @@
+import { gunzipSync, inflateRawSync, inflateSync } from "node:zlib";
+
 export type ContentKind = "HTML" | "PDF" | "CALENDAR" | "XML" | "GZIP" | "TEXT";
 export type ContentDecision = { kind: ContentKind; reason: string } | { kind: null; reason: string };
 
@@ -34,6 +36,49 @@ export function looksBinary(bytes: Uint8Array): boolean {
 
 function leadingText(bytes: Uint8Array) {
   return Buffer.from(bytes.subarray(0, Math.min(bytes.length, 1024))).toString("utf8").replace(/^\uFEFF/, "").trimStart().toLowerCase();
+}
+
+function archiveResource(url: string, contentType: string | null): boolean {
+  const type = mediaType(contentType);
+  let path = url;
+  try { path = new URL(url).pathname; } catch { /* keep the raw value */ }
+  if (/\.(?:gz|tgz|zip|rar|7z|tar)$/i.test(path)) return true;
+  return type === "application/gzip" || type === "application/x-gzip" || type === "application/gzip-compressed" || type === "application/zip" || type === "application/x-zip-compressed";
+}
+
+function textualTransfer(contentType: string | null): boolean {
+  const type = mediaType(contentType);
+  return !type || type.startsWith("text/") || type === "application/xhtml+xml" || type.includes("xml") || type === "application/octet-stream" || type === "application/pdf";
+}
+
+/**
+ * One bounded decode of a transfer-encoded HTML/text body.
+ * Archive resources and application/gzip stay compressed so the classifier still rejects them.
+ */
+export function inflateBoundedDocument(bytes: Uint8Array, contentEncoding: string | null, contentType: string | null, url: string, maxBytes: number): Uint8Array {
+  if (archiveResource(url, contentType)) return bytes;
+  const encoding = (contentEncoding ?? "").toLowerCase();
+  const gzipMagic = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
+  const textual = textualTransfer(contentType);
+  const declaredGzip = encoding.includes("gzip");
+  const declaredDeflate = encoding.includes("deflate") && !encoding.includes("gzip");
+  const sniffGzip = gzipMagic && textual && !encoding.includes("br") && !encoding.includes("zstd");
+  if (!declaredGzip && !declaredDeflate && !sniffGzip) return bytes;
+  if (!textual && !declaredGzip && !declaredDeflate) return bytes;
+  try {
+    const output = declaredDeflate && !gzipMagic ? inflateDeflate(bytes, maxBytes) : gunzipSync(bytes, { maxOutputLength: maxBytes });
+    return new Uint8Array(output);
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    const tooBig = error instanceof RangeError || code === "ERR_BUFFER_TOO_LARGE";
+    throw new Error(tooBig ? "Response exceeded the discovery size limit." : "Compressed document could not be decoded within bounds.");
+  }
+}
+
+function inflateDeflate(bytes: Uint8Array, maxBytes: number): Buffer {
+  try { return inflateSync(bytes, { maxOutputLength: maxBytes }); } catch {
+    return inflateRawSync(bytes, { maxOutputLength: maxBytes });
+  }
 }
 
 /** Classifies by the declared type and the actual body; a declared type the body contradicts is refused. */

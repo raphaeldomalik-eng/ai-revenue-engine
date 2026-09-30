@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SourceExtractor } from "../contracts.ts";
-import { classifyContent, decodeText, refuseByHeaders, TYPE_BYTE_LIMITS, type ContentKind } from "./content.ts";
+import { classifyContent, decodeText, inflateBoundedDocument, refuseByHeaders, TYPE_BYTE_LIMITS, type ContentKind } from "./content.ts";
 import { extractEventsFromDocuments } from "./extractors/events.ts";
 import { createObservation, profilesFor } from "./extractors/profiles.ts";
 import { extractResourcesFromDocuments } from "./extractors/resources.ts";
@@ -353,10 +353,20 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
     }
     if (snapshot.status === 429 || snapshot.status >= 500) throw new CrawlRefusal(`HTTP ${snapshot.status} from ${current}`, "RETRYABLE");
     if (snapshot.status < 200 || snapshot.status >= 300) throw new CrawlRefusal(`HTTP ${snapshot.status} from ${current}`, "TERMINAL");
-    const decision = classifyContent(snapshot.headers.get("content-type"), snapshot.bytes, current, mode.expected);
+    const ceiling = Math.min(ctx.budget.maxBytesPerResponse, typeCeiling);
+    let bytes = snapshot.bytes;
+    try {
+      bytes = inflateBoundedDocument(snapshot.bytes, snapshot.headers.get("content-encoding"), snapshot.headers.get("content-type"), current, ceiling);
+    } catch (error) {
+      throw new ContentSkipped(error instanceof Error ? error.message : "Compressed document could not be decoded within bounds.");
+    }
+    const headers = bytes === snapshot.bytes ? snapshot.headers : new Headers(snapshot.headers);
+    if (bytes !== snapshot.bytes) headers.delete("content-encoding");
+    const decoded = { ...snapshot, bytes, headers };
+    const decision = classifyContent(decoded.headers.get("content-type"), decoded.bytes, current, mode.expected);
     if (!decision.kind) throw new ContentSkipped(decision.reason);
-    if (snapshot.bytes.length > Math.min(ctx.budget.maxBytesPerResponse, TYPE_BYTE_LIMITS[decision.kind])) throw new ContentSkipped(`${decision.kind} body exceeded its size limit.`);
-    return { url: current, snapshot, kind: decision.kind };
+    if (decoded.bytes.length > Math.min(ctx.budget.maxBytesPerResponse, TYPE_BYTE_LIMITS[decision.kind])) throw new ContentSkipped(`${decision.kind} body exceeded its size limit.`);
+    return { url: current, snapshot: decoded, kind: decision.kind };
   }
   throw new CrawlRefusal(`Retries exhausted for ${current}`, "RETRYABLE");
 }
@@ -393,7 +403,7 @@ function emptyObservability(verifiedUrl: string, site: SiteIdentity, args: Crawl
     sitemap: { consulted: false, fetched: [], urlsSeen: 0, candidatesAdded: 0, reason: null },
     mode: gapPlanned(profiles) ? "GAP_PLANNER" : "LINK_FOLLOWING",
     subjectType: args.subjectType ?? "UNKNOWN", extractors: [...args.requestedExtractors],
-    staticPages: 0, renderedPages: 0, renderNeededButUnavailable: [], hydrationPages: 0, pdfDocuments: 0, pdfPagesWithText: 0,
+    staticPages: 0, renderedPages: 0, renderNeededButUnavailable: [], hydrationPages: 0, pdfDocuments: 0, pdfPagesWithText: 0, contactPathsRemaining: 0,
     requests: 0, bytes: 0, redirects: 0, retries: 0, retryAfterWaits: 0, cacheFreshHits: 0, revalidatedNotModified: 0, singleFlightHits: 0,
     blockedPages: [], skippedContent: [], selections: [], dimensionsRequested: [...new Set(profiles.flatMap((profile) => profile.dimensions))], dimensionsSatisfied: [], dimensionsMissing: [],
     stopReason: "QUEUE_EXHAUSTED", finalStatus: "COMPLETED",
@@ -729,6 +739,7 @@ async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, 
   else if ((pendingGapCandidates && gapsLeft.length) || retryableCandidateFailure) ctx.stats.status = "PARTIAL";
   if (ctx.stats.status === "COMPLETED" || ctx.stats.status === "PARTIAL") ctx.stats.failureClass = undefined;
   ctx.obs.selections = planner.selections;
+  ctx.obs.contactPathsRemaining = planner.pending().filter((item) => item.dims.includes("PUBLIC_CONTACT:EMAIL")).length;
   return finish(ctx, { verifiedUrl, finalUrl: htmlDocuments[0]?.url ?? verifiedUrl, documents }, stop, [...planner.satisfied]);
 }
 
@@ -736,7 +747,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
   const verifiedUrl = canonicalHttpsUrl(args.verifiedUrl);
   if (!verifiedUrl) throw new Error("Verified source URL must be public HTTPS.");
   const site = new SiteIdentity(verifiedUrl);
-  const profiles = args.profiles ?? profilesFor(args.requestedExtractors, site);
+  const profiles = args.profiles ?? profilesFor(args.requestedExtractors, site, { emailGoal: args.emailGoal === true, venueName: args.venueName ?? "" });
   const stats: CrawlStats = { requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 0, retries: 0, warnings: [], status: "COMPLETED" };
   const ctx: Ctx = {
     budget: args.budget, stats, obs: emptyObservability(verifiedUrl, site, args, profiles), site, fetchImpl: args.fetchImpl,
