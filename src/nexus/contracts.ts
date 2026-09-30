@@ -313,6 +313,9 @@ export const CONTACT_STATUSES = ["VERIFIED_SITE_PUBLIC_CONTACT_FOUND", "VERIFIED
 export const OFFICIAL_WEBSITE_DISCOVERY_STATUSES = ["HELD_WEBSITE_REUSED", "HELD_CONTACT_REUSED", "OFFICIAL_WEBSITE_DISCOVERED_AND_VERIFIED", "WEBSITE_CANDIDATES_AMBIGUOUS", "NO_CREDIBLE_WEBSITE_FOUND", "SEARCH_PROVIDER_UNAVAILABLE", "VERIFIED_SITE_NO_PUBLIC_CONTACT", "VERIFIED_SITE_PUBLIC_CONTACT_FOUND", "CRAWL_BLOCKED", "CRAWL_UNAVAILABLE"] as const;
 export type OfficialWebsiteDiscoveryStatus = typeof OFFICIAL_WEBSITE_DISCOVERY_STATUSES[number];
 const WEBSITE_SOURCES = ["RESOURCES_HELD", "NEXUS_VERIFIED", "STORED_GOOGLE_EVIDENCE_VERIFIED", "PUBLIC_WEB_SEARCH_VERIFIED"] as const;
+// How an accepted venue email is tied to the venue: held venue evidence, the verified site's own domain,
+// or a role/venue-named free-mail mailbox actually published on the verified first-party site.
+export const VENUE_EMAIL_RELATIONSHIPS = ["HELD_VENUE_EVIDENCE", "VERIFIED_SITE_DOMAIN", "PUBLISHED_ON_VERIFIED_SITE"] as const;
 const CANDIDATE_STATES = ["SELECTED", "REJECTED", "UNVERIFIED", "NOT_EVALUATED"] as const;
 
 function optionalText(value: unknown, code: string, max = 1024) { return value == null ? null : text(value, code, { max }); }
@@ -324,11 +327,15 @@ function optionalHttpsWebsite(value: unknown, code: string) {
   if (parsed.protocol === "http:") parsed.protocol = "https:";
   return parsed.toString();
 }
+// publicEmail is a venue-published mailbox with its own evidence. An EventSuite relay address is not
+// venue evidence and must not be passed here; the executor rejects platform relay domains regardless.
 function heldResources(value: unknown) {
-  if (value == null) return { website: null, phone: null, enquiryRoute: null, evidenceRef: null };
+  if (value == null) return { website: null, phone: null, enquiryRoute: null, publicEmail: null, evidenceRef: null };
   const v = object(value, "INVALID_HELD_RESOURCES_EVIDENCE");
-  assertOnlyFields(v, new Set(["website", "phone", "enquiryRoute", "evidenceRef"]), "INVALID_HELD_RESOURCES_EVIDENCE_FIELDS");
-  return { website: optionalHttpsWebsite(v.website, "INVALID_HELD_RESOURCES_WEBSITE"), phone: optionalText(v.phone, "INVALID_HELD_RESOURCES_PHONE", 64), enquiryRoute: optionalHttpsWebsite(v.enquiryRoute, "INVALID_HELD_RESOURCES_ENQUIRY_ROUTE"), evidenceRef: optionalText(v.evidenceRef, "INVALID_HELD_RESOURCES_EVIDENCE_REF", 512) };
+  assertOnlyFields(v, new Set(["website", "phone", "enquiryRoute", "publicEmail", "evidenceRef"]), "INVALID_HELD_RESOURCES_EVIDENCE_FIELDS");
+  const held = { website: optionalHttpsWebsite(v.website, "INVALID_HELD_RESOURCES_WEBSITE"), phone: optionalText(v.phone, "INVALID_HELD_RESOURCES_PHONE", 64), enquiryRoute: optionalHttpsWebsite(v.enquiryRoute, "INVALID_HELD_RESOURCES_ENQUIRY_ROUTE"), publicEmail: optionalText(v.publicEmail, "INVALID_HELD_RESOURCES_EMAIL", 320), evidenceRef: optionalText(v.evidenceRef, "INVALID_HELD_RESOURCES_EVIDENCE_REF", 512) };
+  if (held.publicEmail && !held.evidenceRef) fail("HELD_RESOURCES_EMAIL_EVIDENCE_REF_REQUIRED");
+  return held;
 }
 function heldNexus(value: unknown) {
   if (value == null) return { verifiedOfficialWebsite: null, publicPhone: null, publicEmail: null, evidenceRef: null };
@@ -388,7 +395,7 @@ export function validateOfficialWebsiteDiscoveryRequest(input: unknown) {
 
 function discoveryCandidate(value: unknown) {
   const v = object(value, "INVALID_DISCOVERY_CANDIDATE");
-  return { url: url(v.url, "INVALID_DISCOVERY_CANDIDATE_URL")!, origin: v.origin == null ? null : url(v.origin, "INVALID_DISCOVERY_CANDIDATE_ORIGIN", { httpsOnly: true }), source: enumValue(v.source, ["PUBLIC_WEB_SEARCH", "STORED_GOOGLE_EVIDENCE"] as const, "INVALID_DISCOVERY_CANDIDATE_SOURCE"), rank: nonNegativeNumber(v.rank, "INVALID_DISCOVERY_CANDIDATE_RANK", { max: 1000 }), state: enumValue(v.state, CANDIDATE_STATES, "INVALID_DISCOVERY_CANDIDATE_STATE"), reasons: stringArray(v.reasons, "INVALID_DISCOVERY_CANDIDATE_REASONS", { maxItems: 20 }) };
+  return { url: url(v.url, "INVALID_DISCOVERY_CANDIDATE_URL")!, origin: v.origin == null ? null : url(v.origin, "INVALID_DISCOVERY_CANDIDATE_ORIGIN", { httpsOnly: true }), source: enumValue(v.source, ["RESOURCES_HELD", "PUBLIC_WEB_SEARCH", "STORED_GOOGLE_EVIDENCE"] as const, "INVALID_DISCOVERY_CANDIDATE_SOURCE"), rank: nonNegativeNumber(v.rank, "INVALID_DISCOVERY_CANDIDATE_RANK", { max: 1000 }), state: enumValue(v.state, CANDIDATE_STATES, "INVALID_DISCOVERY_CANDIDATE_STATE"), reasons: stringArray(v.reasons, "INVALID_DISCOVERY_CANDIDATE_REASONS", { maxItems: 20 }) };
 }
 export function validateOfficialWebsiteDiscoveryResult(input: unknown) {
   const v = object(input, "INVALID_OFFICIAL_WEBSITE_DISCOVERY_RESULT");
@@ -396,6 +403,9 @@ export function validateOfficialWebsiteDiscoveryResult(input: unknown) {
   const search = object(v.search, "INVALID_DISCOVERY_SEARCH");
   const crawl = object(v.crawl, "INVALID_DISCOVERY_CRAWL");
   const website = v.officialWebsite == null ? null : object(v.officialWebsite, "INVALID_DISCOVERY_OFFICIAL_WEBSITE");
+  const contacts = Array.isArray(v.publicContacts) ? v.publicContacts.map((item) => { const c = object(item, "INVALID_DISCOVERY_CONTACT"); return { type: enumValue(c.type, PUBLIC_CONTACT_TYPES, "INVALID_DISCOVERY_CONTACT_TYPE"), value: text(c.value, "INVALID_DISCOVERY_CONTACT_VALUE", { max: 4096 })!, source: enumValue(c.source, ["RESOURCES_HELD", "NEXUS_VERIFIED", "STORED_GOOGLE_EVIDENCE", "VERIFIED_FIRST_PARTY_SITE"] as const, "INVALID_DISCOVERY_CONTACT_SOURCE"), sourceUrl: url(c.sourceUrl, "INVALID_DISCOVERY_CONTACT_SOURCE_URL", { optional: true }), evidenceRef: text(c.evidenceRef, "INVALID_DISCOVERY_CONTACT_EVIDENCE_REF", { max: 512 })!, relationship: c.relationship == null ? null : enumValue(c.relationship, VENUE_EMAIL_RELATIONSHIPS, "INVALID_DISCOVERY_CONTACT_RELATIONSHIP") }; }) : [];
+  const guideEmailReady = v.guideEmailReady === true;
+  if (guideEmailReady && !contacts.some((item) => item.type === "EMAIL" && item.relationship)) fail("GUIDE_EMAIL_READY_REQUIRES_EVIDENCED_VENUE_EMAIL");
   return Object.freeze({
     contractVersion: enumValue(v.contractVersion, [CONTRACTS.OFFICIAL_WEBSITE_DISCOVERY_RESULT] as const, "INVALID_CONTRACT_VERSION"),
     requestId: uuid(v.requestId, "INVALID_REQUEST_ID")!,
@@ -405,7 +415,8 @@ export function validateOfficialWebsiteDiscoveryResult(input: unknown) {
     websiteStatus: enumValue(v.websiteStatus, WEBSITE_STATUSES, "INVALID_DISCOVERY_WEBSITE_STATUS"),
     contactStatus: enumValue(v.contactStatus, CONTACT_STATUSES, "INVALID_DISCOVERY_CONTACT_STATUS"),
     officialWebsite: website ? { url: url(website.url, "INVALID_DISCOVERY_OFFICIAL_WEBSITE_URL", { httpsOnly: true })!, source: enumValue(website.source, WEBSITE_SOURCES, "INVALID_DISCOVERY_WEBSITE_SOURCE"), verificationPath: website.verificationPath == null ? null : text(website.verificationPath, "INVALID_DISCOVERY_VERIFICATION_PATH", { max: 64 }), verificationSignals: stringArray(website.verificationSignals, "INVALID_DISCOVERY_VERIFICATION_SIGNALS", { maxItems: 20 }), evidenceRef: text(website.evidenceRef, "INVALID_DISCOVERY_WEBSITE_EVIDENCE_REF", { max: 512 })! } : null,
-    publicContacts: Array.isArray(v.publicContacts) ? v.publicContacts.map((item) => { const c = object(item, "INVALID_DISCOVERY_CONTACT"); return { type: enumValue(c.type, PUBLIC_CONTACT_TYPES, "INVALID_DISCOVERY_CONTACT_TYPE"), value: text(c.value, "INVALID_DISCOVERY_CONTACT_VALUE", { max: 4096 })!, source: enumValue(c.source, ["RESOURCES_HELD", "NEXUS_VERIFIED", "STORED_GOOGLE_EVIDENCE", "VERIFIED_FIRST_PARTY_SITE"] as const, "INVALID_DISCOVERY_CONTACT_SOURCE"), sourceUrl: url(c.sourceUrl, "INVALID_DISCOVERY_CONTACT_SOURCE_URL", { optional: true }), evidenceRef: text(c.evidenceRef, "INVALID_DISCOVERY_CONTACT_EVIDENCE_REF", { max: 512 })! }; }) : [],
+    publicContacts: contacts,
+    guideEmailReady,
     candidates: Array.isArray(v.candidates) ? v.candidates.slice(0, 50).map(discoveryCandidate) : [],
     search: { provider: search.provider == null ? null : text(search.provider, "INVALID_DISCOVERY_SEARCH_PROVIDER", { max: 128 }), costModel: search.costModel == null ? null : enumValue(search.costModel, ["ZERO_INCREMENTAL", "METERED"] as const, "INVALID_DISCOVERY_SEARCH_COST_MODEL"), queries: stringArray(search.queries, "INVALID_DISCOVERY_SEARCH_QUERIES", { maxItems: 10 }), callCount: nonNegativeNumber(search.callCount, "INVALID_DISCOVERY_SEARCH_CALLS", { max: 100 }), returnedCandidateUrls: Array.isArray(search.returnedCandidateUrls) ? search.returnedCandidateUrls.slice(0, 100).map((item: unknown) => text(item, "INVALID_DISCOVERY_SEARCH_URL", { max: 4096 })!) : [], cost: costCeiling(search.cost ?? { currency: "USD", amount: 0 }) },
     crawl: { verificationCrawls: nonNegativeNumber(crawl.verificationCrawls, "INVALID_DISCOVERY_VERIFICATION_CRAWLS", { max: 100 }), sourceDiscoveryCrawls: nonNegativeNumber(crawl.sourceDiscoveryCrawls, "INVALID_DISCOVERY_SOURCE_CRAWLS", { max: 100 }), requestCount: nonNegativeNumber(crawl.requestCount, "INVALID_DISCOVERY_CRAWL_REQUESTS", { max: 100_000 }), blocked: nonNegativeNumber(crawl.blocked ?? 0, "INVALID_DISCOVERY_CRAWL_BLOCKED", { max: 100 }), unavailable: nonNegativeNumber(crawl.unavailable ?? 0, "INVALID_DISCOVERY_CRAWL_UNAVAILABLE", { max: 100 }) },

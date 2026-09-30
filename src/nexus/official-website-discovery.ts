@@ -8,10 +8,11 @@ import {
   type OfficialWebsiteDiscoveryRequest,
   type OfficialWebsiteDiscoveryStatus,
   type SourceExtractor,
+  type VENUE_EMAIL_RELATIONSHIPS,
   type WEBSITE_STATUSES,
 } from "./contracts.ts";
 import { executeSourceDiscoveryRequest, InMemoryNexusResultStore, type NexusResultStore } from "./executor.ts";
-import { businessEmail, isSocialUrl, verifyFirstPartyIdentity } from "./public-web.ts";
+import { isSocialUrl, verifyFirstPartyIdentity } from "./public-web.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 import type { CachedDocument, DocumentCache, FetchedDocument } from "./source-discovery/types.ts";
 
@@ -51,7 +52,9 @@ export type OfficialWebsiteDiscoveryOptions = {
 
 export const OFFICIAL_WEBSITE_DISCOVERY_EXECUTION_VERSION = "official-website-discovery-v1";
 
-const VERIFICATION_BUDGET: CrawlBudget = { maxPages: 2, maxRequests: 4, maxBytesPerResponse: 500_000, maxRedirects: 2, maxRetries: 1, timeoutMs: 8_000, minRequestDelayMs: 0 };
+// robots.txt and same-site redirects count against maxRequests, and many venue homepages exceed 500 KB;
+// the tighter values left verifiable sites with no page to verify.
+const VERIFICATION_BUDGET: CrawlBudget = { maxPages: 2, maxRequests: 6, maxBytesPerResponse: 1_000_000, maxRedirects: 2, maxRetries: 1, timeoutMs: 8_000, minRequestDelayMs: 0 };
 const SOURCE_DISCOVERY_BUDGET: CrawlBudget = { maxPages: 6, maxRequests: 12, maxBytesPerResponse: 1_000_000, maxRedirects: 3, maxRetries: 1, timeoutMs: 10_000, minRequestDelayMs: 250 };
 const HANDOFF_EXTRACTORS: SourceExtractor[] = ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES"];
 
@@ -101,6 +104,69 @@ export function candidateRejection(value: string): RejectionCategory | "INVALID_
   return null;
 }
 
+const CONTACT_PRIORITY: string[] = ["EMAIL", "PHONE", "CONTACT_FORM"];
+const SECOND_LEVEL_SUFFIX = /^(?:co|org|ac|gov|net|com|ltd|plc|me|nic|web|nom|sch|police|mod|nhs)\.(?:uk|za)$/;
+const FREE_MAIL_DOMAINS = new Set(["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.co.uk", "live.com", "live.co.uk", "msn.com", "yahoo.com", "yahoo.co.uk", "ymail.com", "icloud.com", "me.com", "aol.com", "btinternet.com", "sky.com", "talktalk.net", "virginmedia.com", "gmx.com", "protonmail.com", "proton.me", "mweb.co.za", "telkomsa.net", "vodamail.co.za", "webmail.co.za", "iafrica.com", "absamail.co.za", "lantic.net", "polka.co.za", "afrihost.co.za", "cybersmart.co.za"]);
+const PLATFORM_OR_PLACEHOLDER_EMAIL_DOMAIN = /(?:^|\.)(?:eventsuite\.[a-z.]+|prestigeid\.[a-z.]+|prestige-id\.[a-z.]+|example\.(?:com|org|net)|sentry\.io|wixpress\.com|domain\.com|email\.com|yourdomain\.[a-z.]+|yoursite\.[a-z.]+|mysite\.com|website\.com|company\.com)$/;
+const NON_CONTACT_MAILBOX = /^(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|abuse|webmaster|hostmaster|privacy|dpo|gdpr|dataprotection|unsubscribe|bounce[s]?)$/;
+const VENUE_ROLE_MAILBOX = /^(?:info|hello|hi|contact|contactus|enquiries|enquiry|enquire|inquiries|inquiry|bookings?|book|events?|eventsteam|functions?|hire|venuehire|venue|office|reception|reservations?|hospitality|conference|conferences|conferencing|weddings?|sales|admin|manager|management|frontdesk|guests?|stay|marketing|groups?|meetings?|catering|restaurant|studio|team|mail|welcome)$/;
+const EMAIL_SHAPE = /^[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
+
+export function registrableDomain(host: string) {
+  const labels = host.toLowerCase().replace(/\.$/, "").replace(/^www\./, "").split(".");
+  const tail = labels.slice(-2).join(".");
+  return SECOND_LEVEL_SUFFIX.test(tail) ? labels.slice(-3).join(".") : tail;
+}
+
+type EmailVerdict = { accepted: true; email: string; relationship: typeof VENUE_EMAIL_RELATIONSHIPS[number] } | { accepted: false; reason: string };
+
+function emailShapeVerdict(value: string): { email: string; mailbox: string; domain: string } | { reason: string } {
+  const email = value.trim().toLowerCase().replace(/^mailto:/, "").split("?")[0]!;
+  if (!EMAIL_SHAPE.test(email) || email.length > 254) return { reason: "INVALID_EMAIL" };
+  const [mailbox, domain] = email.split("@") as [string, string];
+  if (/\.(?:png|jpe?g|gif|webp|svg|css|js)$/.test(domain)) return { reason: "INVALID_EMAIL" };
+  if (PLATFORM_OR_PLACEHOLDER_EMAIL_DOMAIN.test(domain)) return { reason: "PLATFORM_RELAY_OR_PLACEHOLDER" };
+  if (candidateRejection(`https://${domain}/`)) return { reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
+  if (NON_CONTACT_MAILBOX.test(mailbox)) return { reason: "NON_CONTACT_MAILBOX" };
+  return { email, mailbox, domain };
+}
+
+/**
+ * Deployed extractors could split a label from a glued address ("bookings@venue" also yielding "s@venue").
+ * A fragment whose full labelled form was extracted from the same page is not an address the venue published.
+ */
+export function isLabelSplitFragment(value: string, samePageEmails: string[]) {
+  const email = value.toLowerCase();
+  return samePageEmails.some((other) => other !== email && other.endsWith(email) && /^(?:email|e-mail|enquiries|bookings?)$/.test(other.slice(0, other.length - email.length)));
+}
+
+/** A held venue email must itself be venue evidence; relay, platform, and third-party platform addresses never qualify. */
+export function acceptHeldVenueEmail(value: string): EmailVerdict {
+  const shape = emailShapeVerdict(value);
+  if ("reason" in shape) return { accepted: false, reason: shape.reason };
+  return { accepted: true, email: shape.email, relationship: "HELD_VENUE_EVIDENCE" };
+}
+
+/**
+ * An email published on a verified first-party site is accepted when it is on the site's own registrable
+ * domain, or is a role/venue-named mailbox at a free-mail provider published by the venue itself.
+ * Any other off-domain address (web designer, promoter, operator group without proof) is not accepted.
+ */
+export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueName: string): EmailVerdict {
+  const shape = emailShapeVerdict(value);
+  if ("reason" in shape) return { accepted: false, reason: shape.reason };
+  if (registrableDomain(shape.domain) === registrableDomain(new URL(verifiedSiteUrl).hostname)) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };
+  if (FREE_MAIL_DOMAINS.has(shape.domain)) {
+    const bare = shape.mailbox.replace(/[._-]?\d+$/, "");
+    const compact = shape.mailbox.replace(/[^a-z0-9]/g, "");
+    if (VENUE_ROLE_MAILBOX.test(bare) || distinctiveNameTokens(venueName).some((token) => token.length >= 4 && compact.includes(token))) {
+      return { accepted: true, email: shape.email, relationship: "PUBLISHED_ON_VERIFIED_SITE" };
+    }
+    return { accepted: false, reason: "PERSONAL_FREE_MAIL_ADDRESS" };
+  }
+  return { accepted: false, reason: "OFF_DOMAIN_WITHOUT_VENUE_RELATIONSHIP" };
+}
+
 function rawPostcodeOf(address: string | null, country: "GB" | "ZA") {
   if (!address) return null;
   const match = country === "GB" ? address.match(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i) : address.match(/\b\d{4}\b(?=[^\d]*(?:south africa)?\s*$)/i);
@@ -122,6 +188,73 @@ function addressCorroborated(identityFacts: Array<{ fieldName: string; value: un
   return siteAddresses.some((value) => (postcode && value.replace(/\s+/g, "").includes(postcode)) || (street && value.includes(street)));
 }
 
+type CrawledContact = { type: "EMAIL" | "PHONE" | "CONTACT_FORM"; value: string; sourceUrl: string; evidenceRef: string; relationship: typeof VENUE_EMAIL_RELATIONSHIPS[number] | null };
+
+// Only contacts published on the verified site's registrable domain count, in EMAIL > PHONE > CONTACT_FORM order;
+// an email must also pass venue-mailbox acceptance.
+export function acceptCrawledContacts(result: Pick<ReturnType<typeof validateSourceDiscoveryResult>, "source" | "publicContacts">, venueName: string, fallbackEvidenceRef: string) {
+  const siteDomain = registrableDomain(new URL(result.source.finalUrl).hostname);
+  const onVerifiedSite = (value: string | null | undefined) => { try { return registrableDomain(new URL(value!).hostname) === siteDomain; } catch { return false; } };
+  const contacts: CrawledContact[] = [];
+  let rejectedEmails = 0;
+  const pageEmails = result.publicContacts.filter((item) => item.type === "EMAIL").map((item) => ({ value: item.value.toLowerCase(), sourceUrl: item.sourceUrl }));
+  const ordered = [...result.publicContacts].sort((left, right) => CONTACT_PRIORITY.indexOf(left.type) - CONTACT_PRIORITY.indexOf(right.type));
+  for (const contact of ordered) {
+    if (!CONTACT_PRIORITY.includes(contact.type) || !onVerifiedSite(contact.sourceUrl)) continue;
+    if (contact.reviewRequired) { if (contact.type === "EMAIL") rejectedEmails += 1; continue; }
+    let value = contact.value;
+    let relationship: CrawledContact["relationship"] = null;
+    if (contact.type === "EMAIL") {
+      if (isLabelSplitFragment(contact.value, pageEmails.filter((item) => item.sourceUrl === contact.sourceUrl).map((item) => item.value))) { rejectedEmails += 1; continue; }
+      const verdict = acceptVenueEmail(contact.value, result.source.finalUrl, venueName);
+      if (!verdict.accepted) { rejectedEmails += 1; continue; }
+      value = verdict.email;
+      relationship = verdict.relationship;
+    }
+    if (contact.type === "CONTACT_FORM" && !onVerifiedSite(contact.value)) continue;
+    if (contacts.some((item) => item.type === contact.type && item.value === value)) continue;
+    contacts.push({ type: contact.type as CrawledContact["type"], value, sourceUrl: contact.sourceUrl, evidenceRef: contact.evidenceRef ?? fallbackEvidenceRef, relationship });
+  }
+  return { contacts, rejectedEmails };
+}
+
+type IdentityContext = Parameters<typeof verifyFirstPartyIdentity>[1];
+
+// A site that states the full venue name and the held locality in its own title or heading identifies itself
+// as that venue even without a structured address. Description text is not enough.
+function namedLocalityOnSite(venueName: string, locality: string | null, identityFacts: Array<{ fieldName: string; value: unknown }>) {
+  const place = locality ? normalise(locality) : "";
+  const nameTokens = normalise(venueName).split(/\s+/).filter((token) => token.length > 2);
+  if (!place || !nameTokens.length) return false;
+  const headings = identityFacts.filter((item) => ["siteName", "explicitVenueName"].includes(item.fieldName) && typeof item.value === "string").map((item) => ` ${normalise(item.value as string)} `);
+  const named = headings.some((value) => nameTokens.every((token) => value.includes(` ${token} `)));
+  return named && headings.some((value) => value.includes(` ${place} `));
+}
+
+export function assessWebsiteIdentity(input: { venueName: string; country: "GB" | "ZA"; heldAddress: string | null; context: IdentityContext; finalUrl: string; identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }> }) {
+  if (candidateRejection(input.finalUrl)) return { verified: false, state: "REJECTED" as const, reason: "REDIRECTED_TO_NON_FIRST_PARTY_HOST", path: null, signals: [] as string[], nameSignal: false };
+  let verification = verifyFirstPartyIdentity(input.venueName, input.context, input.identityFacts);
+  if (!verification.verified && namedLocalityOnSite(input.venueName, input.context.locality ?? null, input.identityFacts)) {
+    verification = { verified: true, path: "DIRECT", signals: ["direct venue name", "locality named in first-party title or heading"], nameSignal: true, locationSignal: true };
+  }
+  if (!verification.verified) {
+    return verification.nameSignal
+      ? { verified: false, state: "UNVERIFIED" as const, reason: "NAME_ALIGNED_WITHOUT_LOCATION_OR_IDENTITY_PROOF", path: null, signals: [] as string[], nameSignal: true }
+      : { verified: false, state: "REJECTED" as const, reason: "NO_SAME_ENTITY_IDENTITY_EVIDENCE", path: null, signals: [] as string[], nameSignal: false };
+  }
+  if (isGenericVenueName(input.venueName) && !addressCorroborated(input.identityFacts, input.heldAddress, input.country)) {
+    return { verified: false, state: "UNVERIFIED" as const, reason: "GENERIC_NAME_REQUIRES_ADDRESS_CORROBORATION", path: null, signals: [] as string[], nameSignal: true };
+  }
+  return { verified: true, state: "SELECTED" as const, reason: `VERIFIED_${verification.path}`, path: verification.path, signals: verification.signals, nameSignal: verification.nameSignal };
+}
+
+// The crawler is HTTPS-only; a held http:// website is tried at the same host over HTTPS, never downgraded.
+function heldCandidateOrigin(value: string) {
+  const parsed = new URL(value);
+  parsed.protocol = "https:";
+  return `${parsed.origin}/`;
+}
+
 function searchQueries(request: OfficialWebsiteDiscoveryRequest, heldAddress: string | null) {
   const { venueName, locality, administrativeRegion, country } = request.identity;
   const queries = [`"${venueName}" "${locality}" "${COUNTRY_NAMES[country]}" official website`];
@@ -133,7 +266,7 @@ function searchQueries(request: OfficialWebsiteDiscoveryRequest, heldAddress: st
   return queries;
 }
 
-type Candidate = { url: string; origin: string | null; source: "PUBLIC_WEB_SEARCH" | "STORED_GOOGLE_EVIDENCE"; rank: number; state: "SELECTED" | "REJECTED" | "UNVERIFIED" | "NOT_EVALUATED"; reasons: string[]; score: number };
+type Candidate = { url: string; origin: string | null; source: "RESOURCES_HELD" | "PUBLIC_WEB_SEARCH" | "STORED_GOOGLE_EVIDENCE"; rank: number; state: "SELECTED" | "REJECTED" | "UNVERIFIED" | "NOT_EVALUATED"; reasons: string[]; score: number };
 
 function candidateFrom(result: PublicWebSearchResult, rank: number, name: string): Candidate {
   const rejection = candidateRejection(result.url);
@@ -173,14 +306,15 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
   const search = { provider: null as string | null, costModel: null as PublicWebSearchCostModel["kind"] | null, queries: [] as string[], callCount: 0, returnedCandidateUrls: [] as string[], cost: { currency: request.costCeiling.currency, amount: 0 } };
   const crawl = { verificationCrawls: 0, sourceDiscoveryCrawls: 0, requestCount: 0, blocked: 0, unavailable: 0 };
   let officialWebsite: { url: string; source: "RESOURCES_HELD" | "NEXUS_VERIFIED" | "STORED_GOOGLE_EVIDENCE_VERIFIED" | "PUBLIC_WEB_SEARCH_VERIFIED"; verificationPath: string | null; verificationSignals: string[]; evidenceRef: string } | null = null;
-  const publicContacts: Array<{ type: "EMAIL" | "PHONE" | "CONTACT_FORM" | "WHATSAPP" | "BUSINESS_MESSAGING"; value: string; source: "RESOURCES_HELD" | "NEXUS_VERIFIED" | "STORED_GOOGLE_EVIDENCE" | "VERIFIED_FIRST_PARTY_SITE"; sourceUrl: string | null; evidenceRef: string }> = [];
+  const publicContacts: Array<{ type: "EMAIL" | "PHONE" | "CONTACT_FORM" | "WHATSAPP" | "BUSINESS_MESSAGING"; value: string; source: "RESOURCES_HELD" | "NEXUS_VERIFIED" | "STORED_GOOGLE_EVIDENCE" | "VERIFIED_FIRST_PARTY_SITE"; sourceUrl: string | null; evidenceRef: string; relationship: typeof VENUE_EMAIL_RELATIONSHIPS[number] | null }> = [];
   let sourceDiscovery: ReturnType<typeof validateSourceDiscoveryResult> | null = null;
   let websiteStatus: typeof WEBSITE_STATUSES[number] = "NOT_REQUIRED";
   let contactStatus: typeof CONTACT_STATUSES[number] = "NOT_ATTEMPTED";
   let retryable = false;
 
   const finish = async () => {
-    const status: OfficialWebsiteDiscoveryStatus = websiteStatus === "OFFICIAL_WEBSITE_DISCOVERED_AND_VERIFIED" && contactStatus !== "NOT_ATTEMPTED"
+    const contactCrawled = ["VERIFIED_SITE_PUBLIC_CONTACT_FOUND", "VERIFIED_SITE_NO_PUBLIC_CONTACT", "CRAWL_BLOCKED", "CRAWL_UNAVAILABLE"].includes(contactStatus);
+    const status: OfficialWebsiteDiscoveryStatus = contactCrawled
       ? contactStatus as OfficialWebsiteDiscoveryStatus
       : websiteStatus === "NOT_REQUIRED" ? "HELD_CONTACT_REUSED" : websiteStatus;
     const result = validateOfficialWebsiteDiscoveryResult({
@@ -193,6 +327,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
       contactStatus,
       officialWebsite,
       publicContacts,
+      guideEmailReady: publicContacts.some((item) => item.type === "EMAIL" && item.relationship !== null),
       candidates: candidates.map(({ score: _score, ...item }) => item),
       search,
       crawl,
@@ -213,41 +348,30 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
     return result;
   };
 
-  // 1. Resources already holds a usable route.
-  if (resources.website && !isSocialUrl(resources.website)) {
-    const ref = resources.evidenceRef ?? `resources:${hash(resources.website)}`;
-    officialWebsite = { url: resources.website, source: "RESOURCES_HELD", verificationPath: null, verificationSignals: [], evidenceRef: ref };
+  // 1. Only a genuine venue email already held ends the waterfall. Held websites, phones, forms,
+  //    and relay addresses are carried forward as inputs, never as a terminal outcome.
+  const heldEmails = [[nexus.publicEmail, "NEXUS_VERIFIED", nexus.evidenceRef], [resources.publicEmail, "RESOURCES_HELD", resources.evidenceRef]] as const;
+  for (const [email, source, ref] of heldEmails) {
+    if (!email || !ref) continue;
+    const verdict = acceptHeldVenueEmail(email);
+    if (!verdict.accepted) { unknowns.push(`A held email was not accepted as a venue mailbox (${verdict.reason}).`); continue; }
+    if (publicContacts.some((item) => item.type === "EMAIL" && item.value === verdict.email)) continue;
+    publicContacts.push({ type: "EMAIL", value: verdict.email, source, sourceUrl: null, evidenceRef: ref, relationship: "HELD_VENUE_EVIDENCE" });
     evidenceRefs.push(ref);
-    websiteStatus = "HELD_WEBSITE_REUSED";
   }
-  if (resources.phone || resources.enquiryRoute) {
-    const ref = resources.evidenceRef ?? `resources:${hash(`${resources.phone}:${resources.enquiryRoute}`)}`;
-    if (resources.phone) publicContacts.push({ type: "PHONE", value: resources.phone, source: "RESOURCES_HELD", sourceUrl: null, evidenceRef: ref });
-    if (resources.enquiryRoute) publicContacts.push({ type: "CONTACT_FORM", value: resources.enquiryRoute, source: "RESOURCES_HELD", sourceUrl: resources.enquiryRoute, evidenceRef: ref });
+  const heldRoutes = [
+    ["PHONE", resources.phone, "RESOURCES_HELD", resources.evidenceRef ?? (resources.phone ? `resources:${hash(resources.phone)}` : null), null],
+    ["CONTACT_FORM", resources.enquiryRoute, "RESOURCES_HELD", resources.evidenceRef ?? (resources.enquiryRoute ? `resources:${hash(resources.enquiryRoute)}` : null), resources.enquiryRoute],
+    ["PHONE", nexus.publicPhone, "NEXUS_VERIFIED", nexus.evidenceRef, null],
+    ["PHONE", storedGoogle.phone, "STORED_GOOGLE_EVIDENCE", storedGoogle.evidenceRef, null],
+  ] as const;
+  for (const [type, value, source, ref, sourceUrl] of heldRoutes) {
+    if (!value || !ref || publicContacts.some((item) => item.type === type && item.value === value)) continue;
+    publicContacts.push({ type, value, source, sourceUrl, evidenceRef: ref, relationship: null });
     evidenceRefs.push(ref);
-    contactStatus = "HELD_CONTACT_REUSED";
   }
-  if (officialWebsite || publicContacts.length) return finish();
-
-  // 2. Nexus/AIRE already holds verified first-party evidence. No re-crawl of stored evidence.
-  if (nexus.verifiedOfficialWebsite) {
-    officialWebsite = { url: nexus.verifiedOfficialWebsite, source: "NEXUS_VERIFIED", verificationPath: null, verificationSignals: [], evidenceRef: nexus.evidenceRef! };
-    websiteStatus = "HELD_WEBSITE_REUSED";
-    evidenceRefs.push(nexus.evidenceRef!);
-  }
-  if (nexus.publicPhone) publicContacts.push({ type: "PHONE", value: nexus.publicPhone, source: "NEXUS_VERIFIED", sourceUrl: null, evidenceRef: nexus.evidenceRef! });
-  if (nexus.publicEmail) publicContacts.push({ type: "EMAIL", value: nexus.publicEmail, source: "NEXUS_VERIFIED", sourceUrl: null, evidenceRef: nexus.evidenceRef! });
-  if (publicContacts.length) { contactStatus = "HELD_CONTACT_REUSED"; evidenceRefs.push(nexus.evidenceRef!); }
-  if (officialWebsite || publicContacts.length) return finish();
-
-  // 3. Stored Google evidence is read, never refreshed. A stored phone is a held route; a stored
-  //    websiteUri is only a candidate and still needs first-party verification.
-  if (storedGoogle.phone) {
-    publicContacts.push({ type: "PHONE", value: storedGoogle.phone, source: "STORED_GOOGLE_EVIDENCE", sourceUrl: null, evidenceRef: storedGoogle.evidenceRef! });
-    evidenceRefs.push(storedGoogle.evidenceRef!);
-    contactStatus = "HELD_CONTACT_REUSED";
-    return finish();
-  }
+  if (publicContacts.length) contactStatus = "HELD_CONTACT_REUSED";
+  if (publicContacts.some((item) => item.type === "EMAIL")) return finish();
 
   const verificationContext = {
     locality: identity.locality,
@@ -257,7 +381,6 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
       ...(heldAddress ? [{ fieldName: "formattedAddress", value: heldAddress, evidenceRef: identity.formattedAddress ? null : storedGoogle.evidenceRef }] : []),
     ],
   };
-  const genericName = isGenericVenueName(identity.venueName);
   const crawlAllowed = request.providerAllowances.includes("PUBLIC_WEB");
   const verified: Verification[] = [];
   let nameAligned = 0;
@@ -283,35 +406,41 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
       return;
     }
     evaluated += 1;
-    if (candidateRejection(output.finalUrl)) { candidate.state = "REJECTED"; candidate.reasons.push("REDIRECTED_TO_NON_FIRST_PARTY_HOST"); return; }
     const extracted = extractFromFetchedDocuments(output.documents, ["IDENTITY"]);
-    const verification = verifyFirstPartyIdentity(identity.venueName, verificationContext, extracted.identityFacts);
-    if (verification.nameSignal) nameAligned += 1;
-    if (!verification.verified) {
-      candidate.state = verification.nameSignal ? "UNVERIFIED" : "REJECTED";
-      candidate.reasons.push(verification.nameSignal ? "NAME_ALIGNED_WITHOUT_LOCATION_OR_IDENTITY_PROOF" : "NO_SAME_ENTITY_IDENTITY_EVIDENCE");
-      return;
-    }
-    if (genericName && !addressCorroborated(extracted.identityFacts, heldAddress, identity.country)) {
-      candidate.state = "UNVERIFIED";
-      candidate.reasons.push("GENERIC_NAME_REQUIRES_ADDRESS_CORROBORATION");
-      return;
-    }
-    candidate.reasons.push(`VERIFIED_${verification.path}`);
-    verified.push({ candidate, finalUrl: output.finalUrl, documents: output.documents, path: verification.path, signals: verification.signals });
+    const assessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl: output.finalUrl, identityFacts: extracted.identityFacts });
+    if (assessment.nameSignal) nameAligned += 1;
+    candidate.reasons.push(assessment.reason);
+    if (!assessment.verified) { candidate.state = assessment.state; return; }
+    verified.push({ candidate, finalUrl: output.finalUrl, documents: output.documents, path: assessment.path, signals: assessment.signals });
   };
 
-  if (storedGoogle.websiteUri) {
-    const rejection = candidateRejection(storedGoogle.websiteUri);
-    const candidate: Candidate = rejection
-      ? { url: storedGoogle.websiteUri, origin: null, source: "STORED_GOOGLE_EVIDENCE", rank: 0, state: "REJECTED", reasons: [rejection], score: 0 }
-      : { url: storedGoogle.websiteUri, origin: `${new URL(storedGoogle.websiteUri).origin}/`, source: "STORED_GOOGLE_EVIDENCE", rank: 0, state: "NOT_EVALUATED", reasons: [], score: 0 };
-    candidates.push(candidate);
-    if (!rejection) await verifyCandidate(candidate);
+  // 2. A Nexus/AIRE-verified first-party website skips identity verification and goes to contact discovery.
+  let selected: Verification | null = null;
+  if (nexus.verifiedOfficialWebsite) {
+    const candidate: Candidate = { url: nexus.verifiedOfficialWebsite, origin: `${new URL(nexus.verifiedOfficialWebsite).origin}/`, source: "RESOURCES_HELD", rank: 0, state: "SELECTED", reasons: ["NEXUS_VERIFIED_FIRST_PARTY"], score: 0 };
+    selected = { candidate, finalUrl: nexus.verifiedOfficialWebsite, documents: [], path: null, signals: [] };
   }
 
-  // 4. Official website search, only when nothing is held or the stored candidate failed.
-  if (!verified.length) {
+  // 3. A Resources-held website and a stored Google websiteUri are candidates only: each is identity-
+  //    verified against the known venue before any contact crawl. Google is never refreshed.
+  const heldCandidates: Candidate[] = [];
+  if (!selected) {
+    for (const [value, source] of [[resources.website, "RESOURCES_HELD"], [storedGoogle.websiteUri, "STORED_GOOGLE_EVIDENCE"]] as const) {
+      if (!value) continue;
+      const rejection = candidateRejection(value);
+      const origin = rejection ? null : heldCandidateOrigin(value);
+      if (origin && heldCandidates.some((item) => item.origin === origin)) continue;
+      const candidate: Candidate = { url: value, origin, source, rank: 0, state: rejection ? "REJECTED" : "NOT_EVALUATED", reasons: rejection ? [rejection] : [], score: 0 };
+      heldCandidates.push(candidate);
+      candidates.push(candidate);
+    }
+    for (const candidate of heldCandidates) if (candidate.state === "NOT_EVALUATED") await verifyCandidate(candidate);
+  }
+  const heldResourcesWebsite = heldCandidates.some((item) => item.source === "RESOURCES_HELD");
+
+  // 4. Official website search, only when no website is held and any stored candidate failed.
+  //    A held Resources website that fails identity returns for review; it is not replaced by search.
+  if (!selected && !verified.length && !heldResourcesWebsite) {
     const provider = request.providerAllowances.includes("PUBLIC_WEB_SEARCH") ? options.searchProvider ?? null : null;
     if (!request.providerAllowances.includes("PUBLIC_WEB_SEARCH")) unknowns.push("PUBLIC_WEB_SEARCH is not authorised for this request; no search was run and no other provider substituted.");
     else if (!provider) unknowns.push("No approved public web search provider is configured; no search was run and Google Places was not used as a fallback.");
@@ -359,28 +488,32 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
   }
 
   // 5-6. Only a single verified first-party origin becomes the official website.
-  const verifiedOrigins = [...new Set(verified.map((item) => new URL(item.finalUrl).origin))];
-  if (verifiedOrigins.length > 1) {
-    for (const item of verified) item.candidate.state = "UNVERIFIED";
-    websiteStatus = "WEBSITE_CANDIDATES_AMBIGUOUS";
-    unknowns.push("More than one candidate site verified for this identity; none was selected.");
-    return finish();
-  }
-  if (!verified.length) {
-    if (!crawlAllowed && candidates.some((item) => item.state === "NOT_EVALUATED")) { websiteStatus = "CRAWL_UNAVAILABLE"; unknowns.push("PUBLIC_WEB is not authorised; candidates cannot be verified and none is treated as official."); }
-    else if (nameAligned > 0) { websiteStatus = "WEBSITE_CANDIDATES_AMBIGUOUS"; unknowns.push("A candidate aligned by name but lacked location or identity proof; it stays unresolved."); }
-    else if (!evaluated && crawl.blocked) websiteStatus = "CRAWL_BLOCKED";
-    else if (!evaluated && crawl.unavailable) { websiteStatus = "CRAWL_UNAVAILABLE"; retryable = true; }
-    else websiteStatus = "NO_CREDIBLE_WEBSITE_FOUND";
-    return finish();
+  if (!selected) {
+    const verifiedOrigins = [...new Set(verified.map((item) => new URL(item.finalUrl).origin))];
+    if (verifiedOrigins.length > 1) {
+      for (const item of verified) item.candidate.state = "UNVERIFIED";
+      websiteStatus = "WEBSITE_CANDIDATES_AMBIGUOUS";
+      unknowns.push("More than one candidate site verified for this identity; none was selected.");
+      return finish();
+    }
+    if (!verified.length) {
+      if (!crawlAllowed && candidates.some((item) => item.state === "NOT_EVALUATED")) { websiteStatus = "CRAWL_UNAVAILABLE"; unknowns.push("PUBLIC_WEB is not authorised; candidates cannot be verified and none is treated as official."); }
+      else if (nameAligned > 0) { websiteStatus = "WEBSITE_CANDIDATES_AMBIGUOUS"; unknowns.push("A candidate aligned by name but lacked location or identity proof; it stays unresolved."); }
+      else if (!evaluated && crawl.blocked) websiteStatus = "CRAWL_BLOCKED";
+      else if (!evaluated && crawl.unavailable) { websiteStatus = "CRAWL_UNAVAILABLE"; retryable = true; }
+      else websiteStatus = "NO_CREDIBLE_WEBSITE_FOUND";
+      if (heldResourcesWebsite && websiteStatus === "NO_CREDIBLE_WEBSITE_FOUND") unknowns.push("The held Resources website did not verify as this venue; it needs identity review and was not contact-crawled.");
+      return finish();
+    }
+    selected = verified[0]!;
   }
 
-  const selected = verified[0]!;
   selected.candidate.state = "SELECTED";
-  const websiteRef = `owd:${request.requestId}:website:${hash(`${selected.finalUrl}:${selected.documents.map((item) => item.sourceHash).join(":")}`, 24)}`;
-  officialWebsite = { url: selected.finalUrl, source: selected.candidate.source === "STORED_GOOGLE_EVIDENCE" ? "STORED_GOOGLE_EVIDENCE_VERIFIED" : "PUBLIC_WEB_SEARCH_VERIFIED", verificationPath: selected.path, verificationSignals: selected.signals, evidenceRef: websiteRef };
+  const websiteRef = nexus.verifiedOfficialWebsite ? nexus.evidenceRef! : `owd:${request.requestId}:website:${hash(`${selected.finalUrl}:${selected.documents.map((item) => item.sourceHash).join(":")}`, 24)}`;
+  const websiteSource = nexus.verifiedOfficialWebsite ? "NEXUS_VERIFIED" : selected.candidate.source === "RESOURCES_HELD" ? "RESOURCES_HELD" : selected.candidate.source === "STORED_GOOGLE_EVIDENCE" ? "STORED_GOOGLE_EVIDENCE_VERIFIED" : "PUBLIC_WEB_SEARCH_VERIFIED";
+  officialWebsite = { url: selected.finalUrl, source: websiteSource, verificationPath: selected.path, verificationSignals: selected.signals, evidenceRef: websiteRef };
   evidenceRefs.push(websiteRef);
-  websiteStatus = "OFFICIAL_WEBSITE_DISCOVERED_AND_VERIFIED";
+  websiteStatus = websiteSource === "NEXUS_VERIFIED" || websiteSource === "RESOURCES_HELD" ? "HELD_WEBSITE_REUSED" : "OFFICIAL_WEBSITE_DISCOVERED_AND_VERIFIED";
 
   // 7. Hand the verified URL to the existing source-discovery crawler, reusing verification documents.
   crawl.sourceDiscoveryCrawls += 1;
@@ -406,18 +539,16 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
   if (sourceDiscovery.crawl.status === "BLOCKED") { crawl.blocked += 1; contactStatus = "CRAWL_BLOCKED"; return finish(); }
   if (sourceDiscovery.crawl.status === "FAILED") { crawl.unavailable += 1; contactStatus = "CRAWL_UNAVAILABLE"; retryable = sourceDiscovery.crawl.retryable; return finish(); }
 
-  const origin = new URL(sourceDiscovery.source.finalUrl).origin;
-  for (const contact of sourceDiscovery.publicContacts) {
-    let sameOrigin = false;
-    try { sameOrigin = new URL(contact.sourceUrl).origin === origin; } catch { sameOrigin = false; }
-    if (!sameOrigin) continue;
-    if (contact.type === "EMAIL" && !businessEmail(contact.value)) continue;
-    if (contact.type === "CONTACT_FORM") { try { if (new URL(contact.value).origin !== origin) continue; } catch { continue; } }
-    if (!["EMAIL", "PHONE", "CONTACT_FORM"].includes(contact.type)) continue;
+  const accepted = acceptCrawledContacts(sourceDiscovery, identity.venueName, websiteRef);
+  let crawledContacts = 0;
+  const rejectedEmails = accepted.rejectedEmails;
+  for (const contact of accepted.contacts) {
     if (publicContacts.some((item) => item.type === contact.type && item.value === contact.value)) continue;
-    publicContacts.push({ type: contact.type, value: contact.value, source: "VERIFIED_FIRST_PARTY_SITE", sourceUrl: contact.sourceUrl, evidenceRef: contact.evidenceRef ?? websiteRef });
+    publicContacts.push({ ...contact, source: "VERIFIED_FIRST_PARTY_SITE" });
+    crawledContacts += 1;
   }
-  contactStatus = publicContacts.length ? "VERIFIED_SITE_PUBLIC_CONTACT_FOUND" : "VERIFIED_SITE_NO_PUBLIC_CONTACT";
-  if (!publicContacts.length) unknowns.push("The verified first-party site published no bounded business email, phone, or same-origin contact form.");
+  if (rejectedEmails) unknowns.push(`${rejectedEmails} published email(s) were not accepted as evidenced venue mailboxes.`);
+  contactStatus = crawledContacts ? "VERIFIED_SITE_PUBLIC_CONTACT_FOUND" : "VERIFIED_SITE_NO_PUBLIC_CONTACT";
+  if (!crawledContacts) unknowns.push("The verified first-party site published no bounded business email, phone, or same-site contact form.");
   return finish();
 }
