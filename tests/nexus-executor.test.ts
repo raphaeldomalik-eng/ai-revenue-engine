@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { executeResearchRequest, executeSourceDiscoveryRequest, InMemoryNexusResultStore } from "../src/nexus/executor.ts";
+import { boundCrawlWarnings, executeResearchRequest, executeSourceDiscoveryRequest, InMemoryNexusResultStore } from "../src/nexus/executor.ts";
 import { CONTRACTS, validateResearchRequest, validateSourceDiscoveryRequest, validateSourceDiscoveryResult } from "../src/nexus/contracts.ts";
 import { assertPublicNetworkTarget, crawlVerifiedSource, isPublicHttpsUrl, robotsAllows } from "../src/nexus/source-discovery/crawler.ts";
 import { buildNexusEnvelope, parseNexusEnvelope, verifyNexusSignature } from "../src/nexus/transport.ts";
@@ -163,4 +163,20 @@ test("transport adapter signs and verifies the existing server-to-server HMAC pa
   assert.equal(verifyNexusSignature(envelope.signature, envelope.timestamp, envelope.body, "secret", 1000 * 1000), true);
   assert.deepEqual(parseNexusEnvelope(envelope.body), { contractVersion: CONTRACTS.RESEARCH_REQUEST });
   assert.equal(verifyNexusSignature(envelope.signature, envelope.timestamp, envelope.body, "wrong", 1000 * 1000), false);
+});
+
+test("a crawler warning longer than the contract limit is bounded before result validation", () => {
+  const warnings = boundCrawlWarnings([`${"Conflicting first-party capacity evidence ".repeat(20)}`, "short warning"]);
+  assert.equal(warnings[0]?.length, 256);
+  assert.equal(warnings[0]?.endsWith("..."), true);
+  assert.equal(warnings[1], "short warning");
+  assert.doesNotThrow(() => validateSourceDiscoveryResult({
+    contractVersion: CONTRACTS.SOURCE_DISCOVERY_RESULT,
+    discoveryRequestId: ids.discoveryRequestId,
+    idempotencyKey: ids.idempotencyKey,
+    subjectReference: discovery().subjectReference,
+    source: { verifiedUrl: "https://venue.example/", finalUrl: "https://venue.example/", observedAt: "2026-09-21T00:00:00.000Z", sourceHash: "abc" },
+    crawl: { status: "PARTIAL", warnings, requestCount: 1, pageCount: 1, bytesRead: 1, redirects: 0, blockedCount: 0, retryable: false },
+    identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [],
+  }));
 });

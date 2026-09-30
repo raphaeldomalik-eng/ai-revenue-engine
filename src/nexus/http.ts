@@ -34,6 +34,12 @@ export type NexusHttpOptions = {
   researchExecutionVersion?: string;
   executeResearch?: Executor;
   executeSourceDiscovery?: Executor;
+  /**
+   * When omitted, both lanes stay available for direct in-process callers.
+   * The HTTP route always sets these from the environment policy.
+   */
+  allowResearch?: boolean;
+  allowSourceDiscovery?: boolean;
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -125,8 +131,23 @@ async function prepareVersionedResearchInput(input: Record<string, unknown>, opt
   return { input: { ...input, requestId, idempotencyKey }, responseIds: { requestId: request.requestId, idempotencyKey: request.idempotencyKey } };
 }
 
+function explicitlyEnabled(value: string | undefined) {
+  return value?.trim().toLowerCase() === "true";
+}
+
+/** Research and provider execution. Production stays closed even if the preview switch is set. */
 export function nexusExecutorDisabled(env: NodeJS.ProcessEnv = process.env) {
   return env.VERCEL_ENV === "production" || env.NEXUS_EXECUTOR_ENABLED !== "true";
+}
+
+/**
+ * Deterministic source discovery. An explicit flag admits it in production.
+ * Without that flag, it follows the existing research executor switch, so
+ * preview behaviour is unchanged and production stays closed.
+ */
+export function nexusSourceDiscoveryDisabled(env: NodeJS.ProcessEnv = process.env) {
+  if (explicitlyEnabled(env.NEXUS_SOURCE_DISCOVERY_ENABLED)) return false;
+  return nexusExecutorDisabled(env);
 }
 
 export async function handleNexusExecuteRequest(request: Request, options: NexusHttpOptions): Promise<Response> {
@@ -163,6 +184,7 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
 
   try {
     if (payload.contractVersion === CONTRACTS.RESEARCH_REQUEST) {
+      if (options.allowResearch === false) return json(404, { code: "NEXUS_EXECUTOR_NOT_AVAILABLE" });
       const prepared = await prepareVersionedResearchInput(payload, options);
       if (prepared.stored) return json(200, validateResearchResult(prepared.stored));
       const execute = options.executeResearch ?? (async (input, context) =>
@@ -172,6 +194,7 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
       return json(200, validateResearchResult(responseResult));
     }
     if (payload.contractVersion === CONTRACTS.SOURCE_DISCOVERY_REQUEST) {
+      if (options.allowSourceDiscovery === false) return json(404, { code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" });
       const execute = options.executeSourceDiscovery ?? (async (input, context) =>
         executeSourceDiscoveryRequest(input, {}, context.store));
       return json(200, validateSourceDiscoveryResult(await execute(payload, { store: options.store })));

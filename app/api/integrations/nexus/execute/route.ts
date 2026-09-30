@@ -1,12 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
-import { handleNexusExecuteRequest, nexusExecutorDisabled } from "../../../../../src/nexus/http.ts";
+import { handleNexusExecuteRequest, nexusExecutorDisabled, nexusSourceDiscoveryDisabled } from "../../../../../src/nexus/http.ts";
 import { SupabaseNexusResultStore } from "../../../../../src/nexus/persistence.ts";
 import { createPublicWebProvider, researchContextFromPayload } from "../../../../../src/nexus/public-web.ts";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  if (nexusExecutorDisabled()) {
+  const researchDisabled = nexusExecutorDisabled();
+  const sourceDiscoveryDisabled = nexusSourceDiscoveryDisabled();
+  // Both lanes closed: keep the endpoint absent. A signed source-discovery
+  // request is the only production exception, and only when its own flag is set.
+  if (researchDisabled && sourceDiscoveryDisabled) {
     return Response.json({ code: "NEXUS_EXECUTOR_NOT_AVAILABLE" }, { status: 404 });
   }
 
@@ -25,6 +29,8 @@ export async function POST(request: Request) {
     store: new SupabaseNexusResultStore(client),
     publicWeb: createPublicWebProvider(),
     researchContext: researchContextFromPayload,
+    allowResearch: !researchDisabled,
+    allowSourceDiscovery: !sourceDiscoveryDisabled,
     // Research generation stays v6. Source-discovery replay uses SOURCE_DISCOVERY_EXECUTION_VERSION.
     researchExecutionVersion: "resources-v2-unclassified-evidence-v6",
   });
