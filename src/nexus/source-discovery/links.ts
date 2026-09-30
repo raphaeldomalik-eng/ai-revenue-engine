@@ -1,6 +1,7 @@
 import type { SourceExtractor } from "../contracts.ts";
 import { hrefTags, visibleText } from "./html.ts";
 import { canonicalHttpsUrl } from "./network.ts";
+import type { SiteIdentity } from "./site-identity.ts";
 import type { FetchedDocument } from "./types.ts";
 
 const EVENT_PATH = /(^|\/)(events?|gigs?|shows?|tour|live|whats[-_]?on|calendar|concerts?)(\/|$)/i;
@@ -8,8 +9,8 @@ const EVENT_TEXT = /\b(events?|gigs?|shows?|tour dates?|live dates?|what'?s on|c
 const DATE_SIGNAL = /\b(20\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun)\b/i;
 const CALENDAR_URL = /\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i;
 
-function sameOrigin(value: string, base: string): string | null {
-  const normalized = canonicalHttpsUrl(value, base);
+function sameOrigin(value: string, base: string, site?: SiteIdentity): string | null {
+  const normalized = site ? site.canonicalize(value, base) : canonicalHttpsUrl(value, base);
   if (!normalized || new URL(normalized).origin !== new URL(base).origin) return null;
   const url = new URL(normalized);
   for (const key of [...url.searchParams.keys()]) if (/^(?:tracking|utm_[a-z_]+|fbclid|gclid)$/i.test(key)) url.searchParams.delete(key);
@@ -28,11 +29,11 @@ function extractorTerms(extractors: SourceExtractor[]): string[] {
           : ["about", "venue", "facility", "facilities", "conference", "home"]);
 }
 
-export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: SourceExtractor[]): string[] {
+export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: SourceExtractor[], site?: SiteIdentity): string[] {
   const terms = extractorTerms(extractors);
   const scored = new Map<string, number>();
   for (const anchor of hrefTags(document.body)) {
-    const normalized = sameOrigin(anchor.attrs.href ?? "", document.url);
+    const normalized = sameOrigin(anchor.attrs.href ?? "", document.url, site);
     if (!normalized || normalized === document.url) continue;
     const url = new URL(normalized);
     if (/\b(?:accessibility-statement|privacy-policy|cookie-policy|terms-of-use|search)\b/i.test(url.pathname)) continue;
@@ -73,12 +74,12 @@ export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: 
   return [...selected, ...ranked.filter((url) => !selected.includes(url))];
 }
 
-export function discoverLikelyEventDetailUrls(document: FetchedDocument): string[] {
+export function discoverLikelyEventDetailUrls(document: FetchedDocument, site?: SiteIdentity): string[] {
   const source = new URL(document.url);
   const sourceDepth = source.pathname.split("/").filter(Boolean).length;
   const scored = new Map<string, number>();
   for (const anchor of hrefTags(document.body)) {
-    const normalized = sameOrigin(anchor.attrs.href ?? "", document.url);
+    const normalized = sameOrigin(anchor.attrs.href ?? "", document.url, site);
     if (!normalized || normalized === document.url) continue;
     const url = new URL(normalized);
     const label = visibleText(anchor.inner);
@@ -93,10 +94,10 @@ export function discoverLikelyEventDetailUrls(document: FetchedDocument): string
     .map(([url]) => url);
 }
 
-export function discoverCalendarUrls(document: FetchedDocument): string[] {
+export function discoverCalendarUrls(document: FetchedDocument, site?: SiteIdentity): string[] {
   const found: string[] = [];
   for (const anchor of hrefTags(document.body)) {
-    const candidate = sameOrigin(anchor.attrs.href ?? "", document.url);
+    const candidate = sameOrigin(anchor.attrs.href ?? "", document.url, site);
     if (!candidate || candidate === document.url) continue;
     const label = visibleText(anchor.inner);
     if (!CALENDAR_URL.test(candidate) && !/^(?:ics|ical|add to calendar|export calendar)$/i.test(label)) continue;
