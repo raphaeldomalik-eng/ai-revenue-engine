@@ -40,6 +40,13 @@ export class NetworkRefusal extends Error {
   }
 }
 
+export class UnsupportedContent extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnsupportedContent";
+  }
+}
+
 export function isPublicNetworkAddress(address: string): boolean {
   const mapped = embeddedIpv4(address);
   if (mapped) return isPublicNetworkAddress(mapped);
@@ -115,6 +122,8 @@ export async function fetchPinned(args: {
   accept: string;
   maxBytes: number;
   timeoutMs: number;
+  headers?: Record<string, string>;
+  refuseContentType?: (contentType: string | null) => string | null;
 }): Promise<Response> {
   const addresses = await resolvePublicNetworkAddresses(args.url, args.resolveHost);
   const url = new URL(args.url);
@@ -127,7 +136,7 @@ export async function fetchPinned(args: {
       port: url.port || 443,
       path: `${url.pathname}${url.search}`,
       method: "GET",
-      headers: { Host: url.host, "User-Agent": args.userAgent, Accept: args.accept },
+      headers: { ...args.headers, Host: url.host, "User-Agent": args.userAgent, Accept: args.accept, "Accept-Encoding": "identity" },
       family: addresses[0]?.family,
       lookup: pinLookup(addresses),
     }, (response) => {
@@ -137,6 +146,13 @@ export async function fetchPinned(args: {
       if (Number.isFinite(contentLength) && contentLength > args.maxBytes) {
         request.destroy();
         reject(new NetworkRefusal("Response exceeded the discovery size limit."));
+        return;
+      }
+      const status = response.statusCode ?? 0;
+      const refusal = status >= 200 && status < 300 ? args.refuseContentType?.(response.headers["content-type"] ?? null) : null;
+      if (refusal) {
+        request.destroy();
+        reject(new UnsupportedContent(refusal));
         return;
       }
       response.on("data", (chunk: Buffer) => {
@@ -153,7 +169,8 @@ export async function fetchPinned(args: {
         for (const [key, value] of Object.entries(response.headers)) {
           if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : String(value));
         }
-        resolve(new Response(Buffer.concat(chunks).toString("utf8"), { status: response.statusCode ?? 0, headers }));
+        const nullBody = status === 204 || status === 304 || (status >= 300 && status < 400);
+        resolve(new Response(nullBody ? null : Buffer.concat(chunks), { status, headers }));
       });
     });
     request.setTimeout(args.timeoutMs, () => request.destroy(new Error("Discovery request timed out.")));

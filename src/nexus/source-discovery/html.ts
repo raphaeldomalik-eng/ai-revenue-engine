@@ -1,13 +1,21 @@
 export type HtmlTag = { attrs: Record<string, string>; inner: string };
 
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", quot: '"', apos: "'", lt: "<", gt: ">", ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’",
+  ldquo: "“", rdquo: "”", hellip: "…", pound: "£", euro: "€", copy: "©", reg: "®", trade: "™", middot: "·",
+  bull: "•", times: "×", deg: "°", frac12: "½", eacute: "é", egrave: "è", agrave: "à", ccedil: "ç", uuml: "ü",
+  ouml: "ö", auml: "ä", szlig: "ß", shy: "",
+};
+
 export function decodeHtml(value: string): string {
-  return value
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
+  return value.replace(/&(#x[0-9a-f]{1,6}|#\d{1,7}|[a-z][a-z0-9]{1,8});/gi, (entity, body: string) => {
+    if (body[0] === "#") {
+      const code = body[1] === "x" || body[1] === "X" ? Number.parseInt(body.slice(2), 16) : Number(body.slice(1));
+      if (!Number.isFinite(code) || code <= 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)) return entity;
+      return code === 160 ? " " : String.fromCodePoint(code);
+    }
+    return NAMED_ENTITIES[body.toLowerCase()] ?? entity;
+  });
 }
 
 export function attributes(raw: string): Record<string, string> {
