@@ -62,7 +62,7 @@ function research(input: { placeId: string; name?: string; purpose?: string; ent
     subject: { canonicalEntityId: input.canonicalEntityId === undefined ? CANONICAL : input.canonicalEntityId, candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: input.placeId }, entityType: input.entityType ?? "VENUE" },
     researchPurpose: input.purpose ?? "OFFICIAL_WEBSITE",
     requestedFactTypes: ["officialWebsite"],
-    providerAllowances: ["PUBLIC_WEB"],
+    providerAllowances: input.website ? ["PUBLIC_WEB"] : ["PUBLIC_WEB", "GOOGLE_PLACES"],
     costCeiling: { currency: "USD", amount: 0 },
     freshnessRequirements: { maxAgeHours: 720 },
     existingEvidenceRefs: [],

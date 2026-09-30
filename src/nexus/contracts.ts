@@ -7,6 +7,8 @@ export const CONTRACTS = Object.freeze({
   RESEARCH_RESULT: "nexus.research-result.v1",
   SOURCE_DISCOVERY_REQUEST: "nexus.source-discovery-request.v1",
   SOURCE_DISCOVERY_RESULT: "nexus.source-discovery-result.v1",
+  OFFICIAL_WEBSITE_DISCOVERY_REQUEST: "nexus.official-website-discovery-request.v1",
+  OFFICIAL_WEBSITE_DISCOVERY_RESULT: "nexus.official-website-discovery-result.v1",
 });
 
 export const ENTITY_TYPES = ["ORGANISATION", "PLACE", "VENUE", "EVENT", "CREATIVE_ENTITY", "UNKNOWN"] as const;
@@ -297,3 +299,121 @@ export function stageResearchResult(result: unknown) {
   };
 }
 export function stageSourceDiscoveryResult(result: unknown) { const validated = validateSourceDiscoveryResult(result); return { contractVersion: validated.contractVersion, discoveryRequestId: validated.discoveryRequestId, idempotencyKey: validated.idempotencyKey, evidenceRefs: validated.evidenceRefs, identityFacts: validated.identityFacts, publicContacts: validated.publicContacts, venueFacts: validated.venueFacts, imageCandidates: validated.imageCandidates, eventCandidates: validated.eventCandidates, canonicalMutations: 0, mediaCreates: 0, eventCreates: 0, publicationActions: 0 }; }
+
+// Website search, public website crawl, and Google Places are independent allowances.
+// This lane never substitutes one for another and refuses Google Places outright:
+// Google runs only in a separately owner-authorised lane.
+export const OFFICIAL_WEBSITE_DISCOVERY_PROVIDERS = ["PUBLIC_WEB_SEARCH", "PUBLIC_WEB", "GOOGLE_PLACES"] as const;
+export type OfficialWebsiteDiscoveryProvider = typeof OFFICIAL_WEBSITE_DISCOVERY_PROVIDERS[number];
+export const OFFICIAL_WEBSITE_DISCOVERY_MARKETS = ["GB", "ZA"] as const;
+export const WEBSITE_STATUSES = ["HELD_WEBSITE_REUSED", "OFFICIAL_WEBSITE_DISCOVERED_AND_VERIFIED", "WEBSITE_CANDIDATES_AMBIGUOUS", "NO_CREDIBLE_WEBSITE_FOUND", "SEARCH_PROVIDER_UNAVAILABLE", "CRAWL_BLOCKED", "CRAWL_UNAVAILABLE", "NOT_REQUIRED"] as const;
+export const CONTACT_STATUSES = ["VERIFIED_SITE_PUBLIC_CONTACT_FOUND", "VERIFIED_SITE_NO_PUBLIC_CONTACT", "HELD_CONTACT_REUSED", "CRAWL_BLOCKED", "CRAWL_UNAVAILABLE", "NOT_ATTEMPTED"] as const;
+export const OFFICIAL_WEBSITE_DISCOVERY_STATUSES = ["HELD_WEBSITE_REUSED", "HELD_CONTACT_REUSED", "OFFICIAL_WEBSITE_DISCOVERED_AND_VERIFIED", "WEBSITE_CANDIDATES_AMBIGUOUS", "NO_CREDIBLE_WEBSITE_FOUND", "SEARCH_PROVIDER_UNAVAILABLE", "VERIFIED_SITE_NO_PUBLIC_CONTACT", "VERIFIED_SITE_PUBLIC_CONTACT_FOUND", "CRAWL_BLOCKED", "CRAWL_UNAVAILABLE"] as const;
+export type OfficialWebsiteDiscoveryStatus = typeof OFFICIAL_WEBSITE_DISCOVERY_STATUSES[number];
+const WEBSITE_SOURCES = ["RESOURCES_HELD", "NEXUS_VERIFIED", "STORED_GOOGLE_EVIDENCE_VERIFIED", "PUBLIC_WEB_SEARCH_VERIFIED"] as const;
+const CANDIDATE_STATES = ["SELECTED", "REJECTED", "UNVERIFIED", "NOT_EVALUATED"] as const;
+
+function optionalText(value: unknown, code: string, max = 1024) { return value == null ? null : text(value, code, { max }); }
+function optionalHttpsWebsite(value: unknown, code: string) {
+  const website = url(value, code, { optional: true });
+  if (!website) return null;
+  const parsed = new URL(website);
+  if (parsed.username || parsed.password) fail(code);
+  if (parsed.protocol === "http:") parsed.protocol = "https:";
+  return parsed.toString();
+}
+function heldResources(value: unknown) {
+  if (value == null) return { website: null, phone: null, enquiryRoute: null, evidenceRef: null };
+  const v = object(value, "INVALID_HELD_RESOURCES_EVIDENCE");
+  assertOnlyFields(v, new Set(["website", "phone", "enquiryRoute", "evidenceRef"]), "INVALID_HELD_RESOURCES_EVIDENCE_FIELDS");
+  return { website: optionalHttpsWebsite(v.website, "INVALID_HELD_RESOURCES_WEBSITE"), phone: optionalText(v.phone, "INVALID_HELD_RESOURCES_PHONE", 64), enquiryRoute: optionalHttpsWebsite(v.enquiryRoute, "INVALID_HELD_RESOURCES_ENQUIRY_ROUTE"), evidenceRef: optionalText(v.evidenceRef, "INVALID_HELD_RESOURCES_EVIDENCE_REF", 512) };
+}
+function heldNexus(value: unknown) {
+  if (value == null) return { verifiedOfficialWebsite: null, publicPhone: null, publicEmail: null, evidenceRef: null };
+  const v = object(value, "INVALID_HELD_NEXUS_EVIDENCE");
+  assertOnlyFields(v, new Set(["verifiedOfficialWebsite", "publicPhone", "publicEmail", "evidenceRef"]), "INVALID_HELD_NEXUS_EVIDENCE_FIELDS");
+  const held = { verifiedOfficialWebsite: optionalHttpsWebsite(v.verifiedOfficialWebsite, "INVALID_HELD_NEXUS_WEBSITE"), publicPhone: optionalText(v.publicPhone, "INVALID_HELD_NEXUS_PHONE", 64), publicEmail: optionalText(v.publicEmail, "INVALID_HELD_NEXUS_EMAIL", 320), evidenceRef: optionalText(v.evidenceRef, "INVALID_HELD_NEXUS_EVIDENCE_REF", 512) };
+  if ((held.verifiedOfficialWebsite || held.publicPhone || held.publicEmail) && !held.evidenceRef) fail("HELD_NEXUS_EVIDENCE_REF_REQUIRED");
+  return held;
+}
+function storedGoogleEvidence(value: unknown) {
+  if (value == null) return { websiteUri: null, phone: null, displayName: null, formattedAddress: null, evidenceRef: null };
+  const v = object(value, "INVALID_STORED_GOOGLE_EVIDENCE");
+  assertOnlyFields(v, new Set(["websiteUri", "phone", "displayName", "formattedAddress", "evidenceRef"]), "INVALID_STORED_GOOGLE_EVIDENCE_FIELDS");
+  const stored = { websiteUri: optionalHttpsWebsite(v.websiteUri, "INVALID_STORED_GOOGLE_WEBSITE"), phone: optionalText(v.phone, "INVALID_STORED_GOOGLE_PHONE", 64), displayName: optionalText(v.displayName, "INVALID_STORED_GOOGLE_DISPLAY_NAME", 512), formattedAddress: optionalText(v.formattedAddress, "INVALID_STORED_GOOGLE_ADDRESS", 1024), evidenceRef: optionalText(v.evidenceRef, "INVALID_STORED_GOOGLE_EVIDENCE_REF", 512) };
+  if ((stored.websiteUri || stored.phone || stored.displayName || stored.formattedAddress) && !stored.evidenceRef) fail("STORED_GOOGLE_EVIDENCE_REF_REQUIRED");
+  return stored;
+}
+function discoveryIdentity(value: unknown) {
+  const v = object(value, "INVALID_DISCOVERY_IDENTITY");
+  assertOnlyFields(v, new Set(["venueName", "locality", "administrativeRegion", "country", "formattedAddress", "placeId", "placeIdEvidenceRef"]), "INVALID_DISCOVERY_IDENTITY_FIELDS");
+  const country = text(v.country, "INVALID_DISCOVERY_COUNTRY", { max: 2 })!.toUpperCase();
+  if (!OFFICIAL_WEBSITE_DISCOVERY_MARKETS.includes(country as typeof OFFICIAL_WEBSITE_DISCOVERY_MARKETS[number])) fail("DISCOVERY_MARKET_NOT_AUTHORISED", country);
+  return {
+    venueName: text(v.venueName, "INVALID_DISCOVERY_VENUE_NAME", { max: 512 })!,
+    locality: text(v.locality, "INVALID_DISCOVERY_LOCALITY", { max: 256 })!,
+    administrativeRegion: optionalText(v.administrativeRegion, "INVALID_DISCOVERY_REGION", 256),
+    country: country as typeof OFFICIAL_WEBSITE_DISCOVERY_MARKETS[number],
+    formattedAddress: optionalText(v.formattedAddress, "INVALID_DISCOVERY_ADDRESS", 1024),
+    placeId: optionalText(v.placeId, "INVALID_DISCOVERY_PLACE_ID", 512),
+    placeIdEvidenceRef: optionalText(v.placeIdEvidenceRef, "INVALID_DISCOVERY_PLACE_ID_EVIDENCE_REF", 512),
+  };
+}
+
+export type OfficialWebsiteDiscoveryRequest = ReturnType<typeof validateOfficialWebsiteDiscoveryRequest>;
+export function validateOfficialWebsiteDiscoveryRequest(input: unknown) {
+  const v = object(input, "INVALID_OFFICIAL_WEBSITE_DISCOVERY_REQUEST");
+  if ("model" in v || "ai" in v || "allowModel" in v || "allowAi" in v) fail("MODEL_PERMISSION_NOT_ALLOWED");
+  const providerAllowances = stringArray(v.providerAllowances, "INVALID_DISCOVERY_PROVIDER_ALLOWANCES", { allowed: OFFICIAL_WEBSITE_DISCOVERY_PROVIDERS, maxItems: OFFICIAL_WEBSITE_DISCOVERY_PROVIDERS.length, required: true }) as OfficialWebsiteDiscoveryProvider[];
+  if (providerAllowances.includes("GOOGLE_PLACES")) fail("GOOGLE_PLACES_NOT_AUTHORISED_FOR_OFFICIAL_WEBSITE_DISCOVERY");
+  const held = v.heldEvidence == null ? {} : object(v.heldEvidence, "INVALID_HELD_EVIDENCE");
+  assertOnlyFields(held, new Set(["resources", "nexus", "storedGoogle"]), "INVALID_HELD_EVIDENCE_FIELDS");
+  return Object.freeze({
+    contractVersion: enumValue(v.contractVersion, [CONTRACTS.OFFICIAL_WEBSITE_DISCOVERY_REQUEST] as const, "INVALID_CONTRACT_VERSION"),
+    requestId: uuid(v.requestId, "INVALID_REQUEST_ID")!,
+    idempotencyKey: uuid(v.idempotencyKey, "INVALID_IDEMPOTENCY_KEY")!,
+    correlationId: uuid(v.correlationId, "INVALID_CORRELATION_ID")!,
+    originatingProduct: enumValue(v.originatingProduct, ORIGINATING_PRODUCTS, "INVALID_ORIGINATING_PRODUCT"),
+    subject: subject(v.subject),
+    identity: discoveryIdentity(v.identity),
+    heldEvidence: { resources: heldResources(held.resources), nexus: heldNexus(held.nexus), storedGoogle: storedGoogleEvidence(held.storedGoogle) },
+    providerAllowances,
+    costCeiling: costCeiling(v.costCeiling),
+    requestedBy: requestedBy(v.requestedBy),
+    createdAt: iso(v.createdAt, "INVALID_CREATED_AT"),
+  });
+}
+
+function discoveryCandidate(value: unknown) {
+  const v = object(value, "INVALID_DISCOVERY_CANDIDATE");
+  return { url: url(v.url, "INVALID_DISCOVERY_CANDIDATE_URL")!, origin: v.origin == null ? null : url(v.origin, "INVALID_DISCOVERY_CANDIDATE_ORIGIN", { httpsOnly: true }), source: enumValue(v.source, ["PUBLIC_WEB_SEARCH", "STORED_GOOGLE_EVIDENCE"] as const, "INVALID_DISCOVERY_CANDIDATE_SOURCE"), rank: nonNegativeNumber(v.rank, "INVALID_DISCOVERY_CANDIDATE_RANK", { max: 1000 }), state: enumValue(v.state, CANDIDATE_STATES, "INVALID_DISCOVERY_CANDIDATE_STATE"), reasons: stringArray(v.reasons, "INVALID_DISCOVERY_CANDIDATE_REASONS", { maxItems: 20 }) };
+}
+export function validateOfficialWebsiteDiscoveryResult(input: unknown) {
+  const v = object(input, "INVALID_OFFICIAL_WEBSITE_DISCOVERY_RESULT");
+  if (v.googlePlacesCalls !== 0) fail("GOOGLE_PLACES_CALLS_MUST_BE_ZERO");
+  const search = object(v.search, "INVALID_DISCOVERY_SEARCH");
+  const crawl = object(v.crawl, "INVALID_DISCOVERY_CRAWL");
+  const website = v.officialWebsite == null ? null : object(v.officialWebsite, "INVALID_DISCOVERY_OFFICIAL_WEBSITE");
+  return Object.freeze({
+    contractVersion: enumValue(v.contractVersion, [CONTRACTS.OFFICIAL_WEBSITE_DISCOVERY_RESULT] as const, "INVALID_CONTRACT_VERSION"),
+    requestId: uuid(v.requestId, "INVALID_REQUEST_ID")!,
+    idempotencyKey: uuid(v.idempotencyKey, "INVALID_IDEMPOTENCY_KEY")!,
+    subject: subject(v.subject),
+    status: enumValue(v.status, OFFICIAL_WEBSITE_DISCOVERY_STATUSES, "INVALID_DISCOVERY_STATUS"),
+    websiteStatus: enumValue(v.websiteStatus, WEBSITE_STATUSES, "INVALID_DISCOVERY_WEBSITE_STATUS"),
+    contactStatus: enumValue(v.contactStatus, CONTACT_STATUSES, "INVALID_DISCOVERY_CONTACT_STATUS"),
+    officialWebsite: website ? { url: url(website.url, "INVALID_DISCOVERY_OFFICIAL_WEBSITE_URL", { httpsOnly: true })!, source: enumValue(website.source, WEBSITE_SOURCES, "INVALID_DISCOVERY_WEBSITE_SOURCE"), verificationPath: website.verificationPath == null ? null : text(website.verificationPath, "INVALID_DISCOVERY_VERIFICATION_PATH", { max: 64 }), verificationSignals: stringArray(website.verificationSignals, "INVALID_DISCOVERY_VERIFICATION_SIGNALS", { maxItems: 20 }), evidenceRef: text(website.evidenceRef, "INVALID_DISCOVERY_WEBSITE_EVIDENCE_REF", { max: 512 })! } : null,
+    publicContacts: Array.isArray(v.publicContacts) ? v.publicContacts.map((item) => { const c = object(item, "INVALID_DISCOVERY_CONTACT"); return { type: enumValue(c.type, PUBLIC_CONTACT_TYPES, "INVALID_DISCOVERY_CONTACT_TYPE"), value: text(c.value, "INVALID_DISCOVERY_CONTACT_VALUE", { max: 4096 })!, source: enumValue(c.source, ["RESOURCES_HELD", "NEXUS_VERIFIED", "STORED_GOOGLE_EVIDENCE", "VERIFIED_FIRST_PARTY_SITE"] as const, "INVALID_DISCOVERY_CONTACT_SOURCE"), sourceUrl: url(c.sourceUrl, "INVALID_DISCOVERY_CONTACT_SOURCE_URL", { optional: true }), evidenceRef: text(c.evidenceRef, "INVALID_DISCOVERY_CONTACT_EVIDENCE_REF", { max: 512 })! }; }) : [],
+    candidates: Array.isArray(v.candidates) ? v.candidates.slice(0, 50).map(discoveryCandidate) : [],
+    search: { provider: search.provider == null ? null : text(search.provider, "INVALID_DISCOVERY_SEARCH_PROVIDER", { max: 128 }), costModel: search.costModel == null ? null : enumValue(search.costModel, ["ZERO_INCREMENTAL", "METERED"] as const, "INVALID_DISCOVERY_SEARCH_COST_MODEL"), queries: stringArray(search.queries, "INVALID_DISCOVERY_SEARCH_QUERIES", { maxItems: 10 }), callCount: nonNegativeNumber(search.callCount, "INVALID_DISCOVERY_SEARCH_CALLS", { max: 100 }), returnedCandidateUrls: Array.isArray(search.returnedCandidateUrls) ? search.returnedCandidateUrls.slice(0, 100).map((item: unknown) => text(item, "INVALID_DISCOVERY_SEARCH_URL", { max: 4096 })!) : [], cost: costCeiling(search.cost ?? { currency: "USD", amount: 0 }) },
+    crawl: { verificationCrawls: nonNegativeNumber(crawl.verificationCrawls, "INVALID_DISCOVERY_VERIFICATION_CRAWLS", { max: 100 }), sourceDiscoveryCrawls: nonNegativeNumber(crawl.sourceDiscoveryCrawls, "INVALID_DISCOVERY_SOURCE_CRAWLS", { max: 100 }), requestCount: nonNegativeNumber(crawl.requestCount, "INVALID_DISCOVERY_CRAWL_REQUESTS", { max: 100_000 }), blocked: nonNegativeNumber(crawl.blocked ?? 0, "INVALID_DISCOVERY_CRAWL_BLOCKED", { max: 100 }), unavailable: nonNegativeNumber(crawl.unavailable ?? 0, "INVALID_DISCOVERY_CRAWL_UNAVAILABLE", { max: 100 }) },
+    googlePlacesCalls: 0 as const,
+    providerUsage: Array.isArray(v.providerUsage) ? v.providerUsage.map((item) => { const u = object(item, "INVALID_DISCOVERY_PROVIDER_USAGE"); return { provider: enumValue(u.provider, OFFICIAL_WEBSITE_DISCOVERY_PROVIDERS, "INVALID_DISCOVERY_PROVIDER_USAGE_PROVIDER"), callCount: nonNegativeNumber(u.callCount, "INVALID_DISCOVERY_PROVIDER_CALL_COUNT", { max: 1_000_000 }), purpose: text(u.purpose, "INVALID_DISCOVERY_PROVIDER_PURPOSE", { max: 256 })!, cost: u.cost == null ? null : costCeiling(u.cost) }; }) : [],
+    costSummary: costCeiling(v.costSummary ?? { currency: "USD", amount: 0 }),
+    sourceDiscovery: v.sourceDiscovery == null ? null : validateSourceDiscoveryResult(v.sourceDiscovery),
+    unknowns: stringArray(v.unknowns, "INVALID_UNKNOWNS", { maxItems: 50 }),
+    evidenceRefs: stringArray(v.evidenceRefs, "INVALID_EVIDENCE_REFS", { maxItems: 1000 }),
+    retryable: v.retryable === true,
+    observedAt: iso(v.observedAt, "INVALID_OBSERVED_AT"),
+  });
+}

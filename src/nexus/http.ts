@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import {
   CONTRACTS,
+  validateOfficialWebsiteDiscoveryResult,
   validateResearchRequest,
   validateResearchResult,
   validateSourceDiscoveryResult,
 } from "./contracts.ts";
+import { configuredPublicWebSearchProvider, executeOfficialWebsiteDiscovery, type PublicWebSearchProvider } from "./official-website-discovery.ts";
 import {
   executeResearchRequest,
   executeSourceDiscoveryRequest,
@@ -34,6 +36,8 @@ export type NexusHttpOptions = {
   researchExecutionVersion?: string;
   executeResearch?: Executor;
   executeSourceDiscovery?: Executor;
+  executeOfficialWebsiteDiscovery?: Executor;
+  publicWebSearch?: PublicWebSearchProvider | null;
   /**
    * When omitted, both lanes stay available for direct in-process callers.
    * The HTTP route always sets these from the environment policy.
@@ -192,6 +196,12 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
       const result = await execute(prepared.input, { store: options.store });
       const responseResult = prepared.responseIds ? rebindResearchResult(result, prepared.responseIds.requestId, prepared.responseIds.idempotencyKey) : result;
       return json(200, validateResearchResult(responseResult));
+    }
+    if (payload.contractVersion === CONTRACTS.OFFICIAL_WEBSITE_DISCOVERY_REQUEST) {
+      if (options.allowResearch === false) return json(404, { code: "NEXUS_EXECUTOR_NOT_AVAILABLE" });
+      const execute = options.executeOfficialWebsiteDiscovery ?? (async (input, context) =>
+        executeOfficialWebsiteDiscovery(input, { searchProvider: options.publicWebSearch ?? configuredPublicWebSearchProvider() }, context.store));
+      return json(200, validateOfficialWebsiteDiscoveryResult(await execute(payload, { store: options.store })));
     }
     if (payload.contractVersion === CONTRACTS.SOURCE_DISCOVERY_REQUEST) {
       if (options.allowSourceDiscovery === false) return json(404, { code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" });
