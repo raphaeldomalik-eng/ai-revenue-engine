@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { getGooglePlaceDetails, type GooglePlacesDetailsInput } from "../ai-sales-team/google-places.ts";
-import { validateResearchRequest, type ResearchRequest } from "./contracts.ts";
+import { officialWebsiteDetailsAuthorization, validateResearchRequest, type ResearchRequest } from "./contracts.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 import type { ProviderResult, ResearchContext } from "./executor.ts";
 
@@ -186,13 +186,14 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       const placeId = evidencedPlaceId(context);
       const input = placeId ? detailsInput(request, context, placeId) : null;
       if (!input) return unresolved(request, purpose, "No evidenced public first-party HTTPS website or complete evidence-backed Place identity was available for bounded discovery.");
+      const detailsAuthorization = officialWebsiteDetailsAuthorization(request, context);
       try {
-        const details = await (options.placeDetails ?? getGooglePlaceDetails)(input, { mode: "details_selected", evidenceStore: context.googlePlacesEvidenceStore ?? null, requestingApplication: request.originatingProduct, workflow: `nexus_public_web_seed:${purpose}` });
+        const details = await (options.placeDetails ?? getGooglePlaceDetails)(input, { mode: "details_selected", detailsAuthorization, evidenceStore: context.googlePlacesEvidenceStore ?? null, requestingApplication: request.originatingProduct, workflow: `nexus_public_web_seed:${purpose}` });
         providerUsage.push({ provider: "GOOGLE_PLACES", callCount: details.googleCalls ?? 1, purpose: "OFFICIAL_WEBSITE_SEED_PLACE_DETAILS", cost: null });
         if (details.result) {
           const observedAt = details.result.retrievedAt;
           const ref = evidenceRef(request, `google-place-${createHash("sha256").update(details.result.googlePlaceId).digest("hex").slice(0, 16)}`);
-          seedEvidence.push({ evidenceRef: ref, provider: "GOOGLE_PLACES", externalRecordId: details.result.googlePlaceId, sourceUrl: details.result.sourceUrl, observedAt, dataClassification: "PUBLIC", licenceType: "PROPRIETARY", payload: bounded({ ...details.result, telemetry: details.telemetry }) });
+          seedEvidence.push({ evidenceRef: ref, provider: "GOOGLE_PLACES", externalRecordId: details.result.googlePlaceId, sourceUrl: details.result.sourceUrl, observedAt, dataClassification: "PUBLIC", licenceType: "PROPRIETARY", payload: { ...(bounded({ ...details.result, telemetry: details.telemetry }) as Record<string, unknown>), ...(details.evidence ? { googlePlacesEvidence: details.evidence } : {}) } });
           const placeFact = (fieldName: string, value: unknown) => ({ fieldName, value, evidenceRef: ref, confidence: 0.8, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId });
           seededPlaceFacts = [
             ...(details.result.displayName ? [placeFact("placeName", details.result.displayName)] : []),
@@ -206,7 +207,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
           if (details.result.types.some((type) => venueProviderTypes.has(type)) && details.result.types.some((type) => organisationProviderTypes.has(type))) {
             seededPlaceFacts.push(placeFact("classificationSignals", ["ORGANISATION_VENUE_CONFLICT"]));
           }
-          if (["EXACT_OR_STRONG", "REVIEW_REQUIRED"].includes(details.result.matchStatus)) website = httpsCandidate(details.result.websiteUri);
+          if (detailsAuthorization.purpose === "OFFICIAL_WEBSITE" && ["EXACT_OR_STRONG", "REVIEW_REQUIRED"].includes(details.result.matchStatus)) website = httpsCandidate(details.result.websiteUri);
           verificationContext = { ...context, existingFacts: [...(context.existingFacts ?? []), ...(details.result.displayName ? [{ fieldName: "placeName", value: details.result.displayName, evidenceRef: ref }] : []), ...(details.result.formattedAddress ? [{ fieldName: "formattedAddress", value: details.result.formattedAddress, evidenceRef: ref }] : [])] };
         }
       } catch (error) {
@@ -214,6 +215,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
         return unresolved(request, purpose, "Place Details could not safely acquire a website seed.", { evidence: seedEvidence, providerUsage, error: { code: "GOOGLE_PLACE_DETAILS_UNAVAILABLE", message: error instanceof Error ? error.message : "Place Details failed safely.", retryable: true } });
       }
     }
+    if (!website && officialWebsiteDetailsAuthorization(request, context).purpose !== "OFFICIAL_WEBSITE") return unresolved(request, purpose, "Enterprise website lookup requires Resources/Nexus venue eligibility first. Pro place evidence was retained for Nexus classification.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage });
     if (!website) return unresolved(request, purpose, "Place Details returned no safe HTTPS website candidate. Place evidence was retained for Nexus classification.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage });
 
     try {

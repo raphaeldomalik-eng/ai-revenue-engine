@@ -1,4 +1,4 @@
-import { validateGooglePlacesEvidenceRecord, type GooglePlacesEvidenceRecordV1 } from "../ai-sales-team/google-places-evidence.ts";
+import { GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION, validateGooglePlacesEvidenceRecord, type GooglePlacesDetailsAuthorization, type GooglePlacesEvidenceRecordV1 } from "../ai-sales-team/google-places-evidence.ts";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -192,6 +192,16 @@ export function validateResearchRequest(input: unknown) {
     createdAt: iso(v.createdAt, "INVALID_CREATED_AT"),
     ...(Object.prototype.hasOwnProperty.call(v, "researchContext") ? { researchContext: researchContext(v.researchContext) } : {}),
   });
+}
+
+// Event-project attaches this fact only after the Resources/Nexus venue eligibility gate passes
+// (evaluateNexusVenueProjection === ELIGIBLE). Without it no Enterprise Place Details call is authorised.
+export const RESOURCES_VENUE_ELIGIBILITY_FACT = "resourcesVenueEligibility";
+
+export function officialWebsiteDetailsAuthorization(request: ResearchRequest, context: ResearchContext | null | undefined): GooglePlacesDetailsAuthorization {
+  if (request.researchPurpose !== "OFFICIAL_WEBSITE" || request.subject.entityType !== "VENUE" || !request.subject.canonicalEntityId) return GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION;
+  const eligibility = context?.existingFacts?.find((item) => item.fieldName === RESOURCES_VENUE_ELIGIBILITY_FACT && item.value === "ELIGIBLE" && typeof item.evidenceRef === "string" && item.evidenceRef.trim());
+  return eligibility ? { purpose: "OFFICIAL_WEBSITE", venueEligible: true, eligibilityRef: eligibility.evidenceRef! } : GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION;
 }
 
 function evidenceRecord(value: unknown) {

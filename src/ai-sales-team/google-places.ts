@@ -1,17 +1,18 @@
 import type { DiscoveryLane } from "./prospect-intelligence.ts";
-import { classifyGooglePlacesFieldMask, GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS, GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK, resolveGooglePlaceDetailsWithEvidence, type GooglePlacesBillingTier, type GooglePlacesCallTelemetry, type GooglePlacesEvidenceRecordV1, type GooglePlacesEvidenceReuse, type GooglePlacesEvidenceStore } from "./google-places-evidence.ts";
+import { assertGooglePlacesDetailsAuthorized, classifyGooglePlacesFieldMask, GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK, GOOGLE_PLACES_PRO_CLASSIFICATION_MASK, GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION, resolveGooglePlaceDetailsWithEvidence, type GooglePlacesBillingTier, type GooglePlacesCallTelemetry, type GooglePlacesDetailsAuthorization, type GooglePlacesEvidenceRecordV1, type GooglePlacesEvidenceReuse, type GooglePlacesEvidenceStore } from "./google-places-evidence.ts";
 
 export const GOOGLE_PLACES_MODES = ["disabled", "search_only", "details_selected"] as const;
 export type GooglePlacesMode = typeof GOOGLE_PLACES_MODES[number];
 export type GooglePlacesEndpointCategory = "TEXT_SEARCH" | "PLACE_DETAILS";
 export type GooglePlacesMatchStatus = "EXACT_OR_STRONG" | "REVIEW_REQUIRED" | "CONFLICTING" | "NO_MATCH";
-export type GooglePlacesErrorCategory = "MISSING_API_KEY" | "HTTP_ERROR" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TIMEOUT" | "REQUEST_FAILED" | "INVALID_INPUT" | "MODE_NOT_ALLOWED" | null;
+export type GooglePlacesErrorCategory = "MISSING_API_KEY" | "HTTP_ERROR" | "RATE_LIMITED" | "MALFORMED_RESPONSE" | "TIMEOUT" | "REQUEST_FAILED" | "INVALID_INPUT" | "MODE_NOT_ALLOWED" | "ENTERPRISE_NOT_AUTHORIZED" | null;
 export type GooglePlacesTargetType = "VENUE" | "ORGANISATION" | "UNCLASSIFIED";
 
 export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus";
-// Default Details request is the one approved Enterprise bundle (Pro classification + websiteUri + phone).
-// Reuse planning narrows or suppresses it per Place ID against persisted evidence.
-export const GOOGLE_PLACES_DETAILS_FIELD_MASK = GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK;
+// Default Details request is the Pro classification bundle. The Enterprise bundle (Pro + websiteUri + phone)
+// is only requested with an explicit OFFICIAL_WEBSITE authorization for an already venue-eligible Place.
+export const GOOGLE_PLACES_DETAILS_FIELD_MASK = GOOGLE_PLACES_PRO_CLASSIFICATION_MASK;
+export const GOOGLE_PLACES_OFFICIAL_WEBSITE_FIELD_MASK = GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK;
 
 export type GooglePlacesTelemetry = {
   endpointCategory: GooglePlacesEndpointCategory;
@@ -74,6 +75,7 @@ export type GooglePlacesOptions = {
   timeoutMs?: number;
   evidenceStore?: GooglePlacesEvidenceStore | null;
   requestedDetailsFields?: readonly string[];
+  detailsAuthorization?: GooglePlacesDetailsAuthorization;
   requestingApplication?: string;
   workflow?: string;
   onCallTelemetry?: (telemetry: GooglePlacesCallTelemetry) => void | Promise<void>;
@@ -244,8 +246,11 @@ export async function resolveGooglePlacesVenueComplex(input: GooglePlacesSearchI
   const selection = selectGooglePlacesVenueComplexCandidates(input, search.results);
   const details: GooglePlacesEvidence[] = [];
   const detailTelemetry: GooglePlacesTelemetry[] = [];
+  // Selected candidates already passed the venue-type, operational, brand and locality gate on Text Search
+  // evidence, so this is the only path here that may pay Enterprise for the official website.
   for (const candidate of selection.selected) {
-    const detail = await getGooglePlaceDetails({ ...input, googlePlaceId: candidate.googlePlaceId }, options);
+    const detailsAuthorization = options.detailsAuthorization ?? { purpose: "OFFICIAL_WEBSITE" as const, venueEligible: true as const, eligibilityRef: `aire_venue_complex_selection:${candidate.googlePlaceId}` };
+    const detail = await getGooglePlaceDetails({ ...input, googlePlaceId: candidate.googlePlaceId }, { ...options, detailsAuthorization });
     detailTelemetry.push(detail.telemetry);
     if (detail.result) details.push(detail.result);
   }
@@ -270,15 +275,18 @@ export type GooglePlaceDetailsRun = { result: GooglePlacesEvidence | null; telem
 
 export async function getGooglePlaceDetails(input: GooglePlacesDetailsInput, options: GooglePlacesOptions = {}): Promise<GooglePlaceDetailsRun> {
   const configured = optionsOf(options);
-  const requestedFields = options.requestedDetailsFields ?? GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS;
+  const authorization = options.detailsAuthorization ?? GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION;
+  const requestedFields = options.requestedDetailsFields ?? (authorization.purpose === "OFFICIAL_WEBSITE" ? GOOGLE_PLACES_OFFICIAL_WEBSITE_FIELD_MASK : GOOGLE_PLACES_DETAILS_FIELD_MASK).split(",");
   const requestedMask = requestedFields.join(",");
   if (configured.mode === "disabled") return { result: null, telemetry: telemetry("PLACE_DETAILS", configured.mode, null, 0, "NO_MATCH", null, "MODE_NOT_ALLOWED"), evidence: null, googleCalls: 0 };
   if (configured.mode !== "details_selected") throw errorFor("PLACE_DETAILS", configured.mode, requestedMask, null, "MODE_NOT_ALLOWED");
   if (!input.googlePlaceId.trim() || !input.targetName.trim() || (input.targetType === "UNCLASSIFIED" && input.lane !== "EXACT_ID") || (input.targetType !== "UNCLASSIFIED" && input.lane === "EXACT_ID")) throw errorFor("PLACE_DETAILS", configured.mode, requestedMask, null, "INVALID_INPUT");
+  try { assertGooglePlacesDetailsAuthorized(requestedFields, authorization); } catch { throw errorFor("PLACE_DETAILS", configured.mode, requestedMask, null, "ENTERPRISE_NOT_AUTHORIZED"); }
   let callError: GooglePlacesProviderError | null = null;
   const resolution = await resolveGooglePlaceDetailsWithEvidence({
     providerPlaceId: input.googlePlaceId,
     requestedFields,
+    authorization,
     store: options.evidenceStore ?? null,
     requestingApplication: options.requestingApplication ?? "ai_revenue_engine",
     workflow: options.workflow ?? "google_places_details",

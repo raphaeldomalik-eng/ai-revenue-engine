@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { enrichDiscoveryCandidatesWithGooglePlaces, evaluateDiscoveryCandidate } from "../src/ai-sales-team/discovery.ts";
-import { GOOGLE_PLACES_DETAILS_FIELD_MASK, GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, GooglePlacesProviderError, getGooglePlaceDetails, resolveGooglePlacesVenueComplex, searchGooglePlaces } from "../src/ai-sales-team/google-places.ts";
+import { GOOGLE_PLACES_DETAILS_FIELD_MASK, GOOGLE_PLACES_OFFICIAL_WEBSITE_FIELD_MASK, GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, GooglePlacesProviderError, getGooglePlaceDetails, resolveGooglePlacesVenueComplex, searchGooglePlaces } from "../src/ai-sales-team/google-places.ts";
 
 const searchInput = { targetName: "CTICC", targetWebsite: "https://www.cticc.co.za", locality: "Cape Town", lane: "VENUE_FIRST" as const, targetType: "VENUE" as const, limit: 3 };
 const organisationInput = { targetName: "Hyve Group", targetWebsite: null, locality: "London", lane: "ORGANISATION_FIRST" as const, targetType: "ORGANISATION" as const, limit: 3 };
@@ -13,6 +13,7 @@ const candidate = (overrides: Record<string, unknown> = {}) => evaluateDiscovery
 const cticc = (overrides: Record<string, unknown> = {}) => place({ id: "cticc", displayName: { text: "CTICC (Cape Town International Convention Centre)" }, formattedAddress: "Convention Square, 1 Lower Long St, Cape Town City Centre, Cape Town, 8001, South Africa", types: ["convention_center", "event_venue", "point_of_interest"], websiteUri: "https://www.cticc.co.za", ...overrides });
 const cticc2 = (overrides: Record<string, unknown> = {}) => place({ id: "cticc-2", displayName: { text: "CTICC 2 (Cape Town International Convention Centre 2)" }, formattedAddress: "Corner of Heerengracht & Rua Bartholomeu Dias, Foreshore, Cape Town, 8001, South Africa", types: ["convention_center", "event_venue", "point_of_interest"], websiteUri: "https://www.cticc.co.za", ...overrides });
 const lodging = (overrides: Record<string, unknown> = {}) => place({ id: "hotel", displayName: { text: "Cape Town International Convention Hotel" }, formattedAddress: "2 Lower Loop St, Cape Town City Centre, Cape Town, 8001, South Africa", types: ["hotel", "lodging", "point_of_interest"], websiteUri: "https://hotel.example", ...overrides });
+const WEBSITE = { purpose: "OFFICIAL_WEBSITE" as const, venueEligible: true as const, eligibilityRef: "test:venue-eligible" };
 const venueSequenceFetch = (searchPlaces: unknown[], detailsById: Record<string, unknown>, calls: Array<{ url: string; init?: RequestInit }>) => async (url: RequestInfo | URL, init?: RequestInit) => { calls.push({ url: String(url), init }); const id = String(url).split("/").pop() ?? ""; return response(String(url).includes(":searchText") ? { places: searchPlaces } : detailsById[id]); };
 
 test("Google Places is disabled by default and does not fetch", async () => {
@@ -52,9 +53,10 @@ test("Place Details uses the selected-place endpoint and details field mask", as
 
 test("field masks remain the exact approved contract", () => {
   assert.equal(GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus");
-  assert.equal(GOOGLE_PLACES_DETAILS_FIELD_MASK, "id,displayName,primaryType,types,formattedAddress,addressComponents,location,businessStatus,websiteUri,internationalPhoneNumber");
+  assert.equal(GOOGLE_PLACES_DETAILS_FIELD_MASK, "id,displayName,primaryType,types,formattedAddress,addressComponents,location,businessStatus");
+  assert.equal(GOOGLE_PLACES_OFFICIAL_WEBSITE_FIELD_MASK, "id,displayName,primaryType,types,formattedAddress,addressComponents,location,businessStatus,websiteUri,internationalPhoneNumber");
   assert.doesNotMatch(GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, /phone|review|photo|rating|opening|editorial|location|accessibility/i);
-  assert.doesNotMatch(GOOGLE_PLACES_DETAILS_FIELD_MASK, /review|photo|rating|opening|editorial|accessibility|(^|,)nationalPhone|parking|liveMusic|outdoor|payment/i);
+  assert.doesNotMatch(GOOGLE_PLACES_OFFICIAL_WEBSITE_FIELD_MASK, /review|photo|rating|opening|editorial|accessibility|(^|,)nationalPhone|parking|liveMusic|outdoor|payment/i);
 });
 
 test("the API key is neither returned nor present in normalized telemetry", async () => {
@@ -64,7 +66,7 @@ test("the API key is neither returned nor present in normalized telemetry", asyn
 });
 
 test("website-domain alignment is strong identity evidence through selected details", async () => {
-  const result = await getGooglePlaceDetails({ ...searchInput, googlePlaceId: "place-1" }, { mode: "details_selected", apiKey: "test-key", fetchImpl: fetchMock({ ...place({ websiteUri: "https://cticc.co.za/" }) }) });
+  const result = await getGooglePlaceDetails({ ...searchInput, googlePlaceId: "place-1" }, { mode: "details_selected", apiKey: "test-key", detailsAuthorization: WEBSITE, fetchImpl: fetchMock({ ...place({ websiteUri: "https://cticc.co.za/" }) }) });
   assert.equal(result.telemetry.matchStatus, "EXACT_OR_STRONG");
   assert.equal(result.result?.identityConfidence, "HIGH");
   assert.equal(result.result?.websiteDomain, "cticc.co.za");
@@ -90,7 +92,7 @@ test("multiple plausible places remain review-required", async () => {
 });
 
 test("conflicting website domains are rejected through selected details", async () => {
-  const result = await getGooglePlaceDetails({ ...searchInput, googlePlaceId: "place-1" }, { mode: "details_selected", apiKey: "test-key", fetchImpl: fetchMock({ ...place({ websiteUri: "https://unrelated.example" }) }) });
+  const result = await getGooglePlaceDetails({ ...searchInput, googlePlaceId: "place-1" }, { mode: "details_selected", apiKey: "test-key", detailsAuthorization: WEBSITE, fetchImpl: fetchMock({ ...place({ websiteUri: "https://unrelated.example" }) }) });
   assert.equal(result.telemetry.matchStatus, "CONFLICTING");
   assert.equal(result.result?.matchStatus, "CONFLICTING");
   assert.equal(result.result?.rejectionReasons.includes("WEBSITE_DOMAIN_CONFLICT"), true);
@@ -114,16 +116,15 @@ test("Venue-first Places evidence does not promote the venue into an organiser",
   assert.equal(result.telemetry.attemptedCount, 1);
 });
 
-test("Organisation-first Places evidence can fill a missing official website without changing the lane", async () => {
+test("Organisation-first Places details stay on the Pro bundle and never pay Enterprise for a website", async () => {
   const initial = evaluateDiscoveryCandidate({ canonicalName: "Hyve Group", organiserName: "Hyve Group", website: null, origin: "ORGANISATION_FIRST", relationshipHint: "PROSPECT", laneContext: { organisation: { name: "Hyve Group", website: null }, person: null, venue: null }, facts: [{ claim: "Hyve Group operates an annual portfolio of public events.", sourceUrl: "https://hyve.group/events", sourceTitle: "Portfolio", kind: "FACT", confidence: "HIGH" }], inferences: [], unknowns: [] }, "GB");
-  let calls = 0;
+  const masks: string[] = [];
   const hyvePlace = place({ displayName: { text: "Hyve Group" }, formattedAddress: "London, United Kingdom", types: ["corporate_office"], websiteUri: "https://hyve.group" });
-  const result = await enrichDiscoveryCandidatesWithGooglePlaces([initial], "GB", { mode: "details_selected", apiKey: "test-key", fetchImpl: async () => { calls += 1; return calls === 1 ? response({ places: [hyvePlace] }) : response(hyvePlace); } });
+  const result = await enrichDiscoveryCandidatesWithGooglePlaces([initial], "GB", { mode: "details_selected", apiKey: "test-key", fetchImpl: async (_url, init) => { masks.push(new Headers(init?.headers).get("x-goog-fieldmask") ?? ""); return masks.length === 1 ? response({ places: [hyvePlace] }) : response(hyvePlace); } });
   const enriched = result.candidates[0];
   assert.equal(enriched.origin, "ORGANISATION_FIRST");
-  assert.equal(enriched.website, "https://hyve.group");
-  assert.equal(enriched.laneContext?.organisation?.website, "https://hyve.group");
-  assert.equal(calls, 2);
+  assert.equal(enriched.website, null);
+  assert.deepEqual(masks, [GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, GOOGLE_PLACES_DETAILS_FIELD_MASK]);
 });
 
 test("an organisation with no Places result is not penalized", async () => {

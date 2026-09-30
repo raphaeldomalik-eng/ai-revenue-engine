@@ -3,7 +3,7 @@ import { searchCompaniesHouse, type CompaniesHouseSearchResult } from "../ai-sal
 import { getGooglePlaceDetails, searchGooglePlaces, type GooglePlacesDetailsInput, type GooglePlacesEvidence, type GooglePlacesSearchInput } from "../ai-sales-team/google-places.ts";
 import { createInMemoryGooglePlacesEvidenceStore, type GooglePlacesCallTelemetry, type GooglePlacesEvidenceStore } from "../ai-sales-team/google-places-evidence.ts";
 import { researchCompany } from "../ai-sales-team/research.ts";
-import { CONTRACTS, type ProviderAllowance, type ResearchContext as ContractResearchContext, type ResearchRequest, type SourceDiscoveryRequest, type SourceExtractor, validateResearchRequest, validateResearchResult, validateSourceDiscoveryRequest, validateSourceDiscoveryResult } from "./contracts.ts";
+import { CONTRACTS, officialWebsiteDetailsAuthorization, type ProviderAllowance, type ResearchContext as ContractResearchContext, type ResearchRequest, type SourceDiscoveryRequest, type SourceExtractor, validateResearchRequest, validateResearchResult, validateSourceDiscoveryRequest, validateSourceDiscoveryResult } from "./contracts.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 
 export type ProposedFact = { subjectEntityType: ResearchRequest["subject"]["entityType"]; canonicalEntityId: string | null; fieldName: string; value: unknown; evidenceRef: string | null; confidence: number | null; observedAt: string | null };
@@ -47,7 +47,7 @@ async function runGoogleDetails(request: ResearchRequest, context: ResearchConte
   let calls: number | null = null;
   const usage = (callCount: number) => { const cost = callCount > 0 ? usageCost("GOOGLE_PLACES", options) : null; return { cost, providerUsage: [{ provider: "GOOGLE_PLACES" as const, callCount, purpose, cost }] }; };
   try {
-    const details = await (options.googlePlaceDetails ?? getGooglePlaceDetails)(input, { mode: "details_selected", evidenceStore, requestingApplication: request.originatingProduct, workflow: `nexus_research:${purpose}`, now: options.now, onCallTelemetry: async (telemetry) => { calls = (calls ?? 0) + telemetry.googleCalls; await options.onGooglePlacesCallTelemetry?.(telemetry); } });
+    const details = await (options.googlePlaceDetails ?? getGooglePlaceDetails)(input, { mode: "details_selected", detailsAuthorization: officialWebsiteDetailsAuthorization(request, context), evidenceStore, requestingApplication: request.originatingProduct, workflow: `nexus_research:${purpose}`, now: options.now, onCallTelemetry: async (telemetry) => { calls = (calls ?? 0) + telemetry.googleCalls; await options.onGooglePlacesCallTelemetry?.(telemetry); } });
     const callCount = details.googleCalls ?? calls ?? 1;
     const item = details.result;
     if (!item) return { provider: "GOOGLE_PLACES", purpose, facts: [], evidence: [], unknowns: ["Google Place Details returned no provider evidence for the retained Place ID."], conflicts: [], ...usage(callCount) };
