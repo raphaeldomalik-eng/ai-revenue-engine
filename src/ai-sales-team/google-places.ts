@@ -1,4 +1,5 @@
 import type { DiscoveryLane } from "./prospect-intelligence.ts";
+import { classifyGooglePlacesFieldMask, GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS, GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK, resolveGooglePlaceDetailsWithEvidence, type GooglePlacesBillingTier, type GooglePlacesCallTelemetry, type GooglePlacesEvidenceRecordV1, type GooglePlacesEvidenceReuse, type GooglePlacesEvidenceStore } from "./google-places-evidence.ts";
 
 export const GOOGLE_PLACES_MODES = ["disabled", "search_only", "details_selected"] as const;
 export type GooglePlacesMode = typeof GOOGLE_PLACES_MODES[number];
@@ -8,7 +9,9 @@ export type GooglePlacesErrorCategory = "MISSING_API_KEY" | "HTTP_ERROR" | "RATE
 export type GooglePlacesTargetType = "VENUE" | "ORGANISATION" | "UNCLASSIFIED";
 
 export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus";
-export const GOOGLE_PLACES_DETAILS_FIELD_MASK = "id,displayName,formattedAddress,types,businessStatus,websiteUri";
+// Default Details request is the one approved Enterprise bundle (Pro classification + websiteUri + phone).
+// Reuse planning narrows or suppresses it per Place ID against persisted evidence.
+export const GOOGLE_PLACES_DETAILS_FIELD_MASK = GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK;
 
 export type GooglePlacesTelemetry = {
   endpointCategory: GooglePlacesEndpointCategory;
@@ -19,6 +22,16 @@ export type GooglePlacesTelemetry = {
   httpStatus: number | null;
   errorCategory: GooglePlacesErrorCategory;
   retryCount: 0;
+  billingTier?: GooglePlacesBillingTier | null;
+  sku?: string | null;
+  estimatedCostUsd?: number;
+  providerPlaceId?: string | null;
+  requestingApplication?: string;
+  workflow?: string;
+  evidenceReuse?: GooglePlacesEvidenceReuse;
+  suppressed?: boolean;
+  googleCalls?: 0 | 1;
+  observedAt?: string;
 };
 
 export type GooglePlacesEvidence = {
@@ -53,7 +66,18 @@ export type GooglePlacesDetailsInput = Omit<GooglePlacesSearchInput, "lane" | "t
   targetType: GooglePlacesTargetType;
 };
 export type GooglePlacesFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
-export type GooglePlacesOptions = { apiKey?: string; mode?: GooglePlacesMode; fetchImpl?: GooglePlacesFetch; now?: () => string; timeoutMs?: number };
+export type GooglePlacesOptions = {
+  apiKey?: string;
+  mode?: GooglePlacesMode;
+  fetchImpl?: GooglePlacesFetch;
+  now?: () => string;
+  timeoutMs?: number;
+  evidenceStore?: GooglePlacesEvidenceStore | null;
+  requestedDetailsFields?: readonly string[];
+  requestingApplication?: string;
+  workflow?: string;
+  onCallTelemetry?: (telemetry: GooglePlacesCallTelemetry) => void | Promise<void>;
+};
 
 export type GooglePlacesVenueComplexResolution = {
   status: "PLACES_IDENTITY_SUFFICIENT" | "AI_IDENTITY_REQUIRED" | "SAFE_UNRESOLVED";
@@ -238,17 +262,49 @@ export async function searchGooglePlaces(input: GooglePlacesSearchInput, options
   if (!rawPlaces) throw errorFor("TEXT_SEARCH", configured.mode, fieldMask, response.response.status, "MALFORMED_RESPONSE");
   const results = finaliseMatches(rawPlaces.slice(0, boundedLimit(input.limit)).map((item) => normalisePlace(item, input, configured)).filter((item): item is GooglePlacesEvidence => Boolean(item)));
   const matchStatus: GooglePlacesMatchStatus = results.length === 0 ? "NO_MATCH" : results.some((item) => item.matchStatus === "REVIEW_REQUIRED") ? "REVIEW_REQUIRED" : results.some((item) => item.matchStatus === "EXACT_OR_STRONG") ? "EXACT_OR_STRONG" : results.every((item) => item.matchStatus === "CONFLICTING") ? "CONFLICTING" : "NO_MATCH";
-  return { results, telemetry: telemetry("TEXT_SEARCH", configured.mode, fieldMask, results.length, matchStatus, response.response.status) };
+  const sku = classifyGooglePlacesFieldMask(fieldMask, "TEXT_SEARCH");
+  return { results, telemetry: { ...telemetry("TEXT_SEARCH", configured.mode, fieldMask, results.length, matchStatus, response.response.status), billingTier: sku.tier, sku: sku.sku, estimatedCostUsd: sku.estimatedCostUsd, providerPlaceId: null, requestingApplication: options.requestingApplication ?? "ai_revenue_engine", workflow: options.workflow ?? "google_places_text_search", suppressed: false, googleCalls: 1, observedAt: configured.now() } };
 }
 
-export async function getGooglePlaceDetails(input: GooglePlacesDetailsInput, options: GooglePlacesOptions = {}): Promise<{ result: GooglePlacesEvidence | null; telemetry: GooglePlacesTelemetry }> {
-  const configured = optionsOf(options); const fieldMask = GOOGLE_PLACES_DETAILS_FIELD_MASK;
-  if (configured.mode === "disabled") return { result: null, telemetry: telemetry("PLACE_DETAILS", configured.mode, null, 0, "NO_MATCH", null, "MODE_NOT_ALLOWED") };
-  if (configured.mode !== "details_selected") throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, null, "MODE_NOT_ALLOWED");
-  if (!input.googlePlaceId.trim() || !input.targetName.trim() || (input.targetType === "UNCLASSIFIED" && input.lane !== "EXACT_ID") || (input.targetType !== "UNCLASSIFIED" && input.lane === "EXACT_ID")) throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, null, "INVALID_INPUT");
-  const response = await request(configured, "PLACE_DETAILS", `https://places.googleapis.com/v1/places/${encodeURIComponent(input.googlePlaceId)}`, { method: "GET" }, fieldMask);
-  if (!response.payload || typeof response.payload !== "object" || Array.isArray(response.payload)) throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, response.response.status, "MALFORMED_RESPONSE");
-  const result = normalisePlace(response.payload as RawPlace, input, configured, [], true);
-  if (!result) throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, response.response.status, "MALFORMED_RESPONSE");
-  return { result, telemetry: telemetry("PLACE_DETAILS", configured.mode, fieldMask, 1, result.matchStatus, response.response.status) };
+export type GooglePlaceDetailsRun = { result: GooglePlacesEvidence | null; telemetry: GooglePlacesTelemetry; evidence?: GooglePlacesEvidenceRecordV1 | null; googleCalls?: 0 | 1 };
+
+export async function getGooglePlaceDetails(input: GooglePlacesDetailsInput, options: GooglePlacesOptions = {}): Promise<GooglePlaceDetailsRun> {
+  const configured = optionsOf(options);
+  const requestedFields = options.requestedDetailsFields ?? GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS;
+  const requestedMask = requestedFields.join(",");
+  if (configured.mode === "disabled") return { result: null, telemetry: telemetry("PLACE_DETAILS", configured.mode, null, 0, "NO_MATCH", null, "MODE_NOT_ALLOWED"), evidence: null, googleCalls: 0 };
+  if (configured.mode !== "details_selected") throw errorFor("PLACE_DETAILS", configured.mode, requestedMask, null, "MODE_NOT_ALLOWED");
+  if (!input.googlePlaceId.trim() || !input.targetName.trim() || (input.targetType === "UNCLASSIFIED" && input.lane !== "EXACT_ID") || (input.targetType !== "UNCLASSIFIED" && input.lane === "EXACT_ID")) throw errorFor("PLACE_DETAILS", configured.mode, requestedMask, null, "INVALID_INPUT");
+  let callError: GooglePlacesProviderError | null = null;
+  const resolution = await resolveGooglePlaceDetailsWithEvidence({
+    providerPlaceId: input.googlePlaceId,
+    requestedFields,
+    store: options.evidenceStore ?? null,
+    requestingApplication: options.requestingApplication ?? "ai_revenue_engine",
+    workflow: options.workflow ?? "google_places_details",
+    now: configured.now,
+    onTelemetry: options.onCallTelemetry,
+    fetchDetails: async (fieldMask) => {
+      try {
+        const response = await request(configured, "PLACE_DETAILS", `https://places.googleapis.com/v1/places/${encodeURIComponent(input.googlePlaceId)}`, { method: "GET" }, fieldMask);
+        if (!response.payload || typeof response.payload !== "object" || Array.isArray(response.payload)) throw errorFor("PLACE_DETAILS", configured.mode, fieldMask, response.response.status, "MALFORMED_RESPONSE");
+        return { ok: true, statusCode: response.response.status, payload: response.payload as Record<string, unknown> };
+      } catch (error) {
+        if (!(error instanceof GooglePlacesProviderError)) throw error;
+        callError = error;
+        return { ok: false, statusCode: error.telemetry.httpStatus, error: error.message };
+      }
+    },
+  });
+  const call = resolution.telemetry;
+  const callFields = { billingTier: call.billingTier, sku: call.sku, estimatedCostUsd: call.estimatedCostUsd, providerPlaceId: call.providerPlaceId, requestingApplication: call.requestingApplication, workflow: call.workflow, evidenceReuse: call.evidenceReuse, suppressed: call.suppressed, googleCalls: call.googleCalls, observedAt: call.observedAt };
+  if (!resolution.ok) {
+    const failure = callError as GooglePlacesProviderError | null;
+    if (failure) throw new GooglePlacesProviderError(failure.message, { ...failure.telemetry, ...callFields });
+    throw errorFor("PLACE_DETAILS", configured.mode, call.fieldMask, resolution.statusCode, "REQUEST_FAILED");
+  }
+  const normalised = normalisePlace(resolution.place as RawPlace, input, configured, [], resolution.plan.requestedFields.includes("websiteUri"));
+  if (!normalised) throw errorFor("PLACE_DETAILS", configured.mode, call.fieldMask, call.statusCode, "MALFORMED_RESPONSE");
+  const result = { ...normalised, retrievedAt: resolution.retrievedAt };
+  return { result, telemetry: { ...telemetry("PLACE_DETAILS", configured.mode, call.fieldMask, 1, result.matchStatus, call.statusCode), ...callFields }, evidence: resolution.record, googleCalls: resolution.googleCalls };
 }

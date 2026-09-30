@@ -1,3 +1,5 @@
+import { validateGooglePlacesEvidenceRecord, type GooglePlacesEvidenceRecordV1 } from "../ai-sales-team/google-places-evidence.ts";
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const CONTRACTS = Object.freeze({
@@ -131,6 +133,7 @@ export type ResearchContext = {
   locality?: string | null;
   territory?: "GB" | "ZA";
   existingFacts?: Array<{ fieldName: string; value: unknown; evidenceRef?: string | null }>;
+  googlePlacesEvidence?: GooglePlacesEvidenceRecordV1;
 };
 
 function researchContextFact(value: unknown) {
@@ -146,7 +149,7 @@ function researchContextFact(value: unknown) {
 
 function researchContext(value: unknown): ResearchContext {
   const v = object(value, "INVALID_RESEARCH_CONTEXT");
-  assertOnlyFields(v, new Set(["targetName", "targetWebsite", "locality", "territory", "existingFacts"]), "INVALID_RESEARCH_CONTEXT_FIELDS");
+  assertOnlyFields(v, new Set(["targetName", "targetWebsite", "locality", "territory", "existingFacts", "googlePlacesEvidence"]), "INVALID_RESEARCH_CONTEXT_FIELDS");
   const normalized: ResearchContext = {};
   if (Object.prototype.hasOwnProperty.call(v, "targetName")) normalized.targetName = text(v.targetName, "INVALID_RESEARCH_CONTEXT_TARGET_NAME", { max: 512, optional: true });
   if (Object.prototype.hasOwnProperty.call(v, "targetWebsite")) {
@@ -162,6 +165,9 @@ function researchContext(value: unknown): ResearchContext {
   if (Object.prototype.hasOwnProperty.call(v, "existingFacts")) {
     if (!Array.isArray(v.existingFacts) || v.existingFacts.length > 100) fail("INVALID_RESEARCH_CONTEXT_FACTS");
     normalized.existingFacts = v.existingFacts.map(researchContextFact);
+  }
+  if (Object.prototype.hasOwnProperty.call(v, "googlePlacesEvidence") && v.googlePlacesEvidence != null) {
+    try { normalized.googlePlacesEvidence = validateGooglePlacesEvidenceRecord(v.googlePlacesEvidence); } catch { fail("INVALID_RESEARCH_CONTEXT_GOOGLE_PLACES_EVIDENCE"); }
   }
   return normalized;
 }

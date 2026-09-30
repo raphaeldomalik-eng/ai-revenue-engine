@@ -50,11 +50,11 @@ test("Place Details uses the selected-place endpoint and details field mask", as
   assert.equal(result.result?.provider, "GOOGLE_PLACES");
 });
 
-test("field masks remain the exact minimal contract", () => {
+test("field masks remain the exact approved contract", () => {
   assert.equal(GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, "places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus");
-  assert.equal(GOOGLE_PLACES_DETAILS_FIELD_MASK, "id,displayName,formattedAddress,types,businessStatus,websiteUri");
+  assert.equal(GOOGLE_PLACES_DETAILS_FIELD_MASK, "id,displayName,primaryType,types,formattedAddress,addressComponents,location,businessStatus,websiteUri,internationalPhoneNumber");
   assert.doesNotMatch(GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK, /phone|review|photo|rating|opening|editorial|location|accessibility/i);
-  assert.doesNotMatch(GOOGLE_PLACES_DETAILS_FIELD_MASK, /phone|review|photo|rating|opening|editorial|location|accessibility/i);
+  assert.doesNotMatch(GOOGLE_PLACES_DETAILS_FIELD_MASK, /review|photo|rating|opening|editorial|accessibility|(^|,)nationalPhone|parking|liveMusic|outdoor|payment/i);
 });
 
 test("the API key is neither returned nor present in normalized telemetry", async () => {

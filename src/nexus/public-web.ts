@@ -187,8 +187,8 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       const input = placeId ? detailsInput(request, context, placeId) : null;
       if (!input) return unresolved(request, purpose, "No evidenced public first-party HTTPS website or complete evidence-backed Place identity was available for bounded discovery.");
       try {
-        const details = await (options.placeDetails ?? getGooglePlaceDetails)(input, { mode: "details_selected" });
-        providerUsage.push({ provider: "GOOGLE_PLACES", callCount: 1, purpose: "OFFICIAL_WEBSITE_SEED_PLACE_DETAILS", cost: null });
+        const details = await (options.placeDetails ?? getGooglePlaceDetails)(input, { mode: "details_selected", evidenceStore: context.googlePlacesEvidenceStore ?? null, requestingApplication: request.originatingProduct, workflow: `nexus_public_web_seed:${purpose}` });
+        providerUsage.push({ provider: "GOOGLE_PLACES", callCount: details.googleCalls ?? 1, purpose: "OFFICIAL_WEBSITE_SEED_PLACE_DETAILS", cost: null });
         if (details.result) {
           const observedAt = details.result.retrievedAt;
           const ref = evidenceRef(request, `google-place-${createHash("sha256").update(details.result.googlePlaceId).digest("hex").slice(0, 16)}`);
