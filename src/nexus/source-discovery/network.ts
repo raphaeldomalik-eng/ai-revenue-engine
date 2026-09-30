@@ -47,6 +47,33 @@ export class UnsupportedContent extends Error {
   }
 }
 
+export class DiscoveryTimeout extends Error {
+  constructor() {
+    super("Discovery request timed out.");
+    this.name = "DiscoveryTimeout";
+  }
+}
+
+// Certificate trust failures never become valid by retrying and TLS verification is never relaxed.
+const CERTIFICATE_CODES = new Set([
+  "DEPTH_ZERO_SELF_SIGNED_CERT", "SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_GET_ISSUER_CERT", "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+  "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "UNABLE_TO_DECRYPT_CERT_SIGNATURE", "CERT_SIGNATURE_FAILURE", "CERT_UNTRUSTED", "CERT_REJECTED",
+  "CERT_REVOKED", "CERT_HAS_EXPIRED", "CERT_NOT_YET_VALID", "INVALID_CA", "HOSTNAME_MISMATCH", "ERR_TLS_CERT_ALTNAME_INVALID",
+]);
+const CERTIFICATE_MESSAGE = /self[- ]signed certificate|unable to (?:get|verify) (?:local )?(?:issuer|the first|leaf)|certificate has expired|certificate is not yet valid|certificate (?:revoked|untrusted|rejected)|does not match certificate/i;
+// Transport failures where a later attempt can plausibly succeed: resolver busy/temporary, timeout, reset, TLS handshake alert.
+const TRANSIENT_CODES = new Set(["EBUSY", "EAI_AGAIN", "ETIMEDOUT", "ECONNRESET", "ECONNABORTED", "EPIPE", "EPROTO"]);
+
+/** CERTIFICATE is terminal; TRANSIENT may be retried within the crawl budget; OTHER keeps the existing retryable result without in-crawl retry. */
+export function classifyTransportFailure(error: unknown): "CERTIFICATE" | "TRANSIENT" | "OTHER" {
+  if (!(error instanceof Error)) return "OTHER";
+  const raw = (error as Error & { code?: unknown }).code;
+  const code = typeof raw === "string" ? raw : "";
+  if (CERTIFICATE_CODES.has(code) || CERTIFICATE_MESSAGE.test(error.message)) return "CERTIFICATE";
+  if (error instanceof DiscoveryTimeout || TRANSIENT_CODES.has(code)) return "TRANSIENT";
+  return "OTHER";
+}
+
 export function isPublicNetworkAddress(address: string): boolean {
   const mapped = embeddedIpv4(address);
   if (mapped) return isPublicNetworkAddress(mapped);
@@ -173,7 +200,7 @@ export async function fetchPinned(args: {
         resolve(new Response(nullBody ? null : Buffer.concat(chunks), { status, headers }));
       });
     });
-    request.setTimeout(args.timeoutMs, () => request.destroy(new Error("Discovery request timed out.")));
+    request.setTimeout(args.timeoutMs, () => request.destroy(new DiscoveryTimeout()));
     request.on("error", reject);
     request.end();
   });

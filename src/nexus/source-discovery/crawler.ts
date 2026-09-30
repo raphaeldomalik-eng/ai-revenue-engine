@@ -6,7 +6,7 @@ import { createObservation, profilesFor } from "./extractors/profiles.ts";
 import { extractResourcesFromDocuments } from "./extractors/resources.ts";
 import { hrefTags, visibleText } from "./html.ts";
 import { calendarFallbackUrl, discoverCalendarUrls, discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "./links.ts";
-import { assertPublicNetworkTarget, canonicalHttpsUrl, defaultResolveHost, fetchPinned, NetworkRefusal, UnsupportedContent } from "./network.ts";
+import { assertPublicNetworkTarget, canonicalHttpsUrl, classifyTransportFailure, defaultResolveHost, DiscoveryTimeout, fetchPinned, NetworkRefusal, UnsupportedContent } from "./network.ts";
 import { extractPdfText } from "./pdf.ts";
 import { GapPlanner, isPdfUrl, planableUrl, planKey, type Dimension, type DocumentObservation, type ExtractorProfile, type ProfileState } from "./planner.ts";
 import { parseRetryAfter, sharedOriginPoliteness, type OriginPoliteness, type ResponseSnapshot } from "./politeness.ts";
@@ -74,12 +74,35 @@ const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 class CrawlRefusal extends Error {
   failureClass: "TERMINAL" | "RETRYABLE";
+  /** A transport failure that a bounded in-crawl retry may resolve. */
+  transient: boolean;
 
-  constructor(message: string, failureClass: "TERMINAL" | "RETRYABLE") {
+  constructor(message: string, failureClass: "TERMINAL" | "RETRYABLE", transient = false) {
     super(message);
     this.name = "CrawlRefusal";
     this.failureClass = failureClass;
+    this.transient = transient;
   }
+}
+
+function transportRefusal(error: unknown): CrawlRefusal {
+  const failure = classifyTransportFailure(error);
+  return new CrawlRefusal(refusalMessage(error, "Discovery request failed."), failure === "CERTIFICATE" ? "TERMINAL" : "RETRYABLE", failure === "TRANSIENT");
+}
+
+/** A transient transport retry is taken only inside maxRetries and only while the request budget has room. */
+function canRetryTransient(ctx: Ctx, error: unknown, attempt: number): error is CrawlRefusal {
+  return error instanceof CrawlRefusal && error.transient && attempt < ctx.budget.maxRetries && ctx.stats.requestCount < ctx.budget.maxRequests;
+}
+
+function backoff(ctx: Ctx, attempt: number) {
+  return ctx.sleep(Math.min(250 * 2 ** attempt, 2000));
+}
+
+function redirectRefusal(from: string, location: string | null, reason: string): CrawlRefusal {
+  let host = "";
+  try { host = location ? new URL(location, from).hostname.toLowerCase() : ""; } catch { /* invalid location has no host */ }
+  return new CrawlRefusal(`Redirect target is not an allowed same-site public HTTPS URL (${reason}${host ? `; refused host ${host}` : ""}).`, "TERMINAL");
 }
 
 class ContentSkipped extends Error {
@@ -123,7 +146,7 @@ function hashText(value: string) {
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await Promise.race([promise, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Discovery request timed out.")), timeoutMs); })]);
+    return await Promise.race([promise, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new DiscoveryTimeout()), timeoutMs); })]);
   } finally {
     if (timer) clearTimeout(timer);
   }
@@ -134,6 +157,11 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
   try {
     if (ctx.fetchImpl) await assertPublicNetworkTarget(url, ctx.resolveHost);
   } catch (error) {
+    if (!(error instanceof NetworkRefusal)) {
+      // A resolver failure is a transport attempt, counted exactly as the pinned production path counts it.
+      ctx.stats.requestCount += 1;
+      throw transportRefusal(error);
+    }
     ctx.stats.blockedCount += 1;
     ctx.obs.blockedPages.push({ url, reason: "NON_PUBLIC_NETWORK_TARGET" });
     throw new CrawlRefusal(refusalMessage(error, "Refused a non-public HTTPS URL."), "TERMINAL");
@@ -171,7 +199,7 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
     if (error instanceof UnsupportedContent) throw new ContentSkipped(error.message);
     if (error instanceof NetworkRefusal) throw new CrawlRefusal(error.message, "TERMINAL");
     if (error instanceof Error && error.message === "Response exceeded the discovery size limit.") throw error;
-    throw new CrawlRefusal(refusalMessage(error, "Discovery request failed."), "RETRYABLE");
+    throw transportRefusal(error);
   }
 }
 
@@ -185,7 +213,7 @@ async function retryDelay(ctx: Ctx, snapshot: ResponseSnapshot, url: string, att
     ctx.obs.retryAfterWaits += 1;
     return "RETRY";
   }
-  await ctx.sleep(Math.min(250 * 2 ** attempt, 2000));
+  await backoff(ctx, attempt);
   return "RETRY";
 }
 
@@ -203,14 +231,21 @@ async function fetchRobots(ctx: Ctx, origin: string): Promise<string> {
       snapshot = await networkRequest(ctx, current, "text/plain,*/*;q=0.1", maxBytes);
     } catch (error) {
       if (error instanceof ContentSkipped) return "";
+      if (canRetryTransient(ctx, error, attempt)) {
+        await backoff(ctx, attempt);
+        ctx.stats.retries += 1;
+        attempt += 1;
+        continue;
+      }
       if (error instanceof CrawlRefusal) throw error;
       throw new CrawlRefusal(refusalMessage(error, "robots.txt request failed."), "TERMINAL");
     }
     if (REDIRECT_STATUSES.has(snapshot.status)) {
-      const decision = ctx.site.decideRedirect(current, snapshot.headers.get("location"), snapshot.status, "ROBOTS");
+      const location = snapshot.headers.get("location");
+      const decision = ctx.site.decideRedirect(current, location, snapshot.status, "ROBOTS");
       if (!decision.next) {
         ctx.stats.blockedCount += 1;
-        throw new CrawlRefusal(`Redirect target is not an allowed same-site public HTTPS URL (${decision.reason}).`, "TERMINAL");
+        throw redirectRefusal(current, location, decision.reason);
       }
       if (redirects >= ctx.budget.maxRedirects) throw new CrawlRefusal("Redirect budget exhausted.", "TERMINAL");
       current = decision.next;
@@ -282,18 +317,27 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
     if (cached?.etag) conditional["If-None-Match"] = cached.etag;
     if (cached?.lastModified) conditional["If-Modified-Since"] = cached.lastModified;
     const typeCeiling = mode.expected === "PDF" ? TYPE_BYTE_LIMITS.PDF : mode.expected === "SITEMAP" ? TYPE_BYTE_LIMITS.XML : TYPE_BYTE_LIMITS.HTML;
-    const snapshot = await networkRequest(ctx, current, accept, Math.min(ctx.budget.maxBytesPerResponse, typeCeiling), conditional);
+    let snapshot: ResponseSnapshot;
+    try {
+      snapshot = await networkRequest(ctx, current, accept, Math.min(ctx.budget.maxBytesPerResponse, typeCeiling), conditional);
+    } catch (error) {
+      if (!canRetryTransient(ctx, error, attempt)) throw error;
+      await backoff(ctx, attempt);
+      ctx.stats.retries += 1;
+      continue;
+    }
     if (snapshot.status === 304 && cached) {
       ctx.obs.revalidatedNotModified += 1;
       return { url: current, snapshot, kind: cached.kind ?? "HTML", cached, notModified: true };
     }
     if (REDIRECT_STATUSES.has(snapshot.status)) {
-      const decision = ctx.site.decideRedirect(current, snapshot.headers.get("location"), snapshot.status, mode.entry && redirects < ctx.budget.maxRedirects ? "ENTRY" : "PAGE");
+      const location = snapshot.headers.get("location");
+      const decision = ctx.site.decideRedirect(current, location, snapshot.status, mode.entry && redirects < ctx.budget.maxRedirects ? "ENTRY" : "PAGE");
       if (!decision.next) {
         ctx.stats.blockedCount += 1;
         ctx.stats.failureClass = "TERMINAL";
         ctx.obs.blockedPages.push({ url: current, reason: `REDIRECT_${decision.reason}` });
-        throw new CrawlRefusal(`Redirect target is not an allowed same-site public HTTPS URL (${decision.reason}).`, "TERMINAL");
+        throw redirectRefusal(current, location, decision.reason);
       }
       if (redirects >= ctx.budget.maxRedirects) throw new CrawlRefusal("Redirect budget exhausted.", "TERMINAL");
       current = decision.next;
