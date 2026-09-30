@@ -226,7 +226,8 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction) {
     const action = form.attrs.action?.trim() ? sameOrigin(form.attrs.action, doc.url) : doc.url;
     if (action) addContact(out, doc, "CONTACT_FORM", action, 0.8, false, descriptor);
   }
-  for (const match of primary.matchAll(/\b(?:email|e-mail|enquiries|bookings?)\s*[:\-]?\s*([a-z0-9._%+-]+\s*(?:@|\[at\]|\(at\))\s*[a-z0-9.-]+\.[a-z]{2,})/gi)) {
+  // A label must be separated from the address, or "bookings@venue" would also yield "s@venue".
+  for (const match of primary.matchAll(/\b(?:email|e-mail|enquiries|bookings?)(?:\s*[:\-]\s*|\s+)([a-z0-9._%+-]+\s*(?:@|\[at\]|\(at\))\s*[a-z0-9.-]+\.[a-z]{2,})/gi)) {
     const value = match[1]!.replace(/\s*(?:\[at\]|\(at\)|@)\s*/i, "@");
     addContact(out, doc, "EMAIL", value, /\[at\]|\(at\)/i.test(match[1]!) ? 0.8 : 0.9, false, `${precedingText(primary, match[0], 60)} ${match[0]}`);
   }

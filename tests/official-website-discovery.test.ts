@@ -5,7 +5,7 @@ import { CONTRACTS, validateOfficialWebsiteDiscoveryRequest } from "../src/nexus
 import { InMemoryNexusResultStore } from "../src/nexus/executor.ts";
 import { handleNexusExecuteRequest } from "../src/nexus/http.ts";
 import { buildNexusEnvelope } from "../src/nexus/transport.ts";
-import { candidateRejection, configuredPublicWebSearchProvider, executeOfficialWebsiteDiscovery, isGenericVenueName, type PublicWebSearchProvider, type PublicWebSearchResult } from "../src/nexus/official-website-discovery.ts";
+import { acceptHeldVenueEmail, acceptVenueEmail, assessWebsiteIdentity, isLabelSplitFragment, candidateRejection, configuredPublicWebSearchProvider, executeOfficialWebsiteDiscovery, isGenericVenueName, type PublicWebSearchProvider, type PublicWebSearchResult } from "../src/nexus/official-website-discovery.ts";
 import { createPublicWebProvider } from "../src/nexus/public-web.ts";
 import type { ResearchRequest } from "../src/nexus/contracts.ts";
 
@@ -303,25 +303,169 @@ test("observability records search and crawl separately, monetary cost, and 0 Go
   assert.deepEqual(funded.costSummary, { currency: "USD", amount: 0.005 });
 });
 
-test("held Resources, Nexus, and stored Google evidence are reused before any search or crawl", async () => {
-  const { provider, queries } = fakeSearch(NOISY_RESULTS);
-  const { fetchImpl, seen } = siteFetch({ "https://www.cornexhall.co.uk/": CORNEX_HOME });
-  const opts = { searchProvider: provider, fetchImpl, resolveHost: resolver, now: () => NOW };
-  const resources = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: { resources: { website: "https://www.cornexhall.co.uk/", evidenceRef: "resources:listing:1" } } }), opts) as any;
-  assert.equal(resources.status, "HELD_WEBSITE_REUSED");
-  const nexus = await executeOfficialWebsiteDiscovery(discoveryRequest({ idempotencyKey: "77777777-7777-4777-8777-777777777777", heldEvidence: { nexus: { verifiedOfficialWebsite: "https://www.cornexhall.co.uk/", publicPhone: "+441179000000", evidenceRef: "entity:fact:1" } } }), opts) as any;
-  assert.equal(nexus.websiteStatus, "HELD_WEBSITE_REUSED");
-  assert.equal(nexus.contactStatus, "HELD_CONTACT_REUSED");
-  const googlePhone = await executeOfficialWebsiteDiscovery(discoveryRequest({ idempotencyKey: "88888888-8888-4888-8888-888888888888", heldEvidence: { storedGoogle: { phone: "+441179000000", evidenceRef: "google_places_evidence:1" } } }), opts) as any;
-  assert.equal(googlePhone.status, "HELD_CONTACT_REUSED");
-  assert.equal(queries.length, 0);
-  assert.equal(seen.length, 0);
+const HELD_SITE = { resources: { website: "https://www.cornexhall.co.uk/", phone: "+441179000000", evidenceRef: "resources:listing:1" } };
 
-  const storedSite = await executeOfficialWebsiteDiscovery(discoveryRequest({ idempotencyKey: "99999999-9999-4999-8999-999999999999", heldEvidence: { storedGoogle: { websiteUri: "http://www.cornexhall.co.uk/", evidenceRef: "google_places_evidence:2" } } }), opts) as any;
-  assert.equal(storedSite.officialWebsite.source, "STORED_GOOGLE_EVIDENCE_VERIFIED");
-  assert.equal(storedSite.search.callCount, 0);
-  assert.equal(storedSite.googlePlacesCalls, 0);
+test("a held Resources website without email is identity-verified and contact-crawled, not stopped at HELD_WEBSITE_REUSED", async () => {
+  const { provider, queries } = fakeSearch(NOISY_RESULTS);
+  const { fetchImpl } = siteFetch({ "https://www.cornexhall.co.uk/": CORNEX_HOME });
+  const result = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: HELD_SITE }), { searchProvider: provider, fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.notEqual(result.status, "HELD_WEBSITE_REUSED");
+  assert.equal(result.status, "VERIFIED_SITE_PUBLIC_CONTACT_FOUND");
+  assert.equal(result.websiteStatus, "HELD_WEBSITE_REUSED");
+  assert.equal(result.officialWebsite.source, "RESOURCES_HELD");
+  assert.ok(result.officialWebsite.verificationPath);
+  assert.equal(result.crawl.verificationCrawls, 1);
+  assert.equal(result.crawl.sourceDiscoveryCrawls, 1);
+  assert.equal(result.search.callCount, 0);
   assert.equal(queries.length, 0);
+  assert.equal(result.guideEmailReady, true);
+  const email = result.publicContacts.find((item: any) => item.type === "EMAIL");
+  assert.deepEqual([email.value, email.relationship, email.source, new URL(email.sourceUrl).hostname, Boolean(email.evidenceRef)], ["events@cornexhall.co.uk", "VERIFIED_SITE_DOMAIN", "VERIFIED_FIRST_PARTY_SITE", "www.cornexhall.co.uk", true]);
+  assert.ok(result.publicContacts.some((item: any) => item.type === "PHONE" && item.source === "RESOURCES_HELD"));
+  assert.equal(result.googlePlacesCalls, 0);
+});
+
+test("a held http:// Resources website is verified and crawled at the same host over HTTPS only", async () => {
+  const { fetchImpl, seen } = siteFetch({ "https://www.cornexhall.co.uk/": CORNEX_HOME });
+  const result = await executeOfficialWebsiteDiscovery(discoveryRequest({ providerAllowances: ["PUBLIC_WEB"], heldEvidence: { resources: { website: "http://www.cornexhall.co.uk/", evidenceRef: "resources:listing:http" } } }), { fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(seen.some((url) => url.startsWith("http:")), false);
+  assert.equal(result.officialWebsite.url, "https://www.cornexhall.co.uk/");
+  assert.equal(result.status, "VERIFIED_SITE_PUBLIC_CONTACT_FOUND");
+  assert.equal(result.guideEmailReady, true);
+});
+
+test("identity: venue name and held locality in the site's own title or heading verify; name alone, another town, or a generic name do not", () => {
+  const assess = (venueName: string, locality: string, facts: Array<{ fieldName: string; value: string }>) => assessWebsiteIdentity({ venueName, country: "ZA", heldAddress: null, context: { locality, existingFacts: [] }, finalUrl: "https://oxwagonlodge.co.za/", identityFacts: facts });
+  const heading = [{ fieldName: "siteName", value: "Home | Oxwagon Lodge" }, { fieldName: "explicitVenueName", value: "Welcome to Oxwagon Lodge, Hartbeespoort Dam" }];
+  assert.equal(assess("Oxwagon Lodge", "Hartbeespoort Dam", heading).verified, true);
+  assert.equal(assess("Oxwagon Lodge", "Hartbeespoort Dam", [{ fieldName: "siteName", value: "Home | Oxwagon Lodge" }, { fieldName: "siteDescription", value: "Near Hartbeespoort Dam" }]).verified, false);
+  assert.equal(assess("Oxwagon Lodge", "Pretoria", heading).verified, false);
+  assert.equal(assess("The Hall", "Hartbeespoort Dam", [{ fieldName: "siteName", value: "The Hall, Hartbeespoort Dam" }]).verified, false);
+});
+
+test("an already verified Nexus website goes straight to contact discovery without re-verification or search", async () => {
+  const { provider, queries } = fakeSearch(NOISY_RESULTS);
+  const { fetchImpl } = siteFetch({ "https://www.cornexhall.co.uk/": CORNEX_HOME });
+  const result = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: { nexus: { verifiedOfficialWebsite: "https://www.cornexhall.co.uk/", publicPhone: "+441179000000", evidenceRef: "entity:fact:1" } } }), { searchProvider: provider, fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(result.crawl.verificationCrawls, 0);
+  assert.equal(result.crawl.sourceDiscoveryCrawls, 1);
+  assert.equal(result.officialWebsite.source, "NEXUS_VERIFIED");
+  assert.equal(result.status, "VERIFIED_SITE_PUBLIC_CONTACT_FOUND");
+  assert.equal(result.guideEmailReady, true);
+  assert.equal(queries.length, 0);
+});
+
+test("an unverified Resources URL is identity-checked first; a failed identity is never contact-crawled or replaced by search", async () => {
+  const { provider, queries } = fakeSearch(NOISY_RESULTS);
+  const { fetchImpl, seen } = siteFetch({ "https://www.other.co.uk/": '<html><head><title>Other Business</title></head><body><h1>Other Business</h1><address>1 High Street, Leeds</address><a href="mailto:info@other.co.uk">info@other.co.uk</a></body></html>' });
+  const result = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: { resources: { website: "https://www.other.co.uk/", evidenceRef: "resources:listing:2" } } }), { searchProvider: provider, fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(result.crawl.verificationCrawls, 1);
+  assert.equal(result.crawl.sourceDiscoveryCrawls, 0);
+  assert.equal(result.officialWebsite, null);
+  assert.ok(["NO_CREDIBLE_WEBSITE_FOUND", "WEBSITE_CANDIDATES_AMBIGUOUS"].includes(result.status));
+  assert.equal(result.guideEmailReady, false);
+  assert.equal(result.publicContacts.some((item: any) => item.type === "EMAIL"), false);
+  assert.equal(queries.length, 0);
+  assert.equal(seen.filter((url) => !url.endsWith("/robots.txt")).length <= 2, true);
+});
+
+test("a stored Google websiteUri is a candidate, not a verified website", async () => {
+  const unrelated = siteFetch({ "https://www.other.co.uk/": "<title>Other Business</title><h1>Other Business</h1>" });
+  const rejected = await executeOfficialWebsiteDiscovery(discoveryRequest({ providerAllowances: ["PUBLIC_WEB"], heldEvidence: { storedGoogle: { websiteUri: "https://www.other.co.uk/", evidenceRef: "google_places_evidence:3" } } }), { fetchImpl: unrelated.fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(rejected.officialWebsite, null);
+  assert.equal(rejected.crawl.sourceDiscoveryCrawls, 0);
+  assert.equal(rejected.guideEmailReady, false);
+  const { fetchImpl } = siteFetch({ "https://www.cornexhall.co.uk/": CORNEX_HOME });
+  const verified = await executeOfficialWebsiteDiscovery(discoveryRequest({ providerAllowances: ["PUBLIC_WEB"], heldEvidence: { storedGoogle: { websiteUri: "http://www.cornexhall.co.uk/", phone: "+441179000000", evidenceRef: "google_places_evidence:2" } } }), { fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(verified.crawl.verificationCrawls, 1);
+  assert.equal(verified.officialWebsite.source, "STORED_GOOGLE_EVIDENCE_VERIFIED");
+  assert.equal(verified.status, "VERIFIED_SITE_PUBLIC_CONTACT_FOUND");
+  assert.equal(verified.search.callCount, 0);
+  assert.equal(verified.googlePlacesCalls, 0);
+});
+
+test("HARD GATE: a held-website crawl with a Place ID, a configured Google adapter, and a future date makes 0 Google calls", async () => {
+  const saved = process.env.GOOGLE_PLACES_API_KEY;
+  process.env.GOOGLE_PLACES_API_KEY = "configured-test-key";
+  mock.timers.enable({ apis: ["Date"], now: new Date("2027-03-01T00:00:00.000Z") });
+  const google = googleTraps();
+  try {
+    const { fetchImpl, seen } = siteFetch({ "https://www.cornexhall.co.uk/": CORNEX_HOME });
+    const result = await executeOfficialWebsiteDiscovery(discoveryRequest({ createdAt: "2027-03-01T00:00:00.000Z", heldEvidence: HELD_SITE }), { searchProvider: null, fetchImpl, resolveHost: resolver, googlePlaceDetails: google.trap, placeDetails: google.trap } as Parameters<typeof executeOfficialWebsiteDiscovery>[1]) as any;
+    assert.equal(result.googlePlacesCalls, 0);
+    assert.equal(google.calls, 0);
+    assert.equal(seen.some((url) => /google/.test(url)), false);
+    assert.equal(result.guideEmailReady, true);
+  } finally {
+    mock.timers.reset();
+    if (saved === undefined) delete process.env.GOOGLE_PLACES_API_KEY; else process.env.GOOGLE_PLACES_API_KEY = saved;
+  }
+});
+
+test("a held EventSuite relay address or phone is never GUIDE_EMAIL_READY and does not end the waterfall", async () => {
+  const { fetchImpl } = siteFetch({ "https://www.cornexhall.co.uk/": CORNEX_HOME.replace(/<a href="mailto:[^"]+">[^<]+<\/a>/, "") });
+  const result = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: { resources: { ...HELD_SITE.resources, publicEmail: "venue-8841@relay.eventsuite.pro" } } }), { fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(result.guideEmailReady, false);
+  assert.equal(result.publicContacts.some((item: any) => item.type === "EMAIL"), false);
+  assert.match(result.unknowns.join(" "), /PLATFORM_RELAY_OR_PLACEHOLDER/);
+  assert.equal(result.crawl.sourceDiscoveryCrawls, 1);
+  assert.equal(result.status, "VERIFIED_SITE_PUBLIC_CONTACT_FOUND");
+  const heldVenueEmail = await executeOfficialWebsiteDiscovery(discoveryRequest({ idempotencyKey: "77777777-7777-4777-8777-777777777777", heldEvidence: { nexus: { publicEmail: "bookings@cornexhall.co.uk", evidenceRef: "entity:fact:9" } } }), { fetchImpl: async () => { throw new Error("held email must not crawl"); }, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(heldVenueEmail.status, "HELD_CONTACT_REUSED");
+  assert.equal(heldVenueEmail.guideEmailReady, true);
+  assert.equal(heldVenueEmail.crawl.sourceDiscoveryCrawls, 0);
+});
+
+test("email acceptance: evidenced bookings@ on the verified domain is accepted; guessed, third-party, and personal addresses are not", async () => {
+  const site = "https://www.cornexhall.co.uk/";
+  assert.deepEqual(acceptVenueEmail("Bookings@CornexHall.co.uk", site, "Cornex Hall"), { accepted: true, email: "bookings@cornexhall.co.uk", relationship: "VERIFIED_SITE_DOMAIN" });
+  assert.deepEqual(acceptVenueEmail("jo.smith@events.cornexhall.co.uk", site, "Cornex Hall"), { accepted: true, email: "jo.smith@events.cornexhall.co.uk", relationship: "VERIFIED_SITE_DOMAIN" });
+  assert.equal((acceptVenueEmail("cornexhall.bookings@gmail.com", site, "Cornex Hall") as any).relationship, "PUBLISHED_ON_VERIFIED_SITE");
+  for (const [email, reason] of [
+    ["jane.doe1984@gmail.com", "PERSONAL_FREE_MAIL_ADDRESS"],
+    ["hello@webdesignstudio.co.uk", "OFF_DOMAIN_WITHOUT_VENUE_RELATIONSHIP"],
+    ["support@eventbrite.co.uk", "THIRD_PARTY_PLATFORM_DOMAIN"],
+    ["listings@yell.com", "THIRD_PARTY_PLATFORM_DOMAIN"],
+    ["venue-1@relay.eventsuite.pro", "PLATFORM_RELAY_OR_PLACEHOLDER"],
+    ["noreply@cornexhall.co.uk", "NON_CONTACT_MAILBOX"],
+    ["name@example.com", "PLATFORM_RELAY_OR_PLACEHOLDER"],
+    ["logo@2x.png", "INVALID_EMAIL"],
+  ] as const) assert.deepEqual(acceptVenueEmail(email, site, "Cornex Hall"), { accepted: false, reason }, email);
+  assert.equal(acceptHeldVenueEmail("venue-1@relay.eventsuite.pro").accepted, false);
+  assert.equal(isLabelSplitFragment("s@cornexhall.co.uk", ["bookings@cornexhall.co.uk", "s@cornexhall.co.uk"]), true);
+  assert.equal(isLabelSplitFragment("team@cornexhall.co.uk", ["bookingsteam@cornexhall.co.uk"]), true);
+  assert.equal(isLabelSplitFragment("events@cornexhall.co.uk", ["bookings@cornexhall.co.uk"]), false);
+
+  const bookingsPage = CORNEX_HOME.replace("mailto:events@cornexhall.co.uk\">events@", "mailto:bookings@cornexhall.co.uk\">bookings@");
+  const found = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: HELD_SITE }), { fetchImpl: siteFetch({ [site]: bookingsPage }).fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.deepEqual(found.publicContacts.filter((item: any) => item.type === "EMAIL").map((item: any) => [item.value, item.relationship]), [["bookings@cornexhall.co.uk", "VERIFIED_SITE_DOMAIN"]]);
+  assert.equal(found.guideEmailReady, true);
+
+  const noEmail = CORNEX_HOME.replace(/<a href="mailto:[^"]+">[^<]+<\/a>/, "");
+  const none = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: HELD_SITE }), { fetchImpl: siteFetch({ [site]: noEmail }).fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(none.publicContacts.some((item: any) => item.type === "EMAIL"), false, "no info@ or other address is generated");
+  assert.equal(none.guideEmailReady, false);
+});
+
+test("a held website with a cross-site redirect or TLS trust failure stays terminal and is not contact-crawled", async () => {
+  const requested: string[] = [];
+  const redirecting = async (input: RequestInfo | URL) => {
+    const url = String(input);
+    requested.push(url);
+    if (new URL(url).pathname === "/robots.txt") return new Response("User-agent: *\nAllow: /", { status: 200 });
+    return new Response(null, { status: 301, headers: { location: "https://other-site.example/landing" } });
+  };
+  const redirected = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: HELD_SITE }), { fetchImpl: redirecting, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(redirected.status, "CRAWL_BLOCKED");
+  assert.equal(redirected.retryable, false);
+  assert.equal(redirected.crawl.sourceDiscoveryCrawls, 0);
+  assert.equal(requested.some((url) => url.includes("other-site.example")), false);
+
+  const tls = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: HELD_SITE }), { fetchImpl: async () => { throw Object.assign(new Error("self-signed certificate"), { code: "DEPTH_ZERO_SELF_SIGNED_CERT" }); }, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(tls.status, "CRAWL_BLOCKED");
+  assert.equal(tls.retryable, false);
+  assert.equal(tls.guideEmailReady, false);
+  assert.equal(tls.crawl.sourceDiscoveryCrawls, 0);
 });
 
 test("results replay idempotently while retryable dispositions are re-attempted", async () => {
