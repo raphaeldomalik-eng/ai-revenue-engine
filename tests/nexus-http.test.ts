@@ -225,3 +225,107 @@ test("rejects malformed envelopes, unsupported contracts, and invalid payloads",
   assert.equal((await handleNexusExecuteRequest(unsupported, options())).status, 422);
   assert.equal((await handleNexusExecuteRequest(invalid, options())).status, 422);
 });
+
+function sourceDiscovery(overrides: Record<string, unknown> = {}) {
+  return {
+    contractVersion: "nexus.source-discovery-request.v1",
+    discoveryRequestId: "44444444-4444-4444-8444-444444444444",
+    idempotencyKey: "55555555-5555-4555-8555-555555555555",
+    correlationId: "66666666-6666-4666-8666-666666666666",
+    originatingProduct: "event_suite_resources",
+    subjectReference: {
+      canonicalEntityId: null,
+      candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: "gate-proof-venue" },
+      entityType: "VENUE",
+    },
+    verifiedSourceUrl: "https://venue.example/",
+    requestedExtractors: ["IDENTITY"],
+    freshnessRequirements: { maxAgeHours: 24 },
+    crawlBudget: { maxPages: 1, maxRequests: 2, maxBytesPerResponse: 100000, maxRedirects: 1, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 },
+    existingEvidenceRefs: [],
+    requestedBy: { actorType: "SYSTEM", actorId: "source-discovery-gate" },
+    createdAt: "2027-01-15T08:00:00.000Z",
+    ...overrides,
+  };
+}
+
+test("signed source discovery executes when allowed and research stays closed", async () => {
+  let researchCalls = 0;
+  let discoveryCalls = 0;
+  const response = await handleNexusExecuteRequest(signedRequest(sourceDiscovery()), {
+    ...options(),
+    allowResearch: false,
+    allowSourceDiscovery: true,
+    publicWeb: async () => { researchCalls += 1; return publicWebResult(); },
+    executeResearch: async () => { researchCalls += 1; return {}; },
+    executeSourceDiscovery: async () => {
+      discoveryCalls += 1;
+      return {
+        contractVersion: "nexus.source-discovery-result.v1",
+        discoveryRequestId: "44444444-4444-4444-8444-444444444444",
+        idempotencyKey: "55555555-5555-4555-8555-555555555555",
+        subjectReference: sourceDiscovery().subjectReference,
+        source: { verifiedUrl: "https://venue.example/", finalUrl: "https://venue.example/", observedAt: "2027-01-15T08:00:00.000Z", sourceHash: "abc" },
+        crawl: { status: "COMPLETED", warnings: [], requestCount: 1, pageCount: 1, bytesRead: 10, redirects: 0, blockedCount: 0, retryable: false },
+        identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [],
+      };
+    },
+  });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json() as { contractVersion: string }).contractVersion, "nexus.source-discovery-result.v1");
+  assert.equal(discoveryCalls, 1);
+  assert.equal(researchCalls, 0);
+});
+
+test("unsigned source discovery fails before execution", async () => {
+  let discoveryCalls = 0;
+  const response = await handleNexusExecuteRequest(signedRequest(sourceDiscovery(), { signature: null }), {
+    ...options(),
+    allowSourceDiscovery: true,
+    allowResearch: false,
+    executeSourceDiscovery: async () => { discoveryCalls += 1; return {}; },
+  });
+  assert.equal(response.status, 401);
+  assert.equal((await response.json() as { code: string }).code, "NEXUS_SIGNATURE_REQUIRED");
+  assert.equal(discoveryCalls, 0);
+});
+
+test("an invalid source-discovery contract fails closed before a crawl", async () => {
+  const response = await handleNexusExecuteRequest(signedRequest(sourceDiscovery({ verifiedSourceUrl: "http://venue.example/" })), {
+    ...options(),
+    allowSourceDiscovery: true,
+    allowResearch: false,
+  });
+  assert.equal(response.status, 422);
+  assert.equal((await response.json() as { code: string }).code, "INVALID_VERIFIED_SOURCE_URL");
+});
+
+test("research requests stay unavailable when only source discovery is allowed", async () => {
+  let researchCalls = 0;
+  let discoveryCalls = 0;
+  const response = await handleNexusExecuteRequest(signedRequest(research({ providerAllowances: ["GOOGLE_PLACES", "OPENAI", "APOLLO", "COMPANIES_HOUSE"] })), {
+    ...options(),
+    allowResearch: false,
+    allowSourceDiscovery: true,
+    publicWeb: async () => { researchCalls += 1; return publicWebResult(); },
+    executeResearch: async () => { researchCalls += 1; return {}; },
+    executeSourceDiscovery: async () => { discoveryCalls += 1; return {}; },
+  });
+  assert.equal(response.status, 404);
+  assert.equal((await response.json() as { code: string }).code, "NEXUS_EXECUTOR_NOT_AVAILABLE");
+  assert.equal(researchCalls, 0);
+  assert.equal(discoveryCalls, 0);
+});
+
+test("source discovery stays unavailable when its lane is closed", async () => {
+  let discoveryCalls = 0;
+  const response = await handleNexusExecuteRequest(signedRequest(sourceDiscovery()), {
+    ...options(),
+    allowResearch: false,
+    allowSourceDiscovery: false,
+    executeSourceDiscovery: async () => { discoveryCalls += 1; return {}; },
+  });
+  assert.equal(response.status, 404);
+  assert.equal((await response.json() as { code: string }).code, "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE");
+  assert.equal(discoveryCalls, 0);
+});

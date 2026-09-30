@@ -1,0 +1,1032 @@
+{
+  "label": "PREVIEW_EXECUTION_PROVEN",
+  "startedAt": "2026-09-30T03:55:11.845Z",
+  "endedAt": "2026-09-30T03:56:19.915Z",
+  "selection": "quality-pilot-2026-09-28 table order, then communion-source-discovery fixture",
+  "databaseWrites": 0,
+  "resourcesMutations": 0,
+  "nexusCanonicalMutations": 0,
+  "commercialProspectCreates": 0,
+  "providerCalls": {
+    "google": 0,
+    "openai": 0,
+    "apollo": 0,
+    "companiesHouse": 0,
+    "renderVendor": 0
+  },
+  "httpToHttpsRecovery": "NOT_RUN_NO_HTTP_ONLY_CANDIDATE_IN_FROZEN_COHORT",
+  "renderingDecision": "RENDERING_NOT_A_BLOCKER",
+  "renderMaterialSiteIds": [],
+  "aggregate": {
+    "sites": 12,
+    "medianDurationMs": 4060,
+    "p90DurationMs": 13215,
+    "maxDurationMs": 20231,
+    "averageRequests": 11.5,
+    "medianRequests": 13.5,
+    "averageBytes": 1149742.9166666667,
+    "totalBytes": 13796915,
+    "usefulEvidenceYield": 0.8333333333333334,
+    "pdfSiteFrequency": 0,
+    "pdfDocuments": 0,
+    "robotsBlockedRate": 0.08333333333333333,
+    "retryRate": 0,
+    "totalRetries": 0,
+    "renderRequiredRate": 0,
+    "sourceInsufficientRate": 1,
+    "cacheFreshHits": 0,
+    "revalidatedNotModified": 0,
+    "dispositions": {
+      "success": 5,
+      "partial": 5,
+      "blocked": 1,
+      "review": 1
+    }
+  },
+  "sites": [
+    {
+      "id": "beach-blanket-bohemia",
+      "name": "Beach Blanket Bohemia",
+      "hostname": "beachblanketbohemia.co.za",
+      "url": "https://beachblanketbohemia.co.za/",
+      "why": "Quality-pilot row 1. Small HTML venue.",
+      "startedAt": "2026-09-30T03:55:11.846Z",
+      "endedAt": "2026-09-30T03:55:13.141Z",
+      "durationMs": 1295,
+      "requests": 5,
+      "bytes": 140973,
+      "pages": 1,
+      "htmlCount": 1,
+      "pdfCount": 0,
+      "sitemapFetched": [
+        "https://beachblanketbohemia.co.za/sitemap.xml",
+        "https://beachblanketbohemia.co.za/sitemap.website.xml"
+      ],
+      "sitemapUrlsSeen": 3,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://beachblanketbohemia.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 0
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "PUBLIC_CONTACT:DIRECT",
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:SPACES",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IDENTITY:ADDRESS"
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "crawlStatus": "PARTIAL",
+      "disposition": "partial",
+      "yields": {
+        "identityFacts": 5,
+        "contacts": {
+          "email": 1,
+          "phone": 2,
+          "form": 0,
+          "other": 1,
+          "reviewRequired": 0
+        },
+        "venueFacts": {
+          "spaces": 0,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 0,
+          "facilities": 1,
+          "accessibility": 0,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 4,
+          "restricted": 4,
+          "unknownRights": 0,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 11,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": [
+        "Sitemap unavailable: https://beachblanketbohemia.co.za/sitemap.ola.xml: HTTP 400 from https://beachblanketbohemia.co.za/sitemap.ola.xml"
+      ]
+    },
+    {
+      "id": "artscape",
+      "name": "Artscape",
+      "hostname": "www.artscape.co.za",
+      "url": "https://www.artscape.co.za/",
+      "why": "Quality-pilot row 2. Multi-page venue with event pages.",
+      "startedAt": "2026-09-30T03:55:13.142Z",
+      "endedAt": "2026-09-30T03:55:19.864Z",
+      "durationMs": 6722,
+      "requests": 25,
+      "bytes": 879986,
+      "pages": 20,
+      "htmlCount": 20,
+      "pdfCount": 0,
+      "sitemapFetched": [
+        "https://www.artscape.co.za/wp-sitemap.xml",
+        "https://www.artscape.co.za/wp-sitemap-taxonomies-tribe_events_cat-1.xml",
+        "https://www.artscape.co.za/wp-sitemap-posts-page-1.xml",
+        "https://www.artscape.co.za/wp-sitemap-posts-post-1.xml"
+      ],
+      "sitemapUrlsSeen": 476,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://www.artscape.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "PUBLIC_CONTACT:DIRECT",
+        "VENUE_FACTS:SPACES",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "IDENTITY:ADDRESS",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY"
+      ],
+      "stopReason": "PAGE_BUDGET",
+      "crawlStatus": "PARTIAL",
+      "disposition": "partial",
+      "yields": {
+        "identityFacts": 43,
+        "contacts": {
+          "email": 10,
+          "phone": 6,
+          "form": 0,
+          "other": 1,
+          "reviewRequired": 0
+        },
+        "venueFacts": {
+          "spaces": 1,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 0,
+          "facilities": 1,
+          "accessibility": 0,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 8,
+          "restricted": 0,
+          "unknownRights": 8,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 80,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": [
+        "Evidence gaps (EVENTS:LISTINGS, VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY) remain beyond the finite crawl budget."
+      ]
+    },
+    {
+      "id": "cticc",
+      "name": "CTICC",
+      "hostname": "www.cticc.co.za",
+      "url": "https://www.cticc.co.za/",
+      "why": "Quality-pilot row 3. Multi-page convention venue.",
+      "startedAt": "2026-09-30T03:55:19.864Z",
+      "endedAt": "2026-09-30T03:55:25.413Z",
+      "durationMs": 5549,
+      "requests": 14,
+      "bytes": 4119055,
+      "pages": 13,
+      "htmlCount": 13,
+      "pdfCount": 0,
+      "sitemapFetched": [],
+      "sitemapUrlsSeen": 0,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://www.cticc.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 0
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "PUBLIC_CONTACT:DIRECT",
+        "VENUE_FACTS:SPACES",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "IDENTITY:ADDRESS",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:CAPACITY"
+      ],
+      "stopReason": "GAPS_EXHAUSTED",
+      "crawlStatus": "COMPLETED",
+      "disposition": "success",
+      "yields": {
+        "identityFacts": 119,
+        "contacts": {
+          "email": 7,
+          "phone": 1,
+          "form": 1,
+          "other": 0,
+          "reviewRequired": 1
+        },
+        "venueFacts": {
+          "spaces": 2,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 0,
+          "facilities": 5,
+          "accessibility": 1,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 46,
+          "restricted": 46,
+          "unknownRights": 0,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 221,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": []
+    },
+    {
+      "id": "events-at-ncg",
+      "name": "Events at NCG",
+      "hostname": "www.eventsatncg.co.za",
+      "url": "https://www.eventsatncg.co.za/index.html",
+      "why": "Quality-pilot row 4. Multi-page venue.",
+      "startedAt": "2026-09-30T03:55:25.414Z",
+      "endedAt": "2026-09-30T03:55:27.848Z",
+      "durationMs": 2434,
+      "requests": 6,
+      "bytes": 114999,
+      "pages": 3,
+      "htmlCount": 3,
+      "pdfCount": 0,
+      "sitemapFetched": [],
+      "sitemapUrlsSeen": 0,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://www.eventsatncg.co.za",
+          "status": "ABSENT",
+          "sitemapDirectives": 0
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "PUBLIC_CONTACT:DIRECT",
+        "VENUE_FACTS:SPACES",
+        "VENUE_FACTS:CAPACITY",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IDENTITY:ADDRESS"
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "crawlStatus": "COMPLETED",
+      "disposition": "success",
+      "yields": {
+        "identityFacts": 8,
+        "contacts": {
+          "email": 2,
+          "phone": 0,
+          "form": 2,
+          "other": 0,
+          "reviewRequired": 1
+        },
+        "venueFacts": {
+          "spaces": 3,
+          "namedSpaceCapacities": 1,
+          "venueCapacities": 1,
+          "facilities": 1,
+          "accessibility": 0,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 17,
+          "restricted": 17,
+          "unknownRights": 0,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 25,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": []
+    },
+    {
+      "id": "johannesburg-expo-centre",
+      "name": "Johannesburg Expo Centre",
+      "hostname": "expocentre.co.za",
+      "url": "https://expocentre.co.za/",
+      "why": "Quality-pilot row 5. Multi-page expo venue.",
+      "startedAt": "2026-09-30T03:55:27.848Z",
+      "endedAt": "2026-09-30T03:55:48.079Z",
+      "durationMs": 20231,
+      "requests": 19,
+      "bytes": 1741607,
+      "pages": 13,
+      "htmlCount": 13,
+      "pdfCount": 0,
+      "sitemapFetched": [
+        "https://expocentre.co.za/sitemap_index.xml",
+        "https://expocentre.co.za/event-sitemap.xml",
+        "https://expocentre.co.za/eventcat-sitemap.xml",
+        "https://expocentre.co.za/location-sitemap.xml"
+      ],
+      "sitemapUrlsSeen": 32,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 1,
+      "robots": [
+        {
+          "origin": "https://expocentre.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "PUBLIC_CONTACT:DIRECT",
+        "VENUE_FACTS:SPACES",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IDENTITY:ADDRESS"
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "crawlStatus": "COMPLETED",
+      "disposition": "success",
+      "yields": {
+        "identityFacts": 48,
+        "contacts": {
+          "email": 1,
+          "phone": 1,
+          "form": 1,
+          "other": 0,
+          "reviewRequired": 1
+        },
+        "venueFacts": {
+          "spaces": 3,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 0,
+          "facilities": 2,
+          "accessibility": 0,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 111,
+          "restricted": 0,
+          "unknownRights": 111,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 92,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": []
+    },
+    {
+      "id": "southbank-centre",
+      "name": "Southbank Centre",
+      "hostname": "www.southbankcentre.co.uk",
+      "url": "https://www.southbankcentre.co.uk/",
+      "why": "Quality-pilot row 6. Previously HTTP 403.",
+      "startedAt": "2026-09-30T03:55:48.079Z",
+      "endedAt": "2026-09-30T03:55:48.454Z",
+      "durationMs": 375,
+      "requests": 2,
+      "bytes": 0,
+      "pages": 0,
+      "htmlCount": 0,
+      "pdfCount": 0,
+      "sitemapFetched": [],
+      "sitemapUrlsSeen": 0,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://www.southbankcentre.co.uk",
+          "status": "FETCHED",
+          "sitemapDirectives": 0
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [],
+      "dimensionsMissing": [
+        "PUBLIC_CONTACT:DIRECT",
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:SPACES",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "IDENTITY:ADDRESS",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "stopReason": "ENTRY_FAILED",
+      "crawlStatus": "FAILED",
+      "disposition": "review",
+      "yields": {
+        "identityFacts": 0,
+        "contacts": {
+          "email": 0,
+          "phone": 0,
+          "form": 0,
+          "other": 0,
+          "reviewRequired": 0
+        },
+        "venueFacts": {
+          "spaces": 0,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 0,
+          "facilities": 0,
+          "accessibility": 0,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 0,
+          "restricted": 0,
+          "unknownRights": 0,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 0,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": [
+        "Required HTML source unavailable: https://www.southbankcentre.co.uk/: HTTP 403 from https://www.southbankcentre.co.uk/"
+      ]
+    },
+    {
+      "id": "barbican",
+      "name": "Barbican",
+      "hostname": "www.barbican.org.uk",
+      "url": "https://www.barbican.org.uk/",
+      "why": "Quality-pilot row 7. Large multi-page venue.",
+      "startedAt": "2026-09-30T03:55:48.454Z",
+      "endedAt": "2026-09-30T03:55:51.803Z",
+      "durationMs": 3349,
+      "requests": 13,
+      "bytes": 1744299,
+      "pages": 12,
+      "htmlCount": 12,
+      "pdfCount": 0,
+      "sitemapFetched": [],
+      "sitemapUrlsSeen": 0,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://www.barbican.org.uk",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "PUBLIC_CONTACT:DIRECT",
+        "VENUE_FACTS:SPACES",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "EVENTS:LISTINGS",
+        "IDENTITY:ADDRESS"
+      ],
+      "stopReason": "GAPS_EXHAUSTED",
+      "crawlStatus": "PARTIAL",
+      "disposition": "partial",
+      "yields": {
+        "identityFacts": 49,
+        "contacts": {
+          "email": 0,
+          "phone": 6,
+          "form": 2,
+          "other": 0,
+          "reviewRequired": 7
+        },
+        "venueFacts": {
+          "spaces": 6,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 3,
+          "facilities": 6,
+          "accessibility": 1,
+          "conflicts": 1,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 82,
+          "restricted": 82,
+          "unknownRights": 0,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 98,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": [
+        "Conflicting first-party phone contacts require review."
+      ]
+    },
+    {
+      "id": "roundhouse",
+      "name": "Roundhouse",
+      "hostname": "www.roundhouse.org.uk",
+      "url": "https://www.roundhouse.org.uk/",
+      "why": "Quality-pilot row 8. Multi-page venue.",
+      "startedAt": "2026-09-30T03:55:51.803Z",
+      "endedAt": "2026-09-30T03:55:55.929Z",
+      "durationMs": 4126,
+      "requests": 14,
+      "bytes": 1983172,
+      "pages": 13,
+      "htmlCount": 13,
+      "pdfCount": 0,
+      "sitemapFetched": [],
+      "sitemapUrlsSeen": 0,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://www.roundhouse.org.uk",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "PUBLIC_CONTACT:DIRECT",
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:SPACES",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "IDENTITY:ADDRESS"
+      ],
+      "stopReason": "GAPS_EXHAUSTED",
+      "crawlStatus": "PARTIAL",
+      "disposition": "partial",
+      "yields": {
+        "identityFacts": 144,
+        "contacts": {
+          "email": 2,
+          "phone": 0,
+          "form": 0,
+          "other": 0,
+          "reviewRequired": 0
+        },
+        "venueFacts": {
+          "spaces": 1,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 2,
+          "facilities": 6,
+          "accessibility": 4,
+          "conflicts": 1,
+          "reviewRequired": 2
+        },
+        "images": {
+          "total": 86,
+          "restricted": 0,
+          "unknownRights": 86,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 163,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": [
+        "Conflicting first-party capacity evidence for :unspecified requires review."
+      ]
+    },
+    {
+      "id": "national-theatre",
+      "name": "National Theatre",
+      "hostname": "www.nationaltheatre.org.uk",
+      "url": "https://www.nationaltheatre.org.uk/",
+      "why": "Quality-pilot row 9. Previously robots fetch HTTP 403.",
+      "startedAt": "2026-09-30T03:55:55.929Z",
+      "endedAt": "2026-09-30T03:55:56.222Z",
+      "durationMs": 293,
+      "requests": 1,
+      "bytes": 0,
+      "pages": 0,
+      "htmlCount": 0,
+      "pdfCount": 0,
+      "sitemapFetched": [],
+      "sitemapUrlsSeen": 0,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://www.nationaltheatre.org.uk",
+          "status": "UNAVAILABLE",
+          "sitemapDirectives": 0
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [],
+      "dimensionsMissing": [
+        "PUBLIC_CONTACT:DIRECT",
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:SPACES",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "IDENTITY:ADDRESS",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "stopReason": "ROBOTS_UNAVAILABLE",
+      "crawlStatus": "BLOCKED",
+      "disposition": "blocked",
+      "yields": {
+        "identityFacts": 0,
+        "contacts": {
+          "email": 0,
+          "phone": 0,
+          "form": 0,
+          "other": 0,
+          "reviewRequired": 0
+        },
+        "venueFacts": {
+          "spaces": 0,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 0,
+          "facilities": 0,
+          "accessibility": 0,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 0,
+          "restricted": 0,
+          "unknownRights": 0,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 0,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": [
+        "robots.txt could not be checked: robots.txt returned HTTP 403"
+      ]
+    },
+    {
+      "id": "troxy",
+      "name": "Troxy",
+      "hostname": "troxy.co.uk",
+      "url": "https://troxy.co.uk/",
+      "why": "Quality-pilot row 10. Venue site.",
+      "startedAt": "2026-09-30T03:55:56.223Z",
+      "endedAt": "2026-09-30T03:56:02.706Z",
+      "durationMs": 6483,
+      "requests": 17,
+      "bytes": 961984,
+      "pages": 12,
+      "htmlCount": 12,
+      "pdfCount": 0,
+      "sitemapFetched": [
+        "https://troxy.co.uk/sitemap_index.xml",
+        "https://troxy.co.uk/case-study-sitemap.xml",
+        "https://troxy.co.uk/event-sitemap.xml",
+        "https://troxy.co.uk/history-sitemap.xml"
+      ],
+      "sitemapUrlsSeen": 125,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://troxy.co.uk",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IMAGE_CANDIDATES:IMAGES",
+        "IDENTITY:NAME",
+        "IDENTITY:ADDRESS",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "PUBLIC_CONTACT:DIRECT",
+        "VENUE_FACTS:SPACES"
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "crawlStatus": "COMPLETED",
+      "disposition": "success",
+      "yields": {
+        "identityFacts": 132,
+        "contacts": {
+          "email": 1,
+          "phone": 0,
+          "form": 1,
+          "other": 0,
+          "reviewRequired": 1
+        },
+        "venueFacts": {
+          "spaces": 0,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 1,
+          "facilities": 3,
+          "accessibility": 1,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 139,
+          "restricted": 139,
+          "unknownRights": 0,
+          "exactVenue": 0
+        },
+        "events": 0,
+        "evidenceRefs": 162,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": []
+    },
+    {
+      "id": "the-brewery",
+      "name": "The Brewery",
+      "hostname": "www.thebrewery.co.uk",
+      "url": "https://www.thebrewery.co.uk/",
+      "why": "Quality-pilot row 11. Multi-room venue.",
+      "startedAt": "2026-09-30T03:56:02.706Z",
+      "endedAt": "2026-09-30T03:56:15.921Z",
+      "durationMs": 13215,
+      "requests": 18,
+      "bytes": 1943782,
+      "pages": 11,
+      "htmlCount": 11,
+      "pdfCount": 0,
+      "sitemapFetched": [
+        "https://www.thebrewery.co.uk/sitemap_index.xml",
+        "https://www.thebrewery.co.uk/page-sitemap.xml",
+        "https://www.thebrewery.co.uk/vl_case_studies_cat-sitemap.xml",
+        "https://www.thebrewery.co.uk/vl_case_studies-sitemap.xml"
+      ],
+      "sitemapUrlsSeen": 78,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 1,
+      "robots": [
+        {
+          "origin": "https://www.thebrewery.co.uk",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "PUBLIC_CONTACT:DIRECT",
+        "VENUE_FACTS:SPACES",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "IDENTITY:NAME",
+        "IDENTITY:ADDRESS",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IMAGE_CANDIDATES:IMAGES"
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "crawlStatus": "PARTIAL",
+      "disposition": "partial",
+      "yields": {
+        "identityFacts": 85,
+        "contacts": {
+          "email": 1,
+          "phone": 1,
+          "form": 4,
+          "other": 0,
+          "reviewRequired": 1
+        },
+        "venueFacts": {
+          "spaces": 7,
+          "namedSpaceCapacities": 10,
+          "venueCapacities": 2,
+          "facilities": 16,
+          "accessibility": 0,
+          "conflicts": 1,
+          "reviewRequired": 2
+        },
+        "images": {
+          "total": 150,
+          "restricted": 150,
+          "unknownRights": 0,
+          "exactVenue": 1
+        },
+        "events": 0,
+        "evidenceRefs": 168,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": [
+        "Candidate page unavailable: https://www.thebrewery.co.uk/virtual-tour/HeadBox%20%E2%94%82%20Stop%20searching%20and%20let%20the%20perfect%20venue%20find%20you!: HTTP 404 from https://www.thebrewery.co.uk/virtual-tour/HeadBox%20%E2%94%82%20Stop%20searchin...",
+        "Conflicting first-party capacity evidence for porter tun:unspecified requires review."
+      ]
+    },
+    {
+      "id": "communion-music",
+      "name": "Communion Music",
+      "hostname": "www.communionmusic.co.uk",
+      "url": "https://www.communionmusic.co.uk/tickets",
+      "why": "Existing source-discovery fixture, not a Resources venue row. Event-source page with a known first-party image subdomain.",
+      "startedAt": "2026-09-30T03:56:15.921Z",
+      "endedAt": "2026-09-30T03:56:19.915Z",
+      "durationMs": 3994,
+      "requests": 4,
+      "bytes": 167058,
+      "pages": 1,
+      "htmlCount": 1,
+      "pdfCount": 0,
+      "sitemapFetched": [],
+      "sitemapUrlsSeen": 0,
+      "hydrationPages": 0,
+      "renderNeededButUnavailable": [],
+      "materiallyBlockedByRendering": false,
+      "retries": 0,
+      "redirects": 0,
+      "robots": [
+        {
+          "origin": "https://www.communionmusic.co.uk",
+          "status": "FETCHED",
+          "sitemapDirectives": 0
+        }
+      ],
+      "cacheFreshHits": 0,
+      "revalidatedNotModified": 0,
+      "dimensionsSatisfied": [
+        "EVENTS:LISTINGS",
+        "VENUE_FACTS:SPACES",
+        "IMAGE_CANDIDATES:IMAGES",
+        "SOURCE_CLASSIFICATION:ENTRY"
+      ],
+      "dimensionsMissing": [
+        "PUBLIC_CONTACT:DIRECT",
+        "VENUE_FACTS:CAPACITY",
+        "VENUE_FACTS:FACILITIES",
+        "VENUE_FACTS:ACCESSIBILITY",
+        "IDENTITY:NAME",
+        "IDENTITY:ADDRESS"
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "crawlStatus": "COMPLETED",
+      "disposition": "success",
+      "yields": {
+        "identityFacts": 4,
+        "contacts": {
+          "email": 0,
+          "phone": 0,
+          "form": 0,
+          "other": 0,
+          "reviewRequired": 0
+        },
+        "venueFacts": {
+          "spaces": 1,
+          "namedSpaceCapacities": 0,
+          "venueCapacities": 0,
+          "facilities": 1,
+          "accessibility": 0,
+          "conflicts": 0,
+          "reviewRequired": 0
+        },
+        "images": {
+          "total": 13,
+          "restricted": 13,
+          "unknownRights": 0,
+          "exactVenue": 0
+        },
+        "events": 216,
+        "evidenceRefs": 439,
+        "pdfEvidence": 0
+      },
+      "pdfs": [],
+      "skippedContent": [],
+      "warnings": []
+    }
+  ]
+}
