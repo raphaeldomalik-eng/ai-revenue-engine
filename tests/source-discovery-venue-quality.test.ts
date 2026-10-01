@@ -6,7 +6,7 @@ import { discoverUsefulSourceUrls } from "../src/nexus/source-discovery/links.ts
 import { validateSourceDiscoveryResult } from "../src/nexus/contracts.ts";
 import type { FetchedDocument } from "../src/nexus/source-discovery/types.ts";
 
-const origin = "https://venue.example";
+const origin = "https://venue.org";
 function page(path: string, body: string): FetchedDocument {
   return { url: `${origin}${path}`, body, contentType: "text/html", bytes: Buffer.byteLength(body),
     sourceHash: createHash("sha256").update(body).digest("hex"), observedAt: "2026-09-28T10:00:00.000Z" };
@@ -19,7 +19,7 @@ test("balanced link planning spends a finite page budget across contact, hire an
     <a href="/events">What's on</a><a href="/privacy">Privacy</a>`;
   const planned = discoverUsefulSourceUrls(page("/", home), [...all]);
   assert.deepEqual(planned.slice(0, 3), [`${origin}/contact`, `${origin}/events`, `${origin}/spaces`]);
-  const pages: Record<string, string> = { "/": home, "/contact": "<p>Email: hello@venue.example</p>",
+  const pages: Record<string, string> = { "/": home, "/contact": "<p>Email: hello@venue.org</p>",
     "/spaces": "<p>Grand Hall — banquet capacity 180.</p>",
     "/events": '<script type="application/ld+json">{"@type":"Event","name":"Jazz Night","startDate":"2026-10-22T19:30:00Z"}</script>' };
   const result = await crawlVerifiedSource({ verifiedUrl: `${origin}/`, requestedExtractors: [...all],
@@ -30,33 +30,36 @@ test("balanced link planning spends a finite page budget across contact, hire an
   assert.deepEqual(result.documents.map((item) => new URL(item.url).pathname), ["/", "/contact", "/events", "/spaces"]);
   assert.equal(result.stats.requestCount, 5);
   const extraction = extractFromFetchedDocuments(result.documents, [...all]);
-  assert.ok(extraction.publicContacts.some((item) => item.value === "hello@venue.example"));
+  assert.ok(extraction.publicContacts.some((item) => item.value === "hello@venue.org"));
   assert.ok(extraction.venueFacts.some((item) => item.fieldName === "capacity"));
   assert.equal(extraction.eventCandidates[0]?.title, "Jazz Night");
 });
 
 test("JSON-LD Organization and ContactPoint supply evidence-backed business contacts and identity", () => {
-  const source = page("/", `<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"LocalBusiness","name":"The Lantern","url":"https://venue.example/","address":{"@type":"PostalAddress","streetAddress":"4 River Road","addressLocality":"Bristol","postalCode":"BS1 2AB"},"contactPoint":{"@type":"ContactPoint","contactType":"bookings","telephone":"+44 117 555 0101","email":"bookings@venue.example"},"geo":{"latitude":51.45,"longitude":-2.59},"sameAs":["https://www.instagram.com/lantern"]}]}</script>`);
+  const source = page("/", `<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"LocalBusiness","name":"The Lantern","url":"https://venue.org/","address":{"@type":"PostalAddress","streetAddress":"4 River Road","addressLocality":"Bristol","postalCode":"BS1 2AB"},"contactPoint":{"@type":"ContactPoint","contactType":"bookings","telephone":"+44 117 555 0101","email":"bookings@venue.org"},"geo":{"latitude":51.45,"longitude":-2.59},"sameAs":["https://www.instagram.com/lantern"]}]}</script>`);
   const result = extractFromFetchedDocuments([source], ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS"]);
   assert.ok(result.identityFacts.some((item) => item.fieldName === "siteName" && item.value === "The Lantern"));
   assert.ok(result.identityFacts.some((item) => item.fieldName === "address" && String(item.value).includes("BS1 2AB")));
   assert.ok(result.identityFacts.some((item) => item.fieldName === "sameAs" && String(item.value).includes("instagram")));
-  assert.deepEqual(result.publicContacts.map((item) => [item.type, item.value]), [["PHONE", "+44 117 555 0101"], ["EMAIL", "bookings@venue.example"]]);
+  assert.deepEqual(result.publicContacts.map((item) => [item.type, item.value]), [["PHONE", "+44 117 555 0101"], ["EMAIL", "bookings@venue.org"]]);
   assert.ok(result.venueFacts.some((item) => item.fieldName === "geo"));
   assert.ok(result.publicContacts.every((item) => item.sourceUrl === source.url && item.evidenceRef.includes(source.sourceHash) && item.confidence !== null));
 });
 
 test("contact page visible labels and obfuscation are found without footer vendor or privacy contacts", () => {
-  const home = page("/", `<footer>Website by Pixel Studio. hello@pixelstudio.example. Privacy officer: privacy@venue.example.</footer>`);
-  const contact = page("/contact", `<main><h1>Contact us</h1><p>Bookings email: bookings [at] venue.example</p>
+  const home = page("/", `<footer>Website by Pixel Studio. hello@pixelstudio.org. Privacy officer: privacy@venue.org.</footer>`);
+  const contact = page("/contact", `<main><h1>Contact us</h1><p>Bookings email: bookings [at] venue.org</p>
     <p>Call us: +44 (0)20 7946 0123</p><p>WhatsApp: +44 7700 900123</p>
     <form action="/enquiry"><input name="email"></form></main>`);
   const result = extractFromFetchedDocuments([home, contact], ["PUBLIC_CONTACT"]);
-  assert.ok(result.publicContacts.some((item) => item.type === "EMAIL" && item.value === "bookings@venue.example"));
+  assert.ok(result.publicContacts.some((item) => item.type === "EMAIL" && item.value === "bookings@venue.org"));
   assert.ok(result.publicContacts.some((item) => item.type === "PHONE" && item.value.includes("7946 0123")));
   assert.ok(result.publicContacts.some((item) => item.type === "WHATSAPP" && item.value.includes("900123")));
   assert.ok(result.publicContacts.some((item) => item.type === "CONTACT_FORM" && item.value === `${origin}/enquiry`));
-  assert.ok(result.publicContacts.every((item) => !/pixelstudio|privacy@/.test(item.value)));
+  const usable = result.publicContacts.filter((item) => item.type === "EMAIL" && !item.reviewRequired);
+  assert.deepEqual(usable.map((item) => item.value), ["bookings@venue.org"]);
+  assert.ok(result.publicContacts.some((item) => item.value === "hello@pixelstudio.org" && item.reviewRequired));
+  assert.ok(result.publicContacts.some((item) => item.value === "privacy@venue.org" && item.reviewRequired));
 });
 
 test("named rooms retain explicit layout capacities and conflicting page values require review", () => {
@@ -93,17 +96,19 @@ test("image rights default unknown and explicit restrictive or reusable terms re
 });
 
 test("footer vendor and privacy mailto links do not displace public booking contacts", () => {
-  const source = page("/contact", `<main><h1>Contact us</h1><a href="mailto:bookings@venue.example">Book the venue</a></main>
-    <footer>Website by Pixel Studio <a href="mailto:hello@pixelstudio.example">Email the designer</a>
-    <a href="mailto:privacy@venue.example">Privacy officer</a></footer>`);
+  const source = page("/contact", `<main><h1>Contact us</h1><a href="mailto:bookings@venue.org">Book the venue</a></main>
+    <footer>Website by Pixel Studio <a href="mailto:hello@pixelstudio.org">Email the designer</a>
+    <a href="mailto:privacy@venue.org">Privacy officer</a></footer>`);
   const found = extractFromFetchedDocuments([source], ["PUBLIC_CONTACT"]).publicContacts.filter((item) => item.type === "EMAIL");
-  assert.deepEqual(found.map((item) => item.value), ["bookings@venue.example"]);
+  assert.deepEqual(found.filter((item) => !item.reviewRequired).map((item) => item.value), ["bookings@venue.org"]);
+  assert.ok(found.some((item) => item.value === "hello@pixelstudio.org" && item.reviewRequired));
+  assert.ok(found.some((item) => item.value === "privacy@venue.org" && item.reviewRequired));
 });
 
 test("Nexus V1 validation retains explicit rights evidence and rejects unsupported rights certainty", () => {
   const base = { sourceImageUrl: `${origin}/photo.jpg`, sourcePageUrl: `${origin}/`, filename: "photo.jpg", alt: null, title: null,
     caption: null, width: null, height: null, mime: null, likelyRole: "OTHER", exactVenue: null,
-    discoveredAt: "2026-09-28T10:00:00.000Z", originDomain: "venue.example" };
+    discoveredAt: "2026-09-28T10:00:00.000Z", originDomain: "venue.org" };
   const request = { contractVersion: "nexus.source-discovery-result.v1", discoveryRequestId: "58c8b124-2e1a-46c7-a95a-2c49bf4a82ac",
     idempotencyKey: "bfc05681-87a6-4b68-a49d-353b7f35f7be", subjectReference: { canonicalEntityId: null,
       candidateReference: { sourceSystem: "test", sourceRecordId: "venue" }, entityType: "VENUE" },
@@ -119,11 +124,11 @@ test("Nexus V1 validation retains explicit rights evidence and rejects unsupport
 
 test("embedded external ticketing Organization contacts are not attributed to the venue", () => {
   const source = page("/", `<script type="application/ld+json">{"@graph":[
-    {"@type":"Organization","name":"Ticket Seller","url":"https://tickets.example","contactPoint":{"@type":"ContactPoint","email":"support@tickets.example"}},
-    {"@type":"LocalBusiness","name":"The Lantern","url":"https://venue.example/","contactPoint":{"@type":"ContactPoint","email":"hello@venue.example"}}
+    {"@type":"Organization","name":"Ticket Seller","url":"https://tickets.org","contactPoint":{"@type":"ContactPoint","email":"support@tickets.org"}},
+    {"@type":"LocalBusiness","name":"The Lantern","url":"https://venue.org/","contactPoint":{"@type":"ContactPoint","email":"hello@venue.org"}}
   ]}</script>`);
   const result = extractFromFetchedDocuments([source], ["IDENTITY", "PUBLIC_CONTACT"]);
-  assert.deepEqual(result.publicContacts.filter((item) => item.type === "EMAIL").map((item) => item.value), ["hello@venue.example"]);
+  assert.deepEqual(result.publicContacts.filter((item) => item.type === "EMAIL").map((item) => item.value), ["hello@venue.org"]);
   assert.equal(result.identityFacts.some((item) => item.value === "Ticket Seller"), false);
 });
 
@@ -174,25 +179,27 @@ test("site accessibility policy does not outrank venue facilities", () => {
 });
 
 test("accommodation directory vendor contacts and WhatsApp share links are not venue contacts", () => {
-  const home = page("/", `<a href="mailto:hello@venue.example">Email venue</a>
-    <a href="whatsapp://send?text=https://venue.example/">Share this page</a>`);
-  const hotels = page("/accommodation/", `<h1>Nearby hotels</h1><a href="mailto:reservations@hotel.example">Hotel bookings</a>
+  const home = page("/", `<a href="mailto:hello@venue.org">Email venue</a>
+    <a href="whatsapp://send?text=https://venue.org/">Share this page</a>`);
+  const hotels = page("/accommodation/", `<h1>Nearby hotels</h1><a href="mailto:reservations@hotel.org">Hotel bookings</a>
     <a href="tel:+441234567890">Hotel phone</a>`);
   const found = extractFromFetchedDocuments([home, hotels], ["PUBLIC_CONTACT"]).publicContacts;
-  assert.deepEqual(found.map((item) => `${item.type}:${item.value}`), ["EMAIL:hello@venue.example"]);
+  assert.ok(found.some((item) => item.type === "EMAIL" && item.value === "hello@venue.org" && !item.reviewRequired));
+  assert.ok(found.some((item) => item.type === "EMAIL" && item.value === "reservations@hotel.org" && item.reviewRequired));
+  assert.equal(found.some((item) => item.type === "PHONE" || item.type === "WHATSAPP"), false);
 });
 
 test("several labelled departments on one page do not become a cross-page contact conflict", () => {
-  const source = page("/contact", `<h1>Contact us</h1><a href="mailto:sales@venue.example">Sales</a>
-    <a href="mailto:info@venue.example">General enquiries</a>`);
+  const source = page("/contact", `<h1>Contact us</h1><a href="mailto:sales@venue.org">Sales</a>
+    <a href="mailto:info@venue.org">General enquiries</a>`);
   const result = extractFromFetchedDocuments([source], ["PUBLIC_CONTACT"]);
   assert.equal(result.warnings.some((warning) => /Conflicting.*email/.test(warning)), false);
   assert.ok(result.publicContacts.every((item) => !item.reviewRequired));
 });
 
 test("different sole business emails on separate pages require review with both evidence refs", () => {
-  const pages = [page("/contact", `<a href="mailto:bookings@venue.example">Bookings</a>`),
-    page("/hire", `<a href="mailto:events@venue.example">Events hire</a>`)];
+  const pages = [page("/contact", `<a href="mailto:bookings@venue.org">Bookings</a>`),
+    page("/hire", `<a href="mailto:events@venue.org">Events hire</a>`)];
   const result = extractFromFetchedDocuments(pages, ["PUBLIC_CONTACT"]);
   assert.equal(result.publicContacts.length, 2);
   assert.ok(result.publicContacts.every((item) => item.reviewRequired && item.evidenceRef.includes("source:")));
@@ -226,7 +233,7 @@ test("marketing, newsletter and page-navigation headings are not named rooms", (
 
 test("nested Place name remains evidence without replacing the organisation site name", () => {
   const source = page("/", `<title>Homepage</title><script type="application/ld+json">{"@graph":[
-    {"@type":"Organization","name":"Artscape","url":"https://venue.example/"},
+    {"@type":"Organization","name":"Artscape","url":"https://venue.org/"},
     {"@type":"Place","name":"iSibaya Room"}]}</script>`);
   const facts = extractFromFetchedDocuments([source], ["IDENTITY"]).identityFacts;
   assert.deepEqual(facts.filter((item) => item.fieldName === "siteName").map((item) => item.value), ["Artscape"]);
@@ -235,17 +242,17 @@ test("nested Place name remains evidence without replacing the organisation site
 
 test("standalone booking ContactPoint on an explicit contact page retains contact type evidence", () => {
   const source = page("/contact", `<script type="application/ld+json">{"@type":"ContactPoint",
-    "contactType":"venue bookings","telephone":"+44 20 7000 1111","email":"hire@venue.example"}</script>`);
+    "contactType":"venue bookings","telephone":"+44 20 7000 1111","email":"hire@venue.org"}</script>`);
   const result = extractFromFetchedDocuments([source], ["IDENTITY", "PUBLIC_CONTACT"]);
-  assert.ok(result.publicContacts.some((item) => item.type === "EMAIL" && item.value === "hire@venue.example"));
+  assert.ok(result.publicContacts.some((item) => item.type === "EMAIL" && item.value === "hire@venue.org"));
   assert.ok(result.identityFacts.some((item) => item.fieldName === "contactType" && item.value === "venue bookings"));
 });
 
 test("labelled visible contacts on a homepage are retained without mailto or tel links", () => {
-  const source = page("/", `<section><h2>Visit Us</h2><p>Email: info@venue.example</p>
+  const source = page("/", `<section><h2>Visit Us</h2><p>Email: info@venue.org</p>
     <p>Tel: +44 20 7000 1234</p></section>`);
   const contacts = extractFromFetchedDocuments([source], ["PUBLIC_CONTACT"]).publicContacts;
-  assert.ok(contacts.some((item) => item.type === "EMAIL" && item.value === "info@venue.example"));
+  assert.ok(contacts.some((item) => item.type === "EMAIL" && item.value === "info@venue.org"));
   assert.ok(contacts.some((item) => item.type === "PHONE" && item.value === "+44 20 7000 1234"));
 });
 
@@ -256,25 +263,26 @@ test("a short crawl reaches events after contact before general space pages", ()
 
 test("labelled booking contacts on event and wedding pages are retained", () => {
   const result = extractFromFetchedDocuments([
-    page("/events", `<p>Bookings email: events@venue.example</p>`),
+    page("/events", `<p>Bookings email: events@venue.org</p>`),
     page("/weddings", `<p>Call us: +44 20 7000 9999</p>`),
   ], ["PUBLIC_CONTACT"]);
-  assert.ok(result.publicContacts.some((item) => item.value === "events@venue.example"));
+  assert.ok(result.publicContacts.some((item) => item.value === "events@venue.org"));
   assert.ok(result.publicContacts.some((item) => item.value === "+44 20 7000 9999"));
 });
 
 test("standalone booking ContactPoint on homepage retains its contact and type", () => {
-  const source = page("/", `<script type="application/ld+json">{"@type":"ContactPoint","contactType":"bookings","email":"bookings@venue.example"}</script>`);
+  const source = page("/", `<script type="application/ld+json">{"@type":"ContactPoint","contactType":"bookings","email":"bookings@venue.org"}</script>`);
   const result = extractFromFetchedDocuments([source], ["IDENTITY", "PUBLIC_CONTACT"]);
-  assert.ok(result.publicContacts.some((item) => item.value === "bookings@venue.example"));
+  assert.ok(result.publicContacts.some((item) => item.value === "bookings@venue.org"));
   assert.ok(result.identityFacts.some((item) => item.fieldName === "contactType" && item.value === "bookings"));
 });
 
 test("ticketing-provider support contact is not attributed to the venue", () => {
-  const source = page("/contact", `<main><p>Bookings email: bookings@venue.example</p>
-    <section class="ticketing-provider"><h2>Ticketing provider support</h2><p>Email: support@tickets.example</p></section></main>`);
-  const found = extractFromFetchedDocuments([source], ["PUBLIC_CONTACT"]).publicContacts;
-  assert.deepEqual(found.filter((item) => item.type === "EMAIL").map((item) => item.value), ["bookings@venue.example"]);
+  const source = page("/contact", `<main><p>Bookings email: bookings@venue.org</p>
+    <section class="ticketing-provider"><h2>Ticketing provider support</h2><p>Email: support@tickets.org</p></section></main>`);
+  const found = extractFromFetchedDocuments([source], ["PUBLIC_CONTACT"]).publicContacts.filter((item) => item.type === "EMAIL");
+  assert.deepEqual(found.filter((item) => !item.reviewRequired).map((item) => item.value), ["bookings@venue.org"]);
+  assert.ok(found.some((item) => item.value === "support@tickets.org" && item.reviewRequired));
 });
 
 test("marketing invitation is not staging evidence", () => {
@@ -312,8 +320,8 @@ test("image planning discovers first-party permissions pages", () => {
 
 test("operator and venue names in the same graph do not conflict", () => {
   const source = page("/", `<script type="application/ld+json">{"@graph":[
-    {"@type":"Organization","name":"Operator Holdings","url":"https://venue.example/"},
-    {"@type":"LocalBusiness","name":"Grand Hall","url":"https://venue.example/"}
+    {"@type":"Organization","name":"Operator Holdings","url":"https://venue.org/"},
+    {"@type":"LocalBusiness","name":"Grand Hall","url":"https://venue.org/"}
   ]}</script>`);
   const result = extractFromFetchedDocuments([source], ["IDENTITY"]);
   assert.equal(result.warnings.some((item) => /Conflicting first-party siteName/.test(item)), false);
@@ -351,7 +359,7 @@ test("structured maximumAttendeeCapacity on a same-origin venue is a venue-wide 
   assert.deepEqual(capacities.map((item) => item.value), [{ space: null, layout: "unspecified", count: 40, statement: "maximumAttendeeCapacity 40" }]);
   assert.equal(capacities[0]?.reviewRequired, false);
   assert.equal(extractFromFetchedDocuments([venue], ["VENUE_FACTS"]).venueFacts.some((item) => item.fieldName === "spaces"), false);
-  const foreign = page("/", `<script type="application/ld+json">{"@type":"EventVenue","url":"https://other.example/","maximumAttendeeCapacity":400}</script>`);
+  const foreign = page("/", `<script type="application/ld+json">{"@type":"EventVenue","url":"https://other.org/","maximumAttendeeCapacity":400}</script>`);
   const organisation = page("/", `<script type="application/ld+json">{"@type":"Organization","maximumAttendeeCapacity":400}</script>`);
   const invalid = page("/", `<script type="application/ld+json">{"@type":"Place","maximumAttendeeCapacity":"about 40"}</script>`);
   for (const doc of [foreign, organisation, invalid]) {

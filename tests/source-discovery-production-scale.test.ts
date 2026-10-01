@@ -9,7 +9,7 @@ import { OriginPoliteness } from "../src/nexus/source-discovery/politeness.ts";
 import { guardedRender, type RenderAdapter } from "../src/nexus/source-discovery/render.ts";
 import type { CachedDocument, DocumentCache } from "../src/nexus/source-discovery/types.ts";
 
-const origin = "https://venue.example";
+const origin = "https://venue.org";
 const RESOURCES = ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES", "EVENTS"] as const;
 const budget: CrawlBudget = { maxPages: 20, maxRequests: 40, maxBytesPerResponse: 2_000_000, maxRedirects: 5, maxRetries: 2, timeoutMs: 2_000, minRequestDelayMs: 0 };
 const resolveHost = async () => [{ address: "93.184.216.34", family: 4 }];
@@ -42,7 +42,7 @@ function crawl(routes: Record<string, Route>, overrides: Partial<CrawlInput> = {
   return crawlVerifiedSource(input).then((result) => ({ result, log: site.log, extracted: extractFromFetchedDocuments(result.documents, input.requestedExtractors) }));
 }
 
-const paths = (urls: string[]) => urls.map((url) => new URL(url).host === "venue.example" ? new URL(url).pathname + new URL(url).search : url);
+const paths = (urls: string[]) => urls.map((url) => new URL(url).host === "venue.org" ? new URL(url).pathname + new URL(url).search : url);
 const ALLOW = { body: "User-agent: *\nAllow: /", headers: { "content-type": "text/plain" } };
 const capacities = (facts: Array<{ fieldName: string; value: unknown }>) => facts.filter((fact) => fact.fieldName === "capacity").map((fact) => fact.value as { space: string | null; layout: string; count: number });
 
@@ -82,13 +82,13 @@ function pdfFixture(pages: string[][]): Uint8Array {
 // ─── Generic core: identity, redirects, subdomains ─────────────────────────────────────────────
 
 test("apex entry settles on www, links are canonicalised, and the apex host is never crawled twice", async () => {
-  const www = "https://www.venue.example";
+  const www = "https://www.venue.org";
   const { result, log } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { status: 301, headers: { location: `${www}/` } },
     [`${www}/robots.txt`]: ALLOW,
-    [`${www}/`]: { body: `<title>The Lantern</title><a href="https://venue.example/contact">Contact</a><a href="/spaces">Spaces</a>` },
-    [`${www}/contact`]: { body: "<h1>Contact</h1><p>Venue hire enquiries: hire@venue.example</p>" },
+    [`${www}/`]: { body: `<title>The Lantern</title><a href="https://venue.org/contact">Contact</a><a href="/spaces">Spaces</a>` },
+    [`${www}/contact`]: { body: "<h1>Contact</h1><p>Venue hire enquiries: hire@venue.org</p>" },
     [`${www}/spaces`]: { body: "<h2>Grand Hall</h2><p>Theatre capacity 250</p>" },
   });
   assert.equal(result.canonicalOrigin, www);
@@ -100,18 +100,18 @@ test("apex entry settles on www, links are canonicalised, and the apex host is n
 });
 
 test("a linked first-party subdomain is admitted with its own robots check; cross-site and unevidenced redirects are refused", async () => {
-  const hire = "https://hire.venue.example";
+  const hire = "https://hire.venue.org";
   const { result, log } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<a href="${hire}/spaces">Venue hire spaces</a><a href="/access">Accessibility</a><a href="/facilities">Facilities</a>` },
     [`${hire}/robots.txt`]: ALLOW,
     [`${hire}/spaces`]: { body: "<h2>Riverside Room</h2><p>Banquet capacity 120</p>" },
-    [`${origin}/access`]: { status: 302, headers: { location: "https://evil.example/access" } },
-    [`${origin}/facilities`]: { status: 302, headers: { location: "https://tickets.venue.example/facilities" } },
+    [`${origin}/access`]: { status: 302, headers: { location: "https://evil.org/access" } },
+    [`${origin}/facilities`]: { status: 302, headers: { location: "https://tickets.venue.org/facilities" } },
   });
   assert.ok(result.documents.some((doc) => doc.url === `${hire}/spaces`));
   assert.ok(log.includes(`${hire}/robots.txt`));
-  assert.ok(!log.some((url) => url.startsWith("https://evil.example") || url.startsWith("https://tickets.venue.example")));
+  assert.ok(!log.some((url) => url.startsWith("https://evil.org") || url.startsWith("https://tickets.venue.org")));
   const reasons = result.observability!.blockedPages.map((item) => item.reason);
   assert.ok(reasons.includes("REDIRECT_CROSS_SITE"));
   assert.ok(reasons.includes("REDIRECT_UNEVIDENCED_SUBDOMAIN"));
@@ -122,7 +122,7 @@ test("robots disallow of a planned page is honoured and recorded without a reque
   const { result, log } = await crawl({
     [`${origin}/robots.txt`]: { body: "User-agent: *\nDisallow: /spaces", headers: { "content-type": "text/plain" } },
     [`${origin}/`]: { body: `<a href="/spaces">Spaces</a><a href="/contact">Contact</a>` },
-    [`${origin}/contact`]: { body: "<p>Email: info@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<p>Email: info@venue.org</p>" },
   });
   assert.ok(!log.includes(`${origin}/spaces`));
   assert.ok(result.observability!.blockedPages.some((item) => item.url === `${origin}/spaces` && item.reason === "ROBOTS_DISALLOW"));
@@ -131,11 +131,11 @@ test("robots disallow of a planned page is honoured and recorded without a reque
 // ─── Sitemaps ─────────────────────────────────────────────────────────────────────────────────
 
 test("robots Sitemap directives lead through a sitemap index to a gzipped child sitemap, bounded and gap-driven", async () => {
-  const child = `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/venue-hire/capacity</loc></url><url><loc>${origin}/blog/2024/01/news</loc></url><url><loc>https://other.example/capacity</loc></url></urlset>`;
+  const child = `<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/venue-hire/capacity</loc></url><url><loc>${origin}/blog/2024/01/news</loc></url><url><loc>https://other.org/capacity</loc></url></urlset>`;
   const { result, log } = await crawl({
     [`${origin}/robots.txt`]: { body: `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap_index.xml`, headers: { "content-type": "text/plain" } },
     [`${origin}/`]: { body: "<title>The Lantern</title><p>Welcome.</p><a href='/contact'>Contact</a>" },
-    [`${origin}/contact`]: { body: "<p>Bookings: bookings@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<p>Bookings: bookings@venue.org</p>" },
     [`${origin}/sitemap_index.xml`]: { body: `<?xml version="1.0"?><sitemapindex><sitemap><loc>${origin}/post-sitemap.xml</loc></sitemap><sitemap><loc>${origin}/page-sitemap.xml.gz</loc></sitemap></sitemapindex>`, headers: { "content-type": "application/xml" } },
     [`${origin}/page-sitemap.xml.gz`]: { body: new Uint8Array(gzipSync(child)), headers: { "content-type": "application/x-gzip" } },
     [`${origin}/venue-hire/capacity`]: { body: "<h2>Main Hall</h2><p>Standing capacity 400</p>" },
@@ -144,7 +144,7 @@ test("robots Sitemap directives lead through a sitemap index to a gzipped child 
   assert.ok(result.observability!.sitemap.fetched.includes(`${origin}/page-sitemap.xml.gz`));
   assert.ok(log.indexOf(`${origin}/page-sitemap.xml.gz`) < log.indexOf(`${origin}/post-sitemap.xml`) || !log.includes(`${origin}/post-sitemap.xml`));
   assert.ok(result.documents.some((doc) => doc.url === `${origin}/venue-hire/capacity`));
-  assert.ok(!log.includes("https://other.example/capacity") && !log.includes(`${origin}/blog/2024/01/news`));
+  assert.ok(!log.includes("https://other.org/capacity") && !log.includes(`${origin}/blog/2024/01/news`));
   assert.ok(result.observability!.selections.some((item) => item.reason.startsWith("SITEMAP:")));
 });
 
@@ -171,7 +171,7 @@ test("the gap planner stops early once every requested dimension has evidence", 
     [`${origin}/`]: { body: `<title>The Lantern</title><address>4 River Road, Bristol BS1 2AB</address>
       <a href="/contact">Contact</a><a href="/spaces">Spaces</a><a href="/facilities">Facilities</a><a href="/access">Accessibility</a><a href="/gallery">Gallery</a><a href="/events">Events</a>
       <a href="/weddings">Weddings</a><a href="/conferences">Conferences</a><a href="/meetings">Meetings</a>` },
-    [`${origin}/contact`]: { body: "<h1>Contact</h1><p>Venue hire: hire@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<h1>Contact</h1><p>Venue hire: hire@venue.org</p>" },
     [`${origin}/spaces`]: { body: "<h2>Grand Hall</h2><p>Theatre capacity 250</p><p>Catering by our in-house team. Full PA and lighting rig.</p>" },
     [`${origin}/facilities`]: { body: "<p>Wi-Fi throughout. Cloakroom. Bar.</p>" },
     [`${origin}/access`]: { body: "<h1>Accessibility</h1><p>Step-free access to all floors and an accessible toilet.</p>" },
@@ -189,7 +189,7 @@ test("non-venue subjects use only their own profiles: an organisation identity/c
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<title>Acme Promotions</title><a href="/about">About</a><a href="/contact">Contact</a><a href="/spaces">Spaces</a><a href="/gallery">Gallery</a>` },
     [`${origin}/about`]: { body: "<h1>About Acme</h1>" },
-    [`${origin}/contact`]: { body: "<p>Email: hello@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<p>Email: hello@venue.org</p>" },
   }, { requestedExtractors: ["IDENTITY", "PUBLIC_CONTACT"], subjectType: "ORGANISATION" });
   assert.equal(result.observability!.mode, "LINK_FOLLOWING");
   assert.equal(result.observability!.subjectType, "ORGANISATION");
@@ -217,7 +217,7 @@ test("events remain first-class inside a Resources crawl: event pages and calend
   const { extracted, result } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<title>The Lantern</title><a href="/whats-on">What's on</a><a href="/contact">Contact</a>` },
-    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.org</p>" },
     [`${origin}/whats-on`]: { body: '<script type="application/ld+json">{"@type":"MusicEvent","name":"Jazz Night","startDate":"2026-10-22T19:30:00Z","location":{"@type":"Place","name":"The Lantern"}}</script>' },
   });
   assert.equal(extracted.eventCandidates[0]?.title, "Jazz Night");
@@ -235,7 +235,7 @@ test("a first-party specification PDF yields named capacities with per-page prov
   const { result, extracted } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<title>The Lantern</title><a href="/downloads/venue-spec.pdf">Download our venue specification (PDF)</a><a href="/contact">Contact</a>` },
-    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.org</p>" },
     [`${origin}/downloads/venue-spec.pdf`]: { body: pdf, headers: { "content-type": "application/pdf" } },
   });
   assert.equal(result.observability!.pdfDocuments, 1);
@@ -312,7 +312,7 @@ test("an injected render adapter is guarded: off-site sub-requests are blocked a
   const adapter: RenderAdapter = {
     name: "fake",
     render: async ({ url, allowRequest }) => {
-      for (const [target, type] of [[`${origin}/app.js`, "script"], ["https://evil.example/x.js", "script"], [`${origin}/font.woff2`, "font"], ["http://venue.example/a.css", "stylesheet"]] as const) seen.push([target, await allowRequest(target, type)]);
+      for (const [target, type] of [[`${origin}/app.js`, "script"], ["https://evil.org/x.js", "script"], [`${origin}/font.woff2`, "font"], ["http://venue.org/a.css", "stylesheet"]] as const) seen.push([target, await allowRequest(target, type)]);
       return { finalUrl: url, html: "<main><h2>Main Hall</h2><p>Standing capacity 500</p></main>" };
     },
   };
@@ -325,7 +325,7 @@ test("an injected render adapter is guarded: off-site sub-requests are blocked a
   assert.equal(result.documents[0]!.retrieval, "RENDERED");
   assert.ok(capacities(extracted.venueFacts).some((item) => item.count === 500));
   await assert.rejects(guardedRender({
-    adapter: { name: "escape", render: async () => ({ finalUrl: "https://evil.example/", html: "<p>x</p>" }) },
+    adapter: { name: "escape", render: async () => ({ finalUrl: "https://evil.org/", html: "<p>x</p>" }) },
     url: `${origin}/`, policy: { maxRenderedPages: 1, timeoutMs: 500 }, maxBytes: 10_000, userAgent: "test", resolveHost,
     isAllowedOrigin: (value) => value === origin, robotsAllows: () => true,
   }), /left the verified site/);
@@ -381,15 +381,19 @@ test("contact purposes rank sales/hire first, normalise phones, and exclude tick
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<a href="/contact">Contact</a>` },
     [`${origin}/contact`]: { body: `<h1>Contact us</h1>
-      <p>General enquiries: <a href="mailto:info@venue.example">info@venue.example</a></p>
+      <p>General enquiries: <a href="mailto:info@venue.org">info@venue.org</a></p>
       <p>Box office: 0117 496 0000</p>
-      <p>Venue hire and private events: <a href="mailto:events@venue.example">events@venue.example</a> or call 0117 496 0123</p>
-      <p>Tickets support: help@ticketmaster.co.uk</p><p>Newsletter: newsletter@venue.example</p><p>noreply@venue.example</p>` },
+      <p>Venue hire and private events: <a href="mailto:events@venue.org">events@venue.org</a> or call 0117 496 0123</p>
+      <p>Tickets support: help@ticketmaster.co.uk</p><p>Newsletter: newsletter@venue.org</p><p>noreply@venue.org</p>` },
   }, { requestedExtractors: ["PUBLIC_CONTACT"] });
-  const emails = extracted.publicContacts.filter((item) => item.type === "EMAIL").map((item) => item.value);
-  assert.equal(emails[0], "events@venue.example");
-  assert.ok(emails.includes("info@venue.example"));
+  const emailContacts = extracted.publicContacts.filter((item) => item.type === "EMAIL");
+  const emails = emailContacts.filter((item) => !item.reviewRequired).map((item) => item.value);
+  assert.equal(emails[0], "events@venue.org");
+  assert.ok(emails.includes("info@venue.org"));
   assert.ok(!emails.some((value) => /ticketmaster|newsletter|noreply/.test(value)));
+  assert.ok(emailContacts.some((item) => item.value === "help@ticketmaster.co.uk" && item.reviewRequired));
+  assert.ok(emailContacts.some((item) => item.value === "newsletter@venue.org" && item.reviewRequired));
+  assert.ok(emailContacts.some((item) => item.value === "noreply@venue.org" && item.reviewRequired));
   const phones = extracted.publicContacts.filter((item) => item.type === "PHONE");
   assert.ok(phones.some((item) => item.normalized === "01174960123" && item.purpose === "SALES_HIRE"), JSON.stringify(phones));
   assert.ok(phones.some((item) => item.normalized === "01174960000" && item.purpose === "BOX_OFFICE"), JSON.stringify(phones));
@@ -431,7 +435,7 @@ test("Retry-After within the bound cools the whole origin down; beyond the bound
   const { result } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<a href="/contact">Contact</a>` },
-    [`${origin}/contact`]: () => (++attempts === 1 ? { status: 429, headers: { "retry-after": "2" } } : { body: "<p>Venue hire: hire@venue.example</p>" }),
+    [`${origin}/contact`]: () => (++attempts === 1 ? { status: 429, headers: { "retry-after": "2" } } : { body: "<p>Venue hire: hire@venue.org</p>" }),
   }, { politeness });
   assert.equal(attempts, 2);
   assert.ok(waits.includes(2000), JSON.stringify(waits));
@@ -451,7 +455,7 @@ test("a hanging page times out safely and the crawl continues", async () => {
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<a href="/spaces">Spaces</a><a href="/contact">Contact</a>` },
     [`${origin}/spaces`]: () => new Promise<Reply>(() => undefined),
-    [`${origin}/contact`]: { body: "<p>Email: hire@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<p>Email: hire@venue.org</p>" },
   }, { budget: { ...budget, timeoutMs: 30, maxRetries: 0 } });
   assert.ok(result.documents.some((doc) => doc.url === `${origin}/contact`));
   assert.ok(result.stats.warnings.some((warning) => /spaces.*timed out/.test(warning)));
@@ -460,8 +464,8 @@ test("a hanging page times out safely and the crawl continues", async () => {
 test("duplicate URL spellings are fetched once and identical concurrent GETs share one response", async () => {
   const { log } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
-    [`${origin}/`]: { body: `<a href="/contact">Contact</a><a href="/contact?utm_source=nav">Contact us</a><a href="https://venue.example/contact#form">Enquire</a><a href="/contact?fbclid=1">Get in touch</a>` },
-    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.example</p>" },
+    [`${origin}/`]: { body: `<a href="/contact">Contact</a><a href="/contact?utm_source=nav">Contact us</a><a href="https://venue.org/contact#form">Enquire</a><a href="/contact?fbclid=1">Get in touch</a>` },
+    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.org</p>" },
   });
   assert.equal(log.filter((url) => url.includes("/contact")).length, 1);
   const politeness = new OriginPoliteness({ maxConcurrentPerOrigin: 2, sleep: async () => undefined });
@@ -509,10 +513,10 @@ test("malformed and deeply nested HTML is parsed within bounds and still yields 
   assert.ok(textContent(root).includes("Hall"));
   const { extracted } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
-    [`${origin}/`]: { body: `<html><body><h2>Grand Hall<p>Standing capacity 350<p><div><span>Email: hire@venue.example</div></span></li></ul>${deep}` },
+    [`${origin}/`]: { body: `<html><body><h2>Grand Hall<p>Standing capacity 350<p><div><span>Email: hire@venue.org</div></span></li></ul>${deep}` },
   }, { requestedExtractors: ["VENUE_FACTS", "PUBLIC_CONTACT"] });
   assert.ok(capacities(extracted.venueFacts).some((item) => item.count === 350));
-  assert.ok(extracted.publicContacts.some((item) => item.value === "hire@venue.example"));
+  assert.ok(extracted.publicContacts.some((item) => item.value === "hire@venue.org"));
 });
 
 test("oversized and unsupported responses are skipped without aborting the crawl", async () => {
@@ -522,7 +526,7 @@ test("oversized and unsupported responses are skipped without aborting the crawl
     [`${origin}/spaces`]: { body: "x".repeat(3_000), headers: { "content-length": "3000" } },
     [`${origin}/facilities`]: { body: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]), headers: { "content-type": "image/jpeg" } },
     [`${origin}/capacity`]: { body: '{"capacity": 900}', headers: { "content-type": "application/json" } },
-    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.org</p>" },
   }, { budget: { ...budget, maxBytesPerResponse: 2_000 } });
   assert.ok(result.documents.some((doc) => doc.url === `${origin}/contact`));
   assert.ok(result.observability!.skippedContent.some((item) => item.url === `${origin}/facilities`));
@@ -535,7 +539,7 @@ test("replay is deterministic: identical inputs give identical documents, hashes
   const routes: Record<string, Route> = {
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<title>The Lantern</title><a href="/contact">Contact</a><a href="/spaces">Spaces</a><a href="/gallery">Gallery</a>` },
-    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.example. General: info@venue.example. Tel 0117 496 0123</p>" },
+    [`${origin}/contact`]: { body: "<p>Venue hire: hire@venue.org. General: info@venue.org. Tel 0117 496 0123</p>" },
     [`${origin}/spaces`]: { body: "<h2>Grand Hall</h2><p>Theatre capacity 250</p><h2>Library</h2><p>Boardroom capacity 20</p>" },
     [`${origin}/gallery`]: { body: `<img src="/a.jpg" width="900" height="600"><img src="/b.jpg" width="900" height="600">` },
   };
@@ -588,7 +592,7 @@ test("automated crawls make zero requests outside the fixture site (no Google, A
   const { log } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<a href="https://maps.google.com/?q=venue">Map</a><a href="https://www.facebook.com/venue">Facebook</a><a href="https://api.openai.com/">x</a><a href="/contact">Contact</a>` },
-    [`${origin}/contact`]: { body: "<p>hire@venue.example</p>" },
+    [`${origin}/contact`]: { body: "<p>hire@venue.org</p>" },
   });
-  assert.ok(log.every((url) => new URL(url).host === "venue.example"), log.join());
+  assert.ok(log.every((url) => new URL(url).host === "venue.org"), log.join());
 });

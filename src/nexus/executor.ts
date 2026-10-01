@@ -85,7 +85,7 @@ export function retryableProviderFailure(result: Record<string, unknown> | null)
 // Source discovery has its own execution generation. Research stays on
 // resources-v2-unclassified-evidence-v6. v1 was the unversioned client-key cache,
 // which replayed repairable crawl failures such as the robots.txt HTTP 301 block.
-export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v3";
+export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v4";
 
 /** Resources venue acquisition always searches for an evidenced email. Other callers must ask for VENUE_EMAIL. */
 export function venueEmailAcquisitionRequested(request: { acquisitionGoal?: string | null; originatingProduct: string; subjectReference: { entityType: string } }) {
@@ -182,12 +182,15 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   const extracted = extractFromFetchedDocuments(crawl.documents, requestedExtractors);
   const sourceHash = createHash("sha256").update(crawl.documents.map((document) => `${document.url}:${document.sourceHash}`).join("\n")).digest("hex");
   const identityFacts = extracted.identityFacts.map((item) => sourceFact(request, item.fieldName, item.value, item.sourceUrl, item.evidenceRef, now));
-  const publicContacts = extracted.publicContacts.map((item) => ({ type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
+  const publicContacts = extracted.publicContacts.map((item) => {
+    const verdict = item.type === "EMAIL" ? acceptVenueEmail(item.value, item.sourceUrl, venueName, item.label ?? "") : null;
+    return { type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.type === "EMAIL" ? item.reviewRequired || !verdict!.accepted : item.reviewRequired };
+  });
   const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
   const warnings = boundCrawlWarnings([...crawl.stats.warnings, ...extracted.warnings]);
   const crawlStatus = crawl.stats.status === "COMPLETED" && warnings.length ? "PARTIAL" : crawl.stats.status;
   const retryable = crawlStatus !== "COMPLETED" && crawlStatus !== "PARTIAL" && crawl.stats.failureClass === "RETRYABLE";
-  const emailFound = emailGoal && publicContacts.some((contact) => contact.type === "EMAIL" && !contact.reviewRequired && acceptVenueEmail(contact.value, contact.sourceUrl, venueName).accepted);
+  const emailFound = emailGoal && publicContacts.some((contact) => contact.type === "EMAIL" && !contact.reviewRequired);
   const emailOutcome = deriveEmailAcquisitionOutcome({
     emailGoal,
     emailFound,

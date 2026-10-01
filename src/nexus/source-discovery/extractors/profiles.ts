@@ -30,10 +30,12 @@ export function publicContactProfile(options: { emailGoal?: boolean; venueName?:
     observe(document, observation, state) {
       const contactPage = CONTACT_PAGE.test(new URL(document.url).pathname);
       for (const contact of observation.resources().publicContacts) {
-        if (contact.reviewRequired) continue;
+        if (contact.type === "EMAIL") {
+          if (emailGoal && !contact.reviewRequired && acceptVenueEmail(contact.value, document.url, options.venueName ?? "", contact.label ?? "").accepted) state.email = true;
+          if (contact.reviewRequired) continue;
+        } else if (contact.reviewRequired) continue;
         if ((contact.type === "EMAIL" || contact.type === "PHONE") && DIRECT_PURPOSES.has(contact.purpose)) state.direct = true;
         if (contactPage && ["EMAIL", "PHONE", "CONTACT_FORM"].includes(contact.type)) state.direct = true;
-        if (emailGoal && contact.type === "EMAIL" && acceptVenueEmail(contact.value, document.url, options.venueName ?? "").accepted) state.email = true;
       }
     },
     satisfied: (state) => [

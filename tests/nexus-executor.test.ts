@@ -7,7 +7,7 @@ import { buildNexusEnvelope, parseNexusEnvelope, verifyNexusSignature } from "..
 
 const ids = { requestId: "11111111-1111-4111-8111-111111111111", idempotencyKey: "22222222-2222-4222-8222-222222222222", correlationId: "33333333-3333-4333-8333-333333333333", discoveryRequestId: "44444444-4444-4444-8444-444444444444" };
 function research(overrides: Record<string, unknown> = {}) { return { contractVersion: CONTRACTS.RESEARCH_REQUEST, requestId: ids.requestId, idempotencyKey: ids.idempotencyKey, correlationId: ids.correlationId, originatingProduct: "event_suite_resources", subject: { canonicalEntityId: null, candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: "Example Venue" }, entityType: "VENUE" }, researchPurpose: "VENUE_IDENTITY", requestedFactTypes: ["placeId", "officialWebsite"], providerAllowances: ["GOOGLE_PLACES"], costCeiling: { currency: "USD", amount: 10 }, freshnessRequirements: { maxAgeHours: 24 }, existingEvidenceRefs: [], requestedBy: { actorType: "PRODUCT", actorId: "resources" }, createdAt: "2026-09-21T00:00:00Z", ...overrides }; }
-function discovery(overrides: Record<string, unknown> = {}) { return { contractVersion: CONTRACTS.SOURCE_DISCOVERY_REQUEST, discoveryRequestId: ids.discoveryRequestId, idempotencyKey: ids.idempotencyKey, correlationId: ids.correlationId, originatingProduct: "event_suite_resources", subjectReference: { canonicalEntityId: null, candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: "Example Venue" }, entityType: "VENUE" }, verifiedSourceUrl: "https://venue.example/", requestedExtractors: ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES", "EVENTS"], freshnessRequirements: { maxAgeHours: 24 }, crawlBudget: { maxPages: 1, maxRequests: 4, maxBytesPerResponse: 100000, maxRedirects: 2, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 }, existingEvidenceRefs: [], requestedBy: { actorType: "PRODUCT", actorId: "resources" }, createdAt: "2026-09-21T00:00:00Z", ...overrides }; }
+function discovery(overrides: Record<string, unknown> = {}) { return { contractVersion: CONTRACTS.SOURCE_DISCOVERY_REQUEST, discoveryRequestId: ids.discoveryRequestId, idempotencyKey: ids.idempotencyKey, correlationId: ids.correlationId, originatingProduct: "event_suite_resources", subjectReference: { canonicalEntityId: null, candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: "Example Venue" }, entityType: "VENUE" }, verifiedSourceUrl: "https://venue.org/", requestedExtractors: ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES", "EVENTS"], freshnessRequirements: { maxAgeHours: 24 }, crawlBudget: { maxPages: 1, maxRequests: 4, maxBytesPerResponse: 100000, maxRedirects: 2, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 }, existingEvidenceRefs: [], requestedBy: { actorType: "PRODUCT", actorId: "resources" }, createdAt: "2026-09-21T00:00:00Z", ...overrides }; }
 const publicResolver = async () => [{ address: "93.184.216.34", family: 4 }];
 
 test("Nexus research request validator accepts V1 and fails closed on unknown enums", () => {
@@ -73,7 +73,7 @@ test("existing place id uses exact details and does not text-search", async () =
       details += 1;
       assert.equal(input.googlePlaceId, "places/known");
       assert.equal(input.lane, "VENUE_FIRST");
-      return { result: { provider: "GOOGLE_PLACES" as const, googlePlaceId: "places/known", displayName: "Example Venue", formattedAddress: "1 High Street", types: ["event_venue"], websiteUri: "https://venue.example/", websiteDomain: "venue.example", businessStatus: "OPERATIONAL", retrievedAt: "2026-09-21T00:00:00.000Z", queryContext: { targetName: "Example Venue", targetWebsite: null, locality: null, lane: "VENUE_FIRST" as const, targetType: "VENUE" as const }, identityConfidence: "HIGH" as const, matchStatus: "EXACT_OR_STRONG" as const, rejectionReasons: [], sourceUrl: "https://places.googleapis.com/v1/places/places/known" }, telemetry: { endpointCategory: "PLACE_DETAILS" as const, mode: "details_selected" as const, fieldMask: "id,displayName,formattedAddress,types,businessStatus,websiteUri", candidateCount: 1, matchStatus: "EXACT_OR_STRONG" as const, httpStatus: 200, errorCategory: null, retryCount: 0 as const } };
+      return { result: { provider: "GOOGLE_PLACES" as const, googlePlaceId: "places/known", displayName: "Example Venue", formattedAddress: "1 High Street", types: ["event_venue"], websiteUri: "https://venue.org/", websiteDomain: "venue.org", businessStatus: "OPERATIONAL", retrievedAt: "2026-09-21T00:00:00.000Z", queryContext: { targetName: "Example Venue", targetWebsite: null, locality: null, lane: "VENUE_FIRST" as const, targetType: "VENUE" as const }, identityConfidence: "HIGH" as const, matchStatus: "EXACT_OR_STRONG" as const, rejectionReasons: [], sourceUrl: "https://places.googleapis.com/v1/places/places/known" }, telemetry: { endpointCategory: "PLACE_DETAILS" as const, mode: "details_selected" as const, fieldMask: "id,displayName,formattedAddress,types,businessStatus,websiteUri", candidateCount: 1, matchStatus: "EXACT_OR_STRONG" as const, httpStatus: 200, errorCategory: null, retryCount: 0 as const } };
     },
   }) as any;
   assert.equal(searches, 0);
@@ -96,11 +96,11 @@ test("research result preserves contract correlation, evidence separation, and i
 });
 
 test("source discovery validates HTTPS and blocks private targets", async () => {
-  assert.equal(isPublicHttpsUrl("http://venue.example"), false);
-  assert.equal(isPublicHttpsUrl("https://user:pass@venue.example"), false);
+  assert.equal(isPublicHttpsUrl("http://venue.org"), false);
+  assert.equal(isPublicHttpsUrl("https://user:pass@venue.org"), false);
   assert.equal(isPublicHttpsUrl("https://127.0.0.1"), false);
-  await assert.rejects(() => assertPublicNetworkTarget("https://venue.example", async () => [{ address: "10.0.0.7", family: 4 }]));
-  assert.throws(() => validateSourceDiscoveryRequest(discovery({ verifiedSourceUrl: "http://venue.example/" })), /INVALID_VERIFIED_SOURCE_URL/);
+  await assert.rejects(() => assertPublicNetworkTarget("https://venue.org", async () => [{ address: "10.0.0.7", family: 4 }]));
+  assert.throws(() => validateSourceDiscoveryRequest(discovery({ verifiedSourceUrl: "http://venue.org/" })), /INVALID_VERIFIED_SOURCE_URL/);
   assert.throws(() => validateSourceDiscoveryRequest(discovery({ requestedExtractors: ["UNKNOWN"] })), /INVALID_SOURCE_EXTRACTORS/);
 });
 
@@ -118,18 +118,18 @@ test("source discovery request accepts known originating products and rejects un
 test("source discovery revalidates redirects and respects robots and finite page budget", async () => {
   const requested: string[] = [];
   const response = async (input: RequestInfo | URL) => { const url = String(input); requested.push(url); if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nDisallow: /private\nAllow: /", { status: 200 }); if (url.endsWith("/")) return new Response('<a href="/private">Private</a><a href="/events">Events</a>', { status: 200 }); return new Response("", { status: 200 }); };
-  const result = await crawlVerifiedSource({ verifiedUrl: "https://venue.example/", requestedExtractors: ["IDENTITY", "EVENTS"], budget: { maxPages: 1, maxRequests: 3, maxBytesPerResponse: 10000, maxRedirects: 1, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 }, resolveHost: publicResolver, fetchImpl: response });
+  const result = await crawlVerifiedSource({ verifiedUrl: "https://venue.org/", requestedExtractors: ["IDENTITY", "EVENTS"], budget: { maxPages: 1, maxRequests: 3, maxBytesPerResponse: 10000, maxRedirects: 1, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 }, resolveHost: publicResolver, fetchImpl: response });
   assert.equal(result.stats.pageCount, 1);
   assert.equal(result.stats.status, "COMPLETED");
   assert.equal(result.stats.requestCount, 2);
-  assert.equal(robotsAllows("User-agent: *\nDisallow: /private", "https://venue.example/private", "AiRevenueEngineNexusSourceDiscovery"), false);
-  const redirected = await crawlVerifiedSource({ verifiedUrl: "https://venue.example/", requestedExtractors: ["IDENTITY"], budget: { maxPages: 1, maxRequests: 3, maxBytesPerResponse: 10000, maxRedirects: 1, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 }, resolveHost: async (host) => host === "private.example" ? [{ address: "10.0.0.4", family: 4 }] : [{ address: "93.184.216.34", family: 4 }], fetchImpl: async (input) => String(input).endsWith("/robots.txt") ? new Response("User-agent: *\nAllow: /") : new Response(null, { status: 302, headers: { location: "https://private.example/" } }) });
+  assert.equal(robotsAllows("User-agent: *\nDisallow: /private", "https://venue.org/private", "AiRevenueEngineNexusSourceDiscovery"), false);
+  const redirected = await crawlVerifiedSource({ verifiedUrl: "https://venue.org/", requestedExtractors: ["IDENTITY"], budget: { maxPages: 1, maxRequests: 3, maxBytesPerResponse: 10000, maxRedirects: 1, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 }, resolveHost: async (host) => host === "private.org" ? [{ address: "10.0.0.4", family: 4 }] : [{ address: "93.184.216.34", family: 4 }], fetchImpl: async (input) => String(input).endsWith("/robots.txt") ? new Response("User-agent: *\nAllow: /") : new Response(null, { status: 302, headers: { location: "https://private.org/" } }) });
   assert.equal(redirected.stats.blockedCount > 0, true);
-  assert.equal(requested.includes("https://private.example/"), false);
+  assert.equal(requested.includes("https://private.org/"), false);
 });
 
 test("one fetched document fans out deterministic extractors with zero model calls", async () => {
-  const body = '<html><head><title>Example Venue</title><script type="application/ld+json">{"@type":"MusicEvent","name":"Example Show","startDate":"2026-10-22T19:30:00Z","url":"/events/example","location":{"name":"Example Venue"},"performer":{"name":"Example Band"},"offers":{"url":"https://tickets.example/show"}}</script></head><body><h1>Example Venue</h1><address>1 High Street</address><a href="mailto:events@example.com">events@example.com</a><form action="/contact"></form><img src="/images/venue.jpg" alt="Main hall"><p>Grand Hall — 500 standing. Step-free access and Wi-Fi available.</p></body></html>';
+  const body = '<html><head><title>Example Venue</title><script type="application/ld+json">{"@type":"MusicEvent","name":"Example Show","startDate":"2026-10-22T19:30:00Z","url":"/events/example","location":{"name":"Example Venue"},"performer":{"name":"Example Band"},"offers":{"url":"https://tickets.org/show"}}</script></head><body><h1>Example Venue</h1><address>1 High Street</address><a href="mailto:events@example.com">events@example.com</a><form action="/contact"></form><img src="/images/venue.jpg" alt="Main hall"><p>Grand Hall — 500 standing. Step-free access and Wi-Fi available.</p></body></html>';
   let calls = 0;
   const result = await executeSourceDiscoveryRequest(discovery(), { resolveHost: publicResolver, fetchImpl: async (input) => { calls += 1; return String(input).endsWith("/robots.txt") ? new Response("User-agent: *\nAllow: /") : new Response(body, { headers: { "content-type": "text/html" } }); } }) as any;
   assert.ok(["COMPLETED", "PARTIAL"].includes(result.crawl.status));
@@ -138,13 +138,13 @@ test("one fetched document fans out deterministic extractors with zero model cal
   assert.equal(result.venueFacts.some((fact: any) => JSON.stringify(fact.value).includes("500")), true);
   assert.equal(result.imageCandidates[0]?.rightsState, "UNKNOWN_RIGHTS");
   assert.equal(result.eventCandidates[0]?.title, "Example Show");
-  assert.equal(result.eventCandidates[0]?.ticketUrl, "https://tickets.example/show");
+  assert.equal(result.eventCandidates[0]?.ticketUrl, "https://tickets.org/show");
   assert.equal(calls, 2);
   assert.equal(validateSourceDiscoveryResult(result).contractVersion, CONTRACTS.SOURCE_DISCOVERY_RESULT);
 });
 
 test("source discovery V1 preserves optional first-party event identity through result validation", async () => {
-  const eventUrl = "https://venue.example/events/2026/autumn-jazz";
+  const eventUrl = "https://venue.org/events/2026/autumn-jazz";
   const result = await executeSourceDiscoveryRequest(discovery({ verifiedSourceUrl: eventUrl, requestedExtractors: ["EVENTS"] }), {
     resolveHost: publicResolver,
     fetchImpl: async (input) => String(input).endsWith("robots.txt")
@@ -175,7 +175,7 @@ test("a crawler warning longer than the contract limit is bounded before result 
     discoveryRequestId: ids.discoveryRequestId,
     idempotencyKey: ids.idempotencyKey,
     subjectReference: discovery().subjectReference,
-    source: { verifiedUrl: "https://venue.example/", finalUrl: "https://venue.example/", observedAt: "2026-09-21T00:00:00.000Z", sourceHash: "abc" },
+    source: { verifiedUrl: "https://venue.org/", finalUrl: "https://venue.org/", observedAt: "2026-09-21T00:00:00.000Z", sourceHash: "abc" },
     crawl: { status: "PARTIAL", warnings, requestCount: 1, pageCount: 1, bytesRead: 1, redirects: 0, blockedCount: 0, retryable: false },
     identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [],
   }));

@@ -22,6 +22,9 @@ const SECOND_LEVEL_SUFFIX = /^(?:co|org|ac|gov|net|com|ltd|plc|me|nic|web|nom|sc
 const FREE_MAIL_DOMAINS = new Set(["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.co.uk", "live.com", "live.co.uk", "msn.com", "yahoo.com", "yahoo.co.uk", "ymail.com", "icloud.com", "me.com", "aol.com", "btinternet.com", "sky.com", "talktalk.net", "virginmedia.com", "gmx.com", "protonmail.com", "proton.me", "mweb.co.za", "telkomsa.net", "vodamail.co.za", "webmail.co.za", "iafrica.com", "absamail.co.za", "lantic.net", "polka.co.za", "afrihost.co.za", "cybersmart.co.za"]);
 const PLATFORM_OR_PLACEHOLDER_EMAIL_DOMAIN = /(?:^|\.)(?:eventsuite\.[a-z.]+|prestigeid\.[a-z.]+|prestige-id\.[a-z.]+|example\.(?:com|org|net)|sentry\.io|wixpress\.com|domain\.com|email\.com|yourdomain\.[a-z.]+|yoursite\.[a-z.]+|mysite\.com|website\.com|company\.com)$/;
 const NON_CONTACT_MAILBOX = /^(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|abuse|webmaster|hostmaster|privacy|dpo|gdpr|dataprotection|unsubscribe|bounce[s]?)$/;
+const DESIGNER_CONTEXT = /\b(?:designed|developed|built|created)\s+by\b|\b(?:website|site|web)\s+(?:by|design(?:ed)?(?:\s+by)?)\b|\bpowered by\b|\bweb\s?design\b|\b(?:web\s*)?(?:designer|developer)\b/i;
+const PRIVACY_CONTEXT = /\b(?:privacy(?:\s+(?:officer|policy|notice))?|data[- ]protection|dpo|gdpr)\b/i;
+const EXPLICIT_VENUE_CONTACT = /(?:^|[^a-z])(?:e-?mails?|enquir(?:y|ies)|inquir(?:y|ies)|bookings?|reservations?|venue[- ]hire|contact(?:\s+us)?|functions?)\s*[:\-]/i;
 const VENUE_ROLE_MAILBOX = /^(?:info|hello|hi|contact|contactus|enquiries|enquiry|enquire|inquiries|inquiry|bookings?|book|events?|eventsteam|functions?|hire|venuehire|venue|office|reception|reservations?|hospitality|conference|conferences|conferencing|weddings?|sales|admin|manager|management|frontdesk|guests?|stay|marketing|groups?|meetings?|catering|restaurant|studio|team|mail|welcome)$/;
 const EMAIL_SHAPE = /^[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
 
@@ -91,17 +94,32 @@ export function acceptHeldVenueEmail(value: string): EmailVerdict {
  * domain, or is a role/venue-named mailbox at a free-mail provider published by the venue itself.
  * Any other off-domain address (web designer, promoter, operator group without proof) is not accepted.
  */
-export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueName: string): EmailVerdict {
+/**
+ * A published address is usable when the venue site presents it as its own contact.
+ * Same-domain mailboxes qualify on their own. Free-mail and other off-domain addresses qualify
+ * when the mailbox is a venue role, the local part carries the venue name, or nearby text
+ * labels it as bookings, reservations, enquiries, or ordinary contact. Designer and privacy
+ * context never becomes the venue mailbox. Domain difference alone is not a rejection when
+ * that contact context is present.
+ */
+export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueName: string, context = ""): EmailVerdict {
   const shape = emailShapeVerdict(value);
   if ("reason" in shape) return { accepted: false, reason: shape.reason };
-  if (registrableDomain(shape.domain) === registrableDomain(new URL(verifiedSiteUrl).hostname)) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };
-  if (FREE_MAIL_DOMAINS.has(shape.domain)) {
-    const bare = shape.mailbox.replace(/[._-]?\d+$/, "");
-    const compact = shape.mailbox.replace(/[^a-z0-9]/g, "");
-    if (VENUE_ROLE_MAILBOX.test(bare) || distinctiveNameTokens(venueName).some((token) => token.length >= 4 && compact.includes(token))) {
-      return { accepted: true, email: shape.email, relationship: "PUBLISHED_ON_VERIFIED_SITE" };
-    }
-    return { accepted: false, reason: "PERSONAL_FREE_MAIL_ADDRESS" };
+  const siteDomain = registrableDomain(new URL(verifiedSiteUrl).hostname);
+  const emailDomain = registrableDomain(shape.domain);
+  const nearby = context.slice(0, 240);
+  if (PRIVACY_CONTEXT.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "PRIVACY_OR_DPO" };
+  if (DESIGNER_CONTEXT.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
+  if (/\bticketing\s+provider\b/i.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
+  if (emailDomain && emailDomain === siteDomain) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };
+  const bare = shape.mailbox.replace(/[._-]?\d+$/, "");
+  const compact = shape.mailbox.replace(/[^a-z0-9]/g, "");
+  const namedFreeMail = FREE_MAIL_DOMAINS.has(shape.domain) && (VENUE_ROLE_MAILBOX.test(bare) || distinctiveNameTokens(venueName).some((token) => token.length >= 4 && compact.includes(token)));
+  const explicitContact = EXPLICIT_VENUE_CONTACT.test(nearby);
+  const contactPageRole = /\/(?:contact|enquir|inquir|book|hire|get-in-touch)(?:[\/_-]|$)/i.test(new URL(verifiedSiteUrl).pathname) && VENUE_ROLE_MAILBOX.test(bare);
+  if (namedFreeMail || (FREE_MAIL_DOMAINS.has(shape.domain) && explicitContact) || explicitContact || contactPageRole) {
+    return { accepted: true, email: shape.email, relationship: "PUBLISHED_ON_VERIFIED_SITE" };
   }
+  if (FREE_MAIL_DOMAINS.has(shape.domain)) return { accepted: false, reason: "PERSONAL_FREE_MAIL_ADDRESS" };
   return { accepted: false, reason: "OFF_DOMAIN_WITHOUT_VENUE_RELATIONSHIP" };
 }

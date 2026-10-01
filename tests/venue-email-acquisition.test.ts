@@ -18,7 +18,7 @@ function request(overrides: Record<string, unknown> = {}) {
     correlationId: "33333333-3333-4333-8333-333333333331",
     originatingProduct: "event_suite_resources",
     subjectReference: { canonicalEntityId: null, candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: "Example Venue" }, entityType: "VENUE" },
-    verifiedSourceUrl: "https://venue.example/",
+    verifiedSourceUrl: "https://venue.org/",
     requestedExtractors: ["IDENTITY"],
     acquisitionGoal: null,
     venueName: "Example Venue",
@@ -60,18 +60,18 @@ test("email outcome names the stop without redefining crawl status", () => {
 
 test("a Resources venue identity request searches for an accepted email", async () => {
   const { fetchImpl } = site({
-    "/": html('<a href="mailto:info@venue.example">info@venue.example</a><a href="tel:+27123456789">Bookings 012 345 6789</a>'),
+    "/": html('<a href="mailto:info@venue.org">info@venue.org</a><a href="tel:+27123456789">Bookings 012 345 6789</a>'),
   });
   const result = await executeSourceDiscoveryRequest(request(), { resolveHost: publicResolver, fetchImpl }) as any;
   assert.equal(result.crawl.emailOutcome, "EMAIL_FOUND");
   assert.equal(result.guideEmailReady, true);
-  assert.equal(result.publicContacts.some((item: { type: string; value: string }) => item.type === "EMAIL" && item.value === "info@venue.example"), true);
+  assert.equal(result.publicContacts.some((item: { type: string; value: string }) => item.type === "EMAIL" && item.value === "info@venue.org"), true);
   assert.equal(result.publicContacts.some((item: { type: string }) => item.type === "PHONE"), true);
 });
 
 test("a generic identity crawl does not claim an email search completed", async () => {
   const { fetchImpl } = site({
-    "/": html('<a href="mailto:info@venue.example">info@venue.example</a>'),
+    "/": html('<a href="mailto:info@venue.org">info@venue.org</a>'),
   });
   const result = await executeSourceDiscoveryRequest(request({
     originatingProduct: "last_train_home",
@@ -87,7 +87,7 @@ test("a generic identity crawl does not claim an email search completed", async 
 test("phone, a contact form, and WhatsApp do not satisfy the email goal", async () => {
   const { fetchImpl, requested } = site({
     "/": html('<a href="tel:+27123456789">Bookings 012 345 6789</a><a href="https://wa.me/27123456789">WhatsApp</a><form action="/enquire"><textarea name="message"></textarea><input type="email"></form><a href="/contact/">Contact</a>'),
-    "/contact/": html('<a href="mailto:events@venue.example">events@venue.example</a>'),
+    "/contact/": html('<a href="mailto:events@venue.org">events@venue.org</a>'),
   });
   const result = await executeSourceDiscoveryRequest(request({
     idempotencyKey: "22222222-2222-4222-8222-222222222223",
@@ -96,18 +96,18 @@ test("phone, a contact form, and WhatsApp do not satisfy the email goal", async 
   assert.equal(requested.includes("/contact/"), true);
   assert.equal(result.crawl.pageCount >= 2, true);
   assert.equal(result.crawl.emailOutcome, "EMAIL_FOUND");
-  assert.equal(result.publicContacts.some((item: { type: string; value: string }) => item.type === "EMAIL" && item.value === "events@venue.example"), true);
+  assert.equal(result.publicContacts.some((item: { type: string; value: string }) => item.type === "EMAIL" && item.value === "events@venue.org"), true);
   assert.equal(result.publicContacts.some((item: { type: string }) => item.type === "PHONE"), true);
   assert.equal(result.publicContacts.some((item: { type: string }) => item.type === "WHATSAPP"), true);
 });
 
 test("script-escaped anchors are not fetched and do not make a successful crawl partial", async () => {
-  const poisoned = `<html><body><script><a href="/script-only">Script</a></script><a href=\\"https:\\/\\/venue.example\\/auditorium\\/\\">Auditorium</a><a href="/contact/">Contact</a></body></html>`;
+  const poisoned = `<html><body><script><a href="/script-only">Script</a></script><a href=\\"https:\\/\\/venue.org\\/auditorium\\/\\">Auditorium</a><a href="/contact/">Contact</a></body></html>`;
   assert.equal(hrefTags(poisoned).some((tag) => (tag.attrs.href ?? "").includes("script-only")), false);
-  assert.equal(canonicalHttpsUrl(String.raw`\"https:\/\/venue.example\/auditorium\/\"`, "https://venue.example/"), null);
+  assert.equal(canonicalHttpsUrl(String.raw`\"https:\/\/venue.org\/auditorium\/\"`, "https://venue.org/"), null);
   const { fetchImpl, requested } = site({
     "/": new Response(poisoned, { headers: { "content-type": "text/html" } }),
-    "/contact/": html('<a href="mailto:events@venue.example">events@venue.example</a>'),
+    "/contact/": html('<a href="mailto:events@venue.org">events@venue.org</a>'),
   });
   const result = await executeSourceDiscoveryRequest(request({
     idempotencyKey: "22222222-2222-4222-8222-222222222224",
@@ -115,7 +115,7 @@ test("script-escaped anchors are not fetched and do not make a successful crawl 
   assert.equal(requested.some((path) => path.includes("auditorium") || path.includes("%22") || path.includes("script-only")), false);
   assert.equal(requested.includes("/contact/"), true);
   assert.equal(result.crawl.emailOutcome, "EMAIL_FOUND");
-  assert.equal(result.publicContacts.some((item: { value: string }) => item.value === "events@venue.example"), true);
+  assert.equal(result.publicContacts.some((item: { value: string }) => item.value === "events@venue.org"), true);
   assert.equal(result.crawl.warnings.some((warning: string) => /auditorium|%22|script-only/i.test(warning)), false);
   assert.equal(result.crawl.status, "COMPLETED");
 });
@@ -123,21 +123,21 @@ test("script-escaped anchors are not fetched and do not make a successful crawl 
 test("an email goal keeps the held path and follows its contact link", async () => {
   const { fetchImpl, requested } = site({
     "/eventsvenue/": html('<a href="/contact/">Contact the venue</a>'),
-    "/contact/": html('<a href="mailto:events@venue.example">events@venue.example</a>'),
+    "/contact/": html('<a href="mailto:events@venue.org">events@venue.org</a>'),
   });
   const result = await executeSourceDiscoveryRequest(request({
     idempotencyKey: "22222222-2222-4222-8222-222222222225",
-    verifiedSourceUrl: "https://venue.example/eventsvenue/",
+    verifiedSourceUrl: "https://venue.org/eventsvenue/",
   }), { resolveHost: publicResolver, fetchImpl }) as any;
   assert.equal(requested[1], "/eventsvenue/");
   assert.equal(requested.includes("/contact/"), true);
   assert.equal(result.crawl.pageCount >= 2, true);
   assert.equal(result.crawl.emailOutcome, "EMAIL_FOUND");
-  assert.equal(result.source.finalUrl, "https://venue.example/eventsvenue/");
+  assert.equal(result.source.finalUrl, "https://venue.org/eventsvenue/");
 });
 
 test("gzip HTML is parsed and a gzip archive is still rejected", async () => {
-  const page = gzipSync(Buffer.from('<html><body><a href="mailto:info@venue.example">info@venue.example</a></body></html>'));
+  const page = gzipSync(Buffer.from('<html><body><a href="mailto:info@venue.org">info@venue.org</a></body></html>'));
   const gzipSite = site({
     "/": new Response(page, { headers: { "content-type": "text/html", "content-encoding": "gzip" } }),
   });
@@ -145,14 +145,14 @@ test("gzip HTML is parsed and a gzip archive is still rejected", async () => {
     idempotencyKey: "22222222-2222-4222-8222-222222222226",
   }), { resolveHost: publicResolver, fetchImpl: gzipSite.fetchImpl }) as any;
   assert.equal(found.crawl.emailOutcome, "EMAIL_FOUND");
-  assert.equal(found.publicContacts.some((item: { value: string }) => item.value === "info@venue.example"), true);
+  assert.equal(found.publicContacts.some((item: { value: string }) => item.value === "info@venue.org"), true);
 
   const archive = site({
     "/pack.gz": new Response(gzipSync(Buffer.from("not a page")), { headers: { "content-type": "application/gzip" } }),
   });
   const rejected = await executeSourceDiscoveryRequest(request({
     idempotencyKey: "22222222-2222-4222-8222-222222222227",
-    verifiedSourceUrl: "https://venue.example/pack.gz",
+    verifiedSourceUrl: "https://venue.org/pack.gz",
   }), { resolveHost: publicResolver, fetchImpl: archive.fetchImpl }) as any;
   assert.equal(rejected.crawl.emailOutcome, "BLOCKED");
   assert.notEqual(rejected.crawl.emailOutcome, "EMAIL_SEARCH_EXHAUSTED");
@@ -162,7 +162,7 @@ test("gzip HTML is parsed and a gzip archive is still rejected", async () => {
 
 test("a static email needs no renderer and a thin shell is RENDER_NEEDED", async () => {
   const staticSite = site({
-    "/": html('<h1>Example Venue</h1><a href="mailto:info@venue.example">info@venue.example</a>'),
+    "/": html('<h1>Example Venue</h1><a href="mailto:info@venue.org">info@venue.org</a>'),
   });
   const ready = await executeSourceDiscoveryRequest(request({
     idempotencyKey: "22222222-2222-4222-8222-222222222228",
@@ -191,7 +191,7 @@ test("a previous source-discovery generation is not replayed", async () => {
   const failed = { crawl: { status: "FAILED", retryable: false, warnings: ["Compressed archive bodies are not parsed as documents."] }, idempotencyKey: "22222222-2222-4222-8222-22222222222b" };
   await store.set(failedKey, failed);
   const { fetchImpl, requested } = site({
-    "/": html('<a href="mailto:info@venue.example">info@venue.example</a>'),
+    "/": html('<a href="mailto:info@venue.org">info@venue.org</a>'),
   });
   const fresh = await executeSourceDiscoveryRequest(request({ idempotencyKey }), { resolveHost: publicResolver, fetchImpl }, store) as any;
   assert.equal(requested.length > 0, true);
@@ -200,7 +200,7 @@ test("a previous source-discovery generation is not replayed", async () => {
   assert.equal(await store.get(completedKey), completed);
 
   const again = site({
-    "/": html('<a href="mailto:info@venue.example">info@venue.example</a>'),
+    "/": html('<a href="mailto:info@venue.org">info@venue.org</a>'),
   });
   const recovered = await executeSourceDiscoveryRequest(request({
     idempotencyKey: "22222222-2222-4222-8222-22222222222b",
@@ -217,7 +217,7 @@ test("an unversioned completed result is not replayed into a venue-email acquisi
   const legacy = { crawl: { status: "COMPLETED", retryable: false, pageCount: 1, warnings: [] }, idempotencyKey, publicContacts: [] };
   await store.set(idempotencyKey, legacy);
   const { fetchImpl, requested } = site({
-    "/": html('<a href="mailto:info@venue.example">info@venue.example</a>'),
+    "/": html('<a href="mailto:info@venue.org">info@venue.org</a>'),
   });
   const result = await executeSourceDiscoveryRequest(request({
     idempotencyKey,

@@ -61,7 +61,8 @@ export type OfficialWebsiteDiscoveryOptions = {
   maxResultsPerQuery?: number;
 };
 
-export const OFFICIAL_WEBSITE_DISCOVERY_EXECUTION_VERSION = "official-website-discovery-v2";
+// v3 follows the v4 source-discovery extraction. A stored v2 result embeds the old footer-stripped contacts.
+export const OFFICIAL_WEBSITE_DISCOVERY_EXECUTION_VERSION = "official-website-discovery-v3";
 
 // robots.txt and same-site redirects count against maxRequests, and many venue homepages exceed 500 KB;
 // the tighter values left verifiable sites with no page to verify.

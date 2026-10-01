@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import type { SourceExtractor } from "../../contracts.ts";
 import { byTag, closestAncestor, elements, parseHtml, precedingHeading, textContent, type DomElement } from "../dom.ts";
-import { hrefTags, selfClosingTags, tags, visibleText } from "../html.ts";
+import { decodeHtml, hrefTags, selfClosingTags, tags, visibleText } from "../html.ts";
 import { canonicalHttpsUrl } from "../network.ts";
 import { registrableDomain, wwwCounterpart } from "../site-identity.ts";
+import { recognisedEmailDomain } from "../../email-suffix.ts";
+import { acceptVenueEmail } from "../../venue-email.ts";
 import type { FetchedDocument } from "../types.ts";
 
 export type IdentityFact = { fieldName: string; value: unknown; sourceUrl: string; evidenceRef: string };
@@ -71,10 +73,12 @@ function addContact(out: ResourceExtraction, doc: FetchedDocument, type: string,
   const original = raw.trim();
   const value = type === "EMAIL" ? original.toLowerCase() : original;
   if (type === "EMAIL" && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)) return;
+  if (type === "EMAIL" && !recognisedEmailDomain(value.split("@")[1] ?? "")) return;
   if (type === "EMAIL") {
     const domain = value.split("@")[1]!;
-    if (TICKETING_DOMAINS.test(`.${domain}`) && registrableDomain(domain) !== registrableDomain(new URL(doc.url).hostname)) return;
-    if (/^(?:newsletter|marketing|unsubscribe|noreply|no-reply|donotreply|careers|jobs|recruitment)@/.test(value)) return;
+    const unrelatedMailbox = TICKETING_DOMAINS.test(`.${domain}`) && registrableDomain(domain) !== registrableDomain(new URL(doc.url).hostname)
+      || /^(?:newsletter|marketing|unsubscribe|noreply|no-reply|donotreply|careers|jobs|recruitment)@/.test(value);
+    if (unrelatedMailbox) reviewRequired = true;
   }
   const normalized = type === "EMAIL" ? value : type === "PHONE" || type === "WHATSAPP" && !/^https?:|^whatsapp:/i.test(value) ? normalizePhone(value, new URL(doc.url).hostname) : value;
   if ((type === "PHONE") && normalized.replace(/\D/g, "").length < 7) return;
@@ -184,27 +188,75 @@ function precedingText(text: string, needle: string, span = 80): string {
   const index = text.indexOf(needle);
   return index < 0 ? "" : text.slice(Math.max(0, index - span), index);
 }
+/** Inline tags must not split a visible address, and form controls are visitor input, not published contacts. */
+function emailSurface(html: string): string {
+  return visibleText(html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<textarea\b[^>]*>[\s\S]*?<\/textarea>/gi, " ")
+    .replace(/<select\b[^>]*>[\s\S]*?<\/select>/gi, " ")
+    .replace(/<button\b[^>]*>[\s\S]*?<\/button>/gi, " ")
+    .replace(/<input\b[^>]*>/gi, " ")
+    .replace(/<br\b[^>]*>/gi, " ")
+    .replace(/<\/?(?:span|b|strong|em|i|small|font|u|abbr|label|sup|sub|wbr|mark)\b[^>]*>/gi, "")
+    .replace(/<\/?a\b[^>]*>/gi, " "));
+}
+/** Cloudflare replaces a visible address with this attribute. It is a fixed XOR, not a script engine. */
+function cloudflareEmails(html: string): string[] {
+  const found: string[] = [];
+  for (const match of html.matchAll(/\bdata-cfemail=["']([0-9a-f]{4,200})["']/gi)) {
+    const encoded = match[1]!;
+    if (encoded.length % 2 !== 0) continue;
+    const key = Number.parseInt(encoded.slice(0, 2), 16);
+    let email = "";
+    for (let index = 2; index < encoded.length; index += 2) email += String.fromCharCode(Number.parseInt(encoded.slice(index, index + 2), 16) ^ key);
+    if (/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(email)) found.push(email);
+  }
+  return found;
+}
+function publishedDescriptions(html: string): string[] {
+  const descriptions: string[] = [];
+  for (const match of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = match[0];
+    if (!/\b(?:name|property)=["'](?:description|og:description)["']/i.test(tag)) continue;
+    const content = tag.match(/\bcontent=["']([^"']*)["']/i)?.[1];
+    if (content) descriptions.push(decodeHtml(content));
+  }
+  return descriptions;
+}
+function aroundEmail(text: string, email: string): string {
+  const index = text.toLowerCase().indexOf(email.toLowerCase());
+  if (index < 0) return "";
+  return text.slice(Math.max(0, index - 90), index + email.length);
+}
+function publishedEmailReview(email: string, pageUrl: string, context: string): boolean {
+  const verdict = acceptVenueEmail(email, pageUrl, "", context);
+  // A free-mail local part may match the venue name, which is only known to the acquisition caller.
+  return !verdict.accepted && verdict.reason !== "PERSONAL_FREE_MAIL_ADDRESS";
+}
 function contacts(doc: FetchedDocument, out: ResourceExtraction) {
   const path = new URL(doc.url).pathname;
-  if (/\b(?:accommodation|hotels?|suppliers?|partners?|sponsors?|directory|search|privacy|terms)\b/i.test(path)) return;
+  // These paths stay out of phone, form, and messaging extraction. Email candidates are still read and classified one by one.
+  const skipNonEmail = /\b(?:accommodation|hotels?|suppliers?|partners?|sponsors?|directory|search|privacy|terms)\b/i.test(path);
   const body = doc.body.replace(/<section\b([^>]*)>[\s\S]*?<\/section>/gi, (section, attrs: string) =>
     /\b(?:ticketing[\s-]*provider|third[\s-]*party|website[\s-]*designer|external[\s-]*support)\b/i.test(`${attrs} ${visibleText(section).slice(0, 100)}`) ? " " : section)
     .replace(/<form\b[^>]*(?:newsletter|subscribe|mailchimp|login|signin)[^>]*>[\s\S]*?<\/form>/gi, " ");
-  const footer = tags(body, "footer").map((tag) => tag.inner).join(" ");
   const primary = visibleText(body.replace(/<footer\b[\s\S]*?<\/footer>/gi, " "));
-  const privacy: Array<{ type: string; value: string }> = [];
-  for (const anchor of hrefTags(body)) {
+  const emailText = [emailSurface(doc.body), ...publishedDescriptions(doc.body), ...cloudflareEmails(doc.body)].filter(Boolean).join("\n");
+  const addPublishedEmail = (email: string, confidence: number, context: string) => {
+    const domain = email.split("@")[1] ?? "";
+    if (!registrableDomain(domain)) return;
+    addContact(out, doc, "EMAIL", email, confidence, publishedEmailReview(email, doc.url, context), context);
+  };
+  for (const anchor of hrefTags(doc.body)) {
     const href = (anchor.attrs.href ?? "").trim(); const label = visibleText(anchor.inner);
     if (/^mailto:/i.test(href)) {
       let email = href.slice(7).split("?")[0] ?? "";
       try { email = decodeURIComponent(email); } catch { /* keep raw */ }
-      if (/^(?:supplier|hotline|feedback|webmaster|privacy|dpo)/i.test(email.split("@")[0] ?? "")) continue;
-      const inVendorFooter = footer.includes(href) && /\b(?:website|site)\s+(?:by|design)|powered by/i.test(visibleText(footer))
-        && !email.toLowerCase().endsWith(`@${bareHost(doc.url)}`);
-      if (inVendorFooter || /\b(?:designer|developer|webmaster|ticketing provider)\b/i.test(label)) continue;
-      if (/\b(?:privacy|data protection|dpo)\b/i.test(`${email} ${label}`)) privacy.push({ type: "EMAIL", value: email });
-      else addContact(out, doc, "EMAIL", email, 0.95, false, `${label} ${precedingText(primary, email)}`);
+      const context = `${label} ${aroundEmail(emailText, email)}`.trim();
+      addPublishedEmail(email, 0.95, context);
     }
+    else if (skipNonEmail) continue;
     else if (/^tel:/i.test(href)) {
       let phone = href.slice(4);
       try { phone = decodeURIComponent(phone); } catch { /* keep raw */ }
@@ -217,7 +269,7 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction) {
       if (url && /\bcontact\b/i.test(new URL(url).pathname)) addContact(out, doc, "CONTACT_FORM", url, 0.6, true, label);
     }
   }
-  for (const form of tags(body, "form")) {
+  if (!skipNonEmail) for (const form of tags(body, "form")) {
     const descriptor = `${form.attrs.action ?? ""} ${form.attrs.id ?? ""} ${form.attrs.class ?? ""} ${form.attrs.name ?? ""}`;
     if (/\b(?:search|comments?|newsletter|login|subscribe|signin|register|password)\b|wp-comments-post|wp-login/i.test(descriptor)) continue;
     if (/type=["']?password/i.test(form.inner)) continue;
@@ -227,18 +279,17 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction) {
     if (action) addContact(out, doc, "CONTACT_FORM", action, 0.8, false, descriptor);
   }
   // A label must be separated from the address, or "bookings@venue" would also yield "s@venue".
-  for (const match of primary.matchAll(/\b(?:email|e-mail|enquiries|bookings?)(?:\s*[:\-]\s*|\s+)([a-z0-9._%+-]+\s*(?:@|\[at\]|\(at\))\s*[a-z0-9.-]+\.[a-z]{2,})/gi)) {
+  // Footer text stays in emailText. Region deletion is not how unrelated addresses are rejected.
+  for (const match of emailText.matchAll(/\b(?:email|e-mail|enquiries|bookings?)(?:\s*[:\-]\s*|\s+)([a-z0-9._%+-]+\s*(?:@|\[at\]|\(at\))\s*[a-z0-9.-]+\.[a-z]{2,})/gi)) {
     const value = match[1]!.replace(/\s*(?:\[at\]|\(at\)|@)\s*/i, "@");
-    addContact(out, doc, "EMAIL", value, /\[at\]|\(at\)/i.test(match[1]!) ? 0.8 : 0.9, false, `${precedingText(primary, match[0], 60)} ${match[0]}`);
+    addPublishedEmail(value, /\[at\]|\(at\)/i.test(match[1]!) ? 0.8 : 0.9, aroundEmail(emailText, value) || match[0]);
   }
-  const siteDomain = registrableDomain(new URL(doc.url).hostname.toLowerCase());
-  for (const match of primary.matchAll(/(?<![\w.@-])([a-z0-9][a-z0-9._%+-]*@([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}))(?![\w@-])/gi)) {
-    if (!siteDomain || registrableDomain(match[2]!.toLowerCase()) !== siteDomain || /^(?:privacy|dpo|data-?protection|gdpr)\b/i.test(match[1]!)) continue;
-    addContact(out, doc, "EMAIL", match[1]!, 0.85, false, precedingText(primary, match[1]!, 60));
+  for (const match of emailText.matchAll(/(?<![\w.@-])([a-z0-9][a-z0-9._%+-]*@([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}))(?![\w@-])/gi)) {
+    addPublishedEmail(match[1]!, 0.85, aroundEmail(emailText, match[1]!));
   }
+  if (skipNonEmail) return;
   for (const match of primary.matchAll(/\b(?:call(?: us)?|phone|telephone|tel|box office|reservations|switchboard|bookings?|enquiries)\s*[:\-.]?\s*(\+?\d[\d\s().-]{7,}\d)/gi)) addContact(out, doc, "PHONE", clean(match[1]), 0.85, false, `${precedingText(primary, match[0], 60)} ${match[0]}`);
   for (const match of primary.matchAll(/\bwhats\s*app\s*[:\-]?\s*(\+?\d[\d\s().-]{7,}\d)/gi)) addContact(out, doc, "WHATSAPP", clean(match[1]), 0.8, false, match[0]);
-  if (!out.publicContacts.some((item) => item.type === "EMAIL" || item.type === "PHONE")) for (const item of privacy) addContact(out, doc, item.type, item.value, 0.4, true, "privacy");
 }
 const practical: Array<[string, RegExp]> = [
   ["accessibility", /\b(?:step[- ]free access|wheelchair access(?:ible)?|accessible toilets?|disabled access|hearing loop|induction loop|accessible entrance|lift access)\b[^.]{0,100}/i],
@@ -666,7 +717,7 @@ export function extractResourcesFromDocuments(documents: FetchedDocument[], extr
   for (const type of ["EMAIL", "PHONE"]) {
     const items = publicContacts.filter((item) => item.type === type);
     const valuesByPage = new Map<string, Set<string>>();
-    for (const item of merged.publicContacts.filter((contact) => contact.type === type)) {
+    for (const item of merged.publicContacts.filter((contact) => contact.type === type && (type !== "EMAIL" || !contact.reviewRequired))) {
       const values = valuesByPage.get(item.sourceUrl) ?? new Set<string>(); values.add(item.normalized); valuesByPage.set(item.sourceUrl, values);
     }
     const soleValues = [...valuesByPage.values()].filter((values) => values.size === 1).map((values) => [...values][0]);
