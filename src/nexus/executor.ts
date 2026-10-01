@@ -87,9 +87,15 @@ export function retryableProviderFailure(result: Record<string, unknown> | null)
 // which replayed repairable crawl failures such as the robots.txt HTTP 301 block.
 export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v4";
 
-/** Resources venue acquisition always searches for an evidenced email. Other callers must ask for VENUE_EMAIL. */
+/**
+ * An explicit acquisition goal wins.
+ * VENUE_FACTS never becomes an email crawl.
+ * A missing goal keeps the historical Resources VENUE email search.
+ */
 export function venueEmailAcquisitionRequested(request: { acquisitionGoal?: string | null; originatingProduct: string; subjectReference: { entityType: string } }) {
-  return request.acquisitionGoal === "VENUE_EMAIL" || (request.originatingProduct === "event_suite_resources" && request.subjectReference.entityType === "VENUE");
+  if (request.acquisitionGoal === "VENUE_FACTS") return false;
+  if (request.acquisitionGoal === "VENUE_EMAIL") return true;
+  return request.originatingProduct === "event_suite_resources" && request.subjectReference.entityType === "VENUE";
 }
 
 function versionedUuid(seed: string) {
@@ -99,8 +105,10 @@ function versionedUuid(seed: string) {
   return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20).join("")}`;
 }
 
-export function sourceDiscoveryExecutionKey(idempotencyKey: string, version = SOURCE_DISCOVERY_EXECUTION_VERSION) {
-  return versionedUuid(`nexus-source-discovery:${version}:${idempotencyKey}`);
+export function sourceDiscoveryExecutionKey(idempotencyKey: string, version = SOURCE_DISCOVERY_EXECUTION_VERSION, acquisitionGoal: string | null = null) {
+  // Email and omitted goals keep the v4 key. A venue-facts request must not replay an email result stored under the same client key.
+  const distinction = acquisitionGoal === "VENUE_FACTS" ? ":VENUE_FACTS" : "";
+  return versionedUuid(`nexus-source-discovery:${version}:${idempotencyKey}${distinction}`);
 }
 
 export function sourceDiscoveryReplayable(result: Record<string, unknown> | null) {
@@ -139,11 +147,12 @@ export function boundCrawlWarnings(warnings: string[]) {
 export async function executeSourceDiscoveryRequest(input: unknown, options: SourceDiscoveryExecutorOptions = {}, store: NexusResultStore = new InMemoryNexusResultStore()) {
   const request = validateSourceDiscoveryRequest(input);
   const emailGoal = venueEmailAcquisitionRequested(request);
-  const versionedKey = sourceDiscoveryExecutionKey(request.idempotencyKey);
+  const versionedKey = sourceDiscoveryExecutionKey(request.idempotencyKey, SOURCE_DISCOVERY_EXECUTION_VERSION, request.acquisitionGoal);
   const versioned = await store.get(versionedKey);
   if (sourceDiscoveryReplayable(versioned)) return versioned;
   // v1 stored the client idempotency key with no email outcome. An email acquisition must not reuse it.
-  if (!emailGoal && !versioned) {
+  // A venue-facts request must not reuse that legacy email payload either.
+  if (!emailGoal && request.acquisitionGoal !== "VENUE_FACTS" && !versioned) {
     const legacy = await store.get(request.idempotencyKey);
     if (legacy && sourceDiscoveryReplayable(legacy)) return legacy;
   }
