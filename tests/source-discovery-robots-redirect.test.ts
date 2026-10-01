@@ -21,7 +21,7 @@ function discovery(overrides: Record<string, unknown> = {}) {
     correlationId: ids.correlationId,
     originatingProduct: "event_suite_resources",
     subjectReference: { canonicalEntityId: null, candidateReference: { sourceSystem: "event_suite_resources", sourceRecordId: "Example Venue" }, entityType: "UNKNOWN" },
-    verifiedSourceUrl: "https://venue.example/",
+    verifiedSourceUrl: "https://venue.org/",
     requestedExtractors: ["SOURCE_CLASSIFICATION"],
     freshnessRequirements: { maxAgeHours: 24 },
     crawlBudget: budget,
@@ -40,7 +40,7 @@ test("robots.txt follows one same-origin HTTPS redirect and then parses the allo
   const requested: string[] = [];
   const resolutions: string[] = [];
   const result = await crawlVerifiedSource({
-    verifiedUrl: "https://venue.example/",
+    verifiedUrl: "https://venue.org/",
     requestedExtractors: ["SOURCE_CLASSIFICATION"],
     budget,
     resolveHost: async (host) => {
@@ -51,20 +51,20 @@ test("robots.txt follows one same-origin HTTPS redirect and then parses the allo
       const url = String(input);
       requested.push(url);
       assert.equal(init?.redirect, "manual");
-      if (url === "https://venue.example/robots.txt") {
+      if (url === "https://venue.org/robots.txt") {
         return new Response(null, { status: 301, headers: { location: "/robots-live.txt" } });
       }
-      if (url === "https://venue.example/robots-live.txt") return new Response("User-agent: *\nDisallow: /private\nAllow: /\n");
-      if (url === "https://venue.example/") return page();
+      if (url === "https://venue.org/robots-live.txt") return new Response("User-agent: *\nDisallow: /private\nAllow: /\n");
+      if (url === "https://venue.org/") return page();
       return new Response("no", { status: 404 });
     },
   });
   assert.deepEqual(requested, [
-    "https://venue.example/robots.txt",
-    "https://venue.example/robots-live.txt",
-    "https://venue.example/",
+    "https://venue.org/robots.txt",
+    "https://venue.org/robots-live.txt",
+    "https://venue.org/",
   ]);
-  assert.equal(resolutions.filter((host) => host === "venue.example").length >= 3, true);
+  assert.equal(resolutions.filter((host) => host === "venue.org").length >= 3, true);
   assert.equal(result.stats.redirects, 1);
   assert.equal(result.stats.status, "COMPLETED");
   assert.equal(result.documents.length, 1);
@@ -73,15 +73,15 @@ test("robots.txt follows one same-origin HTTPS redirect and then parses the allo
 
 test("robots redirects fail closed for missing, cross-origin, downgrade, credential, and private targets", async () => {
   const cases = [
-    { location: null, host: "venue.example" },
-    { location: "https://other.example/robots.txt", host: "venue.example" },
-    { location: "http://venue.example/robots.txt", host: "venue.example" },
-    { location: "https://user:pass@venue.example/robots.txt", host: "venue.example" },
+    { location: null, host: "venue.org" },
+    { location: "https://other.org/robots.txt", host: "venue.org" },
+    { location: "http://venue.org/robots.txt", host: "venue.org" },
+    { location: "https://user:pass@venue.org/robots.txt", host: "venue.org" },
   ];
   for (const item of cases) {
     const requested: string[] = [];
     const result = await crawlVerifiedSource({
-      verifiedUrl: "https://venue.example/",
+      verifiedUrl: "https://venue.org/",
       requestedExtractors: ["SOURCE_CLASSIFICATION"],
       budget,
       resolveHost: publicResolver,
@@ -93,13 +93,13 @@ test("robots redirects fail closed for missing, cross-origin, downgrade, credent
     assert.equal(result.stats.status, "BLOCKED");
     assert.equal(result.stats.failureClass, "TERMINAL");
     assert.equal(result.documents.length, 0);
-    assert.equal(requested.includes("https://venue.example/"), false);
-    assert.equal(requested.some((url) => url.includes("other.example") || url.startsWith("http://")), false);
+    assert.equal(requested.includes("https://venue.org/"), false);
+    assert.equal(requested.some((url) => url.includes("other.org") || url.startsWith("http://")), false);
   }
 
   let lookups = 0;
   const privateRedirect = await crawlVerifiedSource({
-    verifiedUrl: "https://venue.example/",
+    verifiedUrl: "https://venue.org/",
     requestedExtractors: ["SOURCE_CLASSIFICATION"],
     budget,
     resolveHost: async () => {
@@ -117,7 +117,7 @@ test("robots redirects fail closed for missing, cross-origin, downgrade, credent
   assert.equal(privateRedirect.documents.length, 0);
 
   const bounded = await crawlVerifiedSource({
-    verifiedUrl: "https://venue.example/",
+    verifiedUrl: "https://venue.org/",
     requestedExtractors: ["SOURCE_CLASSIFICATION"],
     budget: { ...budget, maxRedirects: 0 },
     resolveHost: publicResolver,

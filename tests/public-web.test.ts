@@ -37,7 +37,7 @@ function fetchSite(body: string, options: { redirect?: ResponseInit } = {}) {
 }
 
 test("PUBLIC_WEB accepts strong first-party identity evidence and extracts business contacts", async () => {
-  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address><a href="mailto:events@example.test">events@example.test</a><a href="tel:+441234567890">Call</a><form action="/contact"></form><form action="https://forms.third-party.test/submit"></form></body></html>';
+  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address><a href="mailto:events@example.org">events@example.org</a><a href="tel:+441234567890">Call</a><form action="/contact"></form><form action="https://forms.third-party.test/submit"></form></body></html>';
   const provider = createPublicWebProvider({ fetchImpl: fetchSite(body), resolveHost: resolver, now: () => "2026-09-21T00:00:00.000Z" });
   const result = await provider({ request: request("PUBLIC_CONTACT"), context: { targetName: "Example Venue", targetWebsite: "https://example.test/", locality: "London", existingFacts: [{ fieldName: "placeId", value: "places/example" }] } });
   assert.equal(result.error, undefined);
@@ -169,7 +169,7 @@ test("research context bridge rejects arbitrary unvalidated context", () => {
 });
 
 test("executor records a real PUBLIC_WEB execution with zero metered cost and preserves replay", async () => {
-  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address><a href="mailto:events@example.test">events@example.test</a></body></html>';
+  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address><a href="mailto:events@example.org">events@example.org</a></body></html>';
   let fetches = 0;
   const provider = createPublicWebProvider({
     fetchImpl: async (input: RequestInfo | URL) => { fetches += 1; return fetchSite(body)(input); },

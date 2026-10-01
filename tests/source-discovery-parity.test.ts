@@ -27,17 +27,17 @@ function budget(overrides: Partial<CrawlBudget> = {}): CrawlBudget {
   };
 }
 
-function document(body: string, url = "https://venue.example/"): FetchedDocument {
+function document(body: string, url = "https://venue.org/"): FetchedDocument {
   return { url, body, contentType: "text/html", bytes: Buffer.byteLength(body), sourceHash: "fixture", observedAt: "2026-09-22T09:00:00.000Z" };
 }
 
 test("shared crawl safety rejects credentials, reserved addresses, mixed DNS, and unsafe redirects", async () => {
-  assert.equal(isPublicHttpsUrl("https://user:pass@venue.example/events"), false);
+  assert.equal(isPublicHttpsUrl("https://user:pass@venue.org/events"), false);
   assert.equal(isPublicNetworkAddress("10.0.0.1"), false);
   assert.equal(isPublicNetworkAddress("::1"), false);
   assert.equal(isPublicNetworkAddress("::ffff:192.168.0.8"), false);
   await assert.rejects(
-    () => assertPublicNetworkTarget("https://venue.example/", async () => [
+    () => assertPublicNetworkTarget("https://venue.org/", async () => [
       { address: "93.184.216.34", family: 4 },
       { address: "10.0.0.9", family: 4 },
     ]),
@@ -46,27 +46,27 @@ test("shared crawl safety rejects credentials, reserved addresses, mixed DNS, an
 
   const requested: string[] = [];
   const redirected = await crawlVerifiedSource({
-    verifiedUrl: "https://venue.example/",
+    verifiedUrl: "https://venue.org/",
     requestedExtractors: ["EVENTS"],
     budget: budget(),
-    resolveHost: async (hostname) => hostname === "private.example"
+    resolveHost: async (hostname) => hostname === "private.org"
       ? [{ address: "10.0.0.4", family: 4 }]
       : [{ address: "93.184.216.34", family: 4 }],
     fetchImpl: async (input) => {
       requested.push(String(input));
       if (String(input).endsWith("/robots.txt")) return new Response("User-agent: *\nAllow: /");
-      return new Response(null, { status: 302, headers: { location: "https://private.example/events" } });
+      return new Response(null, { status: 302, headers: { location: "https://private.org/events" } });
     },
   });
   assert.equal(redirected.stats.blockedCount, 1);
-  assert.equal(requested.includes("https://private.example/events"), false);
+  assert.equal(requested.includes("https://private.org/events"), false);
 });
 
 test("shared crawl budgets count robots, retries, and every attempted request", async () => {
   const requested: string[] = [];
   let homepageAttempts = 0;
   const result = await crawlVerifiedSource({
-    verifiedUrl: "https://venue.example/",
+    verifiedUrl: "https://venue.org/",
     requestedExtractors: ["EVENTS"],
     budget: budget({ maxPages: 1, maxRequests: 3 }),
     resolveHost: publicResolver,
@@ -89,7 +89,7 @@ test("shared crawl budgets count robots, retries, and every attempted request", 
 test("shared crawl budgets include robots in the finite request ceiling", async () => {
   const requested: string[] = [];
   const result = await crawlVerifiedSource({
-    verifiedUrl: "https://venue.example/",
+    verifiedUrl: "https://venue.org/",
     requestedExtractors: ["EVENTS"],
     budget: budget({ maxPages: 2, maxRequests: 2, maxRetries: 0 }),
     resolveHost: publicResolver,
@@ -101,7 +101,7 @@ test("shared crawl budgets include robots in the finite request ceiling", async 
     },
   });
 
-  assert.deepEqual(requested, ["https://venue.example/robots.txt", "https://venue.example/"]);
+  assert.deepEqual(requested, ["https://venue.org/robots.txt", "https://venue.org/"]);
   assert.equal(result.stats.requestCount, 2);
   assert.equal(result.stats.pageCount, 1);
   assert.match(result.stats.warnings.join(" "), /budget/i);
@@ -109,7 +109,7 @@ test("shared crawl budgets include robots in the finite request ceiling", async 
 
 test("shared crawl budgets count a robots denial as one blocked request", async () => {
   const result = await crawlVerifiedSource({
-    verifiedUrl: "https://venue.example/private",
+    verifiedUrl: "https://venue.org/private",
     requestedExtractors: ["IDENTITY"],
     budget: budget(),
     resolveHost: publicResolver,
@@ -125,7 +125,7 @@ test("shared crawl budgets count a robots denial as one blocked request", async 
 test("shared source planning ranks strong first-party event links deterministically", () => {
   const page = document(`
     <a href="/about">About</a>
-    <a href="https://tickets.example/events">External events</a>
+    <a href="https://tickets.org/events">External events</a>
     <a href="/calendar">What's on</a>
     <a href="/events/spring">Spring programme</a>
     <a href="/events">Events</a>
@@ -133,9 +133,9 @@ test("shared source planning ranks strong first-party event links deterministica
   `);
 
   assert.deepEqual(discoverUsefulSourceUrls(page, ["EVENTS"]), [
-    "https://venue.example/calendar",
-    "https://venue.example/events",
-    "https://venue.example/events/spring",
+    "https://venue.org/calendar",
+    "https://venue.org/events",
+    "https://venue.org/events/spring",
   ]);
 });
 
@@ -146,21 +146,21 @@ test("shared detail planning keeps same-origin event detail candidates in stable
     <a href="/events/2026-10-12/jazz-night">Jazz Night — 12 Oct 2026</a>
     <a href="/events/jazz-night">Jazz Night</a>
     <a href="/contact/2026">Dated but irrelevant</a>
-    <a href="https://other.example/events/2026/show">External</a>
+    <a href="https://other.org/events/2026/show">External</a>
     <a href="/events/jazz-night#duplicate">Duplicate</a>
-  `, "https://venue.example/events");
+  `, "https://venue.org/events");
 
   assert.deepEqual(discoverLikelyEventDetailUrls(page), [
-    "https://venue.example/events/2026-10-12/jazz-night",
-    "https://venue.example/events/archive",
-    "https://venue.example/events/jazz-night",
+    "https://venue.org/events/2026-10-12/jazz-night",
+    "https://venue.org/events/archive",
+    "https://venue.org/events/jazz-night",
   ]);
 });
 
 test("a source page without structured events can enqueue a bounded event detail page", async () => {
   const requested: string[] = [];
   const result = await crawlVerifiedSource({
-    verifiedUrl: "https://venue.example/",
+    verifiedUrl: "https://venue.org/",
     requestedExtractors: ["EVENTS"],
     budget: budget({ maxPages: 3, maxRequests: 4, maxRetries: 0 }),
     resolveHost: publicResolver,
@@ -168,17 +168,17 @@ test("a source page without structured events can enqueue a bounded event detail
       const url = String(input);
       requested.push(url);
       if (url.endsWith("/robots.txt")) return new Response("User-agent: *\nAllow: /");
-      if (url === "https://venue.example/") return new Response('<a href="/events">Events</a>');
-      if (url === "https://venue.example/events") return new Response('<a href="/events/2026/jazz-night">Jazz Night 2026</a>');
+      if (url === "https://venue.org/") return new Response('<a href="/events">Events</a>');
+      if (url === "https://venue.org/events") return new Response('<a href="/events/2026/jazz-night">Jazz Night 2026</a>');
       return new Response("<html>detail</html>");
     },
   });
 
   assert.deepEqual(requested, [
-    "https://venue.example/robots.txt",
-    "https://venue.example/",
-    "https://venue.example/events",
-    "https://venue.example/events/2026/jazz-night",
+    "https://venue.org/robots.txt",
+    "https://venue.org/",
+    "https://venue.org/events",
+    "https://venue.org/events/2026/jazz-night",
   ]);
   assert.equal(result.stats.pageCount, 3);
 });
@@ -192,7 +192,7 @@ test("shared event extraction normalizes nested Event and MusicEvent data withou
          "endDate":"2026-10-22T22:00:00Z","url":"/events/autumn-jazz","eventStatus":"EventScheduled",
          "description":"Live quartet.","organizer":{"name":"Venue Music"},
          "performer":[{"name":"The Quartet"},"Guest Artist"],"eventType":"Concert",
-         "location":{"name":"Grand Hall"},"offers":{"url":"https://tickets.example/autumn","price":25},
+         "location":{"name":"Grand Hall"},"offers":{"url":"https://tickets.org/autumn","price":25},
          "image":{"url":"/images/autumn.jpg"}}
       ]
     }</script>
@@ -202,8 +202,8 @@ test("shared event extraction normalizes nested Event and MusicEvent data withou
   assert.equal(extracted.eventCandidates.length, 1);
   assert.deepEqual(extracted.eventCandidates[0], {
     title: "Autumn Jazz",
-    sourceEventUrl: "https://venue.example/events/autumn-jazz",
-    sourcePageUrl: "https://venue.example/",
+    sourceEventUrl: "https://venue.org/events/autumn-jazz",
+    sourcePageUrl: "https://venue.org/",
     venueText: "Grand Hall",
     startAt: "2026-10-22T19:30:00Z",
     endAt: "2026-10-22T22:00:00Z",
@@ -213,11 +213,11 @@ test("shared event extraction normalizes nested Event and MusicEvent data withou
     organiser: "Venue Music",
     performers: ["The Quartet", "Guest Artist"],
     sourceCategory: "Concert",
-    ticketUrl: "https://tickets.example/autumn",
-    ticketDomain: "tickets.example",
+    ticketUrl: "https://tickets.org/autumn",
+    ticketDomain: "tickets.org",
     priceText: "25",
     ageRestriction: null,
-    eventImageUrl: "https://venue.example/images/autumn.jpg",
+    eventImageUrl: "https://venue.org/images/autumn.jpg",
     sourceFingerprint: extracted.eventCandidates[0]!.sourceFingerprint,
     observedAt: "2026-09-22T09:00:00.000Z",
     state: "DISCOVERED",
@@ -229,7 +229,7 @@ test("shared event extraction normalizes nested Event and MusicEvent data withou
 test("event fingerprints ignore observation time and semantic deduplication prefers canonical URL", () => {
   const body = `<script type="application/ld+json">{"@type":"Event","name":"Autumn Jazz","startDate":"2026-10-22T19:30:00Z","url":"/events/autumn-jazz","location":{"name":"Grand Hall"}}</script>`;
   const first = document(body);
-  const second = { ...document(body, "https://venue.example/calendar"), observedAt: "2026-09-23T09:00:00.000Z" };
+  const second = { ...document(body, "https://venue.org/calendar"), observedAt: "2026-09-23T09:00:00.000Z" };
   const extracted = extractFromFetchedDocuments([first, second], ["EVENTS"]);
 
   assert.equal(extracted.eventCandidates.length, 1);
@@ -243,8 +243,8 @@ test("event semantic deduplication falls back to normalized title date and venue
   const first = document(`<script type="application/ld+json">[
     {"@type":"Event","name":" Autumn   Jazz ","startDate":"2026-10-22T19:30:00Z","location":{"name":"Grand Hall"}},
     {"@type":"Event","name":"No Date","location":{"name":"Grand Hall"}}
-  ]</script>`, "https://venue.example/events");
-  const second = document(`<script type="application/ld+json">{"@type":"MusicEvent","name":"autumn jazz","startDate":"2026-10-22T20:30:00+01:00","location":{"name":" grand hall "}}</script>`, "https://venue.example/calendar");
+  ]</script>`, "https://venue.org/events");
+  const second = document(`<script type="application/ld+json">{"@type":"MusicEvent","name":"autumn jazz","startDate":"2026-10-22T20:30:00+01:00","location":{"name":" grand hall "}}</script>`, "https://venue.org/calendar");
   const extracted = extractFromFetchedDocuments([first, second], ["EVENTS"]);
 
   assert.equal(extracted.eventCandidates.length, 1);

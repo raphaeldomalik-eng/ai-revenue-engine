@@ -4,6 +4,7 @@ import { byTag, closestAncestor, elements, parseHtml, precedingHeading, textCont
 import { decodeHtml, hrefTags, selfClosingTags, tags, visibleText } from "../html.ts";
 import { canonicalHttpsUrl } from "../network.ts";
 import { registrableDomain, wwwCounterpart } from "../site-identity.ts";
+import { recognisedEmailDomain } from "../../email-suffix.ts";
 import { acceptVenueEmail } from "../../venue-email.ts";
 import type { FetchedDocument } from "../types.ts";
 
@@ -72,6 +73,7 @@ function addContact(out: ResourceExtraction, doc: FetchedDocument, type: string,
   const original = raw.trim();
   const value = type === "EMAIL" ? original.toLowerCase() : original;
   if (type === "EMAIL" && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)) return;
+  if (type === "EMAIL" && !recognisedEmailDomain(value.split("@")[1] ?? "")) return;
   if (type === "EMAIL") {
     const domain = value.split("@")[1]!;
     const unrelatedMailbox = TICKETING_DOMAINS.test(`.${domain}`) && registrableDomain(domain) !== registrableDomain(new URL(doc.url).hostname)
@@ -234,7 +236,8 @@ function publishedEmailReview(email: string, pageUrl: string, context: string): 
 }
 function contacts(doc: FetchedDocument, out: ResourceExtraction) {
   const path = new URL(doc.url).pathname;
-  if (/\b(?:accommodation|hotels?|suppliers?|partners?|sponsors?|directory|search|privacy|terms)\b/i.test(path)) return;
+  // These paths stay out of phone, form, and messaging extraction. Email candidates are still read and classified one by one.
+  const skipNonEmail = /\b(?:accommodation|hotels?|suppliers?|partners?|sponsors?|directory|search|privacy|terms)\b/i.test(path);
   const body = doc.body.replace(/<section\b([^>]*)>[\s\S]*?<\/section>/gi, (section, attrs: string) =>
     /\b(?:ticketing[\s-]*provider|third[\s-]*party|website[\s-]*designer|external[\s-]*support)\b/i.test(`${attrs} ${visibleText(section).slice(0, 100)}`) ? " " : section)
     .replace(/<form\b[^>]*(?:newsletter|subscribe|mailchimp|login|signin)[^>]*>[\s\S]*?<\/form>/gi, " ");
@@ -253,6 +256,7 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction) {
       const context = `${label} ${aroundEmail(emailText, email)}`.trim();
       addPublishedEmail(email, 0.95, context);
     }
+    else if (skipNonEmail) continue;
     else if (/^tel:/i.test(href)) {
       let phone = href.slice(4);
       try { phone = decodeURIComponent(phone); } catch { /* keep raw */ }
@@ -265,7 +269,7 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction) {
       if (url && /\bcontact\b/i.test(new URL(url).pathname)) addContact(out, doc, "CONTACT_FORM", url, 0.6, true, label);
     }
   }
-  for (const form of tags(body, "form")) {
+  if (!skipNonEmail) for (const form of tags(body, "form")) {
     const descriptor = `${form.attrs.action ?? ""} ${form.attrs.id ?? ""} ${form.attrs.class ?? ""} ${form.attrs.name ?? ""}`;
     if (/\b(?:search|comments?|newsletter|login|subscribe|signin|register|password)\b|wp-comments-post|wp-login/i.test(descriptor)) continue;
     if (/type=["']?password/i.test(form.inner)) continue;
@@ -283,6 +287,7 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction) {
   for (const match of emailText.matchAll(/(?<![\w.@-])([a-z0-9][a-z0-9._%+-]*@([a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}))(?![\w@-])/gi)) {
     addPublishedEmail(match[1]!, 0.85, aroundEmail(emailText, match[1]!));
   }
+  if (skipNonEmail) return;
   for (const match of primary.matchAll(/\b(?:call(?: us)?|phone|telephone|tel|box office|reservations|switchboard|bookings?|enquiries)\s*[:\-.]?\s*(\+?\d[\d\s().-]{7,}\d)/gi)) addContact(out, doc, "PHONE", clean(match[1]), 0.85, false, `${precedingText(primary, match[0], 60)} ${match[0]}`);
   for (const match of primary.matchAll(/\bwhats\s*app\s*[:\-]?\s*(\+?\d[\d\s().-]{7,}\d)/gi)) addContact(out, doc, "WHATSAPP", clean(match[1]), 0.8, false, match[0]);
 }
