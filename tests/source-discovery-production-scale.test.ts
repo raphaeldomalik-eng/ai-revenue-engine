@@ -386,10 +386,14 @@ test("contact purposes rank sales/hire first, normalise phones, and exclude tick
       <p>Venue hire and private events: <a href="mailto:events@venue.example">events@venue.example</a> or call 0117 496 0123</p>
       <p>Tickets support: help@ticketmaster.co.uk</p><p>Newsletter: newsletter@venue.example</p><p>noreply@venue.example</p>` },
   }, { requestedExtractors: ["PUBLIC_CONTACT"] });
-  const emails = extracted.publicContacts.filter((item) => item.type === "EMAIL").map((item) => item.value);
+  const emailContacts = extracted.publicContacts.filter((item) => item.type === "EMAIL");
+  const emails = emailContacts.filter((item) => !item.reviewRequired).map((item) => item.value);
   assert.equal(emails[0], "events@venue.example");
   assert.ok(emails.includes("info@venue.example"));
   assert.ok(!emails.some((value) => /ticketmaster|newsletter|noreply/.test(value)));
+  assert.ok(emailContacts.some((item) => item.value === "help@ticketmaster.co.uk" && item.reviewRequired));
+  assert.ok(emailContacts.some((item) => item.value === "newsletter@venue.example" && item.reviewRequired));
+  assert.ok(emailContacts.some((item) => item.value === "noreply@venue.example" && item.reviewRequired));
   const phones = extracted.publicContacts.filter((item) => item.type === "PHONE");
   assert.ok(phones.some((item) => item.normalized === "01174960123" && item.purpose === "SALES_HIRE"), JSON.stringify(phones));
   assert.ok(phones.some((item) => item.normalized === "01174960000" && item.purpose === "BOX_OFFICE"), JSON.stringify(phones));

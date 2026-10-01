@@ -56,7 +56,10 @@ test("contact page visible labels and obfuscation are found without footer vendo
   assert.ok(result.publicContacts.some((item) => item.type === "PHONE" && item.value.includes("7946 0123")));
   assert.ok(result.publicContacts.some((item) => item.type === "WHATSAPP" && item.value.includes("900123")));
   assert.ok(result.publicContacts.some((item) => item.type === "CONTACT_FORM" && item.value === `${origin}/enquiry`));
-  assert.ok(result.publicContacts.every((item) => !/pixelstudio|privacy@/.test(item.value)));
+  const usable = result.publicContacts.filter((item) => item.type === "EMAIL" && !item.reviewRequired);
+  assert.deepEqual(usable.map((item) => item.value), ["bookings@venue.example"]);
+  assert.ok(result.publicContacts.some((item) => item.value === "hello@pixelstudio.example" && item.reviewRequired));
+  assert.ok(result.publicContacts.some((item) => item.value === "privacy@venue.example" && item.reviewRequired));
 });
 
 test("named rooms retain explicit layout capacities and conflicting page values require review", () => {
@@ -97,7 +100,9 @@ test("footer vendor and privacy mailto links do not displace public booking cont
     <footer>Website by Pixel Studio <a href="mailto:hello@pixelstudio.example">Email the designer</a>
     <a href="mailto:privacy@venue.example">Privacy officer</a></footer>`);
   const found = extractFromFetchedDocuments([source], ["PUBLIC_CONTACT"]).publicContacts.filter((item) => item.type === "EMAIL");
-  assert.deepEqual(found.map((item) => item.value), ["bookings@venue.example"]);
+  assert.deepEqual(found.filter((item) => !item.reviewRequired).map((item) => item.value), ["bookings@venue.example"]);
+  assert.ok(found.some((item) => item.value === "hello@pixelstudio.example" && item.reviewRequired));
+  assert.ok(found.some((item) => item.value === "privacy@venue.example" && item.reviewRequired));
 });
 
 test("Nexus V1 validation retains explicit rights evidence and rejects unsupported rights certainty", () => {
@@ -273,8 +278,9 @@ test("standalone booking ContactPoint on homepage retains its contact and type",
 test("ticketing-provider support contact is not attributed to the venue", () => {
   const source = page("/contact", `<main><p>Bookings email: bookings@venue.example</p>
     <section class="ticketing-provider"><h2>Ticketing provider support</h2><p>Email: support@tickets.example</p></section></main>`);
-  const found = extractFromFetchedDocuments([source], ["PUBLIC_CONTACT"]).publicContacts;
-  assert.deepEqual(found.filter((item) => item.type === "EMAIL").map((item) => item.value), ["bookings@venue.example"]);
+  const found = extractFromFetchedDocuments([source], ["PUBLIC_CONTACT"]).publicContacts.filter((item) => item.type === "EMAIL");
+  assert.deepEqual(found.filter((item) => !item.reviewRequired).map((item) => item.value), ["bookings@venue.example"]);
+  assert.ok(found.some((item) => item.value === "support@tickets.example" && item.reviewRequired));
 });
 
 test("marketing invitation is not staging evidence", () => {
