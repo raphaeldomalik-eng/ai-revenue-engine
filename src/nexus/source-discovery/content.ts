@@ -51,9 +51,18 @@ function textualTransfer(contentType: string | null): boolean {
   return !type || type.startsWith("text/") || type === "application/xhtml+xml" || type.includes("xml") || type === "application/octet-stream" || type === "application/pdf";
 }
 
+/** A body fetch already decoded, while still advertising a transfer encoding. Gzip magic is never this case. */
+function alreadyDecodedDocument(bytes: Uint8Array): boolean {
+  if (!bytes.length || looksBinary(bytes)) return false;
+  const head = leadingText(bytes);
+  return head.startsWith("<!doctype") || head.startsWith("<html") || head.startsWith("<?xml")
+    || head.startsWith("<urlset") || head.startsWith("<sitemapindex") || /^<(?:head|body|div|main|title)\b/.test(head);
+}
+
 /**
  * One bounded decode of a transfer-encoded HTML/text body.
  * Archive resources and application/gzip stay compressed so the classifier still rejects them.
+ * A stale gzip/deflate header on an already-decoded document is not decoded again.
  */
 export function inflateBoundedDocument(bytes: Uint8Array, contentEncoding: string | null, contentType: string | null, url: string, maxBytes: number): Uint8Array {
   if (archiveResource(url, contentType)) return bytes;
@@ -65,6 +74,7 @@ export function inflateBoundedDocument(bytes: Uint8Array, contentEncoding: strin
   const sniffGzip = gzipMagic && textual && !encoding.includes("br") && !encoding.includes("zstd");
   if (!declaredGzip && !declaredDeflate && !sniffGzip) return bytes;
   if (!textual && !declaredGzip && !declaredDeflate) return bytes;
+  if ((declaredGzip || declaredDeflate) && !gzipMagic && alreadyDecodedDocument(bytes)) return Uint8Array.from(bytes);
   try {
     const output = declaredDeflate && !gzipMagic ? inflateDeflate(bytes, maxBytes) : gunzipSync(bytes, { maxOutputLength: maxBytes });
     return new Uint8Array(output);
