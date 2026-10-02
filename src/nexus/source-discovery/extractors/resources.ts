@@ -545,7 +545,8 @@ const PLACEHOLDER = /(?:^data:|blank\.gif|spacer\.gif|placeholder|lazy[-_]?load|
 const TRACKER = /(?:facebook\.com\/tr|google-analytics|doubleclick|googletagmanager|pixel\.|\/pixel\b|analytics\.)/i;
 function imageRole(filename: string | null, alt: string | null, element: DomElement | null, docUrl: string, og: boolean): string {
   const context = `${filename ?? ""} ${alt ?? ""} ${element?.attrs.class ?? ""} ${element?.attrs.id ?? ""}`;
-  if (/logo/i.test(context) || (element && closestAncestor(element, (item) => /logo|brand/i.test(`${item.attrs.class ?? ""} ${item.attrs.id ?? ""}`)))) return "LOGO";
+  const logoMarker = /(?:^|[\s_])(?:custom-logo|site-logo|navbar-brand|logo)(?:$|[\s_])/i;
+  if (/logo/i.test(context) || (element && closestAncestor(element, (item) => item.tag !== "body" && item.tag !== "html" && logoMarker.test(`${item.attrs.class ?? ""} ${item.attrs.id ?? ""}`)))) return "LOGO";
   if (og) return "HERO";
   if (element && closestAncestor(element, (item) => /\b(?:hero|banner|masthead)\b/i.test(`${item.attrs.class ?? ""} ${item.attrs.id ?? ""}`))) return "HERO";
   if (/\b(?:exterior|outside|facade|façade|building front)\b/i.test(alt ?? "")) return "EXTERIOR";
