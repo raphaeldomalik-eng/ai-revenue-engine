@@ -1,0 +1,1521 @@
+{
+  "generatedAt": "2026-10-02T14:43:08.401Z",
+  "productionMutations": 0,
+  "venues": [
+    {
+      "name": "137 Murray street guest house",
+      "role": "guest house",
+      "durationMs": 1767,
+      "current": {
+        "summary": "137 Murray street guest house is a guest house located in Pretoria, South Africa, providing facilities suitable for corporate_event, banquet.",
+        "description": "137 Murray street guest house operates in Pretoria, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 5,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://www.murray137.co.za/",
+          "https://www.murray137.co.za/collections/en-suite-rooms/",
+          "https://www.murray137.co.za/pages/conferences/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "spaces",
+          "event-use"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [
+          "En-Suite Rooms",
+          "Executive Room",
+          "Standard Room",
+          "STINKWOOD CONFERENCE ROOM",
+          "KIEPER CONFERENCE ROOM",
+          "OAKTREE CONFERENCE ROOM",
+          "BOMA BRAAI AREA"
+        ],
+        "capacities": [],
+        "suitability": [
+          "meetings",
+          "conferences",
+          "private parties"
+        ],
+        "practical": [
+          "catering",
+          "outdoorSpace",
+          "accommodation",
+          "bar",
+          "avProduction",
+          "wifi",
+          "outdoorSpace"
+        ],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@murray137.co.za"
+          },
+          {
+            "type": "PHONE",
+            "value": "0123465940"
+          },
+          {
+            "type": "PHONE",
+            "value": "0637580674"
+          }
+        ],
+        "imageCandidates": 44,
+        "rights": {
+          "RIGHTS_RESERVED": 44
+        },
+        "hero": null,
+        "ownerReviewHero": "https://b-cdn.springnest.com/media/img/1jx/the-block-front-photo-scaled42ff55b.jpg?aspect_ratio=1500%3A750&width=2560&quality=78",
+        "gallery": 0,
+        "summary": "137 Murray street guest house in Pretoria, South Africa includes En-Suite Rooms.",
+        "description": "137 Murray street guest house in Pretoria, South Africa includes En-Suite Rooms. Named spaces include En-Suite Rooms, Executive Room, Standard Room, STINKWOOD CONFERENCE ROOM. The venue states that it hosts meetings, conferences and private parties. Practical facilities stated on the site include catering, outdoor space, accommodation, a bar, AV and Wi-Fi.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "180 Lounger",
+      "role": "rooftop",
+      "durationMs": 4503,
+      "current": {
+        "summary": "Rooftop venue on the 16th floor of The Terraces, 34 Bree Street, Cape Town, with indoor and outdoor terrace space.",
+        "description": "180 Lounger Rooftop Venue operates in Cape Town, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 5,
+        "parkingMarkedYes": false,
+        "qualityFailures": [
+          "internal-language",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://180lounger.com/",
+          "https://180lounger.com/gallery/",
+          "https://180lounger.com/contact/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "gallery",
+          "contact"
+        ],
+        "sitemapConsulted": false,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [
+          {
+            "space": "Our Rooftop Venue",
+            "layout": "unspecified",
+            "count": 120,
+            "statement": "up to 120 guests",
+            "sourceUrl": "https://180lounger.com/"
+          }
+        ],
+        "suitability": [],
+        "practical": [
+          "bar",
+          "wifi",
+          "outdoorSpace"
+        ],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@180lounger.com"
+          }
+        ],
+        "imageCandidates": 89,
+        "rights": {
+          "RIGHTS_RESERVED": 89
+        },
+        "hero": null,
+        "ownerReviewHero": null,
+        "gallery": 0,
+        "summary": "180 Lounger is in Cape Town, Western Cape, South Africa.",
+        "description": "180 Lounger is in Cape Town, Western Cape, South Africa. Stated capacities include Our Rooftop Venue maximum capacity 120. Practical facilities stated on the site include a bar, Wi-Fi and outdoor space.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "1st Boksburg (Cameron) Scout Hall",
+      "role": "js-heavy small hall",
+      "durationMs": 7039,
+      "current": {
+        "summary": "1st Boksburg (Cameron) Scout Hall is a event venue located in Boksburg, South Africa, providing facilities suitable for corporate_event, banquet, conference.",
+        "description": "1st Boksburg (Cameron) Scout Hall operates in Boksburg, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 2,
+        "parkingMarkedYes": false,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://1stboksburgcameron.wixsite.com/1st-boksburg-cameron",
+          "https://1stboksburgcameron.wixsite.com/1st-boksburg-cameron/gallary",
+          "https://1stboksburgcameron.wixsite.com/1st-boksburg-cameron/contact-4",
+          "https://1stboksburgcameron.wixsite.com/1st-boksburg-cameron/blank-1",
+          "https://1stboksburgcameron.wixsite.com/1st-boksburg-cameron/about-6"
+        ],
+        "pageTypes": [
+          "other",
+          "contact",
+          "core"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [],
+        "practical": [],
+        "contacts": [],
+        "imageCandidates": 36,
+        "rights": {
+          "RIGHTS_RESERVED": 36
+        },
+        "hero": null,
+        "ownerReviewHero": "https://static.wixstatic.com/media/58beb8_02b7bb00ef9041a78008296733a64370~mv2.jpg/v1/fit/w_1600,h_1600,q_90,enc_avif,quality_auto/58beb8_02b7bb00ef9041a78008296733a64370~mv2.jpg",
+        "gallery": 0,
+        "summary": "1st Boksburg (Cameron) Scout Hall is in Boksburg, South Africa.",
+        "description": "1st Boksburg (Cameron) Scout Hall is in Boksburg, South Africa.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "1st Bryanston Scout Hall",
+      "role": "small hall",
+      "durationMs": 13452,
+      "current": {
+        "summary": "1st Bryanston Scout Hall is a event venue located in Sandton, South Africa, providing facilities suitable for corporate_event, banquet.",
+        "description": "1st Bryanston Scout Hall operates in Sandton, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://1stbryanston.co.za/",
+          "https://1stbryanston.co.za/meerkats/",
+          "https://1stbryanston.co.za/contact-us/",
+          "https://1stbryanston.co.za/cubs/",
+          "https://1stbryanston.co.za/scouts/",
+          "https://1stbryanston.co.za/rovers/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "other",
+          "contact"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [],
+        "practical": [],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@1stbryanston.co.za"
+          }
+        ],
+        "imageCandidates": 11,
+        "rights": {
+          "UNKNOWN_RIGHTS": 11
+        },
+        "hero": "https://1stbryanston.co.za/wp-content/uploads/2025/10/IMG_2808-scaled.jpeg",
+        "ownerReviewHero": null,
+        "gallery": 7,
+        "summary": "1st Bryanston Scout Hall is in Sandton, South Africa.",
+        "description": "1st Bryanston Scout Hall is in Sandton, South Africa.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "2nd Hout Bay Sea Scout Group",
+      "role": "small hall",
+      "durationMs": 3903,
+      "current": {
+        "summary": "2nd Hout Bay Sea Scout Group is a event venue located in Cape Town, South Africa, providing facilities suitable for corporate_event, banquet.",
+        "description": "2nd Hout Bay Sea Scout Group operates in Cape Town, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://2ndhoutbay.co.za/"
+        ],
+        "pageTypes": [
+          "homepage"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [],
+        "practical": [],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@2ndhoutbay.co.za"
+          }
+        ],
+        "imageCandidates": 4,
+        "rights": {
+          "UNKNOWN_RIGHTS": 4
+        },
+        "hero": null,
+        "ownerReviewHero": null,
+        "gallery": 0,
+        "summary": "2nd Hout Bay Sea Scout Group is in Cape Town, South Africa.",
+        "description": "2nd Hout Bay Sea Scout Group is in Cape Town, South Africa.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "4 Every Event",
+      "role": "event venue",
+      "durationMs": 4427,
+      "current": {
+        "summary": "4 Every Event is a event venue located in Grabouw, South Africa, providing facilities suitable for corporate_event.",
+        "description": "4 Every Event operates in Grabouw, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://www.4everyevent.co.za/",
+          "https://www.4everyevent.co.za/bar-service-staffing"
+        ],
+        "pageTypes": [
+          "homepage",
+          "other"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [],
+        "practical": [
+          "bar"
+        ],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@4everyevent.co.za"
+          }
+        ],
+        "imageCandidates": 10,
+        "rights": {
+          "UNKNOWN_RIGHTS": 10
+        },
+        "hero": "https://static.wixstatic.com/media/d611ea_79a0dc46051e42f982df9f04477557a5~mv2.jpg/v1/fill/w_1024,h_683,al_c/d611ea_79a0dc46051e42f982df9f04477557a5~mv2.jpg",
+        "ownerReviewHero": null,
+        "gallery": 5,
+        "summary": "4 Every Event is in Grabouw, South Africa.",
+        "description": "4 Every Event is in Grabouw, South Africa. Practical facilities stated on the site include a bar.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "ABRU MOTOR Studio",
+      "role": "studio",
+      "durationMs": 6800,
+      "current": {
+        "summary": "ABRU MOTOR Studio is a event venue located in Cape Town, South Africa, providing facilities suitable for corporate_event, banquet, theatre.",
+        "description": "ABRU MOTOR Studio operates in Cape Town, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": false,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://abrumotorstudio.co.za/",
+          "https://abrumotorstudio.co.za/portfolio-item/richard-vora/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "other"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [
+          "weddings",
+          "private parties"
+        ],
+        "practical": [],
+        "contacts": [
+          {
+            "type": "PHONE",
+            "value": "021 418 5161"
+          }
+        ],
+        "imageCandidates": 11,
+        "rights": {
+          "RIGHTS_RESERVED": 11
+        },
+        "hero": null,
+        "ownerReviewHero": "https://abrumotorstudio.co.za/wp-content/uploads/2019/03/grey-header-bg.png",
+        "gallery": 0,
+        "summary": "ABRU MOTOR Studio is in Cape Town, South Africa.",
+        "description": "ABRU MOTOR Studio is in Cape Town, South Africa. The venue states that it hosts weddings and private parties.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Accent on Functions",
+      "role": "functions",
+      "durationMs": 11495,
+      "current": {
+        "summary": "Accent on Functions is a service located in Benoni, South Africa, providing facilities suitable for wedding, corporate_event, banquet.",
+        "description": "Accent on Functions operates in Benoni, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://aof.co.za/",
+          "https://aof.co.za/p/1040647/functions",
+          "https://aof.co.za/contact",
+          "https://aof.co.za/p/1040647/contact"
+        ],
+        "pageTypes": [
+          "homepage",
+          "event-use",
+          "contact"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 4,
+            "statement": "capacity 4",
+            "sourceUrl": "https://aof.co.za/"
+          },
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 4,
+            "statement": "capacity 4",
+            "sourceUrl": "https://aof.co.za/p/1040647/functions"
+          },
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 4,
+            "statement": "capacity 4",
+            "sourceUrl": "https://aof.co.za/contact"
+          },
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 4,
+            "statement": "capacity 4",
+            "sourceUrl": "https://aof.co.za/p/1040647/contact"
+          }
+        ],
+        "suitability": [
+          "weddings"
+        ],
+        "practical": [],
+        "contacts": [
+          {
+            "type": "PHONE",
+            "value": "083 232 3926"
+          },
+          {
+            "type": "WHATSAPP",
+            "value": "https://api.whatsapp.com/send?phone=27832323926"
+          }
+        ],
+        "imageCandidates": 24,
+        "rights": {
+          "RIGHTS_RESERVED": 24
+        },
+        "hero": null,
+        "ownerReviewHero": "https://a.kwikweb.co.za/aof/photos/_EHB1056.jpg",
+        "gallery": 0,
+        "summary": "Accent on Functions is in Benoni, South Africa.",
+        "description": "Accent on Functions is in Benoni, South Africa. The venue states that it hosts weddings. Stated capacities include maximum capacity 4; maximum capacity 4; maximum capacity 4; maximum capacity 4.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Accolades Boutique Venue",
+      "role": "boutique wedding",
+      "durationMs": 13337,
+      "current": {
+        "summary": "Accolades Boutique Venue is a event venue located in Midrand, South Africa, providing facilities suitable for wedding, corporate_event, banquet.",
+        "description": "Accolades Boutique Venue operates in Midrand, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://accolades.co.za/",
+          "https://accolades.co.za/conference-venue-with-accommodation/",
+          "https://accolades.co.za/contact-us/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "event-use",
+          "contact"
+        ],
+        "sitemapConsulted": false,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [
+          {
+            "space": "Weddings",
+            "layout": "unspecified",
+            "count": 120,
+            "statement": "up to 120 guests",
+            "sourceUrl": "https://accolades.co.za/"
+          }
+        ],
+        "suitability": [
+          "weddings",
+          "conferences",
+          "corporate events",
+          "exhibitions"
+        ],
+        "practical": [
+          "sound",
+          "avProduction",
+          "sound",
+          "outdoorSpace"
+        ],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@accolades.org.za"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 010 010 7991"
+          },
+          {
+            "type": "PHONE",
+            "value": "0100107991"
+          },
+          {
+            "type": "PHONE",
+            "value": "0717247987"
+          },
+          {
+            "type": "EMAIL",
+            "value": "***@accolades.org.za"
+          },
+          {
+            "type": "PHONE",
+            "value": "0847471333"
+          }
+        ],
+        "imageCandidates": 43,
+        "rights": {
+          "RIGHTS_RESERVED": 43
+        },
+        "hero": null,
+        "ownerReviewHero": "https://accolades.co.za/wp-content/uploads/2026/07/2.png",
+        "gallery": 0,
+        "summary": "Accolades Boutique Venue is in Midrand, South Africa.",
+        "description": "Accolades Boutique Venue is in Midrand, South Africa. The venue states that it hosts weddings, conferences, corporate events and exhibitions. Stated capacities include Weddings maximum capacity 120. Practical facilities stated on the site include sound, AV and outdoor space.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "ACSA International Indaba Conference Centre",
+      "role": "conference centre",
+      "durationMs": 10481,
+      "current": {
+        "summary": "ACSA International Indaba Conference Centre is a event venue located in Kempton Park, South Africa, providing facilities suitable for corporate_event, banquet.",
+        "description": "ACSA International Indaba Conference Centre operates in Kempton Park, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://www.airports.co.za/",
+          "https://www.airports.co.za/business/commercial/capacity-allocation-mechanism",
+          "https://www.airports.co.za/globals/contact-us",
+          "https://www.airports.co.za/about-us/security/",
+          "https://www.airports.co.za/contact/are-you-aware-of-any-crime",
+          "https://www.airports.co.za/Documents/Allocation%20Mechanism%20Submission%20ACSA%20-%20All%20licenced%20fuel%20storage%20facilities%20Rev%201.pdf",
+          "https://www.airports.co.za/about-us/airports-company/awards",
+          "https://www.airports.co.za/contact/airports",
+          "https://www.airports.co.za/Documents/Uncommitted%20Capacity_August%202026.pdf",
+          "https://www.airports.co.za/about-us/airports-company/company-profile",
+          "https://www.airports.co.za/airports/or-tambo-international-airport/the-airport/contact-us",
+          "https://www.airports.co.za/about-us/airports-company/history"
+        ],
+        "pageTypes": [
+          "homepage",
+          "other",
+          "contact",
+          "core",
+          "document"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "PAGE_BUDGET",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [],
+        "practical": [
+          "publicTransport",
+          "wifi",
+          "publicTransport",
+          "publicTransport",
+          "publicTransport",
+          "publicTransport",
+          "publicTransport",
+          "publicTransport",
+          "publicTransport",
+          "publicTransport",
+          "publicTransport"
+        ],
+        "contacts": [
+          {
+            "type": "PHONE",
+            "value": "+27 11 921 6775"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)86 72 77 888"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27(0) 11 921 6090"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)21 937"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)32 436 6585"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27(0)32 436"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)51 407 2200"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)41 507 7348"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27(0)41 507 7362"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)54 337 7900"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)43 706 0304"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)44 8769310"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27(0)44 803 7784"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)53 830 7101"
+          },
+          {
+            "type": "PHONE",
+            "value": "086 72 77 888"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)11 723 1400"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)086 72 77 888"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 (0)11 921 6262"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://www.airports.co.za/globals/contact-us?TermStoreId=5bf3754c-f4cc-4939-a24c-690f3cd01918&TermSetId=f37980a4-c1c3-44da-98fe-118b3c090a62&TermId=ce1c2750-6e95-4e36-a59c-8930f5f5b82b"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://www.airports.co.za/airports/or-tambo-international-airport/the-airport/contact-us?TermStoreId=5bf3754c-f4cc-4939-a24c-690f3cd01918&TermSetId=f37980a4-c1c3-44da-98fe-118b3c090a62&TermId=309b421a-7110-4647-8cb3-c065edf8927b"
+          }
+        ],
+        "imageCandidates": 71,
+        "rights": {
+          "RIGHTS_RESERVED": 71
+        },
+        "hero": null,
+        "ownerReviewHero": "https://www.airports.co.za/_layouts/15/images/spcommon.png?rev=40",
+        "gallery": 0,
+        "summary": "ACSA International Indaba Conference Centre is in Kempton Park, South Africa.",
+        "description": "ACSA International Indaba Conference Centre is in Kempton Park, South Africa. Practical facilities stated on the site include public transport and Wi-Fi.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "113 Loop Rooftop Event Venue",
+      "role": "rooftop",
+      "durationMs": 28,
+      "current": {
+        "summary": "113 Loop Rooftop Event Venue is a event venue located in Cape Town City Centre, South Africa, providing facilities suitable for corporate_event, banquet.",
+        "description": "113 Loop Rooftop Event Venue operates in Cape Town City Centre, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 6,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [],
+        "pageTypes": [],
+        "sitemapConsulted": false,
+        "stopReason": "ROBOTS_UNAVAILABLE",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [],
+        "practical": [],
+        "contacts": [],
+        "imageCandidates": 0,
+        "rights": {},
+        "hero": null,
+        "ownerReviewHero": null,
+        "gallery": 0,
+        "summary": "113 Loop Rooftop Event Venue is in Cape Town, Western Cape, South Africa.",
+        "description": "113 Loop Rooftop Event Venue is in Cape Town, Western Cape, South Africa.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Apollo Conferencing Hotel",
+      "role": "hotel",
+      "durationMs": 4112,
+      "current": {
+        "summary": "Apollo Conferencing Hotel is a hotel located in Randburg, South Africa, providing facilities suitable for conference, corporate_event, banquet.",
+        "description": "Apollo Conferencing Hotel operates in Randburg, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 6,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://apollohotel.co.za/",
+          "https://apollohotel.co.za/gallery/",
+          "https://apollohotel.co.za/conferencing-functions/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "gallery",
+          "event-use"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [
+          "meetings"
+        ],
+        "practical": [
+          "avProduction",
+          "sound",
+          "wifi",
+          "power",
+          "avProduction",
+          "sound",
+          "avProduction",
+          "sound",
+          "wifi"
+        ],
+        "contacts": [
+          {
+            "type": "PHONE",
+            "value": "0117875434"
+          },
+          {
+            "type": "PHONE",
+            "value": "0871471351"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://apollohotel.co.za/"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://apollohotel.co.za/gallery/"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://apollohotel.co.za/conferencing-functions/"
+          }
+        ],
+        "imageCandidates": 59,
+        "rights": {
+          "UNKNOWN_RIGHTS": 59
+        },
+        "hero": null,
+        "ownerReviewHero": null,
+        "gallery": 0,
+        "summary": "Apollo Conferencing Hotel is in Randburg, South Africa.",
+        "description": "Apollo Conferencing Hotel is in Randburg, South Africa. The venue states that it hosts meetings. Practical facilities stated on the site include AV, sound, Wi-Fi and power.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Artscape Theatre Centre",
+      "role": "theatre",
+      "durationMs": 3068,
+      "current": {
+        "summary": "Artscape Theatre Centre is a performing arts theater located in Cape Town, South Africa, providing facilities suitable for live_music, theatre, corporate_event.",
+        "description": "Artscape Theatre Centre operates in Cape Town, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 2,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://www.artscape.co.za/",
+          "https://www.artscape.co.za/celebrating-cultural-diversity-in-urban-space-in-italy/",
+          "https://www.artscape.co.za/artscape-returns-to-normal-to-full-capacity-venues/",
+          "https://www.artscape.co.za/universal-accessibility-hub-launches-a-competition-to-showcase-accessibility-in-tourism/",
+          "https://www.artscape.co.za/patrons-needing-assistance-with-booking-tickets-to-any-production-or-needing-to-book-wheelchair-seating-can-call-artscape-dial-a-seat-on-021-421-7695/",
+          "https://www.artscape.co.za/contact/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "spaces",
+          "core",
+          "event-use",
+          "practical",
+          "contact"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "DIMENSIONS_SATISFIED",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [],
+        "practical": [],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@artscape.co.za"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 21 410 9946"
+          },
+          {
+            "type": "EMAIL",
+            "value": "***@artscape.co.za"
+          },
+          {
+            "type": "EMAIL",
+            "value": "***@uahub.org.za"
+          },
+          {
+            "type": "EMAIL",
+            "value": "***@artscape.co.za"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 21 410 9800"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 21 421 7695"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 21 410 9810"
+          },
+          {
+            "type": "EMAIL",
+            "value": "***@artscape.co.za"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27 21 421 7839"
+          }
+        ],
+        "imageCandidates": 43,
+        "rights": {
+          "UNKNOWN_RIGHTS": 43
+        },
+        "hero": "https://www.artscape.co.za/wp-content/uploads/2026/06/Mamma-Mia-Slider.png",
+        "ownerReviewHero": null,
+        "gallery": 4,
+        "summary": "Artscape Theatre Centre is in Cape Town, South Africa.",
+        "description": "Artscape Theatre Centre is in Cape Town, South Africa.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Casablanca Manor Wedding, Function and Conference Venue",
+      "role": "multi-space wedding",
+      "durationMs": 16528,
+      "current": {
+        "summary": "Casablanca Manor Wedding, Function and Conference Venue is a wedding venue located in Pretoria, South Africa, providing facilities suitable for wedding, corporate_event, banquet.",
+        "description": "Casablanca Manor Wedding, Function and Conference Venue operates in Pretoria, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 3,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://www.casablancamanor.co.za/",
+          "https://www.casablancamanor.co.za/weddings/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "event-use"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [
+          "Honeymoon Suite"
+        ],
+        "capacities": [],
+        "suitability": [
+          "weddings",
+          "conferences",
+          "corporate events"
+        ],
+        "practical": [
+          "outdoorSpace",
+          "outdoorSpace"
+        ],
+        "contacts": [
+          {
+            "type": "PHONE",
+            "value": "+27 12 000 0000"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://www.casablancamanor.co.za/"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://www.casablancamanor.co.za/weddings/"
+          }
+        ],
+        "imageCandidates": 74,
+        "rights": {
+          "RIGHTS_RESERVED": 74
+        },
+        "hero": null,
+        "ownerReviewHero": null,
+        "gallery": 0,
+        "summary": "Casablanca Manor Wedding, Function and Conference Venue in Pretoria, South Africa includes Honeymoon Suite.",
+        "description": "Casablanca Manor Wedding, Function and Conference Venue in Pretoria, South Africa includes Honeymoon Suite. Named spaces include Honeymoon Suite. The venue states that it hosts weddings, conferences and corporate events. Practical facilities stated on the site include outdoor space.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Houw Hoek Hotel",
+      "role": "hotel",
+      "durationMs": 9616,
+      "current": {
+        "summary": "Houw Hoek Hotel is a hotel located in Grabouw, South Africa, providing facilities suitable for wedding, corporate_event, banquet.",
+        "description": "Houw Hoek Hotel operates in Grabouw, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 3,
+        "knownYesFacts": 7,
+        "parkingMarkedYes": false,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://houwhoekhotel.com/",
+          "https://houwhoekhotel.com/rooms/",
+          "https://houwhoekhotel.com/conferences/",
+          "https://houwhoekhotel.com/contact-us/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "spaces",
+          "event-use",
+          "contact"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [
+          "Deluxe Rooms"
+        ],
+        "capacities": [
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 279,
+            "statement": "up to 279 guests",
+            "sourceUrl": "https://houwhoekhotel.com/rooms/"
+          },
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 247,
+            "statement": "up to 247 guests",
+            "sourceUrl": "https://houwhoekhotel.com/rooms/"
+          },
+          {
+            "space": "Deluxe Rooms",
+            "layout": "unspecified",
+            "count": 2,
+            "statement": "Up to 2 people",
+            "sourceUrl": "https://houwhoekhotel.com/rooms/"
+          }
+        ],
+        "suitability": [
+          "conferences",
+          "meetings"
+        ],
+        "practical": [
+          "wifi",
+          "bar",
+          "wifi",
+          "power",
+          "wifi"
+        ],
+        "contacts": [
+          {
+            "type": "PHONE",
+            "value": "+27 (0)28 284 9646"
+          }
+        ],
+        "imageCandidates": 63,
+        "rights": {
+          "UNKNOWN_RIGHTS": 63
+        },
+        "hero": "https://houwhoekhotel.com/wp-content/uploads/2021/06/HHH_Pond.jpg",
+        "ownerReviewHero": null,
+        "gallery": 7,
+        "summary": "Houw Hoek Hotel in Grabouw, South Africa includes Deluxe Rooms.",
+        "description": "Houw Hoek Hotel in Grabouw, South Africa includes Deluxe Rooms. Named spaces include Deluxe Rooms. The venue states that it hosts conferences and meetings. Stated capacities include maximum capacity 279; maximum capacity 247; Deluxe Rooms maximum capacity 2. Practical facilities stated on the site include Wi-Fi, a bar and power.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "La Merveille Wedding & Function Venue",
+      "role": "gallery wedding",
+      "durationMs": 4003,
+      "current": {
+        "summary": "La Merveille Wedding & Function Venue is a wedding venue located in Roodeplaat, South Africa, providing facilities suitable for wedding, corporate_event, banquet.",
+        "description": "La Merveille Wedding & Function Venue operates in Roodeplaat, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://www.lamerveillevenue.com/"
+        ],
+        "pageTypes": [
+          "homepage"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 40,
+            "statement": "Up to 40 guests",
+            "sourceUrl": "https://www.lamerveillevenue.com/"
+          },
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 25,
+            "statement": "up to 25 guests",
+            "sourceUrl": "https://www.lamerveillevenue.com/"
+          }
+        ],
+        "suitability": [
+          "weddings"
+        ],
+        "practical": [
+          "outdoorSpace"
+        ],
+        "contacts": [
+          {
+            "type": "PHONE",
+            "value": "+ 0673871507"
+          },
+          {
+            "type": "EMAIL",
+            "value": "***@gmail.com"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://www.lamerveillevenue.com/"
+          }
+        ],
+        "imageCandidates": 50,
+        "rights": {
+          "RIGHTS_RESERVED": 50
+        },
+        "hero": null,
+        "ownerReviewHero": null,
+        "gallery": 0,
+        "summary": "La Merveille Wedding & Function Venue is in Roodeplaat, South Africa.",
+        "description": "La Merveille Wedding & Function Venue is in Roodeplaat, South Africa. The venue states that it hosts weddings. Stated capacities include maximum capacity 40; maximum capacity 25. Practical facilities stated on the site include outdoor space.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Achterbergh Lodge & Conference Centre",
+      "role": "conference centre",
+      "durationMs": 9225,
+      "current": {
+        "summary": "Achterbergh Lodge & Conference Centre is a event venue located in Krugersdorp, South Africa, providing facilities suitable for corporate_event, banquet, wedding.",
+        "description": "Achterbergh Lodge & Conference Centre operates in Krugersdorp, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 3,
+        "knownYesFacts": 5,
+        "parkingMarkedYes": false,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://achterbergh.co.za/",
+          "https://achterbergh.co.za/contact-us/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "contact"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [
+          "meetings"
+        ],
+        "practical": [
+          "accommodation",
+          "kitchen"
+        ],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@achterbergh.co.za"
+          },
+          {
+            "type": "EMAIL",
+            "value": "***@achterbergh.co.za"
+          },
+          {
+            "type": "PHONE",
+            "value": "011 954 5533"
+          },
+          {
+            "type": "WHATSAPP",
+            "value": "082 487 2082"
+          }
+        ],
+        "imageCandidates": 30,
+        "rights": {
+          "RIGHTS_RESERVED": 30
+        },
+        "hero": null,
+        "ownerReviewHero": "https://achterbergh.co.za/wp-content/uploads/2024/10/Achterberg_025-copy.jpg",
+        "gallery": 0,
+        "summary": "Achterbergh Lodge & Conference Centre is in Krugersdorp, South Africa.",
+        "description": "Achterbergh Lodge & Conference Centre is in Krugersdorp, South Africa. The venue states that it hosts meetings. Practical facilities stated on the site include accommodation and a kitchen.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Amorosa Wedding & Conference Venue",
+      "role": "wedding",
+      "durationMs": 6254,
+      "current": {
+        "summary": "Amorosa Wedding & Conference Venue is a wedding venue located in Vontina AH, South Africa, providing facilities suitable for wedding, corporate_event, banquet.",
+        "description": "Amorosa Wedding & Conference Venue operates in Vontina AH, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://amorosa-venue.com/",
+          "https://amorosa-venue.com/accomodation/",
+          "https://amorosa-venue.com/weddings/",
+          "https://amorosa-venue.com/contact/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "other",
+          "event-use",
+          "contact"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [
+          "Music Theatre"
+        ],
+        "capacities": [],
+        "suitability": [
+          "weddings"
+        ],
+        "practical": [
+          "outdoorSpace"
+        ],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@amorosa-venue.com"
+          },
+          {
+            "type": "PHONE",
+            "value": "+071 482 7186"
+          }
+        ],
+        "imageCandidates": 22,
+        "rights": {
+          "RIGHTS_RESERVED": 22
+        },
+        "hero": null,
+        "ownerReviewHero": "https://amorosa-venue.com/wp-content/uploads/2022/11/gallery_main.jpg",
+        "gallery": 0,
+        "summary": "Amorosa Wedding & Conference Venue in Vontina AH, South Africa includes Music Theatre.",
+        "description": "Amorosa Wedding & Conference Venue in Vontina AH, South Africa includes Music Theatre. Named spaces include Music Theatre. The venue states that it hosts weddings. Practical facilities stated on the site include outdoor space.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "Lethabo Estate",
+      "role": "large multi-space",
+      "durationMs": 6655,
+      "current": {
+        "summary": "Lethabo Estate is a lodging located in Lanseria, South Africa, providing facilities suitable for wedding, corporate_event, banquet.",
+        "description": "Lethabo Estate operates in Lanseria, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 0,
+        "knownYesFacts": 5,
+        "parkingMarkedYes": false,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://www.lethaboestate.com/",
+          "https://www.lethaboestate.com/accommodation/rock-pool-lodge/",
+          "https://www.lethaboestate.com/weddings/",
+          "https://www.lethaboestate.com/contact-us/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "other",
+          "event-use",
+          "contact"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [
+          {
+            "space": null,
+            "layout": "unspecified",
+            "count": 120,
+            "statement": "up to 120 guests",
+            "sourceUrl": "https://www.lethaboestate.com/weddings/"
+          }
+        ],
+        "suitability": [
+          "weddings"
+        ],
+        "practical": [
+          "outdoorSpace",
+          "wifi",
+          "outdoorSpace",
+          "accommodation",
+          "sound",
+          "outdoorSpace"
+        ],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@lethaboestate.com"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27871511817"
+          },
+          {
+            "type": "CONTACT_FORM",
+            "value": "https://www.lethaboestate.com/"
+          }
+        ],
+        "imageCandidates": 162,
+        "rights": {
+          "RIGHTS_RESERVED": 162
+        },
+        "hero": null,
+        "ownerReviewHero": "https://www.lethaboestate.com/wp-content/uploads/2019/03/king-fisher-river-loft-400x250.jpg",
+        "gallery": 0,
+        "summary": "Lethabo Estate is in Lanseria, South Africa.",
+        "description": "Lethabo Estate is in Lanseria, South Africa. The venue states that it hosts weddings. Stated capacities include maximum capacity 120. Practical facilities stated on the site include outdoor space, Wi-Fi, accommodation and sound.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    },
+    {
+      "name": "55 Tulbagh Events and Wedding Venue",
+      "role": "wedding",
+      "durationMs": 15212,
+      "current": {
+        "summary": "55 Tulbagh Events and Wedding Venue is a event venue located in Kempton Park, South Africa, providing facilities suitable for corporate_event, banquet.",
+        "description": "55 Tulbagh Events and Wedding Venue operates in Kempton Park, Western Cape/Gauteng region. Discovered and verified as part of the Resources South Africa regional acquisition inventory for event, function, and meeting bookings.",
+        "images": 3,
+        "knownYesFacts": 1,
+        "parkingMarkedYes": true,
+        "qualityFailures": [
+          "internal-language",
+          "raw-enum",
+          "fake-region",
+          "grammar"
+        ]
+      },
+      "crawler": {
+        "pagesFetched": [
+          "https://55tulbagh.co.za/",
+          "https://55tulbagh.co.za/gallery/",
+          "https://55tulbagh.co.za/accommodation/",
+          "https://55tulbagh.co.za/weddings-at-55-tulbagh/",
+          "https://55tulbagh.co.za/contact-us-2/",
+          "https://55tulbagh.co.za/bridal-suite/",
+          "https://55tulbagh.co.za/contact-us/"
+        ],
+        "pageTypes": [
+          "homepage",
+          "gallery",
+          "other",
+          "event-use",
+          "contact",
+          "spaces"
+        ],
+        "sitemapConsulted": true,
+        "stopReason": "NO_GAP_CANDIDATES",
+        "renderedPages": 0,
+        "renderNeededButUnavailable": [],
+        "spaces": [],
+        "capacities": [],
+        "suitability": [
+          "weddings"
+        ],
+        "practical": [
+          "bar",
+          "wifi",
+          "outdoorSpace",
+          "accommodation",
+          "outdoorSpace",
+          "wifi",
+          "parking",
+          "wifi"
+        ],
+        "contacts": [
+          {
+            "type": "EMAIL",
+            "value": "***@55tulbagh.co.za"
+          },
+          {
+            "type": "PHONE",
+            "value": "0823567220"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27823567220"
+          },
+          {
+            "type": "PHONE",
+            "value": "+27730296172"
+          },
+          {
+            "type": "WHATSAPP",
+            "value": "https://wa.me/27823567220?text=Hi%20Sera%2C%20I%27m%20interested%20in%20learning%20more%20about%2055%20Tulbagh%20and%20would%20like%20some%20assistance%20with%20reservations%20and%20other%20services.%20Could%20you%20please%20help%20me%20with%20availability%20and%20details%3F%20Thank%20you%21"
+          }
+        ],
+        "imageCandidates": 34,
+        "rights": {
+          "RIGHTS_RESERVED": 34
+        },
+        "hero": null,
+        "ownerReviewHero": "https://55tulbagh.co.za/wp-content/uploads/2025/06/WhatsApp-Image-2025-03-24-at-15.37.28_9454c15a-1024x682.jpg",
+        "gallery": 0,
+        "summary": "55 Tulbagh Events and Wedding Venue is in Kempton Park, South Africa.",
+        "description": "55 Tulbagh Events and Wedding Venue is in Kempton Park, South Africa. The venue states that it hosts weddings. Practical facilities stated on the site include a bar, Wi-Fi, outdoor space, accommodation and parking.",
+        "qualityFailures": [],
+        "rejectedSentences": []
+      }
+    }
+  ]
+}

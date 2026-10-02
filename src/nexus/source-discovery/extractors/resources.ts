@@ -591,6 +591,13 @@ function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement 
       push({ url, width: dimension(tag.attrs.width), height: dimension(tag.attrs.height) }, clean(tag.attrs.alt), clean(tag.attrs.title), null, null);
     }
   }
+  for (const match of doc.body.matchAll(/url\(\s*['"]?([^'")\s]+)['"]?\s*\)/gi)) {
+    const raw = match[1] ?? "";
+    if (!raw || PLACEHOLDER.test(raw) || TRACKER.test(raw) || /\.svg(?:$|\?)/i.test(raw) || /sprite|icon|logo|favicon/i.test(raw)) continue;
+    if (!/\.(?:jpe?g|png|webp|avif)(?:$|\?)/i.test(raw)) continue;
+    const url = canonicalHttpsUrl(raw, doc.url);
+    if (url) push({ url, width: null, height: null }, null, null, null, null, { role: "GALLERY" });
+  }
   const og = firstMeta(doc.body, "og:image") ?? firstMeta(doc.body, "og:image:secure_url") ?? firstMeta(doc.body, "twitter:image");
   const ogUrl = og ? canonicalHttpsUrl(og, doc.url) : null;
   if (ogUrl) push({ url: ogUrl, width: dimension(firstMeta(doc.body, "og:image:width") ?? undefined), height: dimension(firstMeta(doc.body, "og:image:height") ?? undefined) }, clean(firstMeta(doc.body, "og:image:alt")), null, null, null, { og: true });
