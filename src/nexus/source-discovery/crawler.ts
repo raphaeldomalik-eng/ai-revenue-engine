@@ -4,7 +4,7 @@ import { classifyContent, decodeText, inflateBoundedDocument, refuseByHeaders, T
 import { extractEventsFromDocuments } from "./extractors/events.ts";
 import { createObservation, profilesFor } from "./extractors/profiles.ts";
 import { extractResourcesFromDocuments } from "./extractors/resources.ts";
-import { hrefTags, visibleText } from "./html.ts";
+import { hrefTags, tags, visibleText } from "./html.ts";
 import { calendarFallbackUrl, discoverCalendarUrls, discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "./links.ts";
 import { assertPublicNetworkTarget, canonicalHttpsUrl, classifyTransportFailure, defaultResolveHost, DiscoveryTimeout, fetchPinned, NetworkRefusal, UnsupportedContent } from "./network.ts";
 import { extractPdfText } from "./pdf.ts";
@@ -581,7 +581,14 @@ class ProfileSet {
 }
 
 function anchorLinks(document: FetchedDocument): Array<{ href: string; label: string; type: string }> {
-  return hrefTags(`${document.body}${document.derivedMarkup ?? ""}`).map((anchor) => ({ href: anchor.attrs.href ?? "", label: visibleText(anchor.inner).slice(0, 200) || (anchor.attrs.title ?? anchor.attrs["aria-label"] ?? ""), type: anchor.attrs.type ?? "" }));
+  const html = `${document.body}${document.derivedMarkup ?? ""}`;
+  const navigation = `${tags(html, "nav").map((tag) => tag.inner).join("\n")}\n${tags(html, "header").map((tag) => tag.inner).join("\n")}`;
+  const navigationHrefs = new Set(hrefTags(navigation).map((anchor) => anchor.attrs.href ?? ""));
+  return hrefTags(html).map((anchor) => {
+    const href = anchor.attrs.href ?? "";
+    const label = visibleText(anchor.inner).slice(0, 200) || (anchor.attrs.title ?? anchor.attrs["aria-label"] ?? "");
+    return { href, label: navigationHrefs.has(href) && href ? `nav ${label}`.trim() : label, type: anchor.attrs.type ?? "" };
+  });
 }
 
 async function consultSitemaps(ctx: Ctx, planner: GapPlanner, set: ProfileSet, reason: string) {

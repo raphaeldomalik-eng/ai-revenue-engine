@@ -1,0 +1,1787 @@
+{
+  "paidProviderCalls": {
+    "google": 0,
+    "openai": 0,
+    "apollo": 0,
+    "companiesHouse": 0,
+    "renderVendor": 0
+  },
+  "venues": [
+    {
+      "id": "country-sjiek",
+      "name": "Country Sjiek",
+      "authorisedUrl": "http://www.countrysjiek.co.za/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://www.countrysjiek.co.za/",
+      "upgradedFromHttp": true,
+      "finalUrl": "https://countrysjiek.co.za/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://countrysjiek.co.za/"
+      ],
+      "pdfs": [],
+      "requests": 7,
+      "bytes": 518430,
+      "redirects": 2,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://www.countrysjiek.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        },
+        {
+          "origin": "https://countrysjiek.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://www.countrysjiek.co.za/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [
+          "https://countrysjiek.co.za/wp-sitemap.xml",
+          "https://countrysjiek.co.za/wp-sitemap-users-1.xml"
+        ],
+        "urlsSeen": 5,
+        "candidatesAdded": 0,
+        "reason": "No linked candidate for PUBLIC_CONTACT:DIRECT, VENUE_FACTS:SPACES, VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY, IDENTITY:ADDRESS"
+      },
+      "warnings": [],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://countrysjiek.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://countrysjiek.co.za/"
+        },
+        {
+          "type": "CONTACT_FORM",
+          "purpose": "FORM",
+          "sourceUrl": "https://countrysjiek.co.za/"
+        }
+      ],
+      "practical": [
+        "outdoorSpace"
+      ],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "Country Sjiek | Country Sjiek",
+          "sourceUrl": "https://countrysjiek.co.za/"
+        },
+        {
+          "kind": "identity",
+          "text": "Enquiry",
+          "sourceUrl": "https://countrysjiek.co.za/"
+        },
+        {
+          "kind": "facility",
+          "text": "garden",
+          "sourceUrl": "https://countrysjiek.co.za/"
+        }
+      ],
+      "images": {
+        "OTHER": 36,
+        "GALLERY": 336,
+        "LOGO": 1
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "FAIL",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "PASS",
+        "IMAGE_RECALL": "PASS",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 3269
+    },
+    {
+      "id": "prinschurch",
+      "name": "Prinschurch",
+      "authorisedUrl": "http://012central.co.za/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://012central.co.za/",
+      "upgradedFromHttp": true,
+      "finalUrl": "https://012central.co.za/",
+      "status": "BLOCKED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [],
+      "pdfs": [],
+      "requests": 1,
+      "bytes": 0,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://012central.co.za",
+          "status": "UNAVAILABLE",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "ROBOTS_UNAVAILABLE",
+      "selections": [],
+      "sitemap": {
+        "consulted": false,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": null
+      },
+      "warnings": [
+        "robots.txt could not be checked: Redirect target is not an allowed same-site public HTTPS URL (CROSS_SITE; refused host www.cityproperty.co.za)."
+      ],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [],
+      "images": {},
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "FAIL",
+        "CONTACT_RECALL": "NOT_APPLICABLE",
+        "SPACE_RECALL": "NOT_APPLICABLE",
+        "CAPACITY_RECALL": "NOT_APPLICABLE",
+        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "FAIL"
+      },
+      "elapsedMs": 611
+    },
+    {
+      "id": "steynshoop",
+      "name": "Steynshoop Mountain Lodge",
+      "authorisedUrl": "https://www.steynshoop.co.za/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://www.steynshoop.co.za/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://steynshoop.co.za/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://steynshoop.co.za/",
+        "https://steynshoop.co.za/contact-us/",
+        "https://steynshoop.co.za/weddings/",
+        "https://steynshoop.co.za/directions/"
+      ],
+      "pdfs": [],
+      "requests": 10,
+      "bytes": 1290196,
+      "redirects": 2,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://www.steynshoop.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        },
+        {
+          "origin": "https://steynshoop.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://www.steynshoop.co.za/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        },
+        {
+          "url": "https://steynshoop.co.za/contact-us/",
+          "kind": "PAGE",
+          "reason": "LINK:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL"
+        },
+        {
+          "url": "https://steynshoop.co.za/weddings/",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://steynshoop.co.za/directions/",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:ACCESSIBILITY"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [
+          "https://steynshoop.co.za/sitemap_index.xml",
+          "https://steynshoop.co.za/page-sitemap.xml"
+        ],
+        "urlsSeen": 59,
+        "candidatesAdded": 9,
+        "reason": "No linked candidate for VENUE_FACTS:CAPACITY, IDENTITY:ADDRESS"
+      },
+      "warnings": [],
+      "spaces": [
+        "Honeymoon Suite",
+        "Your Wedding Chapel",
+        "Your Honeymoon Suite",
+        "Guest Accommodation",
+        "Valley Suite",
+        "Corner Cottage",
+        "Chapel Cottage",
+        "Chapel",
+        "Harmony Hall"
+      ],
+      "capacities": [
+        {
+          "space": "Guest Accommodation",
+          "layout": "unspecified",
+          "count": 50,
+          "reviewRequired": false,
+          "sourceUrl": "https://steynshoop.co.za/weddings/"
+        }
+      ],
+      "contacts": [
+        {
+          "type": "PHONE",
+          "purpose": "SALES_HIRE",
+          "sourceUrl": "https://steynshoop.co.za/contact-us/"
+        },
+        {
+          "type": "PHONE",
+          "purpose": "SALES_HIRE",
+          "sourceUrl": "https://steynshoop.co.za/contact-us/"
+        },
+        {
+          "type": "PHONE",
+          "purpose": "SALES_HIRE",
+          "sourceUrl": "https://steynshoop.co.za/contact-us/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "BOOKINGS",
+          "sourceUrl": "https://steynshoop.co.za/contact-us/"
+        },
+        {
+          "type": "PHONE",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://steynshoop.co.za/contact-us/"
+        },
+        {
+          "type": "PHONE",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://steynshoop.co.za/contact-us/"
+        }
+      ],
+      "practical": [
+        "accommodation",
+        "sound",
+        "outdoorSpace"
+      ],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "Steynshoop",
+          "sourceUrl": "https://steynshoop.co.za/"
+        },
+        {
+          "kind": "character",
+          "text": "Steynshoop Mountain Lodge is a country hotel in the Magaliesberg. Valley Lodge is self-catering with Wedding Venue and Conference Venues, Magaliesburg.",
+          "sourceUrl": "https://steynshoop.co.za/"
+        },
+        {
+          "kind": "identity",
+          "text": "Steynshoop",
+          "sourceUrl": "https://steynshoop.co.za/contact-us/"
+        },
+        {
+          "kind": "character",
+          "text": "Enjoy the many activities such as swimming, tennis, volleyball, badminton, croquet, boule, archery, snooker, hiking in Magaliesburg so contact us today",
+          "sourceUrl": "https://steynshoop.co.za/contact-us/"
+        },
+        {
+          "kind": "identity",
+          "text": "Steynshoop",
+          "sourceUrl": "https://steynshoop.co.za/weddings/"
+        },
+        {
+          "kind": "character",
+          "text": "Steynshoop Wedding Venue Magaliesburg Gauteng | Free tour - We would like to meet you, answer your questions and show off the beauty of Steynshoop.",
+          "sourceUrl": "https://steynshoop.co.za/weddings/"
+        },
+        {
+          "kind": "identity",
+          "text": "Steynshoop",
+          "sourceUrl": "https://steynshoop.co.za/directions/"
+        },
+        {
+          "kind": "character",
+          "text": "The Valley Lodge is a luxury Lodge, beautifully situated on an elevated site in the scenic Magaliesburg. This Valley Lodge Accommodation Magaliesburg.",
+          "sourceUrl": "https://steynshoop.co.za/directions/"
+        },
+        {
+          "kind": "facility",
+          "text": "bedrooms and facilities for small conferences, situated roughly halfway up the magnificent mountain, in a na",
+          "sourceUrl": "https://steynshoop.co.za/"
+        },
+        {
+          "kind": "facility",
+          "text": "Sound Equipment | Photographer Complimentary tour of our wedding venue We would like to meet you and show off the b",
+          "sourceUrl": "https://steynshoop.co.za/weddings/"
+        },
+        {
+          "kind": "facility",
+          "text": "garden is full of exciting spots for photos and special moments",
+          "sourceUrl": "https://steynshoop.co.za/weddings/"
+        },
+        {
+          "kind": "event-use",
+          "text": "available for wedding guest accommodation",
+          "sourceUrl": "https://steynshoop.co.za/weddings/"
+        }
+      ],
+      "images": {
+        "LOGO": 1,
+        "OTHER": 24,
+        "HERO": 1
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "PASS",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "PASS",
+        "CAPACITY_RECALL": "PASS",
+        "PRACTICAL_FACT_RECALL": "PASS",
+        "IMAGE_RECALL": "PASS",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 10199
+    },
+    {
+      "id": "drama-experience",
+      "name": "The Drama Experience (Dramatic Arts Studio)",
+      "authorisedUrl": "https://thedramaexperience.co.za/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://thedramaexperience.co.za/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://thedramaexperience.co.za/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://thedramaexperience.co.za/"
+      ],
+      "pdfs": [],
+      "requests": 3,
+      "bytes": 482034,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://thedramaexperience.co.za",
+          "status": "ABSENT",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://thedramaexperience.co.za/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [
+          "https://thedramaexperience.co.za/sitemap.xml"
+        ],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": "No linked candidate for PUBLIC_CONTACT:DIRECT, VENUE_FACTS:SPACES, VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY"
+      },
+      "warnings": [],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://thedramaexperience.co.za/"
+        }
+      ],
+      "practical": [],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "Drama Classes in Cape Town",
+          "sourceUrl": "https://thedramaexperience.co.za/"
+        },
+        {
+          "kind": "identity",
+          "text": "Drama Classes in",
+          "sourceUrl": "https://thedramaexperience.co.za/"
+        },
+        {
+          "kind": "setting",
+          "text": "Jenncoles Marketing Consulting : 2355986987908486 Step Into the Spotlight—The First Class Is On Us! Your Name Your Surname Your Mobile Number Your Best",
+          "sourceUrl": "https://thedramaexperience.co.za/"
+        },
+        {
+          "kind": "character",
+          "text": "Cape Town Drama Classes that Turn Stage Fright into Show-Stopping Confidence",
+          "sourceUrl": "https://thedramaexperience.co.za/"
+        }
+      ],
+      "images": {
+        "OTHER": 20,
+        "HERO": 1
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "FAIL",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "FAIL",
+        "IMAGE_RECALL": "PASS",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 2222
+    },
+    {
+      "id": "qurtuba",
+      "name": "Qurtuba Convention Center (Q9)",
+      "authorisedUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton",
+      "status": "FAILED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [],
+      "pdfs": [],
+      "requests": 1,
+      "bytes": 0,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://qurtubahotelspa.com",
+          "status": "UNAVAILABLE",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "ROBOTS_UNAVAILABLE",
+      "selections": [],
+      "sitemap": {
+        "consulted": false,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": null
+      },
+      "warnings": [
+        "robots.txt could not be checked: fetch failed"
+      ],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [],
+      "images": {},
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "FAIL",
+        "CONTACT_RECALL": "NOT_APPLICABLE",
+        "SPACE_RECALL": "NOT_APPLICABLE",
+        "CAPACITY_RECALL": "NOT_APPLICABLE",
+        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "FAIL",
+        "EVIDENCE_PROVENANCE": "FAIL"
+      },
+      "elapsedMs": 10241
+    },
+    {
+      "id": "pavilion",
+      "name": "Pavilion Conference Centre",
+      "authorisedUrl": "https://pavilion.co.za",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://pavilion.co.za/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://pavilion.co.za/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://pavilion.co.za/"
+      ],
+      "pdfs": [],
+      "requests": 4,
+      "bytes": 37979,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://pavilion.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://pavilion.co.za/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": "No linked candidate for PUBLIC_CONTACT:DIRECT, PUBLIC_CONTACT:EMAIL, VENUE_FACTS:SPACES, VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY, IMAGE_CANDIDATES:IMAGES, IDENTITY:ADDRESS"
+      },
+      "warnings": [
+        "Static retrieval of https://pavilion.co.za/ is a client-rendered shell (EMPTY_FRAMEWORK_MOUNT, METADATA_WITHOUT_BODY); no rendering adapter is available in this runtime.",
+        "Sitemap unavailable: https://pavilion.co.za/sitemap.xml: Sitemap has unsupported type text/html.",
+        "Sitemap unavailable: https://pavilion.co.za/sitemap_index.xml: Sitemap has unsupported type text/html."
+      ],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "pavilion.co.za",
+          "sourceUrl": "https://pavilion.co.za/"
+        },
+        {
+          "kind": "identity",
+          "text": "We're getting things ready",
+          "sourceUrl": "https://pavilion.co.za/"
+        },
+        {
+          "kind": "character",
+          "text": "pavilion.co.za has been informing visitors about topics such as The Pavilion, Pavilion Hotel and Pavilion. Join thousands of satisfied visitors who discovered Movie, Pavilion Shopping Center and Shopping Mall. This domain may be for sale!",
+          "sourceUrl": "https://pavilion.co.za/"
+        }
+      ],
+      "images": {},
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "FAIL",
+        "SPACE_RECALL": "FAIL",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "FAIL",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 1199
+    },
+    {
+      "id": "de-toren",
+      "name": "De Toren Private Cellar",
+      "authorisedUrl": "https://www.de-toren.com/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://www.de-toren.com/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://de-toren.com/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://de-toren.com/",
+        "https://de-toren.com/contact/",
+        "https://de-toren.com/experiences/conference-selection/",
+        "https://de-toren.com/experiences/conference-and-boardrooms-half-day-exclude-catering/",
+        "https://de-toren.com/experiences/conference-and-boardrooms-half-day/",
+        "https://de-toren.com/experiences/conference-and-boardrooms-full-day/"
+      ],
+      "pdfs": [],
+      "requests": 12,
+      "bytes": 1492516,
+      "redirects": 2,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://www.de-toren.com",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        },
+        {
+          "origin": "https://de-toren.com",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://www.de-toren.com/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        },
+        {
+          "url": "https://de-toren.com/contact/",
+          "kind": "PAGE",
+          "reason": "LINK:PUBLIC_CONTACT:DIRECT"
+        },
+        {
+          "url": "https://de-toren.com/experiences/conference-selection/",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://de-toren.com/experiences/conference-and-boardrooms-half-day-exclude-catering/",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://de-toren.com/experiences/conference-and-boardrooms-half-day/",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://de-toren.com/experiences/conference-and-boardrooms-full-day/",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [
+          "https://de-toren.com/sitemap_index.xml",
+          "https://de-toren.com/local-sitemap.xml"
+        ],
+        "urlsSeen": 7,
+        "candidatesAdded": 0,
+        "reason": "No linked candidate for VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY"
+      },
+      "warnings": [],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [
+        {
+          "type": "PHONE",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://de-toren.com/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://de-toren.com/"
+        },
+        {
+          "type": "PHONE",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://de-toren.com/"
+        },
+        {
+          "type": "WHATSAPP",
+          "purpose": "MESSAGING",
+          "sourceUrl": "https://de-toren.com/"
+        },
+        {
+          "type": "WHATSAPP",
+          "purpose": "MESSAGING",
+          "sourceUrl": "https://de-toren.com/"
+        },
+        {
+          "type": "WHATSAPP",
+          "purpose": "MESSAGING",
+          "sourceUrl": "https://de-toren.com/contact/"
+        },
+        {
+          "type": "WHATSAPP",
+          "purpose": "MESSAGING",
+          "sourceUrl": "https://de-toren.com/contact/"
+        }
+      ],
+      "practical": [
+        "avProduction",
+        "wifi"
+      ],
+      "description": [
+        {
+          "kind": "setting",
+          "text": "Polkadraai Road, Stellenbosch, Western Cape, South Africa",
+          "sourceUrl": "https://de-toren.com/"
+        },
+        {
+          "kind": "identity",
+          "text": "De Toren Private Cellar",
+          "sourceUrl": "https://de-toren.com/"
+        },
+        {
+          "kind": "character",
+          "text": "A luxurious boutique winery, De Toren specialises in world-class Bordeaux-style wines. Discover why we've been named an award-winning producer In South Africa.",
+          "sourceUrl": "https://de-toren.com/"
+        },
+        {
+          "kind": "setting",
+          "text": "Polkadraai Road, Stellenbosch, Western Cape, South Africa",
+          "sourceUrl": "https://de-toren.com/contact/"
+        },
+        {
+          "kind": "identity",
+          "text": "De Toren Private Cellar",
+          "sourceUrl": "https://de-toren.com/contact/"
+        },
+        {
+          "kind": "character",
+          "text": "Located in Stellenbosh, contact De Toren telephonically, via WhatsApp, or email. Open Mondays to Fridays.",
+          "sourceUrl": "https://de-toren.com/contact/"
+        },
+        {
+          "kind": "character",
+          "text": "Experience luxury and sophistication at our contemporary conference venue in Stellenbosch Winelands. State-of-the-art facilities, panoramic views, fine catering, and seamless event services.",
+          "sourceUrl": "https://de-toren.com/experiences/conference-selection/"
+        },
+        {
+          "kind": "character",
+          "text": "Book our exquisite boardroom and enjoy our conference facilities, meeting space, and an exclusive wine tasting to top it off. Half-day packages available that exclude catering.",
+          "sourceUrl": "https://de-toren.com/experiences/conference-and-boardrooms-half-day-exclude-catering/"
+        },
+        {
+          "kind": "character",
+          "text": "Book our exquisite boardroom and enjoy our conference facilities, meeting space, and an exclusive wine tasting to top it off. Half-day packages available.",
+          "sourceUrl": "https://de-toren.com/experiences/conference-and-boardrooms-half-day/"
+        },
+        {
+          "kind": "character",
+          "text": "Book our exquisite boardroom and enjoy our conference facilities, meeting space, and an exclusive wine tasting to top it off. Full-day packages available.",
+          "sourceUrl": "https://de-toren.com/experiences/conference-and-boardrooms-full-day/"
+        },
+        {
+          "kind": "facility",
+          "text": "audio-visual equipment, whiteboard and flipchart Wireless Internet access, notepads, and pens Beverages include coffee, te",
+          "sourceUrl": "https://de-toren.com/experiences/conference-selection/"
+        },
+        {
+          "kind": "facility",
+          "text": "Wireless Internet access, notepads, and pens Beverages include coffee, tea, water and, of course, wine Breakfast and",
+          "sourceUrl": "https://de-toren.com/experiences/conference-selection/"
+        }
+      ],
+      "images": {
+        "LOGO": 2,
+        "HERO": 2,
+        "OTHER": 21,
+        "GALLERY": 2
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "PASS",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "FAIL",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "PASS",
+        "IMAGE_RECALL": "PASS",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 8879
+    },
+    {
+      "id": "tshwane-north",
+      "name": "Tshwane North Outreach",
+      "authorisedUrl": "http://wolmercommunityproject.co.za/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://wolmercommunityproject.co.za/",
+      "upgradedFromHttp": true,
+      "finalUrl": "https://wolmercommunityproject.co.za/",
+      "status": "BLOCKED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [],
+      "pdfs": [],
+      "requests": 2,
+      "bytes": 0,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://wolmercommunityproject.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "stopReason": "ENTRY_FAILED",
+      "selections": [
+        {
+          "url": "https://wolmercommunityproject.co.za/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        }
+      ],
+      "sitemap": {
+        "consulted": false,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": null
+      },
+      "warnings": [
+        "Required HTML source unavailable: https://wolmercommunityproject.co.za/: Redirect target is not an allowed same-site public HTTPS URL (CROSS_SITE; refused host www.tshwanenorthoutreach.co.za)."
+      ],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [],
+      "images": {},
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "FAIL",
+        "CONTACT_RECALL": "NOT_APPLICABLE",
+        "SPACE_RECALL": "NOT_APPLICABLE",
+        "CAPACITY_RECALL": "NOT_APPLICABLE",
+        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "FAIL"
+      },
+      "elapsedMs": 736
+    },
+    {
+      "id": "alexandra-palace",
+      "name": "Alexandra Palace",
+      "authorisedUrl": "https://alexandrapalace.com",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://alexandrapalace.com/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://alexandrapalace.com/",
+      "status": "BLOCKED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [],
+      "pdfs": [],
+      "requests": 1,
+      "bytes": 0,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://alexandrapalace.com",
+          "status": "UNAVAILABLE",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "ROBOTS_UNAVAILABLE",
+      "selections": [],
+      "sitemap": {
+        "consulted": false,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": null
+      },
+      "warnings": [
+        "robots.txt could not be checked: robots.txt returned HTTP 403"
+      ],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [],
+      "images": {},
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "FAIL",
+        "CONTACT_RECALL": "NOT_APPLICABLE",
+        "SPACE_RECALL": "NOT_APPLICABLE",
+        "CAPACITY_RECALL": "NOT_APPLICABLE",
+        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "FAIL"
+      },
+      "elapsedMs": 194
+    },
+    {
+      "id": "assembly-hall",
+      "name": "Assembly Hall Theatre",
+      "authorisedUrl": "https://assemblyhalltheatre.co.uk",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://assemblyhalltheatre.co.uk/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://www.assemblyhalltheatre.co.uk/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://www.assemblyhalltheatre.co.uk/",
+        "https://www.assemblyhalltheatre.co.uk/about/contact-us.html",
+        "https://www.assemblyhalltheatre.co.uk/community/venue-hire.html",
+        "https://www.assemblyhalltheatre.co.uk/your-visit/getting-here.html",
+        "https://www.assemblyhalltheatre.co.uk/your-visit/accessibility.html"
+      ],
+      "pdfs": [],
+      "requests": 12,
+      "bytes": 474985,
+      "redirects": 2,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://assemblyhalltheatre.co.uk",
+          "status": "ABSENT",
+          "sitemapDirectives": 0
+        },
+        {
+          "origin": "https://www.assemblyhalltheatre.co.uk",
+          "status": "ABSENT",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://assemblyhalltheatre.co.uk/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        },
+        {
+          "url": "https://www.assemblyhalltheatre.co.uk/about/contact-us.html",
+          "kind": "PAGE",
+          "reason": "LINK:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+IDENTITY:ADDRESS"
+        },
+        {
+          "url": "https://www.assemblyhalltheatre.co.uk/community/venue-hire.html",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://www.assemblyhalltheatre.co.uk/cmsUploads/page/files/Venue_Hire_Pack_2026.pdf",
+          "kind": "PDF",
+          "reason": "LINK:VENUE_FACTS:FACILITIES+VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://www.assemblyhalltheatre.co.uk/your-visit/getting-here.html",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:ACCESSIBILITY+VENUE_FACTS:FACILITIES"
+        },
+        {
+          "url": "https://www.assemblyhalltheatre.co.uk/your-visit/accessibility.html",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:ACCESSIBILITY"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": "No linked candidate for VENUE_FACTS:CAPACITY, IMAGE_CANDIDATES:IMAGES"
+      },
+      "warnings": [
+        "Optional PDF unavailable: https://www.assemblyhalltheatre.co.uk/cmsUploads/page/files/Venue_Hire_Pack_2026.pdf: Response exceeded the discovery size limit."
+      ],
+      "spaces": [
+        "Assembly Hall Theatre"
+      ],
+      "capacities": [
+        {
+          "space": null,
+          "layout": "unspecified",
+          "count": 1002,
+          "reviewRequired": false,
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/community/venue-hire.html"
+        }
+      ],
+      "contacts": [
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/about/contact-us.html"
+        },
+        {
+          "type": "PHONE",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/about/contact-us.html"
+        }
+      ],
+      "practical": [
+        "parking",
+        "publicTransport",
+        "accessibility",
+        "parking"
+      ],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "Assembly Hall Theatre",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/"
+        },
+        {
+          "kind": "identity",
+          "text": "Hire Our Venue",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/"
+        },
+        {
+          "kind": "setting",
+          "text": ": Crescent Road Tunbridge Wells Kent TN1 2LU Need your tickets re-sent to you? Just",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/about/contact-us.html"
+        },
+        {
+          "kind": "facility",
+          "text": "car park in Crescent Road",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/your-visit/getting-here.html"
+        },
+        {
+          "kind": "facility",
+          "text": "train station, which has a regular London service as well as trains from other local areas",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/your-visit/getting-here.html"
+        },
+        {
+          "kind": "facility",
+          "text": "accessible toilet is adjacent to the lower foyer bar",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/your-visit/accessibility.html"
+        },
+        {
+          "kind": "facility",
+          "text": "parking space directly outside the theatre, as well as ground floor parking in the Crescent Road car park",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/your-visit/accessibility.html"
+        }
+      ],
+      "images": {
+        "OTHER": 4,
+        "HERO": 1
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "PASS",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "PASS",
+        "CAPACITY_RECALL": "PASS",
+        "PRACTICAL_FACT_RECALL": "PASS",
+        "IMAGE_RECALL": "PASS",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 2061
+    },
+    {
+      "id": "st-john-hackney",
+      "name": "St John at Hackney Church",
+      "authorisedUrl": "https://hackney.church",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://hackney.church/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://hackney.church/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://hackney.church/",
+        "https://hackney.church/venue-hire/",
+        "https://hackney.church/about-us/",
+        "https://hackney.church/about/"
+      ],
+      "pdfs": [],
+      "requests": 8,
+      "bytes": 166394,
+      "redirects": 1,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://hackney.church",
+          "status": "FETCHED",
+          "sitemapDirectives": 20
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://hackney.church/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        },
+        {
+          "url": "https://hackney.church/venue-hire/",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://hackney.church/about-us/",
+          "kind": "PAGE",
+          "reason": "LINK:IDENTITY:ADDRESS"
+        },
+        {
+          "url": "https://hackney.church/about/",
+          "kind": "PAGE",
+          "reason": "LINK:IDENTITY:ADDRESS"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [
+          "https://hackney.church/sitemap_index.xml",
+          "https://hackney.church/events-sitemap.xml"
+        ],
+        "urlsSeen": 118,
+        "candidatesAdded": 0,
+        "reason": "No linked candidate for VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY"
+      },
+      "warnings": [],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [
+        {
+          "type": "EMAIL",
+          "purpose": "SALES_HIRE",
+          "sourceUrl": "https://hackney.church/"
+        },
+        {
+          "type": "PHONE",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://hackney.church/"
+        }
+      ],
+      "practical": [],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "SAINT",
+          "sourceUrl": "https://hackney.church/"
+        },
+        {
+          "kind": "character",
+          "text": "Hope for the people of East London - St John at Hackney; St Luke's, Homerton; St Mary's, Leyton; St Leonard's, Shoreditch; All Saints, West Ham. Church services, Events, Alpha, Venue Hire.",
+          "sourceUrl": "https://hackney.church/"
+        },
+        {
+          "kind": "identity",
+          "text": "SAINT",
+          "sourceUrl": "https://hackney.church/venue-hire/"
+        },
+        {
+          "kind": "character",
+          "text": "Hope for the people of East London - St John at Hackney; St Luke's, Homerton; St Mary's, Leyton; St Leonard's, Shoreditch; All Saints, West Ham. Church services, Events, Alpha, Venue Hire.",
+          "sourceUrl": "https://hackney.church/venue-hire/"
+        },
+        {
+          "kind": "identity",
+          "text": "SAINT",
+          "sourceUrl": "https://hackney.church/about-us/"
+        },
+        {
+          "kind": "character",
+          "text": "Hope for the people of East London - St John at Hackney; St Luke's, Homerton; St Mary's, Leyton; St Leonard's, Shoreditch; All Saints, West Ham. Church services, Events, Alpha, Venue Hire.",
+          "sourceUrl": "https://hackney.church/about-us/"
+        },
+        {
+          "kind": "identity",
+          "text": "SAINT",
+          "sourceUrl": "https://hackney.church/about/"
+        },
+        {
+          "kind": "character",
+          "text": "Hope for the people of East London - St John at Hackney; St Luke's, Homerton; St Mary's, Leyton; St Leonard's, Shoreditch; All Saints, West Ham. Church services, Events, Alpha, Venue Hire.",
+          "sourceUrl": "https://hackney.church/about/"
+        }
+      ],
+      "images": {
+        "GALLERY": 27,
+        "OTHER": 10,
+        "LOGO": 1
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "PASS",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "FAIL",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "FAIL",
+        "IMAGE_RECALL": "PASS",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 1734
+    },
+    {
+      "id": "rose-shed",
+      "name": "The Rose Shed @ Ludwig's Roses",
+      "authorisedUrl": "https://www.ludwigsroses.co.za/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://www.ludwigsroses.co.za/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://www.ludwigsroses.co.za/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://www.ludwigsroses.co.za/",
+        "https://www.ludwigsroses.co.za/about-ludwigs-roses/",
+        "https://www.ludwigsroses.co.za/history_ludwigs_roses/",
+        "https://www.ludwigsroses.co.za/library/quotes-about-roses/"
+      ],
+      "pdfs": [],
+      "requests": 7,
+      "bytes": 1753342,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://www.ludwigsroses.co.za",
+          "status": "FETCHED",
+          "sitemapDirectives": 1
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://www.ludwigsroses.co.za/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        },
+        {
+          "url": "https://www.ludwigsroses.co.za/about-ludwigs-roses/",
+          "kind": "PAGE",
+          "reason": "LINK:IDENTITY:ADDRESS"
+        },
+        {
+          "url": "https://www.ludwigsroses.co.za/history_ludwigs_roses/",
+          "kind": "PAGE",
+          "reason": "SITEMAP:IDENTITY:ADDRESS"
+        },
+        {
+          "url": "https://www.ludwigsroses.co.za/library/quotes-about-roses/",
+          "kind": "PAGE",
+          "reason": "SITEMAP:IDENTITY:ADDRESS"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [
+          "https://www.ludwigsroses.co.za/sitemap_index.xml",
+          "https://www.ludwigsroses.co.za/page-sitemap.xml"
+        ],
+        "urlsSeen": 80,
+        "candidatesAdded": 2,
+        "reason": "No linked candidate for VENUE_FACTS:SPACES, VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY"
+      },
+      "warnings": [],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [
+        {
+          "type": "EMAIL",
+          "purpose": "SALES_HIRE",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        }
+      ],
+      "practical": [
+        "outdoorSpace",
+        "outdoorSpace",
+        "outdoorSpace"
+      ],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "Ludwig's Roses",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "kind": "character",
+          "text": "Welcome to Ludwig's Roses, home of the rose that grows. With 800+ cultivars to chose from, you are bound to find the ones your heart has been dreaming about!",
+          "sourceUrl": "https://www.ludwigsroses.co.za/"
+        },
+        {
+          "kind": "identity",
+          "text": "Ludwig's Roses",
+          "sourceUrl": "https://www.ludwigsroses.co.za/about-ludwigs-roses/"
+        },
+        {
+          "kind": "character",
+          "text": "Read all about us. Ludwig’s Rose Farm was established in March 1971.",
+          "sourceUrl": "https://www.ludwigsroses.co.za/about-ludwigs-roses/"
+        },
+        {
+          "kind": "identity",
+          "text": "Ludwig's Roses",
+          "sourceUrl": "https://www.ludwigsroses.co.za/history_ludwigs_roses/"
+        },
+        {
+          "kind": "character",
+          "text": "of ludwig's rose farm",
+          "sourceUrl": "https://www.ludwigsroses.co.za/history_ludwigs_roses/"
+        },
+        {
+          "kind": "identity",
+          "text": "Ludwig's Roses",
+          "sourceUrl": "https://www.ludwigsroses.co.za/library/quotes-about-roses/"
+        },
+        {
+          "kind": "character",
+          "text": "A growing collection of quotes about roses, gardens and nature.",
+          "sourceUrl": "https://www.ludwigsroses.co.za/library/quotes-about-roses/"
+        },
+        {
+          "kind": "facility",
+          "text": "garden even more",
+          "sourceUrl": "https://www.ludwigsroses.co.za/about-ludwigs-roses/"
+        },
+        {
+          "kind": "facility",
+          "text": "garden service in Pretoria",
+          "sourceUrl": "https://www.ludwigsroses.co.za/history_ludwigs_roses/"
+        },
+        {
+          "kind": "facility",
+          "text": "garden required patient labour and attention",
+          "sourceUrl": "https://www.ludwigsroses.co.za/library/quotes-about-roses/"
+        }
+      ],
+      "images": {
+        "LOGO": 5,
+        "OTHER": 40,
+        "HERO": 1
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "PASS",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "FAIL",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "PASS",
+        "IMAGE_RECALL": "PASS",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 5121
+    },
+    {
+      "id": "dassie-palace",
+      "name": "Dassie Palace - Lapa & Rest",
+      "authorisedUrl": "http://www.dassiepaleis.co.za/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://www.dassiepaleis.co.za/",
+      "upgradedFromHttp": true,
+      "finalUrl": "https://www.dassiepaleis.co.za/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://www.dassiepaleis.co.za/",
+        "https://www.dassiepaleis.co.za/contact-us/",
+        "https://www.dassiepaleis.co.za/rooms/",
+        "https://www.dassiepaleis.co.za/gallery/"
+      ],
+      "pdfs": [],
+      "requests": 9,
+      "bytes": 85721,
+      "redirects": 3,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://www.dassiepaleis.co.za",
+          "status": "ABSENT",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://www.dassiepaleis.co.za/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        },
+        {
+          "url": "https://www.dassiepaleis.co.za/contact-us",
+          "kind": "PAGE",
+          "reason": "SITEMAP:PUBLIC_CONTACT:DIRECT"
+        },
+        {
+          "url": "https://www.dassiepaleis.co.za/rooms",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://www.dassiepaleis.co.za/gallery",
+          "kind": "PAGE",
+          "reason": "LINK:IMAGE_CANDIDATES:IMAGES"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [
+          "https://www.dassiepaleis.co.za/sitemap.xml"
+        ],
+        "urlsSeen": 6,
+        "candidatesAdded": 1,
+        "reason": "No linked candidate for PUBLIC_CONTACT:DIRECT, VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY"
+      },
+      "warnings": [],
+      "spaces": [
+        "Jakkalsbessie Chalet"
+      ],
+      "capacities": [],
+      "contacts": [
+        {
+          "type": "EMAIL",
+          "purpose": "GENERAL",
+          "sourceUrl": "https://www.dassiepaleis.co.za/"
+        }
+      ],
+      "practical": [
+        "outdoorSpace"
+      ],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "dassiepaleis.co.za",
+          "sourceUrl": "https://www.dassiepaleis.co.za/"
+        },
+        {
+          "kind": "setting",
+          "text": "H/v Spoorweg & Van Tonder Strate Brits 0250",
+          "sourceUrl": "https://www.dassiepaleis.co.za/"
+        },
+        {
+          "kind": "character",
+          "text": "dassiepaleis.co.za",
+          "sourceUrl": "https://www.dassiepaleis.co.za/"
+        },
+        {
+          "kind": "setting",
+          "text": "H/v Spoorweg & Van Tonder Strate Brits 0250",
+          "sourceUrl": "https://www.dassiepaleis.co.za/contact-us/"
+        },
+        {
+          "kind": "setting",
+          "text": "H/v Spoorweg & Van Tonder Strate Brits 0250",
+          "sourceUrl": "https://www.dassiepaleis.co.za/rooms/"
+        },
+        {
+          "kind": "setting",
+          "text": "H/v Spoorweg & Van Tonder Strate Brits 0250",
+          "sourceUrl": "https://www.dassiepaleis.co.za/gallery/"
+        },
+        {
+          "kind": "facility",
+          "text": "garden where guests can relax and admire the birds, a swimming pool for the hot and lazy afternoons, a pla",
+          "sourceUrl": "https://www.dassiepaleis.co.za/"
+        }
+      ],
+      "images": {
+        "LOGO": 2
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "PASS",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "PASS",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "PASS",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 2311
+    },
+    {
+      "id": "ssisa",
+      "name": "SSISA Conference Centre",
+      "authorisedUrl": "https://ssisa.com/venue-hire/",
+      "provenance": "resources_listing_official_website",
+      "crawlUrl": "https://ssisa.com/venue-hire/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://ssisa.com/venue-hire/",
+      "status": "FAILED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [],
+      "pdfs": [],
+      "requests": 5,
+      "bytes": 0,
+      "redirects": 2,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://ssisa.com",
+          "status": "FETCHED",
+          "sitemapDirectives": 0
+        },
+        {
+          "origin": "https://www.ssisa.com",
+          "status": "FETCHED",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "ENTRY_FAILED",
+      "selections": [
+        {
+          "url": "https://ssisa.com/venue-hire/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        }
+      ],
+      "sitemap": {
+        "consulted": false,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": null
+      },
+      "warnings": [
+        "Required HTML source unavailable: https://ssisa.com/venue-hire/: HTTP 404 from https://www.ssisa.com/venue-hire/"
+      ],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [],
+      "images": {},
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "FAIL",
+        "CONTACT_RECALL": "NOT_APPLICABLE",
+        "SPACE_RECALL": "NOT_APPLICABLE",
+        "CAPACITY_RECALL": "NOT_APPLICABLE",
+        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "FAIL",
+        "EVIDENCE_PROVENANCE": "FAIL"
+      },
+      "elapsedMs": 889
+    },
+    {
+      "id": "shepstone-gardens",
+      "name": "Shepstone Gardens",
+      "authorisedUrl": "https://shepstonegardens.co.za",
+      "provenance": "stored_google_website_uri",
+      "crawlUrl": "https://shepstonegardens.co.za/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://shepstonegardens.co.za/",
+      "status": "COMPLETED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [
+        "https://shepstonegardens.co.za/"
+      ],
+      "pdfs": [],
+      "requests": 4,
+      "bytes": 1501,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://shepstonegardens.co.za",
+          "status": "ABSENT",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://shepstonegardens.co.za/",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        }
+      ],
+      "sitemap": {
+        "consulted": true,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": "No linked candidate for PUBLIC_CONTACT:DIRECT, PUBLIC_CONTACT:EMAIL, VENUE_FACTS:SPACES, VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY, IMAGE_CANDIDATES:IMAGES, IDENTITY:ADDRESS"
+      },
+      "warnings": [
+        "Static retrieval of https://shepstonegardens.co.za/ is a client-rendered shell (EMPTY_FRAMEWORK_MOUNT, NOSCRIPT_JS_REQUIRED, METADATA_WITHOUT_BODY); no rendering adapter is available in this runtime."
+      ],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [
+        {
+          "kind": "identity",
+          "text": "The Shepstone Experience",
+          "sourceUrl": "https://shepstonegardens.co.za/"
+        },
+        {
+          "kind": "character",
+          "text": "A magnificent group of venues where special occasions are nurtured into unforgettable moments to be cherished forever.",
+          "sourceUrl": "https://shepstonegardens.co.za/"
+        }
+      ],
+      "images": {
+        "HERO": 1
+      },
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "FAIL",
+        "SPACE_RECALL": "FAIL",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "FAIL",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
+      },
+      "elapsedMs": 641
+    },
+    {
+      "id": "the-empire-candidate",
+      "name": "The Empire - Conference and Events Venue in Johannesburg",
+      "authorisedUrl": "https://theempirevenue.co.za",
+      "provenance": "stored_google_website_uri",
+      "crawlUrl": "https://theempirevenue.co.za/",
+      "upgradedFromHttp": false,
+      "finalUrl": "https://theempirevenue.co.za/",
+      "status": "FAILED",
+      "refusal": null,
+      "sameSite": true,
+      "pages": [],
+      "pdfs": [],
+      "requests": 1,
+      "bytes": 0,
+      "redirects": 0,
+      "retries": 0,
+      "robots": [
+        {
+          "origin": "https://theempirevenue.co.za",
+          "status": "UNAVAILABLE",
+          "sitemapDirectives": 0
+        }
+      ],
+      "stopReason": "ROBOTS_UNAVAILABLE",
+      "selections": [],
+      "sitemap": {
+        "consulted": false,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": null
+      },
+      "warnings": [
+        "robots.txt could not be checked: getaddrinfo ENOTFOUND theempirevenue.co.za"
+      ],
+      "spaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [],
+      "images": {},
+      "routingAuthority": "not_operator_confirmed",
+      "judgement": {
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "FAIL",
+        "CONTACT_RECALL": "NOT_APPLICABLE",
+        "SPACE_RECALL": "NOT_APPLICABLE",
+        "CAPACITY_RECALL": "NOT_APPLICABLE",
+        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
+        "IMAGE_RECALL": "FAIL",
+        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PRECISION": "FAIL",
+        "EVIDENCE_PROVENANCE": "FAIL"
+      },
+      "elapsedMs": 26
+    }
+  ]
+}
