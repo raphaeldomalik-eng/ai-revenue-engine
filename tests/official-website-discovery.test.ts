@@ -129,19 +129,26 @@ test("HARD GATE: a new calendar month does not enable Google", async () => {
 });
 
 test("HARD GATE: a missing search provider returns safely without Google fallback or any network call", async () => {
+  const savedSerper = process.env.SERPER_API_KEY;
+  delete process.env.SERPER_API_KEY;
   const google = googleTraps();
   const { fetchImpl, seen } = siteFetch({});
-  const result = await executeOfficialWebsiteDiscovery(discoveryRequest(), { fetchImpl, resolveHost: resolver, now: () => NOW, googlePlaceDetails: google.trap } as Parameters<typeof executeOfficialWebsiteDiscovery>[1]) as any;
-  assert.equal(result.status, "SEARCH_PROVIDER_UNAVAILABLE");
-  assert.equal(result.officialWebsite, null);
-  assert.equal(result.search.callCount, 0);
-  assert.equal(result.crawl.verificationCrawls, 0);
-  assert.equal(result.googlePlacesCalls, 0);
-  assert.equal(result.retryable, true);
-  assert.equal(google.calls, 0);
-  assert.equal(seen.length, 0);
-  assert.match(result.unknowns.join(" "), /Google Places was not used/);
-  assert.equal(configuredPublicWebSearchProvider(), null);
+  try {
+    const result = await executeOfficialWebsiteDiscovery(discoveryRequest(), { fetchImpl, resolveHost: resolver, now: () => NOW, googlePlaceDetails: google.trap } as Parameters<typeof executeOfficialWebsiteDiscovery>[1]) as any;
+    assert.equal(result.status, "SEARCH_PROVIDER_UNAVAILABLE");
+    assert.equal(result.officialWebsite, null);
+    assert.equal(result.search.callCount, 0);
+    assert.equal(result.crawl.verificationCrawls, 0);
+    assert.equal(result.googlePlacesCalls, 0);
+    assert.equal(result.retryable, true);
+    assert.equal(google.calls, 0);
+    assert.equal(seen.length, 0);
+    assert.match(result.unknowns.join(" "), /Google Places was not used/);
+    assert.equal(configuredPublicWebSearchProvider(), null);
+  } finally {
+    if (savedSerper === undefined) delete process.env.SERPER_API_KEY;
+    else process.env.SERPER_API_KEY = savedSerper;
+  }
 });
 
 test("HARD GATE: the discovery module has no Google Places dependency", () => {

@@ -15,6 +15,7 @@ import { executeSourceDiscoveryRequest, InMemoryNexusResultStore, type NexusResu
 import { verifyFirstPartyIdentity } from "./public-web.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 import type { CachedDocument, DocumentCache, FetchedDocument } from "./source-discovery/types.ts";
+import { createSerperPublicWebSearchProvider, isPublicWebSearchBudgetExhausted, serperApiKeyFromEnv } from "./search/serper-public-web-search.ts";
 import { acceptHeldVenueEmail, acceptVenueEmail, candidateRejection, distinctiveNameTokens, isGenericVenueName, isLabelSplitFragment, registrableDomain } from "./venue-email.ts";
 
 export {
@@ -42,11 +43,12 @@ export type PublicWebSearchProvider = {
 };
 
 /**
- * No web-search provider is approved at zero incremental cost. The only search capability in this
- * repository is the metered OpenAI web_search tool, which this lane must not use as a substitute.
+ * Serper Google Search when SERPER_API_KEY is present. A missing key leaves the provider unavailable.
+ * Google Places is not substituted. OpenAI web_search is not used.
  */
 export function configuredPublicWebSearchProvider(): PublicWebSearchProvider | null {
-  return null;
+  if (!serperApiKeyFromEnv()) return null;
+  return createSerperPublicWebSearchProvider();
 }
 
 export type OfficialWebsiteDiscoveryOptions = {
@@ -374,10 +376,11 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
     if (provider) {
       search.provider = provider.id;
       search.costModel = provider.costModel.kind;
-      const maxCalls = Math.max(0, Math.min(3, options.maxSearchCalls ?? 2));
+      const maxCalls = Math.max(0, Math.min(2, options.maxSearchCalls ?? 2));
       const maxCandidates = Math.max(1, Math.min(5, options.maxCandidates ?? 3));
       const seen = new Set(candidates.map((item) => item.origin).filter(Boolean));
       let providerFailed = false;
+      let budgetExhausted = false;
       for (const query of searchQueries(request, heldAddress).slice(0, maxCalls)) {
         const perCall = provider.costModel.kind === "ZERO_INCREMENTAL" ? 0 : provider.costModel.amountPerCall;
         if (search.cost.amount + perCall > request.costCeiling.amount) { unknowns.push("The next search call would exceed the request cost ceiling; it was not made."); break; }
@@ -386,8 +389,16 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
         search.cost.amount += perCall;
         let results: PublicWebSearchResult[];
         try {
-          results = (await provider.search({ query, country: identity.country, maxResults: Math.max(1, Math.min(20, options.maxResultsPerQuery ?? 10)) })).slice(0, 20);
-        } catch {
+          results = (await provider.search({ query, country: identity.country, maxResults: Math.max(1, Math.min(10, options.maxResultsPerQuery ?? 8)) })).slice(0, 10);
+        } catch (error) {
+          if (isPublicWebSearchBudgetExhausted(error)) {
+            search.callCount -= 1;
+            search.cost.amount = Math.max(0, search.cost.amount - perCall);
+            search.queries.pop();
+            budgetExhausted = true;
+            unknowns.push("PUBLIC_WEB_SEARCH_BUDGET_EXHAUSTED");
+            break;
+          }
           providerFailed = true;
           unknowns.push("The public web search provider failed safely; no candidate was retained from it.");
           break;
@@ -404,8 +415,9 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
         });
         const ranked = fresh.sort((left, right) => right.score - left.score || left.rank - right.rank).slice(0, maxCandidates);
         for (const candidate of ranked) await verifyCandidate(candidate);
-        if (ranked.length) break;
+        if (verified.length) break;
       }
+      if (budgetExhausted && !verified.length && !search.returnedCandidateUrls.length) { websiteStatus = "PUBLIC_WEB_SEARCH_BUDGET_EXHAUSTED"; retryable = false; return finish(); }
       if (providerFailed && !search.returnedCandidateUrls.length) { websiteStatus = "SEARCH_PROVIDER_UNAVAILABLE"; retryable = true; return finish(); }
     } else if (!candidates.length || !evaluated) {
       websiteStatus = "SEARCH_PROVIDER_UNAVAILABLE";
