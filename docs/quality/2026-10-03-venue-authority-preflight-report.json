@@ -1,0 +1,96 @@
+{
+  "input": 1368,
+  "dispositions": {
+    "HEALTHY": 345,
+    "SAFE_RECOVERY_AVAILABLE": 609,
+    "TRANSIENT_NETWORK": 97,
+    "CROSS_DOMAIN_REVIEW": 55,
+    "ROBOTS_BLOCKED": 41,
+    "DEAD_HOST": 84,
+    "STATIC_SHELL": 36,
+    "STALE_PATH_UNRECOVERED": 40,
+    "AUTHORITY_MISMATCH": 61
+  },
+  "immediatelyCrawlable": 954,
+  "authorityProjectionRequired": 609,
+  "authorityReviewRequired": 240,
+  "googlePlaceIdUpdateCandidates": 0,
+  "robotsBlocked": 41,
+  "staticRenderingCandidates": 36,
+  "transientRetry": 97,
+  "withPlaceId": 1368,
+  "withoutPlaceId": 0,
+  "multiHopMoves": 0,
+  "placeIdReplaced": 0,
+  "recoveryMethods": {
+    "http_to_https": 494,
+    "apex_www": 110,
+    "same_site_homepage": 39
+  },
+  "failureClasses": {
+    "TRANSIENT": 22,
+    "ROBOTS_UNAVAILABLE": 16,
+    "DNS": 84,
+    "CERTIFICATE": 18,
+    "HTTP_5XX": 10,
+    "TIMEOUT": 49
+  },
+  "provenance": {
+    "resources_listing_official_website": 1362,
+    "stored_google_website_uri": 5,
+    "verified_resources_evidence": 1
+  },
+  "countryDisposition": {
+    "ZA": {
+      "HEALTHY": 321,
+      "SAFE_RECOVERY_AVAILABLE": 579,
+      "TRANSIENT_NETWORK": 95,
+      "CROSS_DOMAIN_REVIEW": 51,
+      "ROBOTS_BLOCKED": 36,
+      "DEAD_HOST": 84,
+      "STATIC_SHELL": 34,
+      "STALE_PATH_UNRECOVERED": 38,
+      "AUTHORITY_MISMATCH": 60
+    },
+    "GB": {
+      "SAFE_RECOVERY_AVAILABLE": 30,
+      "HEALTHY": 24,
+      "CROSS_DOMAIN_REVIEW": 4,
+      "STALE_PATH_UNRECOVERED": 2,
+      "ROBOTS_BLOCKED": 5,
+      "STATIC_SHELL": 2,
+      "TRANSIENT_NETWORK": 2,
+      "AUTHORITY_MISMATCH": 1
+    }
+  },
+  "listingBacked": 1362,
+  "candidateOnly": 6,
+  "httpStored": 681,
+  "httpsStored": 687,
+  "placeFailureReasons": {
+    "HTTP 400": 123,
+    "HTTP 404": 29
+  },
+  "placeMove": {
+    "NO_MOVE_SIGNAL": 1216,
+    "INVALID_PLACE_ID": 123,
+    "OBSOLETE_PLACE_ID": 29
+  },
+  "googlePlaceIdRefreshRequired": 152,
+  "placeContinuity": {
+    "fieldMask": "id,movedPlace,movedPlaceId",
+    "sku": "Place Details Essentials (IDs Only)",
+    "estimatedPaidCostUsd": 0,
+    "uniqueReadyPlaceIds": 1368,
+    "uniquePlaceIdsQueried": 1368,
+    "followUpRequests": 0,
+    "cumulativeProofRequests": 2477,
+    "cumulativeProofRequestsLabel": "CUMULATIVE_PROOF_REQUESTS",
+    "finalExecutionRequestCount": null,
+    "finalExecutionRetries": null,
+    "finalExecutionRequestCountProvable": false,
+    "includesMaskValidationProbe": true
+  },
+  "eventSuiteProductionWrites": 0,
+  "safeToBulkCrawl": false
+}

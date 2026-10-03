@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { getGooglePlaceDetails, resolveGooglePlacesVenueComplex, type GooglePlacesOptions } from "../src/ai-sales-team/google-places.ts";
 import {
+  assertGooglePlacesContinuityMask,
   classifyGooglePlacesFieldMask,
+  GOOGLE_PLACES_CONTINUITY_FIELD_MASK,
   createInMemoryGooglePlacesEvidenceStore,
   GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK,
   GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
@@ -228,6 +230,13 @@ test("11 SKU telemetry classifies masks by the highest tier present", () => {
   assert.equal(classifyGooglePlacesFieldMask("places.id,places.displayName,places.formattedAddress,places.types,places.businessStatus", "TEXT_SEARCH").tier, "PRO");
   assert.equal(classifyGooglePlacesFieldMask(GOOGLE_PLACES_PRO_CLASSIFICATION_MASK).estimatedCostUsd, 0.017);
   assert.equal(classifyGooglePlacesFieldMask(GOOGLE_PLACES_ENTERPRISE_REQUEST_MASK).estimatedCostUsd, 0.02);
+  const continuity = assertGooglePlacesContinuityMask();
+  assert.equal(continuity.sku, "Place Details Essentials (IDs Only)");
+  assert.equal(continuity.idsOnly, true);
+  assert.equal(continuity.estimatedCostUsd, 0);
+  assert.equal(GOOGLE_PLACES_CONTINUITY_FIELD_MASK, "id,movedPlace,movedPlaceId");
+  assert.throws(() => assertGooglePlacesContinuityMask("id,movedPlace,movedPlaceId,websiteUri"), /GOOGLE_PLACES_CONTINUITY_MASK_REFUSED/);
+  assert.throws(() => planGooglePlaceDetailsFetch({ record: null, requestedFields: ["id", "movedPlace", "movedPlaceId"], now: now() }), /GOOGLE_PLACES_FIELD_NOT_APPROVED:movedPlace/);
   assert.throws(() => planGooglePlaceDetailsFetch({ record: null, requestedFields: ["id", "reviews"], now: now() }), /GOOGLE_PLACES_FIELD_NOT_APPROVED:reviews/);
   assert.throws(() => planGooglePlaceDetailsFetch({ record: null, requestedFields: ["regularOpeningHours"], now: now() }), /NOT_APPROVED/);
 });

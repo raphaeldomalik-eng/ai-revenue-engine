@@ -101,6 +101,27 @@ export function classifyGooglePlacesFieldMask(mask: string | readonly string[], 
   return { endpoint, fields, tier, idsOnly, sku, tierDrivingFields, unknownFields, estimatedCostUsd };
 }
 
+/** Place continuity only. Not part of the approved venue-identity or official-website mask. */
+export const GOOGLE_PLACES_CONTINUITY_FIELDS = ["id", "movedPlace", "movedPlaceId"] as const;
+export const GOOGLE_PLACES_CONTINUITY_FIELD_MASK = GOOGLE_PLACES_CONTINUITY_FIELDS.join(",");
+const CONTINUITY_FORBIDDEN_FIELDS = new Set([
+  "displayName", "primaryType", "types", "formattedAddress", "businessStatus", "googleMapsUri", "googleMapsLinks",
+  "websiteUri", "internationalPhoneNumber", "nationalPhoneNumber", "reviews", "photos", "rating", "userRatingCount",
+]);
+
+export function assertGooglePlacesContinuityMask(mask: string = GOOGLE_PLACES_CONTINUITY_FIELD_MASK): GooglePlacesMaskClassification {
+  if (mask !== GOOGLE_PLACES_CONTINUITY_FIELD_MASK) throw new Error("GOOGLE_PLACES_CONTINUITY_MASK_REFUSED");
+  const classification = classifyGooglePlacesFieldMask(mask, "PLACE_DETAILS");
+  const allowed = new Set<string>(GOOGLE_PLACES_CONTINUITY_FIELDS);
+  if (
+    !classification.idsOnly
+    || classification.estimatedCostUsd !== 0
+    || classification.sku !== "Place Details Essentials (IDs Only)"
+    || classification.fields.some((field) => CONTINUITY_FORBIDDEN_FIELDS.has(field) || !allowed.has(field))
+  ) throw new Error("GOOGLE_PLACES_CONTINUITY_ABOVE_IDS_ONLY");
+  return classification;
+}
+
 export function assertApprovedGooglePlacesDetailsFields(fields: string | readonly string[]): string[] {
   const list = fieldList(fields);
   if (list.length === 0) throw new Error("GOOGLE_PLACES_FIELD_MASK_EMPTY");

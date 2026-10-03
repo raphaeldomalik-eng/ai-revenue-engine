@@ -88,12 +88,19 @@ function numericHost(hostname: string): boolean {
 }
 
 export function isPublicHttpsUrl(value: string | null | undefined): boolean {
+  return isPublicWebUrl(value, false);
+}
+
+/** Same public-host checks as HTTPS. Insecure HTTP is accepted only when a caller is observing an upgrade. */
+export function isPublicWebUrl(value: string | null | undefined, allowInsecureHttp = false): boolean {
   if (!value) return false;
   try {
     const url = new URL(value);
     const hostname = hostOf(url);
+    const https = url.protocol === "https:";
+    const http = allowInsecureHttp && url.protocol === "http:";
     if (
-      url.protocol !== "https:" || url.username || url.password || !hostname || hostname === "localhost"
+      (!https && !http) || url.username || url.password || !hostname || hostname === "localhost"
       || hostname.endsWith(".localhost") || hostname.endsWith(".local") || hostname.endsWith(".internal")
       || hostname.endsWith(".onion") || numericHost(hostname)
     ) return false;
@@ -126,8 +133,13 @@ export const defaultResolveHost: ResolveHost = async (hostname) => {
   return (await lookup(hostname, { all: true, verbatim: true })).map((item) => ({ address: item.address, family: item.family }));
 };
 
-export async function resolvePublicNetworkAddresses(value: string, resolveHost: ResolveHost = defaultResolveHost) {
-  if (!isPublicHttpsUrl(value)) throw new NetworkRefusal("Refused a non-public HTTPS URL.");
+export async function resolvePublicNetworkAddresses(
+  value: string,
+  resolveHost: ResolveHost = defaultResolveHost,
+  options?: { allowInsecureHttp?: boolean },
+) {
+  const allowed = options?.allowInsecureHttp ? isPublicWebUrl(value, true) : isPublicHttpsUrl(value);
+  if (!allowed) throw new NetworkRefusal(options?.allowInsecureHttp ? "Refused a non-public web URL." : "Refused a non-public HTTPS URL.");
   const addresses = await resolveHost(hostOf(new URL(value)));
   if (!addresses.length || addresses.some((item) => !isPublicNetworkAddress(item.address))) {
     throw new NetworkRefusal("Refused a hostname resolving to a private or reserved network address.");
@@ -158,8 +170,12 @@ export async function fetchPinned(args: {
   timeoutMs: number;
   headers?: Record<string, string>;
   refuseContentType?: (contentType: string | null) => string | null;
+  /** Observe an authorised HTTP URL while checking it is still a public address. Crawl targets stay HTTPS. */
+  allowInsecureHttp?: boolean;
+  /** Keep the status when Content-Length exceeds maxBytes, without buffering the body. */
+  statusOnOversize?: boolean;
 }): Promise<Response> {
-  const addresses = await resolvePublicNetworkAddresses(args.url, args.resolveHost);
+  const addresses = await resolvePublicNetworkAddresses(args.url, args.resolveHost, { allowInsecureHttp: args.allowInsecureHttp });
   const url = new URL(args.url);
   const transport = url.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
@@ -167,7 +183,7 @@ export async function fetchPinned(args: {
       protocol: url.protocol,
       hostname: hostOf(url),
       servername: isIP(hostOf(url)) ? undefined : hostOf(url),
-      port: url.port || 443,
+      port: url.port || (url.protocol === "http:" ? 80 : 443),
       path: `${url.pathname}${url.search}`,
       method: "GET",
       headers: { ...args.headers, Host: url.host, "User-Agent": args.userAgent, Accept: args.accept, "Accept-Encoding": "identity" },
@@ -176,35 +192,52 @@ export async function fetchPinned(args: {
     }, (response) => {
       const chunks: Buffer[] = [];
       let size = 0;
+      let settled = false;
+      const status = response.statusCode ?? 0;
       const contentLength = Number(response.headers["content-length"]);
-      if (Number.isFinite(contentLength) && contentLength > args.maxBytes) {
+      if (Number.isFinite(contentLength) && contentLength > args.maxBytes && !args.statusOnOversize) {
         request.destroy();
         reject(new NetworkRefusal("Response exceeded the discovery size limit."));
         return;
       }
-      const status = response.statusCode ?? 0;
       const refusal = status >= 200 && status < 300 ? args.refuseContentType?.(response.headers["content-type"] ?? null) : null;
       if (refusal) {
         request.destroy();
         reject(new UnsupportedContent(refusal));
         return;
       }
-      response.on("data", (chunk: Buffer) => {
-        size += chunk.length;
-        if (size > args.maxBytes) {
-          request.destroy();
-          reject(new NetworkRefusal("Response exceeded the discovery size limit."));
-          return;
-        }
-        chunks.push(chunk);
-      });
-      response.on("end", () => {
+      const finish = (body: Buffer | null) => {
+        if (settled) return;
+        settled = true;
         const headers = new Headers();
         for (const [key, value] of Object.entries(response.headers)) {
           if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : String(value));
         }
+        resolve(new Response(body ? new Uint8Array(body) : null, { status, headers }));
+      };
+      response.on("data", (chunk: Buffer) => {
+        if (settled) return;
+        if (size + chunk.length > args.maxBytes) {
+          if (args.statusOnOversize) {
+            const room = args.maxBytes - size;
+            if (room > 0) chunks.push(chunk.subarray(0, room));
+            response.destroy();
+            finish(Buffer.concat(chunks));
+            return;
+          }
+          request.destroy();
+          reject(new NetworkRefusal("Response exceeded the discovery size limit."));
+          return;
+        }
+        size += chunk.length;
+        chunks.push(chunk);
+      });
+      response.on("end", () => {
         const nullBody = status === 204 || status === 304 || (status >= 300 && status < 400);
-        resolve(new Response(nullBody ? null : Buffer.concat(chunks), { status, headers }));
+        finish(nullBody ? null : Buffer.concat(chunks));
+      });
+      response.on("error", () => {
+        if (args.statusOnOversize && chunks.length) finish(Buffer.concat(chunks));
       });
     });
     request.setTimeout(args.timeoutMs, () => request.destroy(new DiscoveryTimeout()));
