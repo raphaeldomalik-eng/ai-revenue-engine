@@ -2,8 +2,9 @@ import { extractFromFetchedDocuments } from "../crawler.ts";
 import { crawlVerifiedSource } from "../crawler.ts";
 import { visibleText } from "../html.ts";
 import type { CrawlBudget, CrawlInput, CrawlOutput } from "../types.ts";
-import { buildVenueEvidencePackage, namedSpacesInText, type VenueEvidencePackage } from "./evidence.ts";
+import { buildVenueEvidencePackage, classifyVenueSpace, namedSpacesInText, type VenueEvidencePackage } from "./evidence.ts";
 import { planVenueHttpsTarget, sameAuthorisedVenueSite, type VenueAuthorityPlan } from "./http-authority.ts";
+import { VENUE_RELEVANT_PDF_BYTES } from "./pdf-policy.ts";
 import { VENUE_EXTRACTORS, venueCrawlProfiles } from "./profiles.ts";
 
 /** Bounded venue budget. The gap planner stops when venue dimensions are satisfied. */
@@ -17,6 +18,7 @@ export const VENUE_CRAWL_BUDGET: CrawlBudget = {
   minRequestDelayMs: 200,
   maxPdfDocuments: 2,
   maxSitemapFetches: 2,
+  maxRelevantPdfBytes: VENUE_RELEVANT_PDF_BYTES,
 };
 
 export type VenueCrawlResult = {
@@ -57,13 +59,19 @@ export async function crawlVenueOfficialSite(args: {
   }
   const extracted = extractFromFetchedDocuments(crawl.documents, [...VENUE_EXTRACTORS]);
   const evidence = buildVenueEvidencePackage(extracted);
-  const seen = new Set(evidence.spaces.map((item) => item.name.toLowerCase()));
+  const seen = new Set([...evidence.spaces, ...evidence.reviewSpaces].map((item) => item.name.toLowerCase()));
   for (const document of crawl.documents) {
     if (document.kind === "PDF") continue;
     for (const name of namedSpacesInText(visibleText(document.body), document.url)) {
-      if (seen.has(name.toLowerCase())) continue;
-      seen.add(name.toLowerCase());
-      evidence.spaces.push({ name, sourceUrl: document.url, evidenceRef: `source:${document.sourceHash}:space-caption` });
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      const capacityLinked = evidence.capacities.some((item) => item.space?.toLowerCase() === key);
+      const status = classifyVenueSpace(name, { listingContext: true, capacityLinked });
+      if (status === "reject") continue;
+      seen.add(key);
+      const item = { name, sourceUrl: document.url, evidenceRef: `source:${document.sourceHash}:space-caption`, status };
+      if (status === "confirmed") evidence.spaces.push(item);
+      else evidence.reviewSpaces.push(item);
     }
   }
   return { authority, sameSite: true, crawl, evidence, refusal: null };

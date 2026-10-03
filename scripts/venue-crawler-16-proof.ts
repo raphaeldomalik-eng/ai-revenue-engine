@@ -47,7 +47,7 @@ function imageCounts(evidence: VenueEvidencePackage | null) {
   return Object.fromEntries(Object.entries(evidence.imagesByRole).map(([role, items]) => [role, items.length]));
 }
 
-function judge(evidence: VenueEvidencePackage | null, pages: number, status: string) {
+function judge(evidence: VenueEvidencePackage | null, pages: number, status: string, pdfs: number, pdfSizeRefusal: boolean) {
   if (!evidence || status === "FAILED" || status === "BLOCKED") {
     return {
       PAGE_SELECTION: "FAIL", DESCRIPTION_EVIDENCE: "FAIL", CONTACT_RECALL: "NOT_APPLICABLE", SPACE_RECALL: "NOT_APPLICABLE",
@@ -65,8 +65,8 @@ function judge(evidence: VenueEvidencePackage | null, pages: number, status: str
     CAPACITY_RECALL: evidence.capacities.length ? "PASS" : "FAIL",
     PRACTICAL_FACT_RECALL: evidence.practicalFacts.length ? "PASS" : "FAIL",
     IMAGE_RECALL: usefulImages >= 3 ? "PASS" : "FAIL",
-    PDF_DISCOVERY: "NOT_APPLICABLE",
-    PRECISION: evidence.spaces.some((item) => /newsletter|what's on|latest news/i.test(item.name)) ? "FAIL" : "PASS",
+    PDF_DISCOVERY: pdfSizeRefusal ? "FAIL" : pdfs > 0 ? "PASS" : "NOT_APPLICABLE",
+    PRECISION: evidence.spaces.some((item) => /newsletter|what'?s on|latest news|guest accommodation|^chapel$|wedding venue|meeting rooms/i.test(item.name)) ? "FAIL" : "PASS",
     EVIDENCE_PROVENANCE: evidence.descriptionEvidence.every((item) => item.sourceUrl && item.evidenceRef) ? "PASS" : "FAIL",
   };
 }
@@ -106,13 +106,20 @@ for (const venue of sample) {
       sitemap: obs?.sitemap ?? null,
       warnings: crawl?.stats.warnings ?? [],
       spaces: result.evidence?.spaces.map((item) => item.name) ?? [],
+      reviewSpaces: result.evidence?.reviewSpaces.map((item) => item.name) ?? [],
       capacities: result.evidence?.capacities.map((item) => ({ space: item.space, layout: item.layout, count: item.count, reviewRequired: item.reviewRequired, sourceUrl: item.sourceUrl })) ?? [],
       contacts: result.evidence?.contacts.map((item) => ({ type: item.type, purpose: item.purpose, sourceUrl: item.sourceUrl })) ?? [],
       practical: result.evidence?.practicalFacts.map((item) => item.fieldName) ?? [],
       description: result.evidence?.descriptionEvidence.map((item) => ({ kind: item.kind, text: item.text.slice(0, 240), sourceUrl: item.sourceUrl })) ?? [],
       images: imageCounts(result.evidence),
       routingAuthority: result.evidence?.routingAuthority ?? null,
-      judgement: judge(result.evidence, crawl?.stats.pageCount ?? 0, crawl?.stats.status ?? "FAILED"),
+      judgement: judge(
+        result.evidence,
+        crawl?.stats.pageCount ?? 0,
+        crawl?.stats.status ?? "FAILED",
+        crawl?.documents.filter((item) => item.kind === "PDF").length ?? 0,
+        (crawl?.stats.warnings ?? []).some((warning) => /pdf/i.test(warning) && /size limit/i.test(warning)),
+      ),
       elapsedMs: Date.now() - started,
     });
   } catch (error) {

@@ -8,6 +8,7 @@ import { hrefTags, tags, visibleText } from "./html.ts";
 import { calendarFallbackUrl, discoverCalendarUrls, discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "./links.ts";
 import { assertPublicNetworkTarget, canonicalHttpsUrl, classifyTransportFailure, defaultResolveHost, DiscoveryTimeout, fetchPinned, NetworkRefusal, UnsupportedContent } from "./network.ts";
 import { extractPdfText } from "./pdf.ts";
+import { pdfFetchCeiling } from "./venue/pdf-policy.ts";
 import { GapPlanner, isPdfUrl, planableUrl, planKey, type Dimension, type DocumentObservation, type ExtractorProfile, type ProfileState } from "./planner.ts";
 import { parseRetryAfter, sharedOriginPoliteness, type OriginPoliteness, type ResponseSnapshot } from "./politeness.ts";
 import { DEFAULT_RENDER_POLICY, guardedRender } from "./render.ts";
@@ -292,7 +293,18 @@ async function robotsFor(ctx: Ctx, url: string): Promise<string> {
   return record.text;
 }
 
-type FetchMode = { expected: "PAGE" | "CALENDAR" | "PDF" | "SITEMAP"; entry: boolean };
+type FetchMode = { expected: "PAGE" | "CALENDAR" | "PDF" | "SITEMAP"; entry: boolean; venueRelevantPdf?: boolean };
+
+function responseCeiling(ctx: Ctx, mode: FetchMode): number {
+  if (mode.expected === "PDF") {
+    return pdfFetchCeiling({
+      relevantPdfBytes: mode.venueRelevantPdf ? ctx.budget.maxRelevantPdfBytes : undefined,
+      genericMaxBytes: ctx.budget.maxBytesPerResponse,
+    });
+  }
+  const typeCeiling = mode.expected === "SITEMAP" ? TYPE_BYTE_LIMITS.XML : TYPE_BYTE_LIMITS.HTML;
+  return Math.min(ctx.budget.maxBytesPerResponse, typeCeiling);
+}
 
 /** Fetch with redirect, robots, retry, revalidation, and content-type safety. */
 async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ url: string; snapshot: ResponseSnapshot; kind: ContentKind; cached?: CachedDocument; notModified?: boolean }> {
@@ -316,10 +328,10 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
     const conditional: Record<string, string> = {};
     if (cached?.etag) conditional["If-None-Match"] = cached.etag;
     if (cached?.lastModified) conditional["If-Modified-Since"] = cached.lastModified;
-    const typeCeiling = mode.expected === "PDF" ? TYPE_BYTE_LIMITS.PDF : mode.expected === "SITEMAP" ? TYPE_BYTE_LIMITS.XML : TYPE_BYTE_LIMITS.HTML;
+    const ceiling = responseCeiling(ctx, mode);
     let snapshot: ResponseSnapshot;
     try {
-      snapshot = await networkRequest(ctx, current, accept, Math.min(ctx.budget.maxBytesPerResponse, typeCeiling), conditional);
+      snapshot = await networkRequest(ctx, current, accept, ceiling, conditional);
     } catch (error) {
       if (!canRetryTransient(ctx, error, attempt)) throw error;
       await backoff(ctx, attempt);
@@ -353,7 +365,6 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
     }
     if (snapshot.status === 429 || snapshot.status >= 500) throw new CrawlRefusal(`HTTP ${snapshot.status} from ${current}`, "RETRYABLE");
     if (snapshot.status < 200 || snapshot.status >= 300) throw new CrawlRefusal(`HTTP ${snapshot.status} from ${current}`, "TERMINAL");
-    const ceiling = Math.min(ctx.budget.maxBytesPerResponse, typeCeiling);
     let bytes = snapshot.bytes;
     try {
       bytes = inflateBoundedDocument(snapshot.bytes, snapshot.headers.get("content-encoding"), snapshot.headers.get("content-type"), current, ceiling);
@@ -365,7 +376,7 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
     const decoded = { ...snapshot, bytes, headers };
     const decision = classifyContent(decoded.headers.get("content-type"), decoded.bytes, current, mode.expected);
     if (!decision.kind) throw new ContentSkipped(decision.reason);
-    if (decoded.bytes.length > Math.min(ctx.budget.maxBytesPerResponse, TYPE_BYTE_LIMITS[decision.kind])) throw new ContentSkipped(`${decision.kind} body exceeded its size limit.`);
+    if (decoded.bytes.length > ceiling) throw new ContentSkipped(`${decision.kind} body exceeded its size limit.`);
     return { url: current, snapshot: decoded, kind: decision.kind };
   }
   throw new CrawlRefusal(`Retries exhausted for ${current}`, "RETRYABLE");
@@ -698,7 +709,11 @@ async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, 
     planner.markDone(candidate.url);
     const entry = candidate.source === "ENTRY";
     try {
-      let document = await fetchDocument(ctx, candidate.url, { expected: candidate.kind, entry });
+      let document = await fetchDocument(ctx, candidate.url, {
+        expected: candidate.kind,
+        entry,
+        venueRelevantPdf: candidate.kind === "PDF" && ctx.budget.maxRelevantPdfBytes != null,
+      });
       planner.markDone(document.url);
       if (fetchedKeys.has(planKey(document.url))) continue;
       fetchedKeys.add(planKey(document.url));

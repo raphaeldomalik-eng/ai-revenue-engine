@@ -3,6 +3,7 @@ import { profilesFor } from "../extractors/profiles.ts";
 import type { ExtractorProfile } from "../planner.ts";
 import { isPdfUrl } from "../planner.ts";
 import type { SiteIdentity } from "../site-identity.ts";
+import { classifyVenueSpace } from "./evidence.ts";
 import { venueLinkDimensions, venueLinkStrength } from "./selection.ts";
 
 export const VENUE_EXTRACTORS = ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES"] as const satisfies readonly SourceExtractor[];
@@ -37,9 +38,22 @@ export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: b
         profile.observe(document, observation, state, selectedFor);
         const path = new URL(document.url).pathname;
         if (profile.extractor === "VENUE_FACTS") {
+          const facts = observation.resources().venueFacts;
+          const capacityLinked = new Set(facts.flatMap((fact) => {
+            if (fact.fieldName !== "capacity" || !fact.value || typeof fact.value !== "object") return [];
+            const space = (fact.value as { space?: string | null }).space;
+            return space ? [space.toLowerCase()] : [];
+          }));
           const names = new Set<string>((state.spaceNames as string[] | undefined) ?? []);
-          for (const fact of observation.resources().venueFacts) {
-            if (fact.fieldName === "spaces" && typeof fact.value === "string") names.add(fact.value.toLowerCase());
+          const listingContext = /\/(?:rooms?|spaces|hire|meeting)(?:\/|$)/i.test(path);
+          for (const fact of facts) {
+            if (fact.fieldName !== "spaces" || typeof fact.value !== "string") continue;
+            const decision = classifyVenueSpace(fact.value, {
+              capacityLinked: capacityLinked.has(fact.value.toLowerCase()),
+              structuredPlace: (fact.confidence ?? 0) >= 0.9,
+              listingContext,
+            });
+            if (decision === "confirmed") names.add(fact.value.toLowerCase());
           }
           state.spaceNames = [...names];
           state.spaces = names.size >= 3;
