@@ -18,6 +18,12 @@ export type CrawlBudget = {
   maxPdfDocuments?: number;
   maxSitemapFetches?: number;
   maxRetryAfterMs?: number;
+  /**
+   * Venue crawls only. A ranked first-party venue PDF may use this ceiling
+   * instead of maxBytesPerResponse. The venue PDF policy still caps it.
+   * HTML and unrelated PDFs stay on maxBytesPerResponse.
+   */
+  maxRelevantPdfBytes?: number;
 };
 export type DocumentKind = "HTML" | "PDF" | "CALENDAR";
 export type FetchedDocument = {

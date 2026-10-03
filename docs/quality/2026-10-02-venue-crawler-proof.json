@@ -23,7 +23,7 @@
       ],
       "pdfs": [],
       "requests": 7,
-      "bytes": 518430,
+      "bytes": 518428,
       "redirects": 2,
       "retries": 0,
       "robots": [
@@ -58,6 +58,7 @@
       },
       "warnings": [],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [
         {
@@ -114,7 +115,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 3269
+      "elapsedMs": 5041
     },
     {
       "id": "prinschurch",
@@ -153,6 +154,7 @@
         "robots.txt could not be checked: Redirect target is not an allowed same-site public HTTPS URL (CROSS_SITE; refused host www.cityproperty.co.za)."
       ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [],
       "practical": [],
@@ -171,7 +173,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "FAIL"
       },
-      "elapsedMs": 611
+      "elapsedMs": 999
     },
     {
       "id": "steynshoop",
@@ -180,205 +182,56 @@
       "provenance": "resources_listing_official_website",
       "crawlUrl": "https://www.steynshoop.co.za/",
       "upgradedFromHttp": false,
-      "finalUrl": "https://steynshoop.co.za/",
-      "status": "COMPLETED",
+      "finalUrl": "https://www.steynshoop.co.za/",
+      "status": "FAILED",
       "refusal": null,
       "sameSite": true,
-      "pages": [
-        "https://steynshoop.co.za/",
-        "https://steynshoop.co.za/contact-us/",
-        "https://steynshoop.co.za/weddings/",
-        "https://steynshoop.co.za/directions/"
-      ],
+      "pages": [],
       "pdfs": [],
-      "requests": 10,
-      "bytes": 1290196,
-      "redirects": 2,
+      "requests": 1,
+      "bytes": 0,
+      "redirects": 0,
       "retries": 0,
       "robots": [
         {
           "origin": "https://www.steynshoop.co.za",
-          "status": "FETCHED",
-          "sitemapDirectives": 1
-        },
-        {
-          "origin": "https://steynshoop.co.za",
-          "status": "FETCHED",
-          "sitemapDirectives": 1
+          "status": "UNAVAILABLE",
+          "sitemapDirectives": 0
         }
       ],
-      "stopReason": "NO_GAP_CANDIDATES",
-      "selections": [
-        {
-          "url": "https://www.steynshoop.co.za/",
-          "kind": "PAGE",
-          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
-        },
-        {
-          "url": "https://steynshoop.co.za/contact-us/",
-          "kind": "PAGE",
-          "reason": "LINK:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL"
-        },
-        {
-          "url": "https://steynshoop.co.za/weddings/",
-          "kind": "PAGE",
-          "reason": "LINK:VENUE_FACTS:SPACES"
-        },
-        {
-          "url": "https://steynshoop.co.za/directions/",
-          "kind": "PAGE",
-          "reason": "LINK:VENUE_FACTS:ACCESSIBILITY"
-        }
-      ],
+      "stopReason": "ROBOTS_UNAVAILABLE",
+      "selections": [],
       "sitemap": {
-        "consulted": true,
-        "fetched": [
-          "https://steynshoop.co.za/sitemap_index.xml",
-          "https://steynshoop.co.za/page-sitemap.xml"
-        ],
-        "urlsSeen": 59,
-        "candidatesAdded": 9,
-        "reason": "No linked candidate for VENUE_FACTS:CAPACITY, IDENTITY:ADDRESS"
+        "consulted": false,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": null
       },
-      "warnings": [],
-      "spaces": [
-        "Honeymoon Suite",
-        "Your Wedding Chapel",
-        "Your Honeymoon Suite",
-        "Guest Accommodation",
-        "Valley Suite",
-        "Corner Cottage",
-        "Chapel Cottage",
-        "Chapel",
-        "Harmony Hall"
+      "warnings": [
+        "robots.txt could not be checked: fetch failed"
       ],
-      "capacities": [
-        {
-          "space": "Guest Accommodation",
-          "layout": "unspecified",
-          "count": 50,
-          "reviewRequired": false,
-          "sourceUrl": "https://steynshoop.co.za/weddings/"
-        }
-      ],
-      "contacts": [
-        {
-          "type": "PHONE",
-          "purpose": "SALES_HIRE",
-          "sourceUrl": "https://steynshoop.co.za/contact-us/"
-        },
-        {
-          "type": "PHONE",
-          "purpose": "SALES_HIRE",
-          "sourceUrl": "https://steynshoop.co.za/contact-us/"
-        },
-        {
-          "type": "PHONE",
-          "purpose": "SALES_HIRE",
-          "sourceUrl": "https://steynshoop.co.za/contact-us/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "BOOKINGS",
-          "sourceUrl": "https://steynshoop.co.za/contact-us/"
-        },
-        {
-          "type": "PHONE",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://steynshoop.co.za/contact-us/"
-        },
-        {
-          "type": "PHONE",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://steynshoop.co.za/contact-us/"
-        }
-      ],
-      "practical": [
-        "accommodation",
-        "sound",
-        "outdoorSpace"
-      ],
-      "description": [
-        {
-          "kind": "identity",
-          "text": "Steynshoop",
-          "sourceUrl": "https://steynshoop.co.za/"
-        },
-        {
-          "kind": "character",
-          "text": "Steynshoop Mountain Lodge is a country hotel in the Magaliesberg. Valley Lodge is self-catering with Wedding Venue and Conference Venues, Magaliesburg.",
-          "sourceUrl": "https://steynshoop.co.za/"
-        },
-        {
-          "kind": "identity",
-          "text": "Steynshoop",
-          "sourceUrl": "https://steynshoop.co.za/contact-us/"
-        },
-        {
-          "kind": "character",
-          "text": "Enjoy the many activities such as swimming, tennis, volleyball, badminton, croquet, boule, archery, snooker, hiking in Magaliesburg so contact us today",
-          "sourceUrl": "https://steynshoop.co.za/contact-us/"
-        },
-        {
-          "kind": "identity",
-          "text": "Steynshoop",
-          "sourceUrl": "https://steynshoop.co.za/weddings/"
-        },
-        {
-          "kind": "character",
-          "text": "Steynshoop Wedding Venue Magaliesburg Gauteng | Free tour - We would like to meet you, answer your questions and show off the beauty of Steynshoop.",
-          "sourceUrl": "https://steynshoop.co.za/weddings/"
-        },
-        {
-          "kind": "identity",
-          "text": "Steynshoop",
-          "sourceUrl": "https://steynshoop.co.za/directions/"
-        },
-        {
-          "kind": "character",
-          "text": "The Valley Lodge is a luxury Lodge, beautifully situated on an elevated site in the scenic Magaliesburg. This Valley Lodge Accommodation Magaliesburg.",
-          "sourceUrl": "https://steynshoop.co.za/directions/"
-        },
-        {
-          "kind": "facility",
-          "text": "bedrooms and facilities for small conferences, situated roughly halfway up the magnificent mountain, in a na",
-          "sourceUrl": "https://steynshoop.co.za/"
-        },
-        {
-          "kind": "facility",
-          "text": "Sound Equipment | Photographer Complimentary tour of our wedding venue We would like to meet you and show off the b",
-          "sourceUrl": "https://steynshoop.co.za/weddings/"
-        },
-        {
-          "kind": "facility",
-          "text": "garden is full of exciting spots for photos and special moments",
-          "sourceUrl": "https://steynshoop.co.za/weddings/"
-        },
-        {
-          "kind": "event-use",
-          "text": "available for wedding guest accommodation",
-          "sourceUrl": "https://steynshoop.co.za/weddings/"
-        }
-      ],
-      "images": {
-        "LOGO": 1,
-        "OTHER": 24,
-        "HERO": 1
-      },
+      "spaces": [],
+      "reviewSpaces": [],
+      "capacities": [],
+      "contacts": [],
+      "practical": [],
+      "description": [],
+      "images": {},
       "routingAuthority": "not_operator_confirmed",
       "judgement": {
-        "PAGE_SELECTION": "PASS",
-        "DESCRIPTION_EVIDENCE": "PASS",
-        "CONTACT_RECALL": "PASS",
-        "SPACE_RECALL": "PASS",
-        "CAPACITY_RECALL": "PASS",
-        "PRACTICAL_FACT_RECALL": "PASS",
-        "IMAGE_RECALL": "PASS",
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "FAIL",
+        "CONTACT_RECALL": "NOT_APPLICABLE",
+        "SPACE_RECALL": "NOT_APPLICABLE",
+        "CAPACITY_RECALL": "NOT_APPLICABLE",
+        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
+        "IMAGE_RECALL": "FAIL",
         "PDF_DISCOVERY": "NOT_APPLICABLE",
-        "PRECISION": "PASS",
-        "EVIDENCE_PROVENANCE": "PASS"
+        "PRECISION": "FAIL",
+        "EVIDENCE_PROVENANCE": "FAIL"
       },
-      "elapsedMs": 10199
+      "elapsedMs": 10711
     },
     {
       "id": "drama-experience",
@@ -425,6 +278,7 @@
       },
       "warnings": [],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [
         {
@@ -473,7 +327,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 2222
+      "elapsedMs": 1715
     },
     {
       "id": "qurtuba",
@@ -483,54 +337,161 @@
       "crawlUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton",
       "upgradedFromHttp": false,
       "finalUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton",
-      "status": "FAILED",
+      "status": "PARTIAL",
       "refusal": null,
       "sameSite": true,
-      "pages": [],
+      "pages": [
+        "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton",
+        "https://qurtubahotelspa.com/contact-1/corporate-connect",
+        "https://qurtubahotelspa.com/5-star-accommodation-in-sandton/bachelor-room-in-sandton",
+        "https://qurtubahotelspa.com/hotel/our-story"
+      ],
       "pdfs": [],
-      "requests": 1,
-      "bytes": 0,
-      "redirects": 0,
-      "retries": 0,
+      "requests": 12,
+      "bytes": 475536,
+      "redirects": 1,
+      "retries": 2,
       "robots": [
         {
           "origin": "https://qurtubahotelspa.com",
-          "status": "UNAVAILABLE",
-          "sitemapDirectives": 0
+          "status": "FETCHED",
+          "sitemapDirectives": 1
         }
       ],
-      "stopReason": "ROBOTS_UNAVAILABLE",
-      "selections": [],
+      "stopReason": "NO_GAP_CANDIDATES",
+      "selections": [
+        {
+          "url": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton",
+          "kind": "PAGE",
+          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
+        },
+        {
+          "url": "https://qurtubahotelspa.com/contact-1/corporate-connect",
+          "kind": "PAGE",
+          "reason": "LINK:PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://qurtubahotelspa.com/5-star-accommodation-in-sandton/bachelor-room-in-sandton",
+          "kind": "PAGE",
+          "reason": "SITEMAP:VENUE_FACTS:SPACES+VENUE_FACTS:FACILITIES"
+        },
+        {
+          "url": "https://qurtubahotelspa.com/hotel",
+          "kind": "PAGE",
+          "reason": "LINK:IDENTITY:NAME+IDENTITY:ADDRESS"
+        },
+        {
+          "url": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton/rose-wedding-venue-sandton",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton/rosemallow-venue-sandton",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        },
+        {
+          "url": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton/jasmine-venue-sandton",
+          "kind": "PAGE",
+          "reason": "LINK:VENUE_FACTS:SPACES"
+        }
+      ],
       "sitemap": {
-        "consulted": false,
-        "fetched": [],
-        "urlsSeen": 0,
-        "candidatesAdded": 0,
-        "reason": null
+        "consulted": true,
+        "fetched": [
+          "https://qurtubahotelspa.com/sitemap.xml"
+        ],
+        "urlsSeen": 73,
+        "candidatesAdded": 24,
+        "reason": "No linked candidate for VENUE_FACTS:CAPACITY, VENUE_FACTS:ACCESSIBILITY"
       },
       "warnings": [
-        "robots.txt could not be checked: fetch failed"
+        "Candidate page unavailable: https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton/rose-wedding-venue-sandton: fetch failed",
+        "Candidate page unavailable: https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton/rosemallow-venue-sandton: fetch failed",
+        "Candidate page unavailable: https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton/jasmine-venue-sandton: fetch failed"
       ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
-      "contacts": [],
-      "practical": [],
-      "description": [],
-      "images": {},
+      "contacts": [
+        {
+          "type": "PHONE",
+          "purpose": "SALES_HIRE",
+          "sourceUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton"
+        },
+        {
+          "type": "CONTACT_FORM",
+          "purpose": "FORM",
+          "sourceUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton"
+        },
+        {
+          "type": "CONTACT_FORM",
+          "purpose": "FORM",
+          "sourceUrl": "https://qurtubahotelspa.com/contact-1/corporate-connect"
+        }
+      ],
+      "practical": [
+        "sound",
+        "parking",
+        "accommodation"
+      ],
+      "description": [
+        {
+          "kind": "character",
+          "text": "Weddings & Conferences Venue in Sandton perfect for special occasion – from romantic weddings to birthdays, or professional conferences & corporate events.",
+          "sourceUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton"
+        },
+        {
+          "kind": "character",
+          "text": "Partner with Qurtuba Resort and Events in Sandton for exclusive corporate and travel agent discounts and our best available rates. Complete the form to join.",
+          "sourceUrl": "https://qurtubahotelspa.com/contact-1/corporate-connect"
+        },
+        {
+          "kind": "character",
+          "text": "Bachelor Room in Sandton: Bachelor Hotel Room in Sandton. Perfect for solo adventurers! Unwind in a cozy double bed, designed to give you the restful sleep.",
+          "sourceUrl": "https://qurtubahotelspa.com/5-star-accommodation-in-sandton/bachelor-room-in-sandton"
+        },
+        {
+          "kind": "character",
+          "text": "Hotel Fes in Linbro Park - experience Moorish architecture, indigenous gardens and contemporary luxury by the Qurtuba Heritage site. Book now for best rates.",
+          "sourceUrl": "https://qurtubahotelspa.com/hotel/our-story"
+        },
+        {
+          "kind": "facility",
+          "text": "Sound system Internet Daylight Screen Microphone Contact us Name and surname E-mail Phone name321 Message *requi",
+          "sourceUrl": "https://qurtubahotelspa.com/weddings-and-conferences-venue-in-sandton"
+        },
+        {
+          "kind": "facility",
+          "text": "Car park is fully secured with 24hrs monitoring",
+          "sourceUrl": "https://qurtubahotelspa.com/5-star-accommodation-in-sandton/bachelor-room-in-sandton"
+        },
+        {
+          "kind": "facility",
+          "text": "Hotel Room in Sandton | Qurtuba Hospitality Skip to main content Our story Our story Privacy Offers and Vouche",
+          "sourceUrl": "https://qurtubahotelspa.com/5-star-accommodation-in-sandton/bachelor-room-in-sandton"
+        }
+      ],
+      "images": {
+        "LOGO": 1,
+        "HERO": 5,
+        "OTHER": 13,
+        "GALLERY": 3
+      },
       "routingAuthority": "not_operator_confirmed",
       "judgement": {
-        "PAGE_SELECTION": "FAIL",
-        "DESCRIPTION_EVIDENCE": "FAIL",
-        "CONTACT_RECALL": "NOT_APPLICABLE",
-        "SPACE_RECALL": "NOT_APPLICABLE",
-        "CAPACITY_RECALL": "NOT_APPLICABLE",
-        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
-        "IMAGE_RECALL": "FAIL",
+        "PAGE_SELECTION": "PASS",
+        "DESCRIPTION_EVIDENCE": "PASS",
+        "CONTACT_RECALL": "PASS",
+        "SPACE_RECALL": "FAIL",
+        "CAPACITY_RECALL": "FAIL",
+        "PRACTICAL_FACT_RECALL": "PASS",
+        "IMAGE_RECALL": "PASS",
         "PDF_DISCOVERY": "NOT_APPLICABLE",
-        "PRECISION": "FAIL",
-        "EVIDENCE_PROVENANCE": "FAIL"
+        "PRECISION": "PASS",
+        "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 10241
+      "elapsedMs": 58291
     },
     {
       "id": "pavilion",
@@ -579,6 +540,7 @@
         "Sitemap unavailable: https://pavilion.co.za/sitemap_index.xml: Sitemap has unsupported type text/html."
       ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [],
       "practical": [],
@@ -613,7 +575,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 1199
+      "elapsedMs": 1667
     },
     {
       "id": "de-toren",
@@ -696,6 +658,7 @@
       },
       "warnings": [],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [
         {
@@ -819,7 +782,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 8879
+      "elapsedMs": 9622
     },
     {
       "id": "tshwane-north",
@@ -864,6 +827,7 @@
         "Required HTML source unavailable: https://wolmercommunityproject.co.za/: Redirect target is not an allowed same-site public HTTPS URL (CROSS_SITE; refused host www.tshwanenorthoutreach.co.za)."
       ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [],
       "practical": [],
@@ -882,7 +846,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "FAIL"
       },
-      "elapsedMs": 736
+      "elapsedMs": 1539
     },
     {
       "id": "alexandra-palace",
@@ -921,6 +885,7 @@
         "robots.txt could not be checked: robots.txt returned HTTP 403"
       ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [],
       "practical": [],
@@ -939,7 +904,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "FAIL"
       },
-      "elapsedMs": 194
+      "elapsedMs": 140
     },
     {
       "id": "assembly-hall",
@@ -959,9 +924,11 @@
         "https://www.assemblyhalltheatre.co.uk/your-visit/getting-here.html",
         "https://www.assemblyhalltheatre.co.uk/your-visit/accessibility.html"
       ],
-      "pdfs": [],
+      "pdfs": [
+        "https://www.assemblyhalltheatre.co.uk/cmsUploads/page/files/Venue_Hire_Pack_2026.pdf"
+      ],
       "requests": 12,
-      "bytes": 474985,
+      "bytes": 5442082,
       "redirects": 2,
       "retries": 0,
       "robots": [
@@ -1001,7 +968,7 @@
         {
           "url": "https://www.assemblyhalltheatre.co.uk/your-visit/getting-here.html",
           "kind": "PAGE",
-          "reason": "LINK:VENUE_FACTS:ACCESSIBILITY+VENUE_FACTS:FACILITIES"
+          "reason": "LINK:VENUE_FACTS:ACCESSIBILITY"
         },
         {
           "url": "https://www.assemblyhalltheatre.co.uk/your-visit/accessibility.html",
@@ -1016,12 +983,11 @@
         "candidatesAdded": 0,
         "reason": "No linked candidate for VENUE_FACTS:CAPACITY, IMAGE_CANDIDATES:IMAGES"
       },
-      "warnings": [
-        "Optional PDF unavailable: https://www.assemblyhalltheatre.co.uk/cmsUploads/page/files/Venue_Hire_Pack_2026.pdf: Response exceeded the discovery size limit."
-      ],
+      "warnings": [],
       "spaces": [
         "Assembly Hall Theatre"
       ],
+      "reviewSpaces": [],
       "capacities": [
         {
           "space": null,
@@ -1029,6 +995,20 @@
           "count": 1002,
           "reviewRequired": false,
           "sourceUrl": "https://www.assemblyhalltheatre.co.uk/community/venue-hire.html"
+        },
+        {
+          "space": null,
+          "layout": "seated",
+          "count": 1010,
+          "reviewRequired": false,
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/cmsUploads/page/files/Venue_Hire_Pack_2026.pdf#page=2"
+        },
+        {
+          "space": null,
+          "layout": "standing",
+          "count": 1250,
+          "reviewRequired": false,
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/cmsUploads/page/files/Venue_Hire_Pack_2026.pdf#page=2"
         }
       ],
       "contacts": [
@@ -1036,14 +1016,11 @@
           "type": "EMAIL",
           "purpose": "GENERAL",
           "sourceUrl": "https://www.assemblyhalltheatre.co.uk/about/contact-us.html"
-        },
-        {
-          "type": "PHONE",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/about/contact-us.html"
         }
       ],
       "practical": [
+        "publicTransport",
+        "parking",
         "parking",
         "publicTransport",
         "accessibility",
@@ -1064,6 +1041,16 @@
           "kind": "setting",
           "text": ": Crescent Road Tunbridge Wells Kent TN1 2LU Need your tickets re-sent to you? Just",
           "sourceUrl": "https://www.assemblyhalltheatre.co.uk/about/contact-us.html"
+        },
+        {
+          "kind": "facility",
+          "text": "train station, which has regular services to London and other local areas",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/cmsUploads/page/files/Venue_Hire_Pack_2026.pdf#page=4"
+        },
+        {
+          "kind": "facility",
+          "text": "car park in Crescent Road, less than a two minute walk from Stage Door",
+          "sourceUrl": "https://www.assemblyhalltheatre.co.uk/cmsUploads/page/files/Venue_Hire_Pack_2026.pdf#page=5"
         },
         {
           "kind": "facility",
@@ -1099,11 +1086,11 @@
         "CAPACITY_RECALL": "PASS",
         "PRACTICAL_FACT_RECALL": "PASS",
         "IMAGE_RECALL": "PASS",
-        "PDF_DISCOVERY": "NOT_APPLICABLE",
+        "PDF_DISCOVERY": "PASS",
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 2061
+      "elapsedMs": 2246
     },
     {
       "id": "st-john-hackney",
@@ -1169,6 +1156,7 @@
       },
       "warnings": [],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [
         {
@@ -1243,7 +1231,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 1734
+      "elapsedMs": 2426
     },
     {
       "id": "rose-shed",
@@ -1253,201 +1241,55 @@
       "crawlUrl": "https://www.ludwigsroses.co.za/",
       "upgradedFromHttp": false,
       "finalUrl": "https://www.ludwigsroses.co.za/",
-      "status": "COMPLETED",
+      "status": "FAILED",
       "refusal": null,
       "sameSite": true,
-      "pages": [
-        "https://www.ludwigsroses.co.za/",
-        "https://www.ludwigsroses.co.za/about-ludwigs-roses/",
-        "https://www.ludwigsroses.co.za/history_ludwigs_roses/",
-        "https://www.ludwigsroses.co.za/library/quotes-about-roses/"
-      ],
+      "pages": [],
       "pdfs": [],
-      "requests": 7,
-      "bytes": 1753342,
+      "requests": 1,
+      "bytes": 0,
       "redirects": 0,
       "retries": 0,
       "robots": [
         {
           "origin": "https://www.ludwigsroses.co.za",
-          "status": "FETCHED",
-          "sitemapDirectives": 1
+          "status": "UNAVAILABLE",
+          "sitemapDirectives": 0
         }
       ],
-      "stopReason": "NO_GAP_CANDIDATES",
-      "selections": [
-        {
-          "url": "https://www.ludwigsroses.co.za/",
-          "kind": "PAGE",
-          "reason": "ENTRY:PUBLIC_CONTACT:DIRECT+PUBLIC_CONTACT:EMAIL+VENUE_FACTS:SPACES+VENUE_FACTS:CAPACITY+VENUE_FACTS:FACILITIES+VENUE_FACTS:ACCESSIBILITY+IMAGE_CANDIDATES:IMAGES+IDENTITY:NAME+IDENTITY:ADDRESS+VENUE_DESCRIPTION:CHARACTER"
-        },
-        {
-          "url": "https://www.ludwigsroses.co.za/about-ludwigs-roses/",
-          "kind": "PAGE",
-          "reason": "LINK:IDENTITY:ADDRESS"
-        },
-        {
-          "url": "https://www.ludwigsroses.co.za/history_ludwigs_roses/",
-          "kind": "PAGE",
-          "reason": "SITEMAP:IDENTITY:ADDRESS"
-        },
-        {
-          "url": "https://www.ludwigsroses.co.za/library/quotes-about-roses/",
-          "kind": "PAGE",
-          "reason": "SITEMAP:IDENTITY:ADDRESS"
-        }
-      ],
+      "stopReason": "ROBOTS_UNAVAILABLE",
+      "selections": [],
       "sitemap": {
-        "consulted": true,
-        "fetched": [
-          "https://www.ludwigsroses.co.za/sitemap_index.xml",
-          "https://www.ludwigsroses.co.za/page-sitemap.xml"
-        ],
-        "urlsSeen": 80,
-        "candidatesAdded": 2,
-        "reason": "No linked candidate for VENUE_FACTS:SPACES, VENUE_FACTS:CAPACITY, VENUE_FACTS:FACILITIES, VENUE_FACTS:ACCESSIBILITY"
+        "consulted": false,
+        "fetched": [],
+        "urlsSeen": 0,
+        "candidatesAdded": 0,
+        "reason": null
       },
-      "warnings": [],
+      "warnings": [
+        "robots.txt could not be checked: fetch failed"
+      ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
-      "contacts": [
-        {
-          "type": "EMAIL",
-          "purpose": "SALES_HIRE",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "type": "EMAIL",
-          "purpose": "GENERAL",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        }
-      ],
-      "practical": [
-        "outdoorSpace",
-        "outdoorSpace",
-        "outdoorSpace"
-      ],
-      "description": [
-        {
-          "kind": "identity",
-          "text": "Ludwig's Roses",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "kind": "character",
-          "text": "Welcome to Ludwig's Roses, home of the rose that grows. With 800+ cultivars to chose from, you are bound to find the ones your heart has been dreaming about!",
-          "sourceUrl": "https://www.ludwigsroses.co.za/"
-        },
-        {
-          "kind": "identity",
-          "text": "Ludwig's Roses",
-          "sourceUrl": "https://www.ludwigsroses.co.za/about-ludwigs-roses/"
-        },
-        {
-          "kind": "character",
-          "text": "Read all about us. Ludwig’s Rose Farm was established in March 1971.",
-          "sourceUrl": "https://www.ludwigsroses.co.za/about-ludwigs-roses/"
-        },
-        {
-          "kind": "identity",
-          "text": "Ludwig's Roses",
-          "sourceUrl": "https://www.ludwigsroses.co.za/history_ludwigs_roses/"
-        },
-        {
-          "kind": "character",
-          "text": "of ludwig's rose farm",
-          "sourceUrl": "https://www.ludwigsroses.co.za/history_ludwigs_roses/"
-        },
-        {
-          "kind": "identity",
-          "text": "Ludwig's Roses",
-          "sourceUrl": "https://www.ludwigsroses.co.za/library/quotes-about-roses/"
-        },
-        {
-          "kind": "character",
-          "text": "A growing collection of quotes about roses, gardens and nature.",
-          "sourceUrl": "https://www.ludwigsroses.co.za/library/quotes-about-roses/"
-        },
-        {
-          "kind": "facility",
-          "text": "garden even more",
-          "sourceUrl": "https://www.ludwigsroses.co.za/about-ludwigs-roses/"
-        },
-        {
-          "kind": "facility",
-          "text": "garden service in Pretoria",
-          "sourceUrl": "https://www.ludwigsroses.co.za/history_ludwigs_roses/"
-        },
-        {
-          "kind": "facility",
-          "text": "garden required patient labour and attention",
-          "sourceUrl": "https://www.ludwigsroses.co.za/library/quotes-about-roses/"
-        }
-      ],
-      "images": {
-        "LOGO": 5,
-        "OTHER": 40,
-        "HERO": 1
-      },
+      "contacts": [],
+      "practical": [],
+      "description": [],
+      "images": {},
       "routingAuthority": "not_operator_confirmed",
       "judgement": {
-        "PAGE_SELECTION": "PASS",
-        "DESCRIPTION_EVIDENCE": "PASS",
-        "CONTACT_RECALL": "PASS",
-        "SPACE_RECALL": "FAIL",
-        "CAPACITY_RECALL": "FAIL",
-        "PRACTICAL_FACT_RECALL": "PASS",
-        "IMAGE_RECALL": "PASS",
+        "PAGE_SELECTION": "FAIL",
+        "DESCRIPTION_EVIDENCE": "FAIL",
+        "CONTACT_RECALL": "NOT_APPLICABLE",
+        "SPACE_RECALL": "NOT_APPLICABLE",
+        "CAPACITY_RECALL": "NOT_APPLICABLE",
+        "PRACTICAL_FACT_RECALL": "NOT_APPLICABLE",
+        "IMAGE_RECALL": "FAIL",
         "PDF_DISCOVERY": "NOT_APPLICABLE",
-        "PRECISION": "PASS",
-        "EVIDENCE_PROVENANCE": "PASS"
+        "PRECISION": "FAIL",
+        "EVIDENCE_PROVENANCE": "FAIL"
       },
-      "elapsedMs": 5121
+      "elapsedMs": 10643
     },
     {
       "id": "dassie-palace",
@@ -1514,6 +1356,7 @@
       "spaces": [
         "Jakkalsbessie Chalet"
       ],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [
         {
@@ -1578,7 +1421,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 2311
+      "elapsedMs": 2469
     },
     {
       "id": "ssisa",
@@ -1628,6 +1471,7 @@
         "Required HTML source unavailable: https://ssisa.com/venue-hire/: HTTP 404 from https://www.ssisa.com/venue-hire/"
       ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [],
       "practical": [],
@@ -1646,7 +1490,7 @@
         "PRECISION": "FAIL",
         "EVIDENCE_PROVENANCE": "FAIL"
       },
-      "elapsedMs": 889
+      "elapsedMs": 1024
     },
     {
       "id": "shepstone-gardens",
@@ -1693,6 +1537,7 @@
         "Static retrieval of https://shepstonegardens.co.za/ is a client-rendered shell (EMPTY_FRAMEWORK_MOUNT, NOSCRIPT_JS_REQUIRED, METADATA_WITHOUT_BODY); no rendering adapter is available in this runtime."
       ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [],
       "practical": [],
@@ -1724,7 +1569,7 @@
         "PRECISION": "PASS",
         "EVIDENCE_PROVENANCE": "PASS"
       },
-      "elapsedMs": 641
+      "elapsedMs": 988
     },
     {
       "id": "the-empire-candidate",
@@ -1763,6 +1608,7 @@
         "robots.txt could not be checked: getaddrinfo ENOTFOUND theempirevenue.co.za"
       ],
       "spaces": [],
+      "reviewSpaces": [],
       "capacities": [],
       "contacts": [],
       "practical": [],
@@ -1781,7 +1627,7 @@
         "PRECISION": "FAIL",
         "EVIDENCE_PROVENANCE": "FAIL"
       },
-      "elapsedMs": 26
+      "elapsedMs": 52
     }
   ]
 }

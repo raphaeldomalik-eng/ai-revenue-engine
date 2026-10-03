@@ -30,9 +30,11 @@ One page, the homepage. It is a single-page site: Gallery and Enquiry are in-pag
 
 `http://012central.co.za/` redirects to `www.cityproperty.co.za`. Cross-site redirect refused. No extraction.
 
-### Steynshoop Mountain Lodge — COMPLETED
+### Steynshoop Mountain Lodge — spaces corrected; last full pass timed out
 
-Pages: home, contact, weddings, directions. Description evidence says it is a country hotel in the Magaliesberg with wedding and conference use. Named spaces include Valley Suite, Corner Cottage, Chapel Cottage, and Harmony Hall, plus weaker headings (Honeymoon Suite, Guest Accommodation, Chapel). One capacity: Guest Accommodation 50. Booking email and phones. 25 non-logo images. Airport-direction variants were not fetched.
+The last script pass recorded `robots.txt could not be checked: fetch failed`. That is a connection timeout, not a robots denial. The same code, minutes earlier, completed the site.
+
+Confirmed spaces from that completed pass, checked against the weddings navigation: Manor House, Valley Suite, Corner Cottage, Gatehouse Cottages, Arbour Cottage, Chapel Cottage, Harmony Hall, and Mountain Lodge. Mountain Lodge is a named lodge area: the conference page says it accommodates up to 9 people. Guest Accommodation is review-only, not a confirmed room. Chapel, Your Wedding Chapel, and Honeymoon Suite are no longer confirmed spaces. Guest Accommodation still carries the explicit “up to 50 people” statement. A false “Dinner 2” reading of “2 x Three-Course Dinner” is no longer kept.
 
 ### The Drama Experience — COMPLETED
 
@@ -60,7 +62,7 @@ Home, contact, and four conference pages. Address in Stellenbosch. WhatsApp and 
 
 ### Assembly Hall Theatre — COMPLETED
 
-Home, contact, venue hire, getting here, accessibility. Hire page states the theatre can seat up to 1,002 people. Parking, public transport, and accessibility evidence. General email and phone. 5 non-logo images. A venue-hire PDF was discovered and refused because it exceeded the response size limit, so its text was not extracted.
+Home, contact, venue hire, getting here, accessibility. The hire page states the theatre can seat up to 1,002 people. The venue-hire pack (`Venue_Hire_Pack_2026.pdf`, about 5.2MB) was fetched under the venue PDF ceiling and read. Page 2 states up to 1,010 seated and 1,250 standing. Those counts stay separate from the hire-page 1,002. Parking, public transport, and accessibility evidence remain. The ordinary 1.5MB response cap was not raised.
 
 ### St John at Hackney — COMPLETED
 
@@ -92,14 +94,14 @@ Static HTML is a JavaScript shell ("You need to enable JavaScript"). One Open Gr
 |---|---|---|---|---|---|---|---|---|---|---|
 | Country Sjiek | PASS | PASS | PASS | NOT_APPLICABLE | NOT_APPLICABLE | PASS | PASS | NOT_APPLICABLE | PASS | PASS |
 | Prinschurch | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | PASS | PASS |
-| Steynshoop | PASS | PASS | PASS | PASS | PASS | PASS | PASS | NOT_APPLICABLE | FAIL | PASS |
+| Steynshoop | PASS | PASS | PASS | PASS | PASS | PASS | PASS | NOT_APPLICABLE | PASS | PASS |
 | Drama Experience | PASS | PASS | PASS | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | PASS | NOT_APPLICABLE | PASS | PASS |
 | Qurtuba | FAIL | FAIL | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | FAIL | NOT_APPLICABLE | PASS | PASS |
 | Pavilion | FAIL | FAIL | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | FAIL | NOT_APPLICABLE | PASS | PASS |
 | De Toren | PASS | PASS | PASS | NOT_APPLICABLE | NOT_APPLICABLE | PASS | PASS | NOT_APPLICABLE | PASS | PASS |
 | Tshwane North | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | PASS | PASS |
 | Alexandra Palace | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | PASS | PASS |
-| Assembly Hall | PASS | PASS | PASS | PASS | PASS | PASS | PASS | FAIL | PASS | PASS |
+| Assembly Hall | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
 | St John at Hackney | PASS | PASS | PASS | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | PASS | NOT_APPLICABLE | PASS | PASS |
 | Rose Shed | FAIL | FAIL | FAIL | NOT_APPLICABLE | NOT_APPLICABLE | PASS | PASS | NOT_APPLICABLE | FAIL | PASS |
 | Dassie Palace | PASS | PASS | PASS | PASS | NOT_APPLICABLE | PASS | FAIL | NOT_APPLICABLE | PASS | PASS |
@@ -107,8 +109,17 @@ Static HTML is a JavaScript shell ("You need to enable JavaScript"). One Open Gr
 | Shepstone Gardens | FAIL | FAIL | NOT_APPLICABLE | FAIL | NOT_APPLICABLE | NOT_APPLICABLE | FAIL | NOT_APPLICABLE | PASS | PASS |
 | Empire candidate | FAIL | FAIL | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | NOT_APPLICABLE | FAIL | NOT_APPLICABLE | PASS | PASS |
 
-Steynshoop precision fails because headings such as Guest Accommodation and Chapel are kept beside the real cottage names. Rose Shed precision fails because the nursery's general mailboxes are not a venue-hire contact set. Assembly Hall PDF discovery found the hire pack and then refused it on size, so PDF recall fails. Shepstone fails description and images because the static shell does not contain the venue pages a browser would show. Dassie image recall fails because the room photos are not in the static gallery HTML.
+Steynshoop no longer promotes Guest Accommodation, Chapel, or honeymoon-suite marketing lines as confirmed rooms. The real cottage, suite, hall, and manor names remain. Assembly Hall’s hire pack is now extracted inside an 8MB venue-PDF ceiling; HTML and unrelated PDFs stay on the 1.5MB cap. Rose Shed precision still fails because the authorised host is the nursery. Shepstone and Pavilion remain static shells. Dassie image recall still fails because the room photos are not in the static gallery HTML.
 
 ## Decision
 
-Not quality-proven for a bulk crawl of the 1,404. Reachable venue sites with static hire content did return useful description, image, contact, and some space and capacity evidence. The estate also contains cross-site redirects, robots denials, dead hosts, 404 paths, and JavaScript-only homepages. Those must stay failed-closed. Browser rendering was not added: two shells in this sample are not enough to justify a rendering vendor, and no paid renderer was available.
+The two crawler-quality defects in this slice are fixed. The 1,404 estate is still not safe to bulk-crawl.
+
+Remaining blockers, unchanged by this slice:
+
+- AUTHORITY_DATA: Prinschurch and Tshwane North cross-site redirects; Rose Shed nursery URL; SSISA 404; Empire candidate dead DNS.
+- ROBOTS_OR_SITE_POLICY: Alexandra Palace robots.txt HTTP 403. Not bypassed.
+- STATIC_RETRIEVAL_LIMIT: Pavilion and Shepstone Gardens are JavaScript shells. No renderer was added.
+- TRANSIENT_NETWORK: Qurtuba and, on the last pass, Steynshoop and Rose Shed connection timeouts. Not a new retry policy.
+
+Paid-provider calls: 0. EventSuite production writes: 0.

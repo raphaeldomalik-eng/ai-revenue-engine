@@ -1,8 +1,47 @@
 import type { ImageCandidate, PublicContact, ResourceExtraction, VenueFact } from "../extractors/resources.ts";
 
-const GENERIC_SPACE = /^(?:newsletter|contact|what'?s on|latest news|conference venue|home|gallery|events|hall|room|rooms|venue|space|spaces)$/i;
+const GENERIC_SPACE = /^(?:the |our |your )?(?:newsletter|contact|what'?s on|whats on|latest news|conference venue|wedding venue|corporate venue|home|gallery|events|hall|room|rooms|venue|space|spaces|guest accommodation|accommodation|facilities|amenities|our venue|outdoor space|private events|meeting rooms|chapel|weddings|conferences|functions)$/i;
 const FLUFF = /\b(?:versatile venue|perfect for any event|premier destination|ideal setting|world-class experience)\b/i;
 const YEARISH = /^(?:19|20)\d{2}$/;
+const ARTICLE = /^(?:the|our|your|a|an)$/i;
+const CATEGORY_WORD = /^(?:guest|wedding|honeymoon|private|corporate|meeting|function|outdoor|conference|event|events)$/i;
+const CATEGORY_NOUN = /^(?:accommodation|facilities|amenities|gallery|venue|newsletter|contact|home)$/i;
+const TYPE_WORD = /^(?:hall|halls|room|rooms|suite|suites|cottage|cottages|chalet|chalets|chapel|chapels|auditorium|ballroom|ballrooms|studio|studios|terrace|terraces|garden|gardens|nave|theatre|theater|bar|barn|vault|vaults)$/i;
+
+export type SpaceStatus = "confirmed" | "review";
+
+export type SpaceEvidence = {
+  name: string;
+  sourceUrl: string;
+  evidenceRef: string;
+  status: SpaceStatus;
+};
+
+/**
+ * A confirmed space needs a proper name, a compound room name, or a capacity/structured-data link.
+ * A category heading stays unconfirmed. Capacity on a category name is review, not a room.
+ */
+export function classifyVenueSpace(name: string, signals: { capacityLinked?: boolean; structuredPlace?: boolean; listingContext?: boolean } = {}): SpaceStatus | "reject" {
+  const cleaned = name.replace(/\s+/g, " ").trim();
+  if (!cleaned || cleaned.length > 60) return "reject";
+  const backed = Boolean(signals.capacityLinked || signals.structuredPlace);
+  if (GENERIC_SPACE.test(cleaned)) return backed ? "review" : "reject";
+  const words = cleaned.split(" ");
+  const content = words.filter((word) => !ARTICLE.test(word));
+  if (!content.length) return "reject";
+  const proper = content.filter((word) => !CATEGORY_WORD.test(word) && !CATEGORY_NOUN.test(word) && !TYPE_WORD.test(word));
+  const types = content.filter((word) => TYPE_WORD.test(word));
+  const categoryHeading = proper.length === 0 && types.length <= 1 && content.some((word) => CATEGORY_WORD.test(word) || CATEGORY_NOUN.test(word));
+  if (categoryHeading) return backed ? "review" : "reject";
+  const strong = backed || Boolean(signals.listingContext);
+  if (proper.length >= 1 && types.length >= 1) return "confirmed";
+  if (proper.length >= 2 && strong) return "confirmed";
+  if (proper.length === 1 && content.length === 1 && strong) return "confirmed";
+  if (proper.length === 0 && types.length >= 2 && content.every((word) => TYPE_WORD.test(word))) return "confirmed";
+  if (proper.length === 0 && types.length === 1 && words.length === 2 && ARTICLE.test(words[0]!) && strong) return "confirmed";
+  if (proper.length === 0) return backed ? "review" : "reject";
+  return strong ? "confirmed" : "review";
+}
 
 export type DescriptionEvidence = {
   kind: "identity" | "character" | "setting" | "event-use" | "facility" | "quoted-claim";
@@ -26,7 +65,8 @@ export type VenueEvidencePackage = {
   descriptionEvidence: DescriptionEvidence[];
   contacts: PublicContact[];
   excludedContacts: Array<{ value: string; reason: string; sourceUrl: string }>;
-  spaces: Array<{ name: string; sourceUrl: string; evidenceRef: string }>;
+  spaces: SpaceEvidence[];
+  reviewSpaces: SpaceEvidence[];
   capacities: CapacityEvidence[];
   practicalFacts: VenueFact[];
   suitability: VenueFact[];
@@ -42,32 +82,50 @@ function capacityValue(fact: VenueFact): { space: string | null; layout: string;
   return { space: row.space ?? null, layout: row.layout ?? "unspecified", count: row.count, statement: row.statement ?? "" };
 }
 
-const NAMED_SPACE = /\b([A-Z][\p{L}'’&-]{2,}(?:\s+[A-Z][\p{L}'’&-]{2,}){0,2}\s+(?:Chalet|Cottage|Suite|Chapel|Hall|Auditorium|Ballroom))\b/gu;
 const CAPTION_NOISE = new Set(["menu", "gallery", "rooms", "includes", "accommodation", "wedding", "banquet", "scenery", "chauffeured", "house", "contact", "the", "your", "our"]);
-const SPACE_TYPE = /^(?:Chalet|Cottage|Suite|Chapel|Hall|Auditorium|Ballroom)$/;
+const SPACE_TYPE = /^(?:Chalets|Chalet|Cottages|Cottage|Suites|Suite|Chapel|Hall|Auditorium|Ballroom|House)$/;
+const CAPTION_TOKEN = /[\p{L}'’&-]{3,}/gu;
 
-/** Caption-style room names that are not headings, kept only when the page is about rooms or hire. */
+/**
+ * A room caption is the type word plus the proper words immediately before it.
+ * The walk stops at another room type or a menu word, so neighbouring labels are not glued on.
+ */
 export function namedSpacesInText(text: string, sourceUrl: string): string[] {
   if (!/\/(?:rooms?|spaces|hire|weddings?|accommodation)(?:\/|$)/i.test(new URL(sourceUrl).pathname)) return [];
-  const names = [...text.matchAll(NAMED_SPACE)].flatMap((match) => {
-    let words = match[1]!.replace(/\s+/g, " ").trim().split(" ");
-    while (words.length > 1 && CAPTION_NOISE.has(words[0]!.toLowerCase())) words = words.slice(1);
-    if (words.some((word) => CAPTION_NOISE.has(word.toLowerCase()))) return [];
-    if (!SPACE_TYPE.test(words.at(-1) ?? "") || words.length > 3) return [];
+  const tokens = [...text.matchAll(CAPTION_TOKEN)].map((match) => match[0]!);
+  const names: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const type = tokens[index]!;
+    if (!SPACE_TYPE.test(type) || !/^[A-Z]/.test(type)) continue;
+    const words = [type];
+    for (let back = index - 1; back >= 0 && words.length < 4; back -= 1) {
+      const word = tokens[back]!;
+      if (!/^[A-Z]/.test(word) || CAPTION_NOISE.has(word.toLowerCase())) break;
+      if (SPACE_TYPE.test(word)) {
+        if (words.length === 1 && word.toLowerCase() !== type.toLowerCase()) words.unshift(word);
+        break;
+      }
+      words.unshift(word);
+    }
+    if (words.length < 2) continue;
     const name = words.join(" ");
-    return GENERIC_SPACE.test(name) ? [] : [name];
-  });
+    if (classifyVenueSpace(name, { listingContext: true }) === "reject") continue;
+    names.push(name);
+  }
   return [...new Set(names)];
 }
 
+function rememberSpace(confirmed: Map<string, SpaceEvidence>, review: Map<string, SpaceEvidence>, item: SpaceEvidence) {
+  const key = item.name.toLowerCase();
+  if (item.status === "confirmed") {
+    if (!confirmed.has(key)) confirmed.set(key, item);
+    review.delete(key);
+    return;
+  }
+  if (!confirmed.has(key) && !review.has(key)) review.set(key, item);
+}
+
 export function buildVenueEvidencePackage(extraction: ResourceExtraction): VenueEvidencePackage {
-  const spaces = [...extraction.venueFacts
-    .filter((fact) => fact.fieldName === "spaces" && typeof fact.value === "string" && !GENERIC_SPACE.test(fact.value))
-    .reduce((seen, fact) => {
-      const name = String(fact.value);
-      if (!seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), { name, sourceUrl: fact.sourceUrl, evidenceRef: fact.evidenceRef });
-      return seen;
-    }, new Map<string, { name: string; sourceUrl: string; evidenceRef: string }>()).values()];
   const capacities = extraction.venueFacts.flatMap((fact) => {
     if (fact.fieldName !== "capacity") return [];
     const value = capacityValue(fact);
@@ -82,6 +140,21 @@ export function buildVenueEvidencePackage(extraction: ResourceExtraction): Venue
   for (const item of capacities) {
     const counts = byKey.get(`${(item.space ?? "").toLowerCase()}|${item.layout}`) ?? [];
     if (new Set(counts).size > 1) item.reviewRequired = true;
+  }
+  const capacityNames = new Set(capacities.flatMap((item) => item.space ? [item.space.toLowerCase()] : []));
+  const confirmed = new Map<string, SpaceEvidence>();
+  const review = new Map<string, SpaceEvidence>();
+  for (const fact of extraction.venueFacts) {
+    if (fact.fieldName !== "spaces" || typeof fact.value !== "string") continue;
+    const name = fact.value;
+    const listingContext = /\/(?:rooms?|spaces|hire|meeting)(?:\/|$)/i.test(new URL(fact.sourceUrl).pathname);
+    const status = classifyVenueSpace(name, {
+      capacityLinked: capacityNames.has(name.toLowerCase()),
+      structuredPlace: (fact.confidence ?? 0) >= 0.9,
+      listingContext,
+    });
+    if (status === "reject") continue;
+    rememberSpace(confirmed, review, { name, sourceUrl: fact.sourceUrl, evidenceRef: fact.evidenceRef, status });
   }
   const descriptionEvidence: DescriptionEvidence[] = [];
   for (const fact of extraction.identityFacts) {
@@ -115,7 +188,8 @@ export function buildVenueEvidencePackage(extraction: ResourceExtraction): Venue
     descriptionEvidence,
     contacts: extraction.publicContacts.filter((contact) => !contact.reviewRequired),
     excludedContacts,
-    spaces,
+    spaces: [...confirmed.values()],
+    reviewSpaces: [...review.values()],
     capacities,
     practicalFacts: extraction.venueFacts.filter((fact) => !["spaces", "capacity", "hireSuitability", "geo"].includes(fact.fieldName)),
     suitability: extraction.venueFacts.filter((fact) => fact.fieldName === "hireSuitability"),

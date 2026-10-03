@@ -481,6 +481,7 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
     for (const [index, pattern] of patterns.entries()) for (const match of section.body.matchAll(pattern)) {
       const start = match.index ?? 0; const end = start + match[0].length;
       if (consumed.some(([from, to]) => start < to && end > from)) continue;
+      if (/^\s*x\b/i.test(section.body.slice(end, end + 4))) continue;
       const count = Number((index === 0 ? match[2] : match[1])?.replaceAll(",", ""));
       if (!Number.isSafeInteger(count) || count < (index === 3 ? 10 : 2) || count > 100000) continue;
       consumed.push([start, end]);
