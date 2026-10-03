@@ -161,7 +161,61 @@ export type WaveResultRow = {
   stopReason: string | null;
   warnings: string[];
   elapsedMs: number;
+  imageRecallSuspect?: boolean;
+  descriptionRecallSuspect?: boolean;
 };
+
+const PHOTO_URL = /\.(?:jpe?g|png|webp|avif)(?:$|\?)/i;
+const IMAGE_NOISE_URL = /(?:logo|icon|favicon|sprite|placeholder|pixel|spacer|blank|emoji)/i;
+const RELEVANT_VENUE_PATH = /\/(?:venue-hire|venues|weddings?|conferences?|meetings?|events?|spaces?|rooms?|galleries|gallery|facilities|contact|about)\b/i;
+
+/** Photography visible in fetched HTML that produced no image candidate. Discovery is not a crawl failure. */
+export function imageRecallSuspect(input: { htmlBodies: readonly string[]; imageCount: number }): boolean {
+  if (input.imageCount > 0) return false;
+  let photos = 0;
+  for (const html of input.htmlBodies) {
+    const tags = html.match(/<img\b[^>]*>/gi) ?? [];
+    for (const tag of tags) {
+      const src = /(?:src|data-src|data-lazy-src)\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1] ?? "";
+      if (!PHOTO_URL.test(src) || IMAGE_NOISE_URL.test(src) || src.startsWith("data:")) continue;
+      photos += 1;
+    }
+  }
+  return photos >= 3;
+}
+
+/** A relevant or text-rich fetch that still produced only a one-line or generic description. */
+export function descriptionRecallSuspect(input: {
+  pageUrls: readonly string[];
+  htmlBodies: readonly string[];
+  descriptionTexts: readonly string[];
+}): boolean {
+  const relevant = input.pageUrls.some((url) => RELEVANT_VENUE_PATH.test(url));
+  const textLength = input.htmlBodies.reduce((sum, html) => {
+    const text = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return sum + text.length;
+  }, 0);
+  if (!relevant && textLength < 2500) return false;
+  if (input.pageUrls.length < 2 && !relevant) return false;
+  const best = [...input.descriptionTexts].map((text) => text.replace(/\s+/g, " ").trim()).sort((left, right) => right.length - left.length)[0] ?? "";
+  const generic = /\b(?:versatile venue|perfect for any event|premier destination|ideal setting|world-class experience)\b/i.test(best);
+  return best.length < 80 || generic;
+}
+
+/** Extra stop for a backfill that is only fetching homepages or missing obvious page content. */
+export function backfillSystemicDefect(rows: WaveResultRow[]): string | null {
+  const base = systemicDefect(rows);
+  if (base) return base;
+  if (rows.length < 50) return null;
+  const successes = rows.slice(0, 50).filter((row) => row.outcome === "CRAWL_SUCCESS_USEFUL" || row.outcome === "CRAWL_SUCCESS_THIN");
+  if (successes.length < 15) return null;
+  const averagePages = successes.reduce((sum, row) => sum + row.pages, 0) / successes.length;
+  const homepageOnly = successes.filter((row) => row.pages <= 1).length / successes.length;
+  if (averagePages < 1.3 && homepageOnly > 0.8) return "HOMEPAGE_ONLY";
+  if (successes.filter((row) => row.imageRecallSuspect).length / successes.length > 0.5) return "IMAGE_RECALL_COLLAPSE";
+  if (successes.filter((row) => row.descriptionRecallSuspect).length / successes.length > 0.5) return "DESCRIPTION_RECALL_COLLAPSE";
+  return null;
+}
 
 export function completedListingIds(jsonl: string): Set<string> {
   const ids = new Set<string>();

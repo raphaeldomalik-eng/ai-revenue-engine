@@ -1,0 +1,29 @@
+{
+  "kind": "venue-crawler-provenance-before-backfill",
+  "listings": 3142,
+  "websiteRows": 1445,
+  "waveInput": 834,
+  "waveResults": 834,
+  "sameHostWave": 834,
+  "driftedWave": 0,
+  "gapWithoutProjectedEvidence": {
+    "CRAWL_SUCCESS_THIN": 8,
+    "DEAD_OR_UNREACHABLE": 22,
+    "STATIC_RENDER_REQUIRED": 6,
+    "ROBOTS_BLOCKED": 11
+  },
+  "currentWebsiteExclusions": {
+    "unresolved_identity": 9
+  },
+  "states": {
+    "IMPROVED_CRAWLER_SUCCESS": 712,
+    "IMPROVED_CRAWLER_THIN": 83,
+    "IMPROVED_CRAWLER_ATTEMPTED_BLOCKED": 39,
+    "IMPROVED_CRAWLER_ATTEMPTED_OTHER_FAILURE": 0,
+    "OLD_CRAWLER_ONLY": 527,
+    "NEVER_CRAWLED": 75,
+    "NO_VERIFIED_OFFICIAL_SITE": 1706
+  },
+  "safeCohort": 602,
+  "paidProviderCalls": 0
+}

@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   authorisedHost,
+  backfillSystemicDefect,
   canReuseCrawl,
   classifyWaveOutcome,
+  descriptionRecallSuspect,
+  imageRecallSuspect,
   completedListingIds,
   confirmedSpaceLooksGeneric,
   documentStaysOnAuthorisedSite,
@@ -183,4 +186,26 @@ test("ordinary mixed site failures are not a systemic crawler defect", () => {
     sameSite: true,
   }));
   assert.equal(systemicDefect(rows), null);
+});
+
+test("image and description recall suspects are signals, and a homepage-only sample stops the backfill", () => {
+  assert.equal(imageRecallSuspect({
+    imageCount: 0,
+    htmlBodies: ['<img src="https://venue.test/gallery/hall.jpg"><img src="https://venue.test/gallery/lawn.webp"><img src="https://venue.test/logo.svg"><img src="https://venue.test/rooms/bar.png">'],
+  }), true);
+  assert.equal(imageRecallSuspect({ imageCount: 2, htmlBodies: ['<img src="https://venue.test/gallery/hall.jpg">'] }), false);
+  assert.equal(descriptionRecallSuspect({
+    pageUrls: ["https://venue.test/", "https://venue.test/weddings"],
+    htmlBodies: ["<p>" + "A detailed wedding barn description. ".repeat(80) + "</p>"],
+    descriptionTexts: ["Versatile venue"],
+  }), true);
+  const homepage = Array.from({ length: 50 }, (_, index) => row({
+    listingId: String(index),
+    pages: 1,
+    pageUrls: ["https://oak.test/"],
+    imageRecallSuspect: false,
+    descriptionRecallSuspect: false,
+  }));
+  assert.equal(backfillSystemicDefect(homepage), "HOMEPAGE_ONLY");
+  assert.equal(backfillSystemicDefect(homepage.slice(0, 10)), null);
 });
