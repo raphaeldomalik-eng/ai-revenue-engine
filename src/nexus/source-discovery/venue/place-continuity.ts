@@ -14,6 +14,8 @@ export const PLACE_MOVE_STATUSES = [
   "MOVED_PLACE_RESOLVED",
   "MOVED_PLACE_CYCLE",
   "MOVED_PLACE_HOP_LIMIT",
+  "INVALID_PLACE_ID",
+  "OBSOLETE_PLACE_ID",
   "MOVED_PLACE_LOOKUP_FAILED",
 ] as const;
 export type PlaceMoveStatus = (typeof PLACE_MOVE_STATUSES)[number];
@@ -33,6 +35,18 @@ export type PlaceContinuityResult = {
 export type PlaceContinuityLookup =
   | { ok: true; movedPlaceId: string | null }
   | { ok: false; reason: "MALFORMED" | "FAILED"; message: string };
+
+/** HTTP 400 is an invalid identifier. HTTP 404 means Google does not resolve that stored ID. Neither is a transient lookup failure, a closure, or a successor. */
+export function classifyPlaceLookupFailure(message: string): PlaceMoveStatus {
+  if (/\bHTTP 400\b/.test(message) || message.includes("INVALID_REQUEST")) return "INVALID_PLACE_ID";
+  if (/\bHTTP 404\b/.test(message) || message.includes("NOT_FOUND")) return "OBSOLETE_PLACE_ID";
+  return "MOVED_PLACE_LOOKUP_FAILED";
+}
+
+export function reclassifyStoredPlaceMove(status: PlaceMoveStatus, failureReason: string | null): PlaceMoveStatus {
+  if (status !== "MOVED_PLACE_LOOKUP_FAILED" || !failureReason) return status;
+  return classifyPlaceLookupFailure(failureReason);
+}
 
 export function normaliseProviderPlaceId(value: string | null | undefined): string | null {
   if (!value?.trim()) return null;
@@ -79,7 +93,7 @@ export async function followPlaceContinuity(
     chain.push(current);
     const result = await lookup(current);
     if (!result.ok) {
-      return { providerPlaceId: start, terminalProviderPlaceId: current, placeMoveStatus: "MOVED_PLACE_LOOKUP_FAILED", placeMoveChain: chain, placeMoveHopCount: chain.length - 1, failureReason: result.message, observedAt };
+      return { providerPlaceId: start, terminalProviderPlaceId: current, placeMoveStatus: classifyPlaceLookupFailure(result.message), placeMoveChain: chain, placeMoveHopCount: chain.length - 1, failureReason: result.message, observedAt };
     }
     if (!result.movedPlaceId || result.movedPlaceId === current) {
       const placeMoveStatus = chain.length === 1 ? "NO_MOVE_SIGNAL" : "MOVED_PLACE_RESOLVED";

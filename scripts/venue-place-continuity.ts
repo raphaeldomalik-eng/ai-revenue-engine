@@ -7,7 +7,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { assertGooglePlacesContinuityMask } from "../src/ai-sales-team/google-places-evidence.ts";
-import { createPlaceContinuityFetcher, followPlaceContinuity, normaliseProviderPlaceId, type PlaceContinuityInstrumentation, type PlaceContinuityResult } from "../src/nexus/source-discovery/venue/place-continuity.ts";
+import { createPlaceContinuityFetcher, followPlaceContinuity, normaliseProviderPlaceId, reclassifyStoredPlaceMove, type PlaceContinuityInstrumentation, type PlaceContinuityResult } from "../src/nexus/source-discovery/venue/place-continuity.ts";
 import type { AuthorityPreflightRow } from "../src/nexus/source-discovery/venue/authority-preflight.ts";
 
 type ReadyRecord = { candidateId: string; providerPlaceId: string };
@@ -49,7 +49,7 @@ if (retryRateLimits || reportOnly) {
     continuity.set(row.candidateId, {
       providerPlaceId: stored.providerPlaceId,
       terminalProviderPlaceId: stored.terminalProviderPlaceId ?? null,
-      placeMoveStatus,
+      placeMoveStatus: reclassifyStoredPlaceMove(placeMoveStatus, stored.failureReason ?? null),
       placeMoveChain: stored.placeMoveChain ?? [],
       placeMoveHopCount: stored.placeMoveHopCount ?? 0,
       failureReason: stored.failureReason ?? null,
@@ -127,7 +127,7 @@ for (const row of combined) {
 }
 const authorityProjectionRequired = dispositions.SAFE_RECOVERY_AVAILABLE ?? 0;
 const fresh = fetcher?.instrumentation() ?? { requestCount: 0, uniquePlaceIds: 0, followUpRequests: 0, fieldMask: classification.fields.join(","), sku: classification.sku, estimatedPaidCostUsd: 0 };
-const previous = retryRateLimits || reportOnly ? JSON.parse(readFileSync(reportPath, "utf8")) as { placeContinuity?: PlaceContinuityInstrumentation & { includesMaskValidationProbe?: boolean } } : null;
+const previous = retryRateLimits || reportOnly ? JSON.parse(readFileSync(reportPath, "utf8")) as { placeContinuity?: PlaceContinuityInstrumentation & { includesMaskValidationProbe?: boolean; cumulativeProofRequests?: number; uniquePlaceIdsQueried?: number } } : null;
 const prev = previous?.placeContinuity;
 const instrumentation = reportOnly && prev ? prev : {
   requestCount: fresh.requestCount + (prev?.requestCount ?? 0) + (prev?.includesMaskValidationProbe ? 0 : 1),
@@ -140,6 +140,11 @@ const instrumentation = reportOnly && prev ? prev : {
 };
 if (instrumentation.estimatedPaidCostUsd !== 0 || instrumentation.sku !== "Place Details Essentials (IDs Only)" || instrumentation.fieldMask !== "id,movedPlace,movedPlaceId") {
   throw new Error("GOOGLE_PLACES_CONTINUITY_ABOVE_IDS_ONLY");
+}
+const cumulativeProofRequests = instrumentation.cumulativeProofRequests ?? instrumentation.requestCount;
+const uniquePlaceIdsQueried = instrumentation.uniquePlaceIds ?? instrumentation.uniquePlaceIdsQueried;
+if (typeof cumulativeProofRequests !== "number" || typeof uniquePlaceIdsQueried !== "number") {
+  throw new Error("PLACE_CONTINUITY_TELEMETRY_MISSING");
 }
 const report = {
   input: combined.length,
@@ -165,7 +170,21 @@ const report = {
   httpsStored,
   placeFailureReasons,
   placeMove: moves,
-  placeContinuity: instrumentation,
+  googlePlaceIdRefreshRequired: (moves.INVALID_PLACE_ID ?? 0) + (moves.OBSOLETE_PLACE_ID ?? 0),
+  placeContinuity: {
+    fieldMask: instrumentation.fieldMask,
+    sku: instrumentation.sku,
+    estimatedPaidCostUsd: instrumentation.estimatedPaidCostUsd,
+    uniqueReadyPlaceIds: withPlaceId,
+    uniquePlaceIdsQueried,
+    followUpRequests: instrumentation.followUpRequests,
+    cumulativeProofRequests,
+    cumulativeProofRequestsLabel: "CUMULATIVE_PROOF_REQUESTS",
+    finalExecutionRequestCount: null,
+    finalExecutionRetries: null,
+    finalExecutionRequestCountProvable: false,
+    includesMaskValidationProbe: "includesMaskValidationProbe" in instrumentation && instrumentation.includesMaskValidationProbe === true,
+  },
   eventSuiteProductionWrites: 0,
   safeToBulkCrawl: false,
 };
@@ -191,14 +210,21 @@ const lines = [
   "",
   "## Place continuity",
   ...Object.entries(moves).map(([key, count]) => `- ${key}: ${count}`),
-  ...Object.entries(placeFailureReasons).map(([key, count]) => `- Lookup failure ${key}: ${count}`),
+  ...Object.entries(placeFailureReasons).map(([key, count]) => `- Provider response ${key}: ${count}`),
   "",
   `- Field mask: ${instrumentation.fieldMask}`,
   `- SKU: ${instrumentation.sku}`,
-  `- Requests: ${instrumentation.requestCount}`,
-  `- Unique Place IDs: ${instrumentation.uniquePlaceIds}`,
+  `- Unique READY Place IDs: ${withPlaceId}`,
+  `- Unique Place IDs queried: ${uniquePlaceIdsQueried}`,
   `- Follow-up requests: ${instrumentation.followUpRequests}`,
+  `- CUMULATIVE_PROOF_REQUESTS: ${cumulativeProofRequests}`,
+  "- Final-run request count: not provable from the stored instrumentation",
+  "- Final-run retries: not provable from the stored instrumentation",
   `- Estimated paid cost USD: ${instrumentation.estimatedPaidCostUsd}`,
+  `- GOOGLE_PLACE_ID_REFRESH_REQUIRED: ${(moves.INVALID_PLACE_ID ?? 0) + (moves.OBSOLETE_PLACE_ID ?? 0)}`,
+  "- INVALID_PLACE_ID means the stored identifier was rejected. It is not retried as a transient failure.",
+  "- OBSOLETE_PLACE_ID means Google no longer resolves that stored Place ID. It does not prove the venue closed, moved, or has a successor.",
+  "- MOVED_PLACE_LOOKUP_FAILED remains the retryable or unresolved provider/network result.",
   "- EventSuite production writes: 0",
   "- NO_MOVE_SIGNAL means Google returned no successor Place ID. It is not a business-status result.",
   "- Certificate failures are counted inside STALE_PATH_UNRECOVERED.",

@@ -73,15 +73,22 @@
   },
   "placeMove": {
     "NO_MOVE_SIGNAL": 1216,
-    "MOVED_PLACE_LOOKUP_FAILED": 152
+    "INVALID_PLACE_ID": 123,
+    "OBSOLETE_PLACE_ID": 29
   },
+  "googlePlaceIdRefreshRequired": 152,
   "placeContinuity": {
-    "requestCount": 2477,
-    "uniquePlaceIds": 1368,
-    "followUpRequests": 0,
     "fieldMask": "id,movedPlace,movedPlaceId",
     "sku": "Place Details Essentials (IDs Only)",
     "estimatedPaidCostUsd": 0,
+    "uniqueReadyPlaceIds": 1368,
+    "uniquePlaceIdsQueried": 1368,
+    "followUpRequests": 0,
+    "cumulativeProofRequests": 2477,
+    "cumulativeProofRequestsLabel": "CUMULATIVE_PROOF_REQUESTS",
+    "finalExecutionRequestCount": null,
+    "finalExecutionRetries": null,
+    "finalExecutionRequestCountProvable": false,
     "includesMaskValidationProbe": true
   },
   "eventSuiteProductionWrites": 0,

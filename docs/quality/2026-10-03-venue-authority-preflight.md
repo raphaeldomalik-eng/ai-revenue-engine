@@ -21,16 +21,24 @@ Transient retry: 97
 
 ## Place continuity
 - NO_MOVE_SIGNAL: 1216
-- MOVED_PLACE_LOOKUP_FAILED: 152
-- Lookup failure HTTP 400: 123
-- Lookup failure HTTP 404: 29
+- INVALID_PLACE_ID: 123
+- OBSOLETE_PLACE_ID: 29
+- Provider response HTTP 400: 123
+- Provider response HTTP 404: 29
 
 - Field mask: id,movedPlace,movedPlaceId
 - SKU: Place Details Essentials (IDs Only)
-- Requests: 2477
-- Unique Place IDs: 1368
+- Unique READY Place IDs: 1368
+- Unique Place IDs queried: 1368
 - Follow-up requests: 0
+- CUMULATIVE_PROOF_REQUESTS: 2477
+- Final-run request count: not provable from the stored instrumentation
+- Final-run retries: not provable from the stored instrumentation
 - Estimated paid cost USD: 0
+- GOOGLE_PLACE_ID_REFRESH_REQUIRED: 152
+- INVALID_PLACE_ID means the stored identifier was rejected. It is not retried as a transient failure.
+- OBSOLETE_PLACE_ID means Google no longer resolves that stored Place ID. It does not prove the venue closed, moved, or has a successor.
+- MOVED_PLACE_LOOKUP_FAILED remains the retryable or unresolved provider/network result.
 - EventSuite production writes: 0
 - NO_MOVE_SIGNAL means Google returned no successor Place ID. It is not a business-status result.
 - Certificate failures are counted inside STALE_PATH_UNRECOVERED.
@@ -62,12 +70,12 @@ Transient retry: 97
 - Failure TIMEOUT: 49
 
 ## Known cases
-- Alexandra Palace: ROBOTS_BLOCKED; recovery none; place MOVED_PLACE_LOOKUP_FAILED; url https://alexandrapalace.com/; recovered none
+- Alexandra Palace: ROBOTS_BLOCKED; recovery none; place INVALID_PLACE_ID; url https://alexandrapalace.com/; recovered none
 - Tshwane North Outreach: CROSS_DOMAIN_REVIEW; recovery none; place NO_MOVE_SIGNAL; url http://wolmercommunityproject.co.za/; recovered none
 - Prinschurch: CROSS_DOMAIN_REVIEW; recovery none; place NO_MOVE_SIGNAL; url http://012central.co.za/; recovered none
-- SSISA Conference Centre: SAFE_RECOVERY_AVAILABLE; recovery same_site_homepage; place MOVED_PLACE_LOOKUP_FAILED; url https://ssisa.com/venue-hire/; recovered https://www.ssisa.com/
-- Pavilion Conference Centre: STATIC_SHELL; recovery none; place MOVED_PLACE_LOOKUP_FAILED; url https://pavilion.co.za/; recovered none
-- Shepstone Gardens: STATIC_SHELL; recovery none; place MOVED_PLACE_LOOKUP_FAILED; url https://shepstonegardens.co.za/; recovered none
+- SSISA Conference Centre: SAFE_RECOVERY_AVAILABLE; recovery same_site_homepage; place INVALID_PLACE_ID; url https://ssisa.com/venue-hire/; recovered https://www.ssisa.com/
+- Pavilion Conference Centre: STATIC_SHELL; recovery none; place INVALID_PLACE_ID; url https://pavilion.co.za/; recovered none
+- Shepstone Gardens: STATIC_SHELL; recovery none; place INVALID_PLACE_ID; url https://shepstonegardens.co.za/; recovered none
 - The Empire - Conference and Events Venue in Johannesburg: DEAD_HOST; recovery none; place NO_MOVE_SIGNAL; url https://theempirevenue.co.za/; recovered none
 - SSISA Conference Centre: HEALTHY; recovery none; place NO_MOVE_SIGNAL; url https://www.ssisa.com/; recovered none
 - Shepstone Gardens: STATIC_SHELL; recovery none; place NO_MOVE_SIGNAL; url https://shepstonegardens.co.za/; recovered none
