@@ -1,0 +1,17 @@
+{
+  "kind": "public-web-search-lane",
+  "status": "PUBLIC_WEB_SEARCH_PROVIDER_UNAVAILABLE",
+  "searchAttempts": 0,
+  "officialSitesVerified": 0,
+  "googlePlacesCalls": 0,
+  "enterpriseCalls": 0,
+  "paidProviderCostUsd": 0,
+  "provider": null,
+  "reason": "configuredPublicWebSearchProvider() returns null. No zero-incremental public web search adapter is approved. The only search tool in this repository is the metered OpenAI Responses web_search tool, which official website discovery explicitly refuses to substitute. No Google Places or Enterprise fallback is authorised.",
+  "costModel": {
+    "approvedProvider": null,
+    "openaiWebSearch": "METERED",
+    "amountPerCallConfigured": null,
+    "executed": false
+  }
+}
