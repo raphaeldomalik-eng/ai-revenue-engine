@@ -505,4 +505,18 @@ test("candidate host filter classifies prohibited sources", () => {
   assert.equal(candidateRejection("https://en.wikipedia.org/wiki/Venue"), "AGGREGATOR");
   assert.equal(candidateRejection("https://127.0.0.1/"), "INVALID_URL");
   assert.equal(candidateRejection("https://www.cornexhall.co.uk/"), null);
+  assert.equal(candidateRejection("https://midrand.za-southafrica.com/"), "DIRECTORY");
+  assert.equal(candidateRejection("https://www.cylex.net.za/cape-town/arts-centres/"), "DIRECTORY");
+  assert.equal(candidateRejection("https://local.infobel.co.za/739/restaurants-westonaria/index_1.htm"), "DIRECTORY");
+  assert.equal(candidateRejection("https://za.maptons.com/p/15276650775"), "MAPS_OR_SEARCH_ENGINE");
+  assert.equal(candidateRejection("https://bnbfinder.co.za/places/dolyfboom-conference-wedding-venue/"), "TRAVEL_OR_BOOKING_PLATFORM");
+  assert.equal(candidateRejection("https://www.facebook.com/MidrandConferenceCentre1/"), "SOCIAL_PROFILE");
+  assert.equal(candidateRejection("https://midrandconferencecentre.co.za/contact-us/"), null);
+  assert.equal(candidateRejection("https://www.moshitametsi.co.za/"), null);
+  assert.equal(candidateRejection("https://www.southbankcentre.co.uk/venues/royal-festival-hall/"), null);
+  assert.equal(candidateRejection("https://www.hackneyempire.co.uk/"), null);
+  assert.equal(candidateRejection("https://www.shakespearesglobe.com/"), null);
+  assert.equal(candidateRejection("https://www.scouts.org.za/scout-groups/1st-somerset-west-scout-group-2/"), null);
+  assert.equal(candidateRejection("https://bellinghamhomestead.wixsite.com/bellinghamhomestead"), null);
+  assert.equal(candidateRejection("https://bounce.com/"), null);
 });
