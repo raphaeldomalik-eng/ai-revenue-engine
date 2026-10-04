@@ -77,7 +77,8 @@ export class GoogleEnrichmentWorker {
     this.evidenceStore = evidenceStore;
     this.fetchImpl = fetchImpl;
     // Approved credential from environment/config; NO hardcoded default test key
-    this.apiKey = apiKey ?? process.env.GOOGLE_PLACES_API_KEY ?? process.env.GOOGLE_MAPS_API_KEY ?? "";
+    // Strictly requires GOOGLE_PLACES_API_KEY; GOOGLE_MAPS_API_KEY fallback is prohibited.
+    this.apiKey = apiKey ?? process.env.GOOGLE_PLACES_API_KEY ?? "";
   }
 
   /**
@@ -107,7 +108,7 @@ export class GoogleEnrichmentWorker {
   ): Promise<WorkerBatchResult> {
     const targetTime = options.targetTime ?? new Date();
     const workerId = options.workerId ?? "aire-worker";
-    const initialBudget = this.budgetGuard.getOrCreateBudget("google_places", tier, targetTime);
+    const initialBudget = await this.budgetGuard.getOrCreateBudgetAsync("google_places", tier, targetTime);
 
     const result: WorkerBatchResult = {
       provider: "google_places",
@@ -167,7 +168,7 @@ export class GoogleEnrichmentWorker {
       }
 
       // 4. API Key Verification: Fail closed if credential is not configured
-      if (!this.apiKey && !this.fetchImpl) {
+      if (!this.apiKey) {
         await this.budgetGuard.reconcileReservation(job.reservationId, 0, "MISSING_GOOGLE_API_KEY");
         result.callsFailed += 1;
         result.results.push({
@@ -227,7 +228,8 @@ export class GoogleEnrichmentWorker {
       }
     }
 
-    result.finalBudgetRemaining = this.budgetGuard.getOrCreateBudget("google_places", tier, targetTime).remaining;
+    const finalBudget = await this.budgetGuard.getOrCreateBudgetAsync("google_places", tier, targetTime);
+    result.finalBudgetRemaining = finalBudget.remaining;
     return result;
   }
 
@@ -240,7 +242,7 @@ export class GoogleEnrichmentWorker {
     candidates: EnrichedQueueCandidate[],
     targetTime: Date | string | number = new Date()
   ): Promise<WorkerBatchResult> {
-    const budget = this.budgetGuard.getOrCreateBudget("google_places", tier, targetTime);
+    const budget = await this.budgetGuard.getOrCreateBudgetAsync("google_places", tier, targetTime);
     let availableBudget = budget.remaining;
 
     const result: WorkerBatchResult = {
@@ -300,7 +302,7 @@ export class GoogleEnrichmentWorker {
       }
 
       // 4. Check remaining budget
-      const currentBudget = this.budgetGuard.getOrCreateBudget("google_places", tier, targetTime);
+      const currentBudget = await this.budgetGuard.getOrCreateBudgetAsync("google_places", tier, targetTime);
       if (currentBudget.remaining <= 0) {
         result.results.push({
           externalReferenceId: placeId,
@@ -320,7 +322,7 @@ export class GoogleEnrichmentWorker {
       }
 
       // 6. Fail closed if API key is missing and network fetch is required
-      if (!this.apiKey && !this.fetchImpl) {
+      if (!this.apiKey) {
         await this.budgetGuard.reconcileReservation(reservation.reservationId!, 0, "MISSING_GOOGLE_API_KEY");
         result.callsFailed += 1;
         result.results.push({
@@ -340,7 +342,7 @@ export class GoogleEnrichmentWorker {
       try {
         const options: GooglePlacesOptions = {
           mode: "details_selected",
-          apiKey: this.apiKey || "mock-injected-key",
+          apiKey: this.apiKey,
           evidenceStore: this.evidenceStore,
           fetchImpl: this.fetchImpl,
           detailsAuthorization: authorization,
@@ -388,7 +390,8 @@ export class GoogleEnrichmentWorker {
       }
     }
 
-    result.finalBudgetRemaining = this.budgetGuard.getOrCreateBudget("google_places", tier, targetTime).remaining;
+    const finalBudget = await this.budgetGuard.getOrCreateBudgetAsync("google_places", tier, targetTime);
+    result.finalBudgetRemaining = finalBudget.remaining;
     return result;
   }
 }
