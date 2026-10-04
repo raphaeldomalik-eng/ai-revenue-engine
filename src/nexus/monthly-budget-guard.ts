@@ -353,7 +353,7 @@ export class InMemoryBudgetStore implements ProviderBudgetStore {
     targetTime: Date | string | number = new Date(),
     options?: { originatingProduct?: string; queueId?: string }
   ): BudgetReservationResult {
-    const { periodStart } = getCalendarMonthUtcBounds(targetTime);
+    const { periodStart, periodEnd } = getCalendarMonthUtcBounds(targetTime);
     const key = this._getKey(provider, tier, periodStart);
     let budget = this.budgets.get(key);
     if (!budget) {
@@ -364,10 +364,11 @@ export class InMemoryBudgetStore implements ProviderBudgetStore {
         billingTier: tier,
         monthlyCallLimit: configuredLimit,
         isEnabled: true,
-        periodStart: periodStart.toISOString(),
-        periodEnd: getCalendarMonthUtcBounds(targetTime).periodEnd.toISOString(),
+        billingPeriodStart: periodStart.toISOString(),
+        billingPeriodEnd: periodEnd.toISOString(),
         callsConsumed: 0,
         callsReserved: 0,
+        updatedBy: "system_auto_init",
         updatedAt: new Date().toISOString(),
         remaining: configuredLimit,
       };
