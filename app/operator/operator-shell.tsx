@@ -6,10 +6,13 @@ import { useEffect, useState } from "react";
 
 const items = [
   ["/operator", "Overview"],
-  ["/operator/incoming-leads", "Incoming Leads"],
+  ["/operator/catalogue", "Catalogue"],
+  ["/operator/incoming-leads", "Research"],
+  ["/operator/prospects", "Prospects"],
+  ["/operator/outreach", "Communications"],
   ["/operator/runs", "Runs"],
-  ["/operator/prospects", "Prospect Inventory"],
-  ["/operator/outreach", "Outreach Drafts"],
+  ["/operator/review", "Needs Review"],
+  ["/operator/historical", "Historical"],
 ] as const;
 
 export function OperatorShell({ children }: { children: React.ReactNode }) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildCatalogueQuery,
+  buildCatalogueCountQuery,
   type CatalogueFilterParams,
 } from "../src/nexus/catalogue.ts";
 
@@ -55,9 +56,19 @@ test("buildCatalogueQuery filters flags: invalid reference, duplicate, permanent
   assert.deepEqual(query.values, [false, false, true]);
 });
 
-test("buildCatalogueQuery enforces search queries across name, locality, and discovery query", () => {
+test("buildCatalogueQuery enforces search queries across name, locality, discovery query, and reference ID", () => {
   const query = buildCatalogueQuery({ searchQuery: "sandton" });
-  assert.match(query.text, /\(entity_name ILIKE \$1 OR locality ILIKE \$1 OR discovery_query ILIKE \$1\)/);
+  assert.match(query.text, /\(entity_name ILIKE \$1 OR locality ILIKE \$1 OR discovery_query ILIKE \$1 OR external_reference_id ILIKE \$1\)/);
+  assert.deepEqual(query.values, ["%sandton%"]);
+});
+
+test("buildCatalogueCountQuery generates exact count query without order by or limit", () => {
+  const query = buildCatalogueCountQuery({ searchQuery: "sandton", limit: 50, offset: 100 });
+  assert.match(query.text, /SELECT COUNT\(\*\)::int AS total/);
+  assert.match(query.text, /FROM integration\.v_aire_catalogue/);
+  assert.match(query.text, /WHERE \(entity_name ILIKE \$1/);
+  assert.doesNotMatch(query.text, /LIMIT/);
+  assert.doesNotMatch(query.text, /ORDER BY/);
   assert.deepEqual(query.values, ["%sandton%"]);
 });
 
