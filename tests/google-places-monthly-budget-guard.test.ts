@@ -30,7 +30,7 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
 
     const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle(() => {
       networkCalls += 1;
-    }));
+    }), "mock-places-key");
 
     const candidates: EnrichedQueueCandidate[] = Array.from({ length: 500 }, (_, i) => ({
       externalReferenceId: `ChIJ${String(i).padStart(23, "0")}`,
@@ -53,7 +53,7 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
 
     const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle(() => {
       networkCalls += 1;
-    }));
+    }), "mock-places-key");
 
     const candidates: EnrichedQueueCandidate[] = Array.from({ length: 500 }, (_, i) => ({
       externalReferenceId: `ChIJ${String(i).padStart(23, "0")}`,
@@ -77,7 +77,7 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
 
     const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle(() => {
       networkCalls += 1;
-    }));
+    }), "mock-places-key");
 
     const candidates: EnrichedQueueCandidate[] = Array.from({ length: 217 }, (_, i) => ({
       externalReferenceId: `ChIJ${String(i).padStart(23, "0")}`,
@@ -101,7 +101,7 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
     const placeId = "ChIJaaaaaaaaaaaaaaaaaaaaaaa";
     const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle(() => {
       networkCalls += 1;
-    }));
+    }), "mock-places-key");
 
     // First call fetches and stores evidence
     await worker.processBatch("PRO", [{
@@ -135,7 +135,7 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
 
     const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle(() => {
       networkCalls += 1;
-    }));
+    }), "mock-places-key");
 
     // Resources requests placeId
     const resResources = await worker.processBatch("PRO", [{
@@ -182,7 +182,7 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
 
     const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle(() => {
       networkCalls += 1;
-    }));
+    }), "mock-places-key");
 
     const monthA = new Date("2026-10-15T00:00:00Z");
     await budgetGuard.setMonthlyLimit("google_places", "PRO", 1, true, "owner", monthA);
@@ -237,7 +237,7 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
       if (mask.includes("websiteUri")) {
         enterpriseCalls += 1;
       }
-    }));
+    }), "mock-places-key");
 
     // Run Pro batch
     await worker.processBatch("PRO", [{
@@ -259,7 +259,7 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
 
     const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle(() => {
       networkCalls += 1;
-    }));
+    }), "mock-places-key");
 
     const result = await worker.processBatch("PRO", [{
       externalReferenceId: "ChIJ_cpt_bInvalidHash",
@@ -272,5 +272,340 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
     assert.equal(result.callsExecuted, 0);
     assert.equal(result.results[0].outcome, "MALFORMED_REJECTED");
     assert.equal(result.finalBudgetRemaining, 10, "Budget intact");
+  });
+
+  await t.test("11. Missing Google API Key fails closed without provider contact", async () => {
+    const budgetGuard = new MonthlyProviderBudgetGuard({ proLimit: 5 });
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore();
+
+    // 11a: Explicitly pass empty API key and no mock fetch -> fails closed
+    const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, undefined, "");
+
+    const result = await worker.processBatch("PRO", [{
+      externalReferenceId: "ChIJ11111111111111111111111",
+      originatingProduct: "resources",
+      computedPriority: 100,
+      status: "QUEUED",
+    }]);
+
+    assert.equal(result.callsExecuted, 0, "Zero provider calls executed");
+    assert.equal(result.callsFailed, 1);
+    assert.equal(result.results[0].outcome, "FAILED");
+    assert.equal(result.results[0].error, "MISSING_GOOGLE_API_KEY");
+
+    // 11b: GOOGLE_MAPS_API_KEY only present in env; GOOGLE_PLACES_API_KEY missing -> fails closed with MISSING_GOOGLE_API_KEY
+    const origPlaces = process.env.GOOGLE_PLACES_API_KEY;
+    const origMaps = process.env.GOOGLE_MAPS_API_KEY;
+    try {
+      delete process.env.GOOGLE_PLACES_API_KEY;
+      process.env.GOOGLE_MAPS_API_KEY = "legacy-maps-key-only";
+
+      const envWorker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, undefined, undefined);
+      const envResult = await envWorker.processBatch("PRO", [{
+        externalReferenceId: "ChIJ11111111111111111111111",
+        originatingProduct: "resources",
+        computedPriority: 100,
+        status: "QUEUED",
+      }]);
+
+      assert.equal(envResult.callsExecuted, 0, "Zero provider calls when only GOOGLE_MAPS_API_KEY is present");
+      assert.equal(envResult.callsFailed, 1);
+      assert.equal(envResult.results[0].outcome, "FAILED");
+      assert.equal(envResult.results[0].error, "MISSING_GOOGLE_API_KEY");
+    } finally {
+      if (origPlaces !== undefined) process.env.GOOGLE_PLACES_API_KEY = origPlaces;
+      else delete process.env.GOOGLE_PLACES_API_KEY;
+      if (origMaps !== undefined) process.env.GOOGLE_MAPS_API_KEY = origMaps;
+      else delete process.env.GOOGLE_MAPS_API_KEY;
+    }
+
+    // 11c: Explicit fake GOOGLE_PLACES_API_KEY -> Mock provider execution works
+    let mockCalls = 0;
+    const fakeKeyWorker = new GoogleEnrichmentWorker(
+      budgetGuard,
+      evidenceStore,
+      mockGoogle(() => { mockCalls += 1; }),
+      "explicit-fake-places-key"
+    );
+    const validResult = await fakeKeyWorker.processBatch("PRO", [{
+      externalReferenceId: "ChIJ22222222222222222222222",
+      originatingProduct: "resources",
+      computedPriority: 100,
+      status: "QUEUED",
+    }]);
+    assert.equal(mockCalls, 1, "Mock provider execution succeeds with explicit fake key");
+    assert.equal(validResult.callsExecuted, 1);
+    assert.equal(validResult.results[0].outcome, "CALL_EXECUTED");
+  });
+
+  await t.test("12. Genuine Enterprise Eligibility: synthetic eligibility blocked, genuine executed", async () => {
+    const budgetGuard = new MonthlyProviderBudgetGuard({ enterpriseLimit: 10 });
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore();
+    let networkCalls = 0;
+
+    const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle(() => {
+      networkCalls += 1;
+    }), "mock-key");
+
+    // 1. Missing genuine eligibility evidence -> BLOCKED (0 calls)
+    const blockedResult = await worker.processBatch("ENTERPRISE", [{
+      externalReferenceId: "ChIJ11111111111111111111111",
+      originatingProduct: "resources",
+      computedPriority: 100,
+      status: "QUEUED",
+      // resourcesVenueEligibility not provided!
+    }]);
+
+    assert.equal(networkCalls, 0, "Zero provider calls made when eligibility evidence is absent");
+    assert.equal(blockedResult.callsExecuted, 0);
+    assert.equal(blockedResult.results[0].outcome, "ENTERPRISE_ELIGIBILITY_MISSING");
+
+    // 2. Genuine governed eligibility provided -> EXECUTED (1 call)
+    const approvedResult = await worker.processBatch("ENTERPRISE", [{
+      externalReferenceId: "ChIJ11111111111111111111111",
+      originatingProduct: "resources",
+      computedPriority: 100,
+      status: "QUEUED",
+      resourcesVenueEligibility: "ELIGIBLE",
+      eligibilityRef: "evidence:venues/gauteng/approved_listing_42",
+    }]);
+
+    assert.equal(networkCalls, 1, "Exactly one Enterprise call made with genuine eligibility");
+    assert.equal(approvedResult.callsExecuted, 1);
+    assert.equal(approvedResult.results[0].outcome, "CALL_EXECUTED");
+  });
+
+  await t.test("13. Direct Durable Queue Consumption: worker consumes queue until budget exhausted", async () => {
+    const store = new (await import("../src/nexus/monthly-budget-guard.ts")).InMemoryBudgetStore({ proLimit: 2 });
+    // Seed 4 jobs in queue
+    for (let i = 1; i <= 4; i++) {
+      store.enqueueTestJob({
+        queueId: `queue-id-${i}`,
+        provider: "google_places",
+        billingTier: "PRO",
+        externalReferenceId: `ChIJqueue00000000000000000${i}`,
+        reservationId: "",
+        originatingProduct: "resources",
+        computedPriority: 100 - i,
+        evidenceGapReason: "MISSING_PRO_CLASSIFICATION",
+        targetName: `Venue ${i}`,
+        locality: "Cape Town",
+      });
+    }
+
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore();
+    let networkCalls = 0;
+
+    const worker = new GoogleEnrichmentWorker(store, evidenceStore, mockGoogle(() => {
+      networkCalls += 1;
+    }), "mock-key");
+
+    const result = await worker.processDurableQueue("PRO", 10);
+
+    assert.equal(networkCalls, 2, "Exactly 2 calls executed, stopping at limit = 2");
+    assert.equal(result.callsExecuted, 2);
+    assert.equal(result.candidatesProcessed, 2);
+    assert.equal(result.finalBudgetRemaining, 0);
+  });
+
+  await t.test("14. Dynamic request metadata: consumes real candidate name and locality", async () => {
+    const budgetGuard = new MonthlyProviderBudgetGuard({ proLimit: 5 });
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore();
+    let capturedId = "";
+
+    const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, mockGoogle((id) => {
+      capturedId = id;
+    }), "mock-key");
+
+    await worker.processBatch("PRO", [{
+      externalReferenceId: "ChIJ99999999999999999999999",
+      targetName: "Kyalami Grand Prix Circuit",
+      locality: "Midrand",
+      originatingProduct: "ticketing",
+      computedPriority: 95,
+      status: "QUEUED",
+    }]);
+
+    assert.equal(capturedId, "ChIJ99999999999999999999999");
+  });
+
+  await t.test("15. DurableSupabaseBudgetStore RPC contract verification", async () => {
+    const rpcCalls: Array<{ fnName: string; args: Record<string, unknown> }> = [];
+    const mockSupabase = {
+      rpc: async (fnName: string, args: Record<string, unknown>) => {
+        rpcCalls.push({ fnName, args });
+        if (fnName === "get_or_create_monthly_provider_budget") {
+          return {
+            data: {
+              provider: args.p_provider,
+              billing_tier: args.p_billing_tier,
+              monthly_call_limit: 10,
+              is_enabled: true,
+              billing_period_start: "2026-10-01T00:00:00Z",
+              billing_period_end: "2026-11-01T00:00:00Z",
+              calls_consumed: 2,
+              calls_reserved: 1,
+              updated_by: "test",
+              updated_at: "2026-10-04T12:00:00Z",
+            },
+            error: null,
+          };
+        }
+        if (fnName === "set_monthly_provider_budget_limit") {
+          return { data: { success: true, limit: args.p_limit }, error: null };
+        }
+        if (fnName === "reserve_monthly_provider_budget") {
+          return { data: { success: true, reservation_id: "res-123", limit: 10, consumed: 2, reserved: 2, remaining: 6 }, error: null };
+        }
+        if (fnName === "reconcile_provider_budget_reservation") {
+          return { data: { success: true, reservation_id: args.p_reservation_id, state: "CONSUMED", actual_consumed: args.p_actual_consumed, limit: 10, consumed: 3, reserved: 1, remaining: 6 }, error: null };
+        }
+        if (fnName === "claim_next_paid_enrichment_job") {
+          return {
+            data: {
+              success: true,
+              job: {
+                queue_id: "q-1",
+                provider: args.p_provider,
+                billing_tier: args.p_billing_tier,
+                external_reference_id: "ChIJ11111111111111111111111",
+                reservation_id: "res-456",
+                discovery_query: "test venue",
+                originating_product: "resources",
+                computed_priority: 90,
+                evidence_gap_reason: "MISSING_PRO_CLASSIFICATION",
+              },
+              budget: { limit: 10, consumed: 2, reserved: 2, remaining: 6 },
+            },
+            error: null,
+          };
+        }
+        return { data: null, error: null };
+      },
+    };
+
+    const { DurableSupabaseBudgetStore } = await import("../src/nexus/monthly-budget-guard.ts");
+    const store = new DurableSupabaseBudgetStore(mockSupabase);
+
+    // Test getOrCreateBudget
+    const budget = await store.getOrCreateBudget("google_places", "PRO");
+    assert.equal(budget.monthlyCallLimit, 10);
+    assert.equal(budget.remaining, 7);
+
+    // Test reserveBudget
+    const res = await store.reserveBudget("google_places", "PRO", 1);
+    assert.equal(res.success, true);
+    assert.equal(res.reservationId, "res-123");
+
+    // Test reconcileReservation
+    const rec = await store.reconcileReservation("res-123", 1, "CALL_EXECUTED");
+    assert.equal(rec.success, true);
+    assert.equal(rec.state, "CONSUMED");
+
+    // Test claimNextJob
+    const claimed = await store.claimNextJob("google_places", "PRO");
+    assert.equal(claimed.success, true);
+    assert.equal(claimed.job?.externalReferenceId, "ChIJ11111111111111111111111");
+
+    assert.equal(rpcCalls.length, 4);
+  });
+
+  await t.test("16. Durable budget read: Database/durable adapter returns limit = 100, consumed = 20, reserved = 5 -> Worker reports remaining = 75, not zero", async () => {
+    const mockSupabase = {
+      rpc: async (fnName: string, args: Record<string, unknown>) => {
+        if (fnName === "get_or_create_monthly_provider_budget") {
+          return {
+            data: {
+              provider: args.p_provider,
+              billing_tier: args.p_billing_tier,
+              monthly_call_limit: 100,
+              is_enabled: true,
+              billing_period_start: "2026-10-01T00:00:00Z",
+              billing_period_end: "2026-11-01T00:00:00Z",
+              calls_consumed: 20,
+              calls_reserved: 5,
+              updated_by: "nexus_test",
+              updated_at: "2026-10-04T12:00:00Z",
+            },
+            error: null,
+          };
+        }
+        if (fnName === "claim_next_paid_enrichment_job") {
+          return {
+            data: {
+              success: false,
+              reason: "NO_ELIGIBLE_JOBS",
+              budget: { limit: 100, consumed: 20, reserved: 5, remaining: 75 },
+            },
+            error: null,
+          };
+        }
+        return { data: null, error: null };
+      },
+    };
+
+    const { DurableSupabaseBudgetStore } = await import("../src/nexus/monthly-budget-guard.ts");
+    const durableStore = new DurableSupabaseBudgetStore(mockSupabase);
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore();
+
+    const worker = new GoogleEnrichmentWorker(durableStore, evidenceStore, undefined, "test-places-key");
+    const result = await worker.processDurableQueue("PRO", 10);
+
+    assert.equal(result.monthlyLimit, 100, "Worker reports monthly limit = 100");
+    assert.equal(result.initialBudgetRemaining, 75, "Worker reports initial remaining = 75, NOT zero");
+    assert.equal(result.finalBudgetRemaining, 75, "Worker reports final remaining = 75, NOT zero");
+    assert.notEqual(result.initialBudgetRemaining, 0, "Initial budget remaining is not zero");
+    assert.notEqual(result.finalBudgetRemaining, 0, "Final budget remaining is not zero");
+  });
+
+  await t.test("17. Zero durable budget: limit = 0 -> calls = 0", async () => {
+    let claimCalls = 0;
+    const mockSupabase = {
+      rpc: async (fnName: string, args: Record<string, unknown>) => {
+        if (fnName === "get_or_create_monthly_provider_budget") {
+          return {
+            data: {
+              provider: args.p_provider,
+              billing_tier: args.p_billing_tier,
+              monthly_call_limit: 0,
+              is_enabled: true,
+              billing_period_start: "2026-10-01T00:00:00Z",
+              billing_period_end: "2026-11-01T00:00:00Z",
+              calls_consumed: 0,
+              calls_reserved: 0,
+              updated_by: "migration_init",
+              updated_at: "2026-10-04T12:00:00Z",
+            },
+            error: null,
+          };
+        }
+        if (fnName === "claim_next_paid_enrichment_job") {
+          claimCalls += 1;
+          return {
+            data: {
+              success: false,
+              reason: "ZERO_BUDGET_LIMIT",
+              budget: { limit: 0, consumed: 0, reserved: 0, remaining: 0 },
+            },
+            error: null,
+          };
+        }
+        return { data: null, error: null };
+      },
+    };
+
+    const { DurableSupabaseBudgetStore } = await import("../src/nexus/monthly-budget-guard.ts");
+    const durableStore = new DurableSupabaseBudgetStore(mockSupabase);
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore();
+
+    let networkCalls = 0;
+    const worker = new GoogleEnrichmentWorker(durableStore, evidenceStore, mockGoogle(() => { networkCalls += 1; }), "test-places-key");
+    const result = await worker.processDurableQueue("PRO", 10);
+
+    assert.equal(result.monthlyLimit, 0, "Monthly limit is 0");
+    assert.equal(result.initialBudgetRemaining, 0, "Initial remaining is 0");
+    assert.equal(result.callsExecuted, 0, "Zero provider calls executed under zero budget");
+    assert.equal(networkCalls, 0, "Zero mock provider calls triggered");
+    assert.equal(claimCalls, 1, "Attempted claim and stopped immediately on ZERO_BUDGET_LIMIT");
   });
 });
