@@ -5,6 +5,7 @@ import {
   fetchCatalogueItem,
   fetchCatalogueBudgets,
   promoteCatalogueEntity,
+  isDbConfigured,
 } from "../../../../src/nexus/db.ts";
 import type {
   CatalogueFilterParams,
@@ -16,28 +17,36 @@ import type {
   PaidEligibility,
 } from "../../../../src/nexus/catalogue.ts";
 
-async function readOperatorAccess(client: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
+async function readOperatorAccess(client?: any) {
+  const allowLocal = process.env.NODE_ENV !== "production" && process.env.ALLOW_LOCAL_OPERATOR === "true";
+
   try {
-    const { data: auth } = await client.auth.getUser();
-    if (auth?.user) {
-      const { data: member, error } = await client
-        .from("revenue_members")
-        .select("member_role, active")
-        .eq("user_id", auth.user.id)
-        .maybeSingle();
-      if (!error && member?.active) {
-        return {
-          access: String(member.member_role).toUpperCase() as "VIEWER" | "OPERATOR" | "ADMIN",
-          userId: auth.user.id,
-          memberRole: String(member.member_role).toLowerCase(),
-        };
+    if (client?.auth) {
+      const { data: auth } = await client.auth.getUser();
+      if (auth?.user) {
+        const { data: member, error } = await client
+          .from("revenue_members")
+          .select("member_role, active")
+          .eq("user_id", auth.user.id)
+          .maybeSingle();
+        if (!error && member?.active) {
+          return {
+            access: String(member.member_role).toUpperCase() as "VIEWER" | "OPERATOR" | "ADMIN",
+            userId: auth.user.id,
+            memberRole: String(member.member_role).toLowerCase(),
+          };
+        }
+        if (allowLocal) {
+          return { access: "ADMIN" as const, userId: auth.user.id, memberRole: "admin" };
+        }
+        return { error: NextResponse.json({ message: "Active operator access is required." }, { status: 403 }) };
       }
     }
   } catch {
     // ignore
   }
 
-  if (process.env.NODE_ENV !== "production" || process.env.ALLOW_LOCAL_OPERATOR === "true") {
+  if (allowLocal) {
     return { access: "ADMIN" as const, userId: "local-dev-operator", memberRole: "admin" };
   }
 
@@ -45,7 +54,19 @@ async function readOperatorAccess(client: Awaited<ReturnType<typeof createServer
 }
 
 export async function GET(request: Request) {
-  const client = await createServerSupabaseClient();
+  if (!isDbConfigured()) {
+    return NextResponse.json(
+      { code: "DATABASE_UNCONFIGURED", message: "Production database is not configured. Failing closed." },
+      { status: 503 }
+    );
+  }
+
+  let client: any = null;
+  try {
+    client = await createServerSupabaseClient();
+  } catch {
+    // headless or test context
+  }
   const access = await readOperatorAccess(client);
   if ("error" in access && access.error) return access.error;
 
@@ -62,9 +83,10 @@ export async function GET(request: Request) {
       const budgets = await fetchCatalogueBudgets();
       return NextResponse.json({ access: access.access, entity, budgets });
     } catch (err) {
+      const isUnconfigured = (err as Error)?.message?.includes("DATABASE_UNCONFIGURED");
       return NextResponse.json(
-        { message: "Catalogue data could not be fetched.", error: (err as Error).message },
-        { status: 500 }
+        { code: isUnconfigured ? "DATABASE_UNCONFIGURED" : "CATALOGUE_DATA_ERROR", message: "Catalogue data could not be fetched.", error: (err as Error).message },
+        { status: isUnconfigured ? 503 : 500 }
       );
     }
   }
@@ -87,7 +109,7 @@ export async function GET(request: Request) {
       filters.researchDisposition = "FIRST_PARTY_WEB_VERIFICATION";
       break;
     case "owner_confirmation":
-      filters.researchDisposition = "OWNER_CONFIRMATION";
+      filters.ownerConfirmationRoute = "STRONG_FIT";
       break;
     case "resources_ready":
       filters.resourcesRoute = "STRONG_FIT";
@@ -96,7 +118,7 @@ export async function GET(request: Request) {
       filters.canonicalIdentityState = "UNRESOLVED";
       break;
     case "waiting_for_paid_research":
-      filters.researchDisposition = ["WAITING_FOR_BUDGET", "PRO_ELIGIBLE_LATER", "ENTERPRISE_ELIGIBLE_LATER"];
+      filters.proEligibility = "OPERATOR_PROMOTION_ALLOWED";
       break;
     case "event_businesses":
       filters.eventBusinessRoute = "STRONG_FIT";
@@ -202,15 +224,28 @@ export async function GET(request: Request) {
       saved,
     });
   } catch (err) {
+    const isUnconfigured = (err as Error)?.message?.includes("DATABASE_UNCONFIGURED");
     return NextResponse.json(
-      { message: "Catalogue data could not be queried.", error: (err as Error).message },
-      { status: 500 }
+      { code: isUnconfigured ? "DATABASE_UNCONFIGURED" : "CATALOGUE_QUERY_ERROR", message: "Catalogue data could not be queried.", error: (err as Error).message },
+      { status: isUnconfigured ? 503 : 500 }
     );
   }
 }
 
 export async function POST(request: Request) {
-  const client = await createServerSupabaseClient();
+  if (!isDbConfigured()) {
+    return NextResponse.json(
+      { code: "DATABASE_UNCONFIGURED", message: "Production database is not configured. Failing closed." },
+      { status: 503 }
+    );
+  }
+
+  let client: any = null;
+  try {
+    client = await createServerSupabaseClient();
+  } catch {
+    // headless or test context
+  }
   const access = await readOperatorAccess(client);
   if ("error" in access && access.error) return access.error;
 
@@ -232,18 +267,42 @@ export async function POST(request: Request) {
   }
 
   if (action === "PROMOTE_PRO") {
+    if (!purpose || !purpose.trim()) {
+      return NextResponse.json({ code: "PURPOSE_REQUIRED", message: "Promotion purpose is mandatory." }, { status: 400 });
+    }
+    if (!reason || !reason.trim()) {
+      return NextResponse.json({ code: "REASON_REQUIRED", message: "Promotion reason is mandatory." }, { status: 400 });
+    }
+    if (!originatingProduct || !originatingProduct.trim()) {
+      return NextResponse.json({ code: "ORIGINATING_PRODUCT_REQUIRED", message: "Originating product is mandatory." }, { status: 400 });
+    }
+
     const result = await promoteCatalogueEntity({
       externalReferenceId,
       billingTier: "PRO",
-      purpose: purpose || "Operator Manual Promotion",
-      reason: reason || "Manual promotion request",
-      originatingProduct: originatingProduct || "resources",
+      purpose: purpose.trim(),
+      reason: reason.trim(),
+      originatingProduct: originatingProduct.trim(),
       actorId: access.userId,
     });
 
     if (!result.success) {
-      const status = result.reason === "EVIDENCE_ALREADY_AVAILABLE" ? 200 : 400;
-      return NextResponse.json({ code: result.reason, message: result.message, suppressed: result.reason === "EVIDENCE_ALREADY_AVAILABLE" }, { status });
+      const status =
+        result.reason === "EVIDENCE_ALREADY_AVAILABLE"
+          ? 200
+          : result.reason === "ALREADY_IN_PROGRESS"
+          ? 409
+          : 400;
+      return NextResponse.json(
+        {
+          code: result.reason,
+          message: result.message,
+          suppressed: result.reason === "EVIDENCE_ALREADY_AVAILABLE",
+          queueId: result.queueId,
+          status: result.status,
+        },
+        { status }
+      );
     }
 
     return NextResponse.json({
@@ -255,19 +314,46 @@ export async function POST(request: Request) {
   }
 
   if (action === "PROMOTE_ENTERPRISE") {
+    if (!purpose || !purpose.trim()) {
+      return NextResponse.json({ code: "PURPOSE_REQUIRED", message: "Promotion purpose is mandatory." }, { status: 400 });
+    }
+    if (!reason || !reason.trim()) {
+      return NextResponse.json({ code: "REASON_REQUIRED", message: "Promotion reason is mandatory." }, { status: 400 });
+    }
+    if (!originatingProduct || !originatingProduct.trim()) {
+      return NextResponse.json({ code: "ORIGINATING_PRODUCT_REQUIRED", message: "Originating product is mandatory." }, { status: 400 });
+    }
+    if (!evidenceGapReason || !evidenceGapReason.trim()) {
+      return NextResponse.json({ code: "EVIDENCE_GAP_REQUIRED", message: "Evidence gap reason is mandatory for Enterprise promotion." }, { status: 400 });
+    }
+
     const result = await promoteCatalogueEntity({
       externalReferenceId,
       billingTier: "ENTERPRISE",
-      purpose: purpose || "Operator Enterprise Investigation",
-      reason: reason || "Manual enterprise escalation",
-      evidenceGapReason: evidenceGapReason || reason,
-      originatingProduct: originatingProduct || "resources",
+      purpose: purpose.trim(),
+      reason: reason.trim(),
+      originatingProduct: originatingProduct.trim(),
+      evidenceGapReason: evidenceGapReason.trim(),
       actorId: access.userId,
     });
 
     if (!result.success) {
-      const status = result.reason === "EVIDENCE_ALREADY_AVAILABLE" ? 200 : 400;
-      return NextResponse.json({ code: result.reason, message: result.message, suppressed: result.reason === "EVIDENCE_ALREADY_AVAILABLE" }, { status });
+      const status =
+        result.reason === "EVIDENCE_ALREADY_AVAILABLE"
+          ? 200
+          : result.reason === "ALREADY_IN_PROGRESS"
+          ? 409
+          : 400;
+      return NextResponse.json(
+        {
+          code: result.reason,
+          message: result.message,
+          suppressed: result.reason === "EVIDENCE_ALREADY_AVAILABLE",
+          queueId: result.queueId,
+          status: result.status,
+        },
+        { status }
+      );
     }
 
     return NextResponse.json({

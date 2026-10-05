@@ -41,9 +41,10 @@ test("buildCatalogueQuery handles product route filters accurately", () => {
     resourcesRoute: "NEEDS_MORE_EVIDENCE",
     contextPosRoute: "STRONG_FIT",
     eventBusinessRoute: "NOT_APPLICABLE",
+    ownerConfirmationRoute: "STRONG_FIT",
   });
-  assert.match(query.text, /resources_route = \$1 AND context_pos_route = \$2 AND event_business_route = \$3/);
-  assert.deepEqual(query.values, ["NEEDS_MORE_EVIDENCE", "STRONG_FIT", "NOT_APPLICABLE"]);
+  assert.match(query.text, /resources_route = \$1 AND context_pos_route = \$2 AND event_business_route = \$3 AND owner_confirmation_route = \$4/);
+  assert.deepEqual(query.values, ["NEEDS_MORE_EVIDENCE", "STRONG_FIT", "NOT_APPLICABLE", "STRONG_FIT"]);
 });
 
 test("buildCatalogueQuery filters flags: invalid reference, duplicate, permanently closed", () => {

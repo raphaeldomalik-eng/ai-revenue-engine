@@ -196,16 +196,17 @@ async function prospectOrganisations(client: Awaited<ReturnType<typeof createSer
 }
 
 async function readAccess(client: Awaited<ReturnType<typeof createServerSupabaseClient>>) {
+  const allowLocal = process.env.NODE_ENV !== "production" && process.env.ALLOW_LOCAL_OPERATOR === "true";
   const { data: auth } = await client.auth.getUser();
   if (!auth.user) {
-    if (process.env.NODE_ENV !== "production" || process.env.ALLOW_LOCAL_OPERATOR === "true") {
+    if (allowLocal) {
       return { access: "ADMIN" as const, userId: "local-dev-operator", memberRole: "admin" };
     }
     return { error: NextResponse.json({ message: "Sign in is required." }, { status: 401 }) };
   }
   const { data: member, error } = await client.from("revenue_members").select("member_role, active").eq("user_id", auth.user.id).maybeSingle();
   if (error || !member?.active) {
-    if (process.env.NODE_ENV !== "production" || process.env.ALLOW_LOCAL_OPERATOR === "true") {
+    if (allowLocal) {
       return { access: "ADMIN" as const, userId: auth.user.id, memberRole: "admin" };
     }
     return { error: NextResponse.json({ message: "Active membership is required." }, { status: 403 }) };

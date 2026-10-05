@@ -125,6 +125,7 @@ export interface CatalogueFilterParams {
   productionOpsRoute?: RouteState;
   eventBusinessRoute?: RouteState;
   commercialProspectingRoute?: RouteState;
+  ownerConfirmationRoute?: RouteState;
   researchDisposition?: ResearchDisposition | ResearchDisposition[];
   proEvidenceState?: 'EVIDENCE_ALREADY_AVAILABLE' | 'NO_PRO_EVIDENCE';
   proEligibility?: PaidEligibility;
@@ -237,6 +238,11 @@ export function buildCatalogueQuery(filters: CatalogueFilterParams = {}): { text
   if (filters.commercialProspectingRoute) {
     conditions.push(`commercial_prospecting_route = $${paramIdx++}`);
     values.push(filters.commercialProspectingRoute);
+  }
+
+  if (filters.ownerConfirmationRoute) {
+    conditions.push(`owner_confirmation_route = $${paramIdx++}`);
+    values.push(filters.ownerConfirmationRoute);
   }
 
   if (filters.externalReferenceId) {

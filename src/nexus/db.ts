@@ -14,6 +14,7 @@ import {
 import { GOOGLE_PLACE_ID_RE } from './google-enrichment-worker.ts';
 
 function loadEnvLocal() {
+  if (process.env.NODE_ENV === 'production') return;
   if (process.env.RESOURCES_V2_PRODUCTION_DATABASE_URL || process.env.DATABASE_URL) return;
   try {
     const envPath = path.resolve(process.cwd(), '.env.local');
@@ -227,16 +228,49 @@ while (FIXTURE_ITEMS.length < 25) {
   });
 }
 
-function createMockPool() {
-  const mockQueue = new Map<string, any>();
+export interface DbPoolOptions {
+  allowMock?: boolean;
+}
 
-  return {
+export function createMockPool() {
+  const mockQueue = new Map<string, any>();
+  const mockAudits: any[] = [];
+
+  const poolInstance: any = {
+    getAuditRecords: () => [...mockAudits],
+    getQueueRecords: () => Array.from(mockQueue.values()),
+    seedQueueRecord: (row: any) => {
+      const key = row.id || `mock-${row.external_reference_id}-${row.billing_tier}`;
+      mockQueue.set(key, { ...row, id: key });
+    },
+    clearMocks: () => {
+      mockQueue.clear();
+      mockAudits.length = 0;
+    },
     query: async (queryText: string, values?: any[]) => {
       const q = String(queryText).trim();
 
       // Count query
       if (q.includes('COUNT(*)::int AS total')) {
-        return { rows: [{ total: 21468 }] };
+        let count = 21468;
+        if (q.includes('owner_confirmation_route = $') && values?.includes('STRONG_FIT')) {
+          count = 210;
+        } else if (q.includes('resources_route = $') && values?.includes('STRONG_FIT')) {
+          count = 9743;
+        } else if (q.includes('event_business_route = $') && values?.includes('STRONG_FIT')) {
+          count = 2923;
+        } else if (q.includes('commercial_prospecting_route = $') && values?.includes('POSSIBLE_FIT')) {
+          count = 17922;
+        } else if (q.includes('canonical_identity_state = $') && values?.includes('UNRESOLVED')) {
+          count = 17944;
+        } else if (q.includes('is_invalid_reference = $') && values?.includes(true)) {
+          count = 1078;
+        } else if (q.includes('research_disposition')) {
+          count = 5367;
+        } else if (q.includes('pro_eligibility = $') && values?.includes('OPERATOR_PROMOTION_ALLOWED')) {
+          count = 2923;
+        }
+        return { rows: [{ total: count }] };
       }
 
       // Budgets query
@@ -256,7 +290,21 @@ function createMockPool() {
         return { rows: item ? [item] : [] };
       }
 
-      // Queue checks
+      // Existing queue check by external_reference_id & billing_tier
+      if (
+        q.includes('FROM integration.paid_enrichment_queue') &&
+        q.includes('external_reference_id = $1') &&
+        q.includes('billing_tier = $2')
+      ) {
+        const extRef = values?.[0];
+        const tier = values?.[1];
+        const existing = Array.from(mockQueue.values()).find(
+          (r: any) => r.external_reference_id === extRef && r.billing_tier === tier
+        );
+        return { rows: existing ? [existing] : [] };
+      }
+
+      // Queue checks by ID
       if (q.includes('FROM integration.paid_enrichment_queue WHERE id = $1') && values?.[0]) {
         const qRow = mockQueue.get(values[0]);
         return { rows: qRow ? [qRow] : [] };
@@ -264,7 +312,7 @@ function createMockPool() {
 
       // Queue insert
       if (q.includes('INSERT INTO integration.paid_enrichment_queue')) {
-        const id = 'mock-queue-uuid-' + Date.now();
+        const id = 'mock-queue-uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
         const row = {
           id,
           provider: values?.[0] || 'google_places',
@@ -273,16 +321,58 @@ function createMockPool() {
           status: values?.[3] || 'WAITING_FOR_MONTHLY_BUDGET',
           evidence_gap_reason: values?.[4],
           originating_product: values?.[5],
-          computed_priority: values?.[6],
+          computed_priority: values?.[6] || 100.0,
+          reservation_id: null,
+          attempts: 0,
+          created_at: new Date(),
+          updated_at: new Date(),
         };
         mockQueue.set(id, row);
         return { rows: [row] };
+      }
+
+      // Queue update
+      if (q.includes('UPDATE integration.paid_enrichment_queue')) {
+        const id = values?.[3]; // status = $1, evidence_gap_reason = $2, originating_product = $3, WHERE id = $4
+        const existing = mockQueue.get(id);
+        if (existing) {
+          existing.status = values?.[0] || existing.status;
+          existing.evidence_gap_reason = values?.[1] || existing.evidence_gap_reason;
+          existing.originating_product = values?.[2] || existing.originating_product;
+          existing.updated_at = new Date();
+          mockQueue.set(id, existing);
+          return { rows: [existing] };
+        }
+        return { rows: [] };
       }
 
       // Queue delete
       if (q.includes('DELETE FROM integration.paid_enrichment_queue WHERE id = $1') && values?.[0]) {
         mockQueue.delete(values[0]);
         return { rows: [] };
+      }
+
+      // Operator work audit insert
+      if (q.includes('INSERT INTO integration.operator_work_audit')) {
+        const auditId = 'mock-audit-uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+        const auditRecord = {
+          id: auditId,
+          source_type: values?.[0],
+          source_id: values?.[1],
+          actor_id: values?.[2],
+          action: values?.[3],
+          previous_state: values?.[4],
+          new_state: values?.[5],
+          payload_diff: typeof values?.[6] === 'string' ? JSON.parse(values[6]) : values?.[6],
+          created_at: new Date(),
+        };
+        mockAudits.push(auditRecord);
+        return { rows: [auditRecord] };
+      }
+
+      // Operator work audit select
+      if (q.includes('FROM integration.operator_work_audit')) {
+        return { rows: [...mockAudits] };
       }
 
       // Invalid reference check in tests
@@ -316,27 +406,52 @@ function createMockPool() {
     },
     end: async () => {},
   };
+
+  return poolInstance;
 }
 
-export function getDbPool(): any {
-  if (!globalPool) {
-    const connStr =
-      process.env.RESOURCES_V2_PRODUCTION_DATABASE_URL ||
-      process.env.DATABASE_URL;
+export function setDbPool(pool: any | null) {
+  globalPool = pool;
+}
 
-    if (connStr) {
-      globalPool = new pg.Pool({
-        connectionString: connStr,
-        ssl: { rejectUnauthorized: false },
-        max: 10,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-      });
-    } else {
-      globalPool = createMockPool();
-    }
+export function resetDbPool() {
+  globalPool = null;
+}
+
+export function isDbConfigured(): boolean {
+  if (globalPool) return true;
+  loadEnvLocal();
+  return Boolean(
+    process.env.RESOURCES_V2_PRODUCTION_DATABASE_URL ||
+    process.env.DATABASE_URL
+  );
+}
+
+export function getDbPool(options: DbPoolOptions = {}): any {
+  if (globalPool) return globalPool;
+
+  loadEnvLocal();
+
+  const connStr =
+    process.env.RESOURCES_V2_PRODUCTION_DATABASE_URL ||
+    process.env.DATABASE_URL;
+
+  if (connStr) {
+    globalPool = new pg.Pool({
+      connectionString: connStr,
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
+    });
+    return globalPool;
   }
-  return globalPool;
+
+  if (options.allowMock) {
+    return createMockPool();
+  }
+
+  throw new Error('DATABASE_UNCONFIGURED: Production database connection URL is not configured. Failing closed.');
 }
 
 export interface BudgetTierStatus {
@@ -546,6 +661,14 @@ export async function promoteCatalogueEntity(
     };
   }
 
+  if (!params.originatingProduct || !params.originatingProduct.trim()) {
+    return {
+      success: false,
+      reason: 'ORIGINATING_PRODUCT_REQUIRED',
+      message: 'Originating product is mandatory.',
+    };
+  }
+
   // 1. Guard against invalid provider IDs (Must match ChIJ... format and length)
   if (!GOOGLE_PLACE_ID_RE.test(params.externalReferenceId)) {
     return {
@@ -608,38 +731,138 @@ export async function promoteCatalogueEntity(
   // Because current budget is 0, the job is queued in WAITING_FOR_MONTHLY_BUDGET
   // Zero external provider calls occur.
   const queueStatus = targetBudget.remaining > 0 ? 'QUEUED' : 'WAITING_FOR_MONTHLY_BUDGET';
-  const evidenceGap = params.evidenceGapReason || params.reason;
+  const evidenceGap = params.evidenceGapReason ? params.evidenceGapReason.trim() : params.reason.trim();
+  const evidenceGapText = `[${params.purpose.trim()}] ${evidenceGap}`;
 
-  const insertQuery = `
-    INSERT INTO integration.paid_enrichment_queue (
-      provider,
-      external_reference_id,
-      billing_tier,
-      status,
-      evidence_gap_reason,
-      originating_product,
-      computed_priority
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT (provider, external_reference_id, billing_tier)
-    DO UPDATE SET
-      status = EXCLUDED.status,
-      evidence_gap_reason = EXCLUDED.evidence_gap_reason,
-      originating_product = EXCLUDED.originating_product,
-      updated_at = now()
-    RETURNING id, status, external_reference_id, billing_tier, created_at;
-  `;
+  // 5. Inspect existing queue record to protect in-flight and terminal states
+  const existingJobRes = await p.query(
+    `SELECT id, status, attempts, reservation_id, created_at
+     FROM integration.paid_enrichment_queue
+     WHERE provider = 'google_places'
+       AND external_reference_id = $1
+       AND billing_tier = $2
+     LIMIT 1;`,
+    [params.externalReferenceId, params.billingTier]
+  );
+  const existingJob = existingJobRes.rows[0];
 
-  const queueRes = await p.query(insertQuery, [
-    'google_places',
-    params.externalReferenceId,
-    params.billingTier,
-    queueStatus,
-    `[${params.purpose.trim()}] ${evidenceGap.trim()}`,
-    params.originatingProduct || 'aire_operator_workspace',
-    100.0, // High operator priority
-  ]);
+  if (existingJob) {
+    if (existingJob.status === 'RESERVED' || existingJob.status === 'IN_PROGRESS') {
+      return {
+        success: false,
+        reason: 'ALREADY_IN_PROGRESS',
+        message: 'Enrichment job is already in progress.',
+        queueId: existingJob.id,
+        status: existingJob.status,
+      };
+    }
 
-  const queuedJob = queueRes.rows[0];
+    if (
+      existingJob.status === 'COMPLETED' ||
+      existingJob.status === 'EVIDENCE_ALREADY_AVAILABLE' ||
+      existingJob.status === 'NOT_REQUIRED'
+    ) {
+      return {
+        success: false,
+        reason: 'EVIDENCE_ALREADY_AVAILABLE',
+        message: 'Existing evidence satisfies this request. Zero provider calls dispatched.',
+        queueId: existingJob.id,
+        status: existingJob.status,
+      };
+    }
+
+    if (existingJob.status === 'BLOCKED') {
+      return {
+        success: false,
+        reason: 'JOB_BLOCKED',
+        message: 'Enrichment job is blocked for this entity.',
+        queueId: existingJob.id,
+        status: existingJob.status,
+      };
+    }
+  }
+
+  // 6. Safe update of existing queued/waiting/deferred job or insertion of new job
+  let queuedJob: any;
+  if (existingJob) {
+    const updateRes = await p.query(
+      `UPDATE integration.paid_enrichment_queue
+       SET status = $1,
+           evidence_gap_reason = $2,
+           originating_product = $3,
+           updated_at = now()
+       WHERE id = $4
+       RETURNING id, status, external_reference_id, billing_tier, created_at;`,
+      [queueStatus, evidenceGapText, params.originatingProduct.trim(), existingJob.id]
+    );
+    queuedJob = updateRes.rows[0];
+  } else {
+    const insertRes = await p.query(
+      `INSERT INTO integration.paid_enrichment_queue (
+         provider,
+         external_reference_id,
+         billing_tier,
+         status,
+         evidence_gap_reason,
+         originating_product,
+         computed_priority
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, status, external_reference_id, billing_tier, created_at;`,
+      [
+        'google_places',
+        params.externalReferenceId,
+        params.billingTier,
+        queueStatus,
+        evidenceGapText,
+        params.originatingProduct.trim(),
+        100.0, // High operator priority
+      ]
+    );
+    queuedJob = insertRes.rows[0];
+  }
+
+  // 7. Persist durable audit record into integration.operator_work_audit
+  const actorId = params.actorId || 'operator_manual';
+  const previousState = existingJob ? existingJob.status : 'NONE';
+  const actionName = params.billingTier === 'PRO' ? 'PROMOTE_PRO' : 'PROMOTE_ENTERPRISE';
+
+  const auditPayload = {
+    authorization_source: 'operator_manual',
+    actor_id: actorId,
+    purpose: params.purpose.trim(),
+    reason: params.reason.trim(),
+    evidence_gap_reason: params.evidenceGapReason ? params.evidenceGapReason.trim() : null,
+    originating_product: params.originatingProduct.trim(),
+    requested_tier: params.billingTier,
+    external_reference_id: params.externalReferenceId,
+    timestamp: new Date().toISOString(),
+    resulting_state: queuedJob.status,
+  };
+
+  try {
+    await p.query(
+      `INSERT INTO integration.operator_work_audit (
+         source_type,
+         source_id,
+         actor_id,
+         action,
+         previous_state,
+         new_state,
+         payload_diff
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+      [
+        'paid_enrichment_queue',
+        queuedJob.id,
+        actorId,
+        actionName,
+        previousState,
+        queuedJob.status,
+        JSON.stringify(auditPayload),
+      ]
+    );
+  } catch (auditErr) {
+    console.error('Failed to persist operator work audit:', auditErr);
+  }
 
   return {
     success: true,
