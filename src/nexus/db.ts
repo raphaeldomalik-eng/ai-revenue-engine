@@ -13,8 +13,42 @@ import {
 } from './catalogue.ts';
 import { GOOGLE_PLACE_ID_RE } from './google-enrichment-worker.ts';
 
+export const PRODUCTION_PROJECT_REF = 'sbmcrnpdilmpybomxwox';
+
+export function isProductionDatabaseUrl(url?: string): boolean {
+  if (!url) return false;
+  return url.includes(PRODUCTION_PROJECT_REF);
+}
+
+export function isTestExecution(): boolean {
+  return (
+    process.env.NODE_ENV === 'test' ||
+    Boolean(process.env.VITEST) ||
+    Boolean(process.env.JEST_WORKER_ID) ||
+    process.argv.some((arg) => arg.includes('test'))
+  );
+}
+
+export function assertSafeMutationTarget(poolOrUrl?: any): void {
+  if (!isTestExecution()) return;
+  const connStr =
+    typeof poolOrUrl === 'string'
+      ? poolOrUrl
+      : poolOrUrl?.options?.connectionString ||
+        poolOrUrl?._connectionString ||
+        process.env.RESOURCES_V2_PRODUCTION_DATABASE_URL ||
+        process.env.DATABASE_URL ||
+        '';
+  if (isProductionDatabaseUrl(connStr)) {
+    throw new Error(
+      `MUTATION_BLOCKED: Test execution cannot mutate production database project ${PRODUCTION_PROJECT_REF}.`
+    );
+  }
+}
+
 function loadEnvLocal() {
   if (process.env.NODE_ENV === 'production') return;
+  if (isTestExecution()) return;
   if (process.env.RESOURCES_V2_PRODUCTION_DATABASE_URL || process.env.DATABASE_URL) return;
   try {
     const envPath = path.resolve(process.cwd(), '.env.local');
@@ -235,6 +269,195 @@ export interface DbPoolOptions {
 export function createMockPool() {
   const mockQueue = new Map<string, any>();
   const mockAudits: any[] = [];
+  let shouldSimulateAuditFailure = false;
+  let queryHook: ((queryText: string, values?: any[]) => any) | null = null;
+
+  function executeQuery(queryText: string, values?: any[]) {
+    if (queryHook) {
+      const hookResult = queryHook(queryText, values);
+      if (hookResult !== undefined) return hookResult;
+    }
+    const q = String(queryText).trim();
+
+    // Count query
+    if (q.includes('COUNT(*)::int AS total')) {
+      let count = 21468;
+      if (q.includes('owner_confirmation_route = $') && values?.includes('STRONG_FIT')) {
+        count = 210;
+      } else if (q.includes('resources_route = $') && values?.includes('STRONG_FIT')) {
+        count = 9743;
+      } else if (q.includes('event_business_route = $') && values?.includes('STRONG_FIT')) {
+        count = 2923;
+      } else if (q.includes('commercial_prospecting_route = $') && values?.includes('POSSIBLE_FIT')) {
+        count = 17922;
+      } else if (q.includes('canonical_identity_state = $') && values?.includes('UNRESOLVED')) {
+        count = 17944;
+      } else if (q.includes('is_invalid_reference = $') && values?.includes(true)) {
+        count = 1078;
+      } else if (q.includes('research_disposition')) {
+        count = 5367;
+      } else if (q.includes('pro_eligibility = $') && values?.includes('OPERATOR_PROMOTION_ALLOWED')) {
+        count = 2923;
+      }
+      return { rows: [{ total: count }] };
+    }
+
+    // Budgets query
+    if (q.includes('FROM integration.monthly_provider_budget')) {
+      return {
+        rows: [
+          { billing_tier: 'ENTERPRISE', monthly_call_limit: 0, is_enabled: true, calls_consumed: 0, calls_reserved: 0, remaining: 0 },
+          { billing_tier: 'ENTERPRISE_ATMOSPHERE', monthly_call_limit: 0, is_enabled: false, calls_consumed: 0, calls_reserved: 0, remaining: 0 },
+          { billing_tier: 'PRO', monthly_call_limit: 0, is_enabled: true, calls_consumed: 0, calls_reserved: 0, remaining: 0 },
+        ],
+      };
+    }
+
+    // Single item query
+    if (q.includes('WHERE external_reference_id = $1') && values?.[0]) {
+      const item = FIXTURE_ITEMS.find((fi) => fi.external_reference_id === values[0]);
+      return { rows: item ? [{ ...item }] : [] };
+    }
+
+    // Existing queue check by external_reference_id & billing_tier (with or without FOR UPDATE)
+    if (
+      q.includes('FROM integration.paid_enrichment_queue') &&
+      q.includes('external_reference_id = $1') &&
+      q.includes('billing_tier = $2')
+    ) {
+      const extRef = values?.[0];
+      const tier = values?.[1];
+      const existing = Array.from(mockQueue.values()).find(
+        (r: any) => r.external_reference_id === extRef && r.billing_tier === tier
+      );
+      return { rows: existing ? [{ ...existing }] : [] };
+    }
+
+    // Queue checks by ID
+    if (q.includes('FROM integration.paid_enrichment_queue WHERE id = $1') && values?.[0]) {
+      const qRow = mockQueue.get(values[0]);
+      return { rows: qRow ? [{ ...qRow }] : [] };
+    }
+
+    // Queue insert (handling ON CONFLICT)
+    if (q.includes('INSERT INTO integration.paid_enrichment_queue')) {
+      const extRef = values?.[1];
+      const tier = values?.[2];
+      const existingKey = Array.from(mockQueue.keys()).find((k) => {
+        const row = mockQueue.get(k);
+        return row.external_reference_id === extRef && row.billing_tier === tier;
+      });
+
+      if (existingKey) {
+        const existing = mockQueue.get(existingKey);
+        const mutableStates = ['QUEUED', 'WAITING_FOR_MONTHLY_BUDGET', 'DEFERRED', 'FAILED_RETRYABLE'];
+        if (mutableStates.includes(existing.status)) {
+          existing.status = values?.[3] || existing.status;
+          existing.evidence_gap_reason = values?.[4] || existing.evidence_gap_reason;
+          existing.originating_product = values?.[5] || existing.originating_product;
+          existing.computed_priority = values?.[6] || 100.0;
+          existing.updated_at = new Date();
+          mockQueue.set(existingKey, existing);
+        }
+        return { rows: [{ ...existing }] };
+      }
+
+      const id = 'mock-queue-uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+      const row = {
+        id,
+        provider: values?.[0] || 'google_places',
+        external_reference_id: extRef,
+        billing_tier: tier,
+        status: values?.[3] || 'WAITING_FOR_MONTHLY_BUDGET',
+        evidence_gap_reason: values?.[4],
+        originating_product: values?.[5],
+        computed_priority: values?.[6] || 100.0,
+        reservation_id: null,
+        attempts: 0,
+        created_at: new Date(),
+        updated_at: new Date(),
+      };
+      mockQueue.set(id, row);
+      return { rows: [{ ...row }] };
+    }
+
+    // Queue update
+    if (q.includes('UPDATE integration.paid_enrichment_queue')) {
+      const id = values?.[3];
+      const existing = mockQueue.get(id);
+      if (existing) {
+        existing.status = values?.[0] || existing.status;
+        existing.evidence_gap_reason = values?.[1] || existing.evidence_gap_reason;
+        existing.originating_product = values?.[2] || existing.originating_product;
+        existing.computed_priority = 100.0;
+        existing.updated_at = new Date();
+        mockQueue.set(id, existing);
+        return { rows: [{ ...existing }] };
+      }
+      return { rows: [] };
+    }
+
+    // Queue delete
+    if (q.includes('DELETE FROM integration.paid_enrichment_queue WHERE id = $1') && values?.[0]) {
+      mockQueue.delete(values[0]);
+      return { rows: [] };
+    }
+
+    // Operator work audit insert
+    if (q.includes('INSERT INTO integration.operator_work_audit')) {
+      if (shouldSimulateAuditFailure) {
+        throw new Error('SIMULATED_AUDIT_FAILURE: Database error persisting operator work audit');
+      }
+      const auditId = 'mock-audit-uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+      const auditRecord = {
+        id: auditId,
+        source_type: values?.[0],
+        source_id: values?.[1],
+        actor_id: values?.[2],
+        action: values?.[3],
+        previous_state: values?.[4],
+        new_state: values?.[5],
+        payload_diff: typeof values?.[6] === 'string' ? JSON.parse(values[6]) : values?.[6],
+        created_at: new Date(),
+      };
+      mockAudits.push(auditRecord);
+      return { rows: [{ ...auditRecord }] };
+    }
+
+    // Operator work audit select
+    if (q.includes('FROM integration.operator_work_audit')) {
+      return { rows: [...mockAudits] };
+    }
+
+    // Invalid reference check in tests
+    if (q.includes('WHERE is_invalid_reference = true')) {
+      return { rows: [{ ...FIXTURE_ITEMS[3] }] };
+    }
+
+    // Enriched reference check in tests
+    if (q.includes("WHERE pro_evidence_state = 'EVIDENCE_ALREADY_AVAILABLE'")) {
+      return { rows: [{ ...FIXTURE_ITEMS[1] }] };
+    }
+
+    // NO_PRO_EVIDENCE check in tests
+    if (q.includes("WHERE is_invalid_reference = false AND pro_evidence_state = 'NO_PRO_EVIDENCE'")) {
+      return { rows: [{ ...FIXTURE_ITEMS[0] }] };
+    }
+
+    // General catalogue query
+    let matched = [...FIXTURE_ITEMS];
+    if (q.includes('normalized_profile = $') && values?.includes('food_beverage')) {
+      matched = matched.filter((it) => it.normalized_profile === 'food_beverage');
+    }
+    if (q.includes('event_capability = $') && values?.includes('EXPLICIT_EVENT_VENUE')) {
+      matched = matched.filter((it) => it.event_capability === 'EXPLICIT_EVENT_VENUE');
+    }
+    if (q.includes('event_business_route = $') && values?.includes('STRONG_FIT')) {
+      matched = matched.filter((it) => it.event_business_route === 'STRONG_FIT');
+    }
+
+    return { rows: matched };
+  }
 
   const poolInstance: any = {
     getAuditRecords: () => [...mockAudits],
@@ -246,163 +469,68 @@ export function createMockPool() {
     clearMocks: () => {
       mockQueue.clear();
       mockAudits.length = 0;
+      shouldSimulateAuditFailure = false;
+      queryHook = null;
+    },
+    simulateAuditFailure: (fail: boolean = true) => {
+      shouldSimulateAuditFailure = fail;
+    },
+    setQueryHook: (hook: ((q: string, v?: any[]) => any) | null) => {
+      queryHook = hook;
     },
     query: async (queryText: string, values?: any[]) => {
-      const q = String(queryText).trim();
+      return executeQuery(queryText, values);
+    },
+    connect: async () => {
+      let inTransaction = false;
+      let snapshotQueue: [string, any][] = [];
+      let snapshotAudits: any[] = [];
 
-      // Count query
-      if (q.includes('COUNT(*)::int AS total')) {
-        let count = 21468;
-        if (q.includes('owner_confirmation_route = $') && values?.includes('STRONG_FIT')) {
-          count = 210;
-        } else if (q.includes('resources_route = $') && values?.includes('STRONG_FIT')) {
-          count = 9743;
-        } else if (q.includes('event_business_route = $') && values?.includes('STRONG_FIT')) {
-          count = 2923;
-        } else if (q.includes('commercial_prospecting_route = $') && values?.includes('POSSIBLE_FIT')) {
-          count = 17922;
-        } else if (q.includes('canonical_identity_state = $') && values?.includes('UNRESOLVED')) {
-          count = 17944;
-        } else if (q.includes('is_invalid_reference = $') && values?.includes(true)) {
-          count = 1078;
-        } else if (q.includes('research_disposition')) {
-          count = 5367;
-        } else if (q.includes('pro_eligibility = $') && values?.includes('OPERATOR_PROMOTION_ALLOWED')) {
-          count = 2923;
-        }
-        return { rows: [{ total: count }] };
-      }
+      const client = {
+        query: async (queryText: string, values?: any[]) => {
+          const q = String(queryText).trim().toUpperCase();
+          if (q === 'BEGIN') {
+            inTransaction = true;
+            snapshotQueue = Array.from(mockQueue.entries()).map(([k, v]) => [k, { ...v }]);
+            snapshotAudits = mockAudits.map((a) => ({ ...a }));
+            return { rows: [] };
+          }
+          if (q === 'COMMIT') {
+            inTransaction = false;
+            return { rows: [] };
+          }
+          if (q === 'ROLLBACK') {
+            if (inTransaction) {
+              mockQueue.clear();
+              for (const [k, v] of snapshotQueue) {
+                mockQueue.set(k, { ...v });
+              }
+              mockAudits.length = 0;
+              for (const a of snapshotAudits) {
+                mockAudits.push({ ...a });
+              }
+            }
+            inTransaction = false;
+            return { rows: [] };
+          }
 
-      // Budgets query
-      if (q.includes('FROM integration.monthly_provider_budget')) {
-        return {
-          rows: [
-            { billing_tier: 'ENTERPRISE', monthly_call_limit: 0, is_enabled: true, calls_consumed: 0, calls_reserved: 0, remaining: 0 },
-            { billing_tier: 'ENTERPRISE_ATMOSPHERE', monthly_call_limit: 0, is_enabled: false, calls_consumed: 0, calls_reserved: 0, remaining: 0 },
-            { billing_tier: 'PRO', monthly_call_limit: 0, is_enabled: true, calls_consumed: 0, calls_reserved: 0, remaining: 0 },
-          ],
-        };
-      }
-
-      // Single item query
-      if (q.includes('WHERE external_reference_id = $1') && values?.[0]) {
-        const item = FIXTURE_ITEMS.find((fi) => fi.external_reference_id === values[0]);
-        return { rows: item ? [item] : [] };
-      }
-
-      // Existing queue check by external_reference_id & billing_tier
-      if (
-        q.includes('FROM integration.paid_enrichment_queue') &&
-        q.includes('external_reference_id = $1') &&
-        q.includes('billing_tier = $2')
-      ) {
-        const extRef = values?.[0];
-        const tier = values?.[1];
-        const existing = Array.from(mockQueue.values()).find(
-          (r: any) => r.external_reference_id === extRef && r.billing_tier === tier
-        );
-        return { rows: existing ? [existing] : [] };
-      }
-
-      // Queue checks by ID
-      if (q.includes('FROM integration.paid_enrichment_queue WHERE id = $1') && values?.[0]) {
-        const qRow = mockQueue.get(values[0]);
-        return { rows: qRow ? [qRow] : [] };
-      }
-
-      // Queue insert
-      if (q.includes('INSERT INTO integration.paid_enrichment_queue')) {
-        const id = 'mock-queue-uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-        const row = {
-          id,
-          provider: values?.[0] || 'google_places',
-          external_reference_id: values?.[1],
-          billing_tier: values?.[2],
-          status: values?.[3] || 'WAITING_FOR_MONTHLY_BUDGET',
-          evidence_gap_reason: values?.[4],
-          originating_product: values?.[5],
-          computed_priority: values?.[6] || 100.0,
-          reservation_id: null,
-          attempts: 0,
-          created_at: new Date(),
-          updated_at: new Date(),
-        };
-        mockQueue.set(id, row);
-        return { rows: [row] };
-      }
-
-      // Queue update
-      if (q.includes('UPDATE integration.paid_enrichment_queue')) {
-        const id = values?.[3]; // status = $1, evidence_gap_reason = $2, originating_product = $3, WHERE id = $4
-        const existing = mockQueue.get(id);
-        if (existing) {
-          existing.status = values?.[0] || existing.status;
-          existing.evidence_gap_reason = values?.[1] || existing.evidence_gap_reason;
-          existing.originating_product = values?.[2] || existing.originating_product;
-          existing.updated_at = new Date();
-          mockQueue.set(id, existing);
-          return { rows: [existing] };
-        }
-        return { rows: [] };
-      }
-
-      // Queue delete
-      if (q.includes('DELETE FROM integration.paid_enrichment_queue WHERE id = $1') && values?.[0]) {
-        mockQueue.delete(values[0]);
-        return { rows: [] };
-      }
-
-      // Operator work audit insert
-      if (q.includes('INSERT INTO integration.operator_work_audit')) {
-        const auditId = 'mock-audit-uuid-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-        const auditRecord = {
-          id: auditId,
-          source_type: values?.[0],
-          source_id: values?.[1],
-          actor_id: values?.[2],
-          action: values?.[3],
-          previous_state: values?.[4],
-          new_state: values?.[5],
-          payload_diff: typeof values?.[6] === 'string' ? JSON.parse(values[6]) : values?.[6],
-          created_at: new Date(),
-        };
-        mockAudits.push(auditRecord);
-        return { rows: [auditRecord] };
-      }
-
-      // Operator work audit select
-      if (q.includes('FROM integration.operator_work_audit')) {
-        return { rows: [...mockAudits] };
-      }
-
-      // Invalid reference check in tests
-      if (q.includes('WHERE is_invalid_reference = true')) {
-        return { rows: [FIXTURE_ITEMS[3]] };
-      }
-
-      // Enriched reference check in tests
-      if (q.includes("WHERE pro_evidence_state = 'EVIDENCE_ALREADY_AVAILABLE'")) {
-        return { rows: [FIXTURE_ITEMS[1]] };
-      }
-
-      // NO_PRO_EVIDENCE check in tests
-      if (q.includes("WHERE is_invalid_reference = false AND pro_evidence_state = 'NO_PRO_EVIDENCE'")) {
-        return { rows: [FIXTURE_ITEMS[0]] };
-      }
-
-      // General catalogue query
-      let matched = [...FIXTURE_ITEMS];
-      if (q.includes('normalized_profile = $') && values?.includes('food_beverage')) {
-        matched = matched.filter((it) => it.normalized_profile === 'food_beverage');
-      }
-      if (q.includes('event_capability = $') && values?.includes('EXPLICIT_EVENT_VENUE')) {
-        matched = matched.filter((it) => it.event_capability === 'EXPLICIT_EVENT_VENUE');
-      }
-      if (q.includes('event_business_route = $') && values?.includes('STRONG_FIT')) {
-        matched = matched.filter((it) => it.event_business_route === 'STRONG_FIT');
-      }
-
-      return { rows: matched };
+          return executeQuery(queryText, values);
+        },
+        release: () => {
+          if (inTransaction) {
+            mockQueue.clear();
+            for (const [k, v] of snapshotQueue) {
+              mockQueue.set(k, { ...v });
+            }
+            mockAudits.length = 0;
+            for (const a of snapshotAudits) {
+              mockAudits.push({ ...a });
+            }
+          }
+          inTransaction = false;
+        },
+      };
+      return client;
     },
     end: async () => {},
   };
@@ -621,6 +749,9 @@ export async function promoteCatalogueEntity(
 ): Promise<PromoteResult> {
   const p = pool || getDbPool();
 
+  // Fail closed if a test environment attempts to mutate the production project
+  assertSafeMutationTarget(p);
+
   if (!params.externalReferenceId) {
     return {
       success: false,
@@ -634,6 +765,14 @@ export async function promoteCatalogueEntity(
       success: false,
       reason: 'INVALID_BILLING_TIER',
       message: 'Promotion is only supported for PRO and ENTERPRISE tiers. Atmosphere is disabled.',
+    };
+  }
+
+  if (!params.actorId || !params.actorId.trim()) {
+    return {
+      success: false,
+      reason: 'ACTOR_REQUIRED',
+      message: 'Actor ID is required for governed manual promotion.',
     };
   }
 
@@ -733,114 +872,187 @@ export async function promoteCatalogueEntity(
   const queueStatus = targetBudget.remaining > 0 ? 'QUEUED' : 'WAITING_FOR_MONTHLY_BUDGET';
   const evidenceGap = params.evidenceGapReason ? params.evidenceGapReason.trim() : params.reason.trim();
   const evidenceGapText = `[${params.purpose.trim()}] ${evidenceGap}`;
-
-  // 5. Inspect existing queue record to protect in-flight and terminal states
-  const existingJobRes = await p.query(
-    `SELECT id, status, attempts, reservation_id, created_at
-     FROM integration.paid_enrichment_queue
-     WHERE provider = 'google_places'
-       AND external_reference_id = $1
-       AND billing_tier = $2
-     LIMIT 1;`,
-    [params.externalReferenceId, params.billingTier]
-  );
-  const existingJob = existingJobRes.rows[0];
-
-  if (existingJob) {
-    if (existingJob.status === 'RESERVED' || existingJob.status === 'IN_PROGRESS') {
-      return {
-        success: false,
-        reason: 'ALREADY_IN_PROGRESS',
-        message: 'Enrichment job is already in progress.',
-        queueId: existingJob.id,
-        status: existingJob.status,
-      };
-    }
-
-    if (
-      existingJob.status === 'COMPLETED' ||
-      existingJob.status === 'EVIDENCE_ALREADY_AVAILABLE' ||
-      existingJob.status === 'NOT_REQUIRED'
-    ) {
-      return {
-        success: false,
-        reason: 'EVIDENCE_ALREADY_AVAILABLE',
-        message: 'Existing evidence satisfies this request. Zero provider calls dispatched.',
-        queueId: existingJob.id,
-        status: existingJob.status,
-      };
-    }
-
-    if (existingJob.status === 'BLOCKED') {
-      return {
-        success: false,
-        reason: 'JOB_BLOCKED',
-        message: 'Enrichment job is blocked for this entity.',
-        queueId: existingJob.id,
-        status: existingJob.status,
-      };
-    }
-  }
-
-  // 6. Safe update of existing queued/waiting/deferred job or insertion of new job
-  let queuedJob: any;
-  if (existingJob) {
-    const updateRes = await p.query(
-      `UPDATE integration.paid_enrichment_queue
-       SET status = $1,
-           evidence_gap_reason = $2,
-           originating_product = $3,
-           updated_at = now()
-       WHERE id = $4
-       RETURNING id, status, external_reference_id, billing_tier, created_at;`,
-      [queueStatus, evidenceGapText, params.originatingProduct.trim(), existingJob.id]
-    );
-    queuedJob = updateRes.rows[0];
-  } else {
-    const insertRes = await p.query(
-      `INSERT INTO integration.paid_enrichment_queue (
-         provider,
-         external_reference_id,
-         billing_tier,
-         status,
-         evidence_gap_reason,
-         originating_product,
-         computed_priority
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, status, external_reference_id, billing_tier, created_at;`,
-      [
-        'google_places',
-        params.externalReferenceId,
-        params.billingTier,
-        queueStatus,
-        evidenceGapText,
-        params.originatingProduct.trim(),
-        100.0, // High operator priority
-      ]
-    );
-    queuedJob = insertRes.rows[0];
-  }
-
-  // 7. Persist durable audit record into integration.operator_work_audit
-  const actorId = params.actorId || 'operator_manual';
-  const previousState = existingJob ? existingJob.status : 'NONE';
+  const actorId = params.actorId.trim();
   const actionName = params.billingTier === 'PRO' ? 'PROMOTE_PRO' : 'PROMOTE_ENTERPRISE';
 
-  const auditPayload = {
-    authorization_source: 'operator_manual',
-    actor_id: actorId,
-    purpose: params.purpose.trim(),
-    reason: params.reason.trim(),
-    evidence_gap_reason: params.evidenceGapReason ? params.evidenceGapReason.trim() : null,
-    originating_product: params.originatingProduct.trim(),
-    requested_tier: params.billingTier,
-    external_reference_id: params.externalReferenceId,
-    timestamp: new Date().toISOString(),
-    resulting_state: queuedJob.status,
-  };
+  // 5. ATOMIC TRANSACTION: lock row with FOR UPDATE, inspect state, mutate queue, persist audit
+  const client = typeof p.connect === 'function' ? await p.connect() : p;
+  const releaseClient = typeof p.connect === 'function';
 
   try {
-    await p.query(
+    await client.query('BEGIN');
+
+    // 5a. Lock existing row with FOR UPDATE
+    const selectForUpdate = `
+      SELECT id, status, attempts, reservation_id, created_at, evidence_gap_reason, originating_product
+      FROM integration.paid_enrichment_queue
+      WHERE provider = 'google_places'
+        AND external_reference_id = $1
+        AND billing_tier = $2
+      FOR UPDATE;
+    `;
+    const existingRes = await client.query(selectForUpdate, [
+      params.externalReferenceId,
+      params.billingTier,
+    ]);
+    const existingJob = existingRes.rows[0];
+
+    let queuedJob: any;
+    let previousState = 'NONE';
+
+    if (existingJob) {
+      previousState = existingJob.status;
+
+      // Protected states: Never move backwards
+      if (existingJob.status === 'RESERVED' || existingJob.status === 'IN_PROGRESS') {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          reason: 'ALREADY_IN_PROGRESS',
+          message: 'Enrichment job is already in progress.',
+          queueId: existingJob.id,
+          status: existingJob.status,
+        };
+      }
+
+      if (
+        existingJob.status === 'COMPLETED' ||
+        existingJob.status === 'EVIDENCE_ALREADY_AVAILABLE' ||
+        existingJob.status === 'NOT_REQUIRED'
+      ) {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          reason: 'EVIDENCE_ALREADY_AVAILABLE',
+          message: 'Existing evidence satisfies this request. Zero provider calls dispatched.',
+          queueId: existingJob.id,
+          status: existingJob.status,
+        };
+      }
+
+      if (existingJob.status === 'BLOCKED') {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          reason: 'JOB_BLOCKED',
+          message: 'Enrichment job is blocked for this entity.',
+          queueId: existingJob.id,
+          status: existingJob.status,
+        };
+      }
+
+      // Mutable states: QUEUED, WAITING_FOR_MONTHLY_BUDGET, DEFERRED, FAILED_RETRYABLE
+      const updateRes = await client.query(
+        `UPDATE integration.paid_enrichment_queue
+         SET status = $1,
+             evidence_gap_reason = $2,
+             originating_product = $3,
+             computed_priority = 100.0,
+             updated_at = now()
+         WHERE id = $4
+         RETURNING id, status, external_reference_id, billing_tier, created_at;`,
+        [queueStatus, evidenceGapText, params.originatingProduct.trim(), existingJob.id]
+      );
+      queuedJob = updateRes.rows[0];
+    } else {
+      // Row does not exist yet. Insert with ON CONFLICT to protect against concurrent inserts
+      const insertRes = await client.query(
+        `INSERT INTO integration.paid_enrichment_queue (
+           provider,
+           external_reference_id,
+           billing_tier,
+           status,
+           evidence_gap_reason,
+           originating_product,
+           computed_priority
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (provider, external_reference_id, billing_tier)
+         DO UPDATE SET
+           status = CASE
+             WHEN integration.paid_enrichment_queue.status IN ('QUEUED', 'WAITING_FOR_MONTHLY_BUDGET', 'DEFERRED', 'FAILED_RETRYABLE')
+             THEN EXCLUDED.status
+             ELSE integration.paid_enrichment_queue.status
+           END,
+           evidence_gap_reason = CASE
+             WHEN integration.paid_enrichment_queue.status IN ('QUEUED', 'WAITING_FOR_MONTHLY_BUDGET', 'DEFERRED', 'FAILED_RETRYABLE')
+             THEN EXCLUDED.evidence_gap_reason
+             ELSE integration.paid_enrichment_queue.evidence_gap_reason
+           END,
+           originating_product = CASE
+             WHEN integration.paid_enrichment_queue.status IN ('QUEUED', 'WAITING_FOR_MONTHLY_BUDGET', 'DEFERRED', 'FAILED_RETRYABLE')
+             THEN EXCLUDED.originating_product
+             ELSE integration.paid_enrichment_queue.originating_product
+           END,
+           computed_priority = CASE
+             WHEN integration.paid_enrichment_queue.status IN ('QUEUED', 'WAITING_FOR_MONTHLY_BUDGET', 'DEFERRED', 'FAILED_RETRYABLE')
+             THEN 100.0
+             ELSE integration.paid_enrichment_queue.computed_priority
+           END,
+           updated_at = now()
+         RETURNING id, status, external_reference_id, billing_tier, created_at;`,
+        [
+          'google_places',
+          params.externalReferenceId,
+          params.billingTier,
+          queueStatus,
+          evidenceGapText,
+          params.originatingProduct.trim(),
+          100.0,
+        ]
+      );
+      queuedJob = insertRes.rows[0];
+
+      if (queuedJob.status === 'RESERVED' || queuedJob.status === 'IN_PROGRESS') {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          reason: 'ALREADY_IN_PROGRESS',
+          message: 'Enrichment job is already in progress.',
+          queueId: queuedJob.id,
+          status: queuedJob.status,
+        };
+      }
+      if (
+        queuedJob.status === 'COMPLETED' ||
+        queuedJob.status === 'EVIDENCE_ALREADY_AVAILABLE' ||
+        queuedJob.status === 'NOT_REQUIRED'
+      ) {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          reason: 'EVIDENCE_ALREADY_AVAILABLE',
+          message: 'Existing evidence satisfies this request. Zero provider calls dispatched.',
+          queueId: queuedJob.id,
+          status: queuedJob.status,
+        };
+      }
+      if (queuedJob.status === 'BLOCKED') {
+        await client.query('ROLLBACK');
+        return {
+          success: false,
+          reason: 'JOB_BLOCKED',
+          message: 'Enrichment job is blocked for this entity.',
+          queueId: queuedJob.id,
+          status: queuedJob.status,
+        };
+      }
+    }
+
+    // 5b. Persist durable audit record into integration.operator_work_audit in the SAME transaction
+    const auditPayload = {
+      authorization_source: 'operator_manual',
+      actor_id: actorId,
+      purpose: params.purpose.trim(),
+      reason: params.reason.trim(),
+      evidence_gap_reason: params.evidenceGapReason ? params.evidenceGapReason.trim() : null,
+      originating_product: params.originatingProduct.trim(),
+      requested_tier: params.billingTier,
+      external_reference_id: params.externalReferenceId,
+      timestamp: new Date().toISOString(),
+      resulting_state: queuedJob.status,
+    };
+
+    await client.query(
       `INSERT INTO integration.operator_work_audit (
          source_type,
          source_id,
@@ -860,17 +1072,33 @@ export async function promoteCatalogueEntity(
         JSON.stringify(auditPayload),
       ]
     );
-  } catch (auditErr) {
-    console.error('Failed to persist operator work audit:', auditErr);
-  }
 
-  return {
-    success: true,
-    queueId: queuedJob.id,
-    status: queuedJob.status,
-    message:
-      queuedJob.status === 'WAITING_FOR_MONTHLY_BUDGET'
-        ? `Entity successfully queued with waiting intent (monthly limit is 0). Zero provider calls dispatched.`
-        : `Entity queued for governed enrichment. Zero provider calls dispatched.`,
-  };
+    // 5c. Commit transaction atomically
+    await client.query('COMMIT');
+
+    return {
+      success: true,
+      queueId: queuedJob.id,
+      status: queuedJob.status,
+      message:
+        queuedJob.status === 'WAITING_FOR_MONTHLY_BUDGET'
+          ? `Entity successfully queued with waiting intent (monthly limit is 0). Zero provider calls dispatched.`
+          : `Entity queued for governed enrichment. Zero provider calls dispatched.`,
+    };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback error
+    }
+    return {
+      success: false,
+      reason: 'TRANSACTION_FAILED',
+      message: `Promotion transaction failed: ${(err as Error).message}`,
+    };
+  } finally {
+    if (releaseClient && client && typeof client.release === 'function') {
+      client.release();
+    }
+  }
 }

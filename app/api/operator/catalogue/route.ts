@@ -253,6 +253,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "Operator permission required for catalogue actions." }, { status: 403 });
   }
 
+  if (!access.userId || !access.userId.trim()) {
+    return NextResponse.json({ code: "ACTOR_REQUIRED", message: "Authenticated operator user ID is required." }, { status: 401 });
+  }
+
   let body: any;
   try {
     body = await request.json();
@@ -283,7 +287,7 @@ export async function POST(request: Request) {
       purpose: purpose.trim(),
       reason: reason.trim(),
       originatingProduct: originatingProduct.trim(),
-      actorId: access.userId,
+      actorId: access.userId.trim(),
     });
 
     if (!result.success) {
@@ -292,6 +296,8 @@ export async function POST(request: Request) {
           ? 200
           : result.reason === "ALREADY_IN_PROGRESS"
           ? 409
+          : result.reason === "TRANSACTION_FAILED"
+          ? 500
           : 400;
       return NextResponse.json(
         {
@@ -334,7 +340,7 @@ export async function POST(request: Request) {
       reason: reason.trim(),
       originatingProduct: originatingProduct.trim(),
       evidenceGapReason: evidenceGapReason.trim(),
-      actorId: access.userId,
+      actorId: access.userId.trim(),
     });
 
     if (!result.success) {
@@ -343,6 +349,8 @@ export async function POST(request: Request) {
           ? 200
           : result.reason === "ALREADY_IN_PROGRESS"
           ? 409
+          : result.reason === "TRANSACTION_FAILED"
+          ? 500
           : 400;
       return NextResponse.json(
         {
