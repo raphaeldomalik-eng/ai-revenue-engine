@@ -118,8 +118,14 @@ export interface CatalogueFilterParams {
   canonicalIdentityState?: CanonicalIdentityState;
   eventCapability?: EventCapability | EventCapability[];
   resourcesRoute?: RouteState;
+  venueManagementRoute?: RouteState;
   contextPosRoute?: RouteState;
+  ticketingRoute?: RouteState;
+  workforceRoute?: RouteState;
+  productionOpsRoute?: RouteState;
   eventBusinessRoute?: RouteState;
+  commercialProspectingRoute?: RouteState;
+  ownerConfirmationRoute?: RouteState;
   researchDisposition?: ResearchDisposition | ResearchDisposition[];
   proEvidenceState?: 'EVIDENCE_ALREADY_AVAILABLE' | 'NO_PRO_EVIDENCE';
   proEligibility?: PaidEligibility;
@@ -127,6 +133,8 @@ export interface CatalogueFilterParams {
   isInvalidReference?: boolean;
   isDuplicate?: boolean;
   isPermanentlyClosed?: boolean;
+  externalReferenceId?: string;
+  candidateId?: string;
   searchQuery?: string;
   limit?: number;
   offset?: number;
@@ -197,14 +205,54 @@ export function buildCatalogueQuery(filters: CatalogueFilterParams = {}): { text
     values.push(filters.resourcesRoute);
   }
 
+  if (filters.venueManagementRoute) {
+    conditions.push(`venue_management_route = $${paramIdx++}`);
+    values.push(filters.venueManagementRoute);
+  }
+
   if (filters.contextPosRoute) {
     conditions.push(`context_pos_route = $${paramIdx++}`);
     values.push(filters.contextPosRoute);
   }
 
+  if (filters.ticketingRoute) {
+    conditions.push(`ticketing_route = $${paramIdx++}`);
+    values.push(filters.ticketingRoute);
+  }
+
+  if (filters.workforceRoute) {
+    conditions.push(`workforce_route = $${paramIdx++}`);
+    values.push(filters.workforceRoute);
+  }
+
+  if (filters.productionOpsRoute) {
+    conditions.push(`production_ops_route = $${paramIdx++}`);
+    values.push(filters.productionOpsRoute);
+  }
+
   if (filters.eventBusinessRoute) {
     conditions.push(`event_business_route = $${paramIdx++}`);
     values.push(filters.eventBusinessRoute);
+  }
+
+  if (filters.commercialProspectingRoute) {
+    conditions.push(`commercial_prospecting_route = $${paramIdx++}`);
+    values.push(filters.commercialProspectingRoute);
+  }
+
+  if (filters.ownerConfirmationRoute) {
+    conditions.push(`owner_confirmation_route = $${paramIdx++}`);
+    values.push(filters.ownerConfirmationRoute);
+  }
+
+  if (filters.externalReferenceId) {
+    conditions.push(`external_reference_id = $${paramIdx++}`);
+    values.push(filters.externalReferenceId);
+  }
+
+  if (filters.candidateId) {
+    conditions.push(`candidate_id = $${paramIdx++}`);
+    values.push(filters.candidateId);
   }
 
   if (filters.researchDisposition) {
@@ -248,7 +296,7 @@ export function buildCatalogueQuery(filters: CatalogueFilterParams = {}): { text
   }
 
   if (filters.searchQuery) {
-    conditions.push(`(entity_name ILIKE $${paramIdx} OR locality ILIKE $${paramIdx} OR discovery_query ILIKE $${paramIdx})`);
+    conditions.push(`(entity_name ILIKE $${paramIdx} OR locality ILIKE $${paramIdx} OR discovery_query ILIKE $${paramIdx} OR external_reference_id ILIKE $${paramIdx})`);
     values.push(`%${filters.searchQuery}%`);
     paramIdx++;
   }
@@ -269,3 +317,22 @@ export function buildCatalogueQuery(filters: CatalogueFilterParams = {}): { text
 
   return { text, values };
 }
+
+/**
+ * Builds parameterized count query for pagination over integration.v_aire_catalogue.
+ */
+export function buildCatalogueCountQuery(filters: CatalogueFilterParams = {}): { text: string; values: unknown[] } {
+  const query = buildCatalogueQuery(filters);
+  // Extract where clause from generated query
+  const whereMatch = query.text.match(/FROM integration\.v_aire_catalogue\s+(WHERE[\s\S]+?)\s+ORDER BY/i);
+  const whereClause = whereMatch ? whereMatch[1] : '';
+
+  const text = `
+    SELECT COUNT(*)::int AS total
+    FROM integration.v_aire_catalogue
+    ${whereClause};
+  `.trim();
+
+  return { text, values: query.values };
+}
+
