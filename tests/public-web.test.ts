@@ -30,6 +30,14 @@ const eligibleRequest = () => ({ ...request(), providerAllowances: ["PUBLIC_WEB"
 const ELIGIBLE_FACT = { fieldName: "resourcesVenueEligibility", value: "ELIGIBLE", evidenceRef: "classification:venue" };
 
 const resolver = async () => [{ address: "93.184.216.34", family: 4 }];
+test("classification facts reference evidence actually returned for Nexus staging",async()=>{
+  const body='<html><head><title>Example Promotions</title><meta name="description" content="An independent concert promoter"/></head><body><h1>Example Promotions</h1><script type="application/ld+json">{"@type":"Organization","name":"Example Promotions","url":"https://promoter.test/"}</script></body></html>';
+  const provider=createPublicWebProvider({fetchImpl:fetchSite(body),resolveHost:resolver});
+  const input={...request("SOURCE_ENTITY_CLASSIFICATION"),subject:{...request().subject,entityType:"UNKNOWN" as const}};
+  const result=await provider({request:input,context:{targetName:"Example Promotions",targetWebsite:"https://promoter.test/"}});
+  assert.ok(result.facts.length>1);
+  assert.ok(result.facts.every(fact=>!fact.evidenceRef || result.evidence.some(evidence=>evidence.evidenceRef===fact.evidenceRef)),"Nexus cannot stage facts pointing to missing evidence rows");
+});
 function fetchSite(body: string, options: { redirect?: ResponseInit } = {}) {
   return async (input: RequestInfo | URL) => String(input).endsWith("/robots.txt")
     ? new Response("User-agent: *\nAllow: /", { status: 200 })
