@@ -1,16 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
-import { handleNexusExecuteRequest, nexusExecutorDisabled, nexusSourceDiscoveryDisabled } from "../../../../../src/nexus/http.ts";
+import { handleNexusExecuteRequest, nexusExecutorDisabled, nexusSourceDiscoveryDisabled, nexusContentInterpretationDisabled } from "../../../../../src/nexus/http.ts";
+import { createContentInterpretationModel } from "../../../../../src/nexus/content-interpretation-model.ts";
 import { SupabaseNexusResultStore } from "../../../../../src/nexus/persistence.ts";
 import { createPublicWebProvider, researchContextFromPayload } from "../../../../../src/nexus/public-web.ts";
+import {configuredOrganisationSeed} from "../../../../../src/nexus/organisation-source-seed-config.ts";
 
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const researchDisabled = nexusExecutorDisabled();
   const sourceDiscoveryDisabled = nexusSourceDiscoveryDisabled();
+  const contentInterpretationDisabled = nexusContentInterpretationDisabled();
   // Both lanes closed: keep the endpoint absent. A signed source-discovery
   // request is the only production exception, and only when its own flag is set.
-  if (researchDisabled && sourceDiscoveryDisabled) {
+  if (researchDisabled && sourceDiscoveryDisabled && contentInterpretationDisabled) {
     return Response.json({ code: "NEXUS_EXECUTOR_NOT_AVAILABLE" }, { status: 404 });
   }
 
@@ -24,13 +27,16 @@ export async function POST(request: Request) {
   const client = createClient(url, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const store=new SupabaseNexusResultStore(client);
   return handleNexusExecuteRequest(request, {
     secret,
-    store: new SupabaseNexusResultStore(client),
-    publicWeb: createPublicWebProvider(),
+    store,
+    publicWeb: createPublicWebProvider({organisationSeed:configuredOrganisationSeed(store)}),
     researchContext: researchContextFromPayload,
     allowResearch: !researchDisabled,
     allowSourceDiscovery: !sourceDiscoveryDisabled,
+    allowContentInterpretation: !contentInterpretationDisabled,
+    contentModel: contentInterpretationDisabled ? null : createContentInterpretationModel(),
     // Research generation stays v6. Source-discovery replay uses SOURCE_DISCOVERY_EXECUTION_VERSION.
     researchExecutionVersion: "resources-v2-unclassified-evidence-v6",
   });

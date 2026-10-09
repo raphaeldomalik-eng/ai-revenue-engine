@@ -156,6 +156,7 @@ function structured(doc: FetchedDocument, out: ResourceExtraction, extractors: S
       continue;
     }
     if (business && extractors.includes("IDENTITY")) {
+      if(organisation){addIdentity(out,doc,"legalName",clean(node.legalName));for(const name of list(node.alternateName))addIdentity(out,doc,"tradingName",clean(name));}
       addIdentity(out, doc, typed(node, "Organization") && !typed(node, "LocalBusiness") && hasLocalBusiness ? "operatorName" : organisation ? "siteName" : "placeName", clean(node.name));
       addIdentity(out, doc, "address", structuredAddress(node.address));
       const website = clean(node.url); if (website) addIdentity(out, doc, "website", sameOrigin(website, doc.url));
@@ -666,8 +667,9 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[])
     const address = clean(visibleText(tags(doc.body, "address")[0]?.inner ?? "")) ?? clean(visibleText(doc.body).match(/\bADDRESS\b\s+(.{5,240}?)(?=\b(?:CONTACT(?:\s+US)?|PHONE|EMAIL|COMPANY)\b|$)/i)?.[1]);
     if (landingPage && !out.identityFacts.some((item) => item.fieldName === "siteName")) {
       if (title && !/^(?:home|homepage)$/i.test(title)) addIdentity(out, doc, "siteName", title);
-      if (heading && heading !== title && !/^(?:home|welcome|contact us)$/i.test(heading)) addIdentity(out, doc, "explicitVenueName", heading);
     }
+    // Keep the heading even when structured data already supplied the same site name.
+    if (landingPage && heading && !/^(?:home|welcome|contact us)$/i.test(heading)) addIdentity(out, doc, "explicitVenueName", heading);
     addIdentity(out, doc, "address", address); addIdentity(out, doc, "siteDescription", firstMeta(doc.body, "description") ?? firstMeta(doc.body, "og:description"));
     const canonical = selfClosingTags(doc.body, "link").map((tag) => tag.attrs).find((attrs) => /\bcanonical\b/i.test(attrs.rel ?? ""))?.href;
     const canonicalUrl = canonical ? sameOrigin(canonical, doc.url) : null;
