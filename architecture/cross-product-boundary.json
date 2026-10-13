@@ -17,6 +17,8 @@
     "Event Suite operational state"
   ],
   "allowedContracts": [
+    "nexus.content-interpretation-request.v1",
+    "nexus.content-interpretation-result.v1",
     "event-suite.incoming-lead.v1",
     "nexus.research-request.v1",
     "nexus.research-result.v1",

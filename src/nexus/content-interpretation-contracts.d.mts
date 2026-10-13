@@ -1,0 +1,11 @@
+// Vendored runtime contract owned by Prestige Nexus. No sibling runtime imports.
+export type ContentTarget = { product: "last_train_home"; entityType: "EVENT" | "ARTIST" | "VENUE"; entityId: string; displayName: string; canonicalEntityId: string | null };
+export type ContentBlock = { blockId: string; sourceLocator: string; text: string; textHash: string; sourceContext: "UNCLASSIFIED" | ContentTarget["entityType"]; targetEntityId: string | null };
+export type ContentRequest = { contractVersion: "nexus.content-interpretation-request.v1"; requestId: string; idempotencyKey: string; originatingProduct: "last_train_home"; source: { provider: string; recordId: string; sourceUrl: string; documentFingerprint: string; mappingRevision: string; policy: { reference: string; revision: string; allowInterpretation: true }; observedAt: string; expiresAt: string }; targets: ContentTarget[]; blocks: ContentBlock[]; budget: { maxModelCalls: number; maxOutputTokens: number; currency: "USD"; amount: number }; requestWhyGoDraft: boolean };
+export type ContentProposal = { blockId: string; targetEntityId: string; targetType: ContentTarget["entityType"]; section: "DETAILS" | "ABOUT" | "CAMPAIGN" | "VISITING"; scope: "EVENT" | "STABLE" | "DATED"; evidenceTextHash: string; reasonCode: string };
+export type ContentResult = { contractVersion: "nexus.content-interpretation-result.v1"; requestId: string; idempotencyKey: string; requestFingerprint: string; sourceExpiresAt: string; status: "REVIEW_REQUIRED"; proposals: ContentProposal[]; heldBlocks: Array<{ blockId: string; reasonCode: string }>; whyGoDraft: { text: string; evidenceBlockIds: string[]; status: "REVIEW_REQUIRED" } | null; execution: { version: string; model: string | null; modelCalls: number; inputTokens: number; outputTokens: number; costUSD: number } };
+export const CONTENT_CONTRACTS: Readonly<{ REQUEST: ContentRequest["contractVersion"]; RESULT: ContentResult["contractVersion"] }>;
+export function contentRequestFingerprint(request: ContentRequest): string;
+export function validateContentInterpretationRequest(input: unknown): ContentRequest;
+export function validateContentInterpretationResult(input: unknown, request?: ContentRequest): ContentResult;
+

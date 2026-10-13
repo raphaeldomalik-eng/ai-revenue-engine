@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { getGooglePlaceDetails, type GooglePlacesDetailsInput } from "../ai-sales-team/google-places.ts";
 import { officialWebsiteDetailsAuthorization, validateResearchRequest, type ResearchRequest } from "./contracts.ts";
-import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
+import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type CrawlOutput,type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
+import {discoverOrganisationSource,type OrganisationSeedOptions} from "./organisation-source-seed.ts";
 import type { ProviderResult, ResearchContext } from "./executor.ts";
 
 export type PublicWebProviderOptions = {
@@ -10,6 +11,7 @@ export type PublicWebProviderOptions = {
   now?: () => string;
   budget?: Partial<CrawlBudget>;
   placeDetails?: typeof getGooglePlaceDetails;
+  organisationSeed?:Pick<OrganisationSeedOptions,"searchProvider"|"reserveSearch">;
 };
 
 export function researchContextFromPayload(input: Record<string, unknown>): ResearchContext {
@@ -185,6 +187,14 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
     const seedEvidence: ProviderResult["evidence"] = [];
     let seededPlaceFacts: ProviderResult["facts"] = [];
     const providerUsage: NonNullable<ProviderResult["providerUsage"]> = [];
+    let seedCrawl:CrawlOutput|null=null;
+    let seedExtraction:ReturnType<typeof extractFromFetchedDocuments>|null=null;
+    if(!website && options.organisationSeed && request.originatingProduct==="last_train_home" && request.subject.candidateReference?.sourceRecordId.startsWith("ticketmaster:promoter:")){
+      const seed=await discoverOrganisationSource({...request,researchContext:{targetName:context.targetName,territory:context.territory,locality:context.locality,existingFacts:context.existingFacts}},{...options.organisationSeed,fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:options.now});
+      providerUsage.push(...seed.providerUsage);if(seed.searchEvidence)seedEvidence.push(seed.searchEvidence);
+      if(seed.status!=="VERIFIED")return unresolved(request,purpose,seed.reason,{evidence:seedEvidence,providerUsage});
+      website=seed.website;seedCrawl=seed.crawl;seedExtraction=seed.extraction;
+    }
     if (!website && !request.providerAllowances.includes("GOOGLE_PLACES")) {
       return unresolved(request, purpose, "No evidenced public first-party HTTPS website was held. A Place ID is identity context only; Google Places is not authorised for this request, so no website seed was fetched.");
     }
@@ -225,22 +235,22 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
     if (!website) return unresolved(request, purpose, "Place Details returned no safe HTTPS website candidate. Place evidence was retained for Nexus classification.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage });
 
     try {
-      providerUsage.push({ provider: "PUBLIC_WEB", callCount: 1, purpose, cost: { currency: "USD", amount: 0 } });
+      if(!seedCrawl)providerUsage.push({ provider: "PUBLIC_WEB", callCount: 1, purpose, cost: { currency: "USD", amount: 0 } });
       const extractors = request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION"
         ? ["IDENTITY", "PUBLIC_CONTACT", "SOURCE_CLASSIFICATION"] as const
         : ["IDENTITY", "PUBLIC_CONTACT"] as const;
-      const crawl = await crawlVerifiedSource({
+      const crawl = seedCrawl??await crawlVerifiedSource({
         verifiedUrl: website,
         requestedExtractors: [...extractors],
         budget: { ...DEFAULT_BUDGET, ...options.budget },
         fetchImpl: options.fetchImpl,
         resolveHost: options.resolveHost,
       });
-      const extracted = extractFromFetchedDocuments(crawl.documents, [...extractors]);
+      const extracted = seedExtraction??extractFromFetchedDocuments(crawl.documents, [...extractors]);
       if (!crawl.documents.length) {
         return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: true } });
       }
-      const verification = verifyIdentity(request, verificationContext, extracted.identityFacts);
+      const verification = seedCrawl?{...verifyIdentity(request,verificationContext,extracted.identityFacts),verified:true,path:"ORGANISATION_SOURCE_SEED"}:verifyIdentity(request, verificationContext, extracted.identityFacts);
       const neutralEvidence = request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION";
       if (!verification.verified && (!neutralEvidence || !suppliedWebsite)) {
         return unresolved(request, purpose, "The candidate site did not provide strong same-entity identity evidence.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage });
@@ -281,8 +291,10 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       const facts: ProviderResult["facts"] = [...seededPlaceFacts, { fieldName: "officialWebsite", value: finalUrl, evidenceRef: ref, confidence: verification.verified ? 0.95 : 0.6, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId }];
       if (neutralEvidence) {
         for (const item of extracted.identityFacts) {
-          if (["schemaOrgTypes", "pageTitle", "metaDescription", "classificationSignals", "siteName", "address"].includes(item.fieldName)) {
-            facts.push({ fieldName: item.fieldName, value: item.value, evidenceRef: item.evidenceRef, confidence: 0.7, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId });
+          if (["schemaOrgTypes", "pageTitle", "metaDescription", "classificationSignals", "siteName", "address","legalName","tradingName","sameAs"].includes(item.fieldName)) {
+            // Individual extraction locators remain in the returned raw evidence payload.
+            // The proposed fact must reference a real evidence row Nexus can stage.
+            facts.push({ fieldName: item.fieldName, value: item.value, evidenceRef: ref, confidence: 0.7, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId });
           }
         }
       }

@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { CONTENT_CONTRACTS, validateContentInterpretationResult, validateContentInterpretationRequest } from "./content-interpretation-contracts.mjs";
+import { executeContentInterpretation, type ContentExecutionOptions } from "./content-interpretation.ts";
 import {
   CONTRACTS,
   validateResearchRequest,
@@ -40,6 +42,8 @@ export type NexusHttpOptions = {
    */
   allowResearch?: boolean;
   allowSourceDiscovery?: boolean;
+  allowContentInterpretation?: boolean;
+  contentModel?: ContentExecutionOptions["model"];
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -150,6 +154,10 @@ export function nexusSourceDiscoveryDisabled(env: NodeJS.ProcessEnv = process.en
   return nexusExecutorDisabled(env);
 }
 
+export function nexusContentInterpretationDisabled(env: NodeJS.ProcessEnv = process.env) {
+  return !explicitlyEnabled(env.NEXUS_CONTENT_INTERPRETATION_ENABLED);
+}
+
 export async function handleNexusExecuteRequest(request: Request, options: NexusHttpOptions): Promise<Response> {
   if (!options.secret) return json(503, { code: "NEXUS_HMAC_SECRET_NOT_CONFIGURED" });
 
@@ -183,6 +191,12 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
   }
 
   try {
+    if (payload.contractVersion === CONTENT_CONTRACTS.REQUEST) {
+      if (options.allowContentInterpretation !== true) return json(404, { code: "NEXUS_CONTENT_INTERPRETATION_NOT_AVAILABLE" });
+      const input = validateContentInterpretationRequest(payload);
+      const result = await executeContentInterpretation(input, { now: options.now, model: options.contentModel }, options.store);
+      return json(200, validateContentInterpretationResult(result, input));
+    }
     if (payload.contractVersion === CONTRACTS.RESEARCH_REQUEST) {
       if (options.allowResearch === false) return json(404, { code: "NEXUS_EXECUTOR_NOT_AVAILABLE" });
       const prepared = await prepareVersionedResearchInput(payload, options);
@@ -203,7 +217,7 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
   } catch (error) {
     const code = error instanceof Error && "code" in error && typeof error.code === "string"
       ? error.code
-      : "NEXUS_CONTRACT_INVALID";
-    return json(422, { code });
+      : error instanceof Error && /^CONTENT_[A-Z_0-9]+$/.test(error.message) ? error.message : "NEXUS_CONTRACT_INVALID";
+    return json(code === "CONTENT_MODEL_BUDGET_ALREADY_RESERVED" ? 503 : 422, { code });
   }
 }
