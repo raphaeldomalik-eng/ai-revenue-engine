@@ -1,0 +1,283 @@
+{
+  "queueCount": 408,
+  "eligible": 358,
+  "excluded": 50,
+  "attempts": 358,
+  "outcomes": {
+    "CRAWL_SUCCESS_USEFUL": 30,
+    "CRAWL_SUCCESS_THIN": 54,
+    "ROBOTS_BLOCKED": 214,
+    "STATIC_RENDER_REQUIRED": 3,
+    "TRANSIENT_NETWORK": 5,
+    "DEAD_OR_UNREACHABLE": 51,
+    "AUTHORITY_DRIFT": 0,
+    "CROSS_SITE_REFUSED": 0,
+    "OTHER_SAFE_FAILURE": 1
+  },
+  "successes": 84,
+  "withDescription": 68,
+  "withContact": 29,
+  "withSpaces": 7,
+  "withCapacities": 7,
+  "withFacts": 14,
+  "withSuitability": 0,
+  "withImages": 46,
+  "withPdfs": 0,
+  "averagePages": 1.9,
+  "averageRequests": 5.7,
+  "totalBytes": 24537585,
+  "paidProviderCostUsd": 0,
+  "excludedItems": [
+    {
+      "listingId": "007409cd-f679-450b-88a6-665f95705706",
+      "venueName": "Libanon Rec Club",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "04536e73-5b2e-4e7b-a803-f522d90d94fa",
+      "venueName": "Extreme Go Karting",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "04c37905-03d6-4b7a-af6d-3b491b199158",
+      "venueName": "The Blue Room Central",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "0720b0e2-16e1-41d3-b59a-db3c0c8afce9",
+      "venueName": "Serenity studio escapes",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "1dada797-5c3d-4620-84bf-72131b2d32c8",
+      "venueName": "Vineyards Beer Garden and Pizzeria",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "2522b9bd-7a93-49a6-a5a3-26c889b66c21",
+      "venueName": "Rustic Rock Wedding Venue",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "32caa417-06fc-4537-8422-75ceb3733799",
+      "venueName": "Karma Venues (Party Venue Hire)",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "3470fd97-44ea-4927-bc3f-279b9122a3ef",
+      "venueName": "Channel M Night Club",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "371864fe-25d4-4962-b230-dfbf0b38313f",
+      "venueName": "Las Vegas Bar and Restaurant",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "3a596710-a14d-4c4e-b92a-45087c765267",
+      "venueName": "Back to the Blues",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "3ab27e4b-c21e-40c7-bfc6-153b706510db",
+      "venueName": "Welcome Glen Farmhouse",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "3d794c74-f1ba-4593-aaa9-b565037e8af0",
+      "venueName": "Le Bon Ton & Art",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "40d4a00a-ca90-45be-aecd-d62ca36eb34d",
+      "venueName": "Munchie-Munchie the Puppet (Educational Program & Puppet Show)",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "42463d0f-c33c-41f5-8cc5-d1f934a95d82",
+      "venueName": "IMF Events Management and Equipment Hire",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "5108abea-2dec-4f39-b3e9-b4769bcf17e2",
+      "venueName": "Weddings@Salem",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "515f5e03-dae2-41f7-a423-1ce562e486c6",
+      "venueName": "Topclass Stables and Events",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "5221bd92-c213-4d84-aba1-fc3caeddf096",
+      "venueName": "L.C. FEBRUARY RIVER GARDEN VENUE",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "56a77711-6334-40b4-8218-de7d4ee7f11d",
+      "venueName": "Hoffie's Place Private Outdoor Venue Hire",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "6221811e-a9ef-4d25-a565-a6c7a96e82b4",
+      "venueName": "Ou Meulteater // Old Mill Theatre",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "67256039-6fc9-4a2a-9ae2-615ed98fe4eb",
+      "venueName": "Beertjie Bos",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "6b8dbe0f-1d1b-4060-9e55-199b356df617",
+      "venueName": "Black Box Theatre,Delft Rent Office",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "6fedc88d-e3a1-4245-9a4d-4431c3147a6f",
+      "venueName": "BTTR",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "7186a640-c49b-43c5-92c5-94ed49d9a5e9",
+      "venueName": "Shambala Park",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "72663fd4-96a3-4ae1-94c7-3d2649c4a6a3",
+      "venueName": "The Afrizilian Farm Venue",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "72c2c7ef-09f9-4144-8671-4d61ca4e4c7f",
+      "venueName": "LUSH Bellville",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "8405b859-78e2-49d2-8d59-fd718cb54d74",
+      "venueName": "Greenwood Lapa",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "8595165c-0d40-49c2-930a-a13bb68db86c",
+      "venueName": "Harley's on Main",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "8854a023-4848-4e37-9b09-50cd2f51b0fe",
+      "venueName": "Rose petal farm lifestyle",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "a96989ac-edcc-4e83-bbfb-01fc919bb8d7",
+      "venueName": "The Next Us",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "aa3b5f74-106e-4098-87e2-1fc5c6223244",
+      "venueName": "Lewis Family Farm",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "ab7c1531-eb37-4f1d-b5c7-a2fa72e5be79",
+      "venueName": "Innie Stal Venue",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "af368425-19f8-44d4-8902-1ea2b8d44e6d",
+      "venueName": "The Imaginarium",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "b1982c98-d25e-4cf4-8084-7131bef63eb6",
+      "venueName": "The Sweet Art Cakery",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "b3e42f45-0728-44b3-89de-df5d26132e17",
+      "venueName": "Addicted 2 House",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "c05c5ab6-bd01-4531-829e-57cb325d93eb",
+      "venueName": "GARDEN GROOVE",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "c3118283-a6a9-4c22-b9b9-08e997c93d00",
+      "venueName": "Nine' Academy Film, Stage & Dance",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "c8ac4227-4133-46cd-9533-415ff09ee03d",
+      "venueName": "1st Edgemead Air Scouts",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "cdcb3ab2-7da8-4db8-9377-5a0c30e8430c",
+      "venueName": "SDM Gallery",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "ce388d82-fe78-4510-ad9e-1f22ca8dd98d",
+      "venueName": "Bar & Grillhouse @ Studio 334",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "dbc9471c-14da-4e83-8d05-1ef49aed92ec",
+      "venueName": "Kickin'Bush",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "dcb7e0ca-5148-45d7-b750-88f440cfa3d5",
+      "venueName": "Rosina Paarwater Stadium",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "dda9da89-465c-49eb-a740-0b00462bc59f",
+      "venueName": "Tides Beach Bar & Restaurant - Kleinmond",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "e702bff2-0727-40be-bc94-2005aa441c8a",
+      "venueName": "Pilditch Cycling Track",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "f175c035-7e81-46cd-aa8d-cea20433f0aa",
+      "venueName": "Beyond the Frames Life Drawing",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "f3efb23b-a166-4c1f-873a-585177001564",
+      "venueName": "JBV The Palms",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "f5a95eae-f954-4fa0-a421-16d66e060233",
+      "venueName": "Foresight Outdoor Venue",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "f85731d7-604f-4723-8fe3-deb369e5ceb2",
+      "venueName": "Tollas Place",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "f8985432-34e0-49b2-aee1-350b7db67833",
+      "venueName": "MZANSI PA PRODUCTION",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "fd17cdfa-ddb2-4402-b75b-6b10bdc2d51e",
+      "venueName": "Making Magic Happen",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    },
+    {
+      "listingId": "ff9f655e-9ad6-4ecb-8671-9f64c006e5a2",
+      "venueName": "Inqwelo Cinema Pty Ltd",
+      "reason": "NO_STANDALONE_WEBSITE_SOCIAL_OR_UNRESOLVED"
+    }
+  ],
+  "finishedAt": "2026-10-15T19:11:23.692Z"
+}

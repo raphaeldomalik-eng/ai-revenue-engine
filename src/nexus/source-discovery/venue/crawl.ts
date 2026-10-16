@@ -1,6 +1,7 @@
 import { extractFromFetchedDocuments } from "../crawler.ts";
 import { crawlVerifiedSource } from "../crawler.ts";
 import { visibleText } from "../html.ts";
+import type { RenderAdapter, RenderPolicy } from "../render.ts";
 import type { CrawlBudget, CrawlInput, CrawlOutput } from "../types.ts";
 import { buildVenueEvidencePackage, classifyVenueSpace, namedSpacesInText, type VenueEvidencePackage } from "./evidence.ts";
 import { planVenueHttpsTarget, sameAuthorisedVenueSite, type VenueAuthorityPlan } from "./http-authority.ts";
@@ -33,6 +34,8 @@ export async function crawlVenueOfficialSite(args: {
   authorisedUrl: string;
   venueName?: string;
   budget?: CrawlBudget;
+  renderAdapter?: RenderAdapter;
+  renderPolicy?: RenderPolicy;
 } & Pick<CrawlInput, "fetchImpl" | "resolveHost" | "userAgent" | "politeness" | "now" | "sleep">): Promise<VenueCrawlResult> {
   const authority = planVenueHttpsTarget(args.authorisedUrl);
   if (!authority.crawlUrl) {
@@ -52,7 +55,10 @@ export async function crawlVenueOfficialSite(args: {
     politeness: args.politeness,
     now: args.now,
     sleep: args.sleep,
+    renderAdapter: args.renderAdapter,
+    renderPolicy: args.renderPolicy,
   });
+
   const sameSite = sameAuthorisedVenueSite(authority.authorisedUrl, crawl.finalUrl);
   if (!sameSite) {
     return { authority, sameSite: false, crawl, evidence: null, refusal: "CROSS_SITE_FINAL_URL" };

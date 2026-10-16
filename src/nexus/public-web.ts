@@ -4,6 +4,7 @@ import { officialWebsiteDetailsAuthorization, validateResearchRequest, type Rese
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type CrawlOutput,type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 import {discoverOrganisationSource,type OrganisationSeedOptions} from "./organisation-source-seed.ts";
 import type { ProviderResult, ResearchContext } from "./executor.ts";
+import { distinctiveNameTokens } from "./venue-email.ts";
 
 export type PublicWebProviderOptions = {
   fetchImpl?: FetchLike;
@@ -56,15 +57,74 @@ const BUSINESS_MAILBOXES = new Set([
   "support",
   "venue",
 ]);
+const INTERCHANGEABLE_VENUE_SUFFIXES = new Set([
+  "venue", "venues", "centre", "center", "hall", "halls", "room", "rooms", "space", "spaces",
+  "function", "functions", "event", "events", "estate", "farm", "lodge", "hotel", "guesthouse",
+  "inn", "resort", "retreat", "garden", "gardens", "park", "club", "group", "bar", "lounge",
+  "restaurant", "cafe", "bistro", "grill", "theatre", "theater", "studio", "studios", "house",
+  "manor", "villa", "villas", "court", "place", "pavilion", "arena",
+]);
+const COUNTRY_AND_PROVINCE_STOP_WORDS = new Set([
+  "south africa", "uk", "united kingdom", "england", "scotland", "wales", "northern ireland",
+  "gauteng", "western cape", "kwazulu natal", "eastern cape", "free state", "mpumalanga",
+  "limpopo", "north west", "northern cape",
+]);
 
 function nowOf(options: PublicWebProviderOptions) { return options.now?.() ?? new Date().toISOString(); }
 function text(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
 function normalise(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 function tokens(value: string) { return new Set(normalise(value).split(/\s+/).filter((item) => item.length > 2)); }
-function nameMatches(target: string, candidate: string) {
+
+export function locationCandidateTerms(locality: string | null | undefined, heldAddress: string | null | undefined): string[] {
+  const terms = new Set<string>();
+  if (locality) {
+    const cleanLoc = normalise(locality);
+    if (cleanLoc.length >= 3) terms.add(cleanLoc);
+    const stripped = normalise(locality.replace(/\s+region$/i, ""));
+    if (stripped.length >= 3) terms.add(stripped);
+  }
+  if (heldAddress) {
+    const full = normalise(heldAddress);
+    if (full.length >= 4) terms.add(full);
+    for (const part of heldAddress.split(",")) {
+      const withoutParens = part.replace(/\([^)]*\)/g, " ").replace(/\b\d{4}\b/g, " ").replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/gi, " ");
+      for (const candidatePart of [part, withoutParens]) {
+        const cleaned = normalise(candidatePart).replace(/\b(\w+(?:\s+\w+)?)\s+\1\b/g, "$1");
+        if (cleaned.length >= 4 && !COUNTRY_AND_PROVINCE_STOP_WORDS.has(cleaned) && !/^\d+$/.test(cleaned)) {
+          terms.add(cleaned);
+        }
+      }
+    }
+  }
+  return [...terms];
+}
+
+export function nameMatches(target: string, candidate: string, locationTerms: string[] = []) {
   const targetTokens = tokens(target);
   const candidateTokens = tokens(candidate);
-  return targetTokens.size > 0 && [...targetTokens].every((token) => candidateTokens.has(token));
+  if (targetTokens.size === 0) return false;
+  if ([...targetTokens].every((token) => candidateTokens.has(token))) return true;
+  const foldedTarget = normalise(target).replace(/\s+/g, "");
+  const foldedCandidate = normalise(candidate).replace(/\s+/g, "");
+  if (foldedTarget.length >= 6 && foldedCandidate.includes(foldedTarget)) return true;
+
+  const distinctive = distinctiveNameTokens(target);
+  if (!distinctive.length) return false;
+
+  const locTokens = new Set(locationTerms.flatMap((term) => term.split(/\s+/)).filter((t) => t.length > 2));
+  const coreDistinctive = distinctive.filter((t) => !locTokens.has(t));
+  const effectiveDistinctive = coreDistinctive.length > 0 ? coreDistinctive : distinctive;
+  if (!effectiveDistinctive.every((t) => candidateTokens.has(t) || foldedCandidate.includes(t))) return false;
+
+  const requiredNonSuffix = [...targetTokens].filter((t) => !INTERCHANGEABLE_VENUE_SUFFIXES.has(t) && (!locTokens.has(t) || coreDistinctive.length === 0));
+  if (!requiredNonSuffix.length || !requiredNonSuffix.every((t) => candidateTokens.has(t) || foldedCandidate.includes(t))) return false;
+
+  const targetSuffixes = [...targetTokens].filter((t) => INTERCHANGEABLE_VENUE_SUFFIXES.has(t));
+  if (targetSuffixes.length > 0) {
+    const candidateHasSuffix = [...candidateTokens].some((t) => INTERCHANGEABLE_VENUE_SUFFIXES.has(t));
+    if (!candidateHasSuffix) return false;
+  }
+  return true;
 }
 function tokenOverlap(left: string, right: string) { const rightTokens = tokens(right); return [...tokens(left)].filter((token) => rightTokens.has(token)); }
 function hostOf(value: string) { return new URL(value).hostname.toLowerCase().replace(/^www\./, ""); }
@@ -110,23 +170,27 @@ function verifyIdentity(request: ResearchRequest, context: ResearchContext, iden
 
 export function verifyFirstPartyIdentity(name: string | null, context: Pick<ResearchContext, "locality" | "existingFacts">, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
   if (!name) return { verified: false, path: null, signals: [] as string[], nameSignal: false, locationSignal: false };
-  const values = identityFacts.filter((item) => ["siteName", "explicitVenueName"].includes(item.fieldName)).map((item) => text(item.value)).filter((item): item is string => Boolean(item));
-  const nameSignal = values.some((value) => nameMatches(name, value));
-
-  const addressValues = identityFacts.filter((item) => item.fieldName === "address").map((item) => text(item.value)).filter((item): item is string => Boolean(item));
   const existingAddress = text(context.existingFacts?.find((item) => ["address", "formattedAddress"].includes(item.fieldName))?.value);
   const locality = context.locality?.trim();
+  const locTerms = locationCandidateTerms(locality, existingAddress);
+
+  const values = identityFacts.filter((item) => ["siteName", "explicitVenueName"].includes(item.fieldName)).map((item) => text(item.value)).filter((item): item is string => Boolean(item));
+  const nameSignal = values.some((value) => nameMatches(name, value, locTerms));
+
+  const addressValues = identityFacts.filter((item) => item.fieldName === "address").map((item) => text(item.value)).filter((item): item is string => Boolean(item));
   const locationRequired = Boolean(locality || existingAddress);
   const locationSignal = Boolean(
-    (locality && addressValues.some((value) => normalise(value).includes(normalise(locality))))
-      || (existingAddress && addressValues.some((value) => normalise(value).includes(normalise(existingAddress))))
+    locTerms.length && addressValues.some((value) => {
+      const normAddr = ` ${normalise(value)} `;
+      return locTerms.some((term) => normAddr.includes(` ${term} `));
+    }),
   );
 
-  const hasTitle = identityFacts.some((item) => item.fieldName === "siteName" && text(item.value) && nameMatches(name, text(item.value)!));
-  const hasHeading = identityFacts.some((item) => item.fieldName === "explicitVenueName" && text(item.value) && nameMatches(name, text(item.value)!));
+  const hasTitle = identityFacts.some((item) => item.fieldName === "siteName" && text(item.value) && nameMatches(name, text(item.value)!, locTerms));
+  const hasHeading = identityFacts.some((item) => item.fieldName === "explicitVenueName" && text(item.value) && nameMatches(name, text(item.value)!, locTerms));
   const existingPlaceEvidence = Boolean(
     context.existingFacts?.some((item) => item.fieldName === "placeId")
-      && context.existingFacts?.some((item) => item.fieldName === "placeName" && nameMatches(name, text(item.value) ?? "")),
+      && context.existingFacts?.some((item) => item.fieldName === "placeName" && nameMatches(name, text(item.value) ?? "", locTerms)),
   );
   if (nameSignal && (!locationRequired || locationSignal) && (locationSignal || (hasTitle && hasHeading) || existingPlaceEvidence)) {
     return { verified: true, path: "DIRECT" as const, signals: ["direct venue name", ...(locationSignal ? ["location alignment"] : []), ...(existingPlaceEvidence ? ["known Place identity"] : [])], nameSignal, locationSignal };

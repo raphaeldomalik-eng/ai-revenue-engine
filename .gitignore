@@ -12,3 +12,5 @@ supabase/.temp/
 *.tsbuildinfo
 test-results/
 playwright-report/
+.vercel
+.env*

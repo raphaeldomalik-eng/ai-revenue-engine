@@ -519,4 +519,74 @@ test("candidate host filter classifies prohibited sources", () => {
   assert.equal(candidateRejection("https://www.scouts.org.za/scout-groups/1st-somerset-west-scout-group-2/"), null);
   assert.equal(candidateRejection("https://bellinghamhomestead.wixsite.com/bellinghamhomestead"), null);
   assert.equal(candidateRejection("https://bounce.com/"), null);
+  assert.equal(candidateRejection("https://51-on-vlei.capetownhotelsearch.com/"), "DIRECTORY");
+  assert.equal(candidateRejection("https://strand-tower-hotel.capetown-hotels-za.com/en/"), "DIRECTORY");
+  assert.equal(candidateRejection("https://bellingham-homestead.res-discover.com/"), "DIRECTORY");
+  assert.equal(candidateRejection("https://www.wheretostay.co.za/venue"), "DIRECTORY");
+  assert.equal(candidateRejection("https://www.citizen.co.za/news/venue"), "AGGREGATOR");
 });
+
+test("verification accepts interchangeable venue suffixes, suburb addresses from formattedAddress, and deep candidate paths while rejecting third-party subdomain directories", async () => {
+  const pages: Sites = {
+    "https://www.groenrivier.com/": '<html><head><title>Groenrivier Function Venue | Riebeek West</title></head><body><h1>Groenrivier Function Venue</h1><footer><p>Address: Groenrivier Farm, Riebeek West, Western Cape, 7306</p></footer><a href="mailto:info@groenrivier.co.za">info@groenrivier.co.za</a></body></html>',
+    "https://bellinghamhomestead.wixsite.com/": { status: 404, body: "Not Found" },
+    "https://bellinghamhomestead.wixsite.com/bellinghamhomestead": '<html><head><title>Bellingham Homestead | Franschhoek</title></head><body><h1>Bellingham Homestead</h1><p>Address: Main Road, Franschhoek, 7690</p><a href="mailto:bookings@bellinghamhomestead.co.za">bookings@bellinghamhomestead.co.za</a></body></html>',
+  };
+  const { fetchImpl } = siteFetch(pages);
+  const groenResult = await executeOfficialWebsiteDiscovery(
+    discoveryRequest(
+      { idempotencyKey: "88888888-8888-4888-8888-888888888881" },
+      {
+        venueName: "Groenrivier Function Centre",
+        locality: "Cape Town",
+        administrativeRegion: "Western Cape",
+        country: "ZA",
+        formattedAddress: "Groenrivier Farm, Riebeek West, Malmesbury, 7306, South Africa",
+        placeId: "ChIJ_real_groenrivier",
+        placeIdEvidenceRef: "external_reference:groenrivier",
+      },
+    ),
+    {
+      searchProvider: fakeSearch([
+        { url: "https://51-on-vlei.capetownhotelsearch.com/", title: "Groenrivier Function Centre" },
+        { url: "https://www.groenrivier.com/", title: "Groenrivier Function Venue" },
+      ]).provider,
+      fetchImpl,
+      resolveHost: resolver,
+      now: () => NOW,
+    },
+  ) as any;
+  assert.equal(groenResult.websiteStatus, "OFFICIAL_WEBSITE_DISCOVERED_AND_VERIFIED");
+  assert.equal(groenResult.officialWebsite.url, "https://www.groenrivier.com/");
+  assert.equal(groenResult.guideEmailReady, true);
+  assert.equal(groenResult.publicContacts[0].value, "info@groenrivier.co.za");
+  assert.equal(groenResult.candidates[0].state, "REJECTED");
+
+  const wixResult = await executeOfficialWebsiteDiscovery(
+    discoveryRequest(
+      { idempotencyKey: "88888888-8888-4888-8888-888888888882" },
+      {
+        venueName: "Bellingham Homestead",
+        locality: "Cape Town",
+        administrativeRegion: "Western Cape",
+        country: "ZA",
+        formattedAddress: "Main Road, Franschhoek, Cape Town, 7690, South Africa",
+        placeId: "ChIJ_real_bellingham",
+        placeIdEvidenceRef: "external_reference:bellingham",
+      },
+    ),
+    {
+      searchProvider: fakeSearch([
+        { url: "https://bellinghamhomestead.wixsite.com/bellinghamhomestead", title: "Bellingham Homestead | Franschhoek" },
+      ]).provider,
+      fetchImpl,
+      resolveHost: resolver,
+      now: () => NOW,
+    },
+  ) as any;
+  assert.equal(wixResult.websiteStatus, "OFFICIAL_WEBSITE_DISCOVERED_AND_VERIFIED");
+  assert.equal(wixResult.officialWebsite.url, "https://bellinghamhomestead.wixsite.com/bellinghamhomestead");
+  assert.equal(wixResult.guideEmailReady, true);
+  assert.equal(wixResult.publicContacts[0].value, "bookings@bellinghamhomestead.co.za");
+});
+

@@ -123,6 +123,8 @@ function structuredNodes(doc: FetchedDocument): { nodes: Record<string, unknown>
 function structuredAddress(value: unknown): string | null {
   if (typeof value === "string") return clean(value);
   const address = object(value);
+  const hasLocalityOrStreet = Boolean(clean(address.streetAddress) ?? clean(address.addressLocality) ?? clean(object(address.addressLocality).name) ?? clean(address.postalCode));
+  if (!hasLocalityOrStreet) return null;
   const parts = ["streetAddress", "addressLocality", "addressRegion", "postalCode", "addressCountry"].map((key) => clean(address[key]) ?? clean(object(address[key]).name)).filter(Boolean);
   return parts.length ? parts.join(", ") : null;
 }
@@ -661,16 +663,21 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[])
   const root = extractors.includes("VENUE_FACTS") || extractors.includes("IMAGE_CANDIDATES") ? parseHtml(doc.body) : null;
   structured(doc, out, extractors);
   if (extractors.includes("IDENTITY")) {
-    const landingPage = /^\/(?:index\.html?)?$/i.test(new URL(doc.url).pathname);
+    const parsedDocUrl = new URL(doc.url);
+    const isWixSiteRoot = parsedDocUrl.hostname.toLowerCase().endsWith(".wixsite.com") && /^\/[^/]+\/?$/i.test(parsedDocUrl.pathname);
+    const landingPage = isWixSiteRoot || /^\/(?:(?:index|default)\.(?:html?|php|aspx?)|(?:en|af|za|uk|gb|home|welcome)\/?)?$/i.test(parsedDocUrl.pathname);
     const title = clean(visibleText(tags(doc.body, "title")[0]?.inner ?? "")) ?? firstMeta(doc.body, "og:site_name");
     const heading = clean(visibleText(tags(doc.body, "h1")[0]?.inner ?? ""));
-    const address = clean(visibleText(tags(doc.body, "address")[0]?.inner ?? "")) ?? clean(visibleText(doc.body).match(/\bADDRESS\b\s+(.{5,240}?)(?=\b(?:CONTACT(?:\s+US)?|PHONE|EMAIL|COMPANY)\b|$)/i)?.[1]);
+    const address = clean(visibleText(tags(doc.body, "address")[0]?.inner ?? ""))
+      ?? clean(visibleText(doc.body).match(/\b(?:(?:physical|street|postal|our|venue)\s+)?address\b\s*[:\-–]?\s+(.{5,240}?)(?=\b(?:contact(?:\s+us)?|phone|tel(?:ephone)?|mobile|cell|email|e-mail|company|opening|hours|copyright|gps)\b|$)/i)?.[1])
+      ?? clean(tags(doc.body, "footer").map((tag) => visibleText(tag.inner)).join(" ").match(/\b(\d{1,5}\s+[a-z0-9 .,'/-]{3,120},\s*[a-z ]{3,60}(?:,\s*\d{4})?)\b/i)?.[1]);
     if (landingPage && !out.identityFacts.some((item) => item.fieldName === "siteName")) {
       if (title && !/^(?:home|homepage)$/i.test(title)) addIdentity(out, doc, "siteName", title);
     }
     // Keep the heading even when structured data already supplied the same site name.
     if (landingPage && heading && !/^(?:home|welcome|contact us)$/i.test(heading)) addIdentity(out, doc, "explicitVenueName", heading);
-    addIdentity(out, doc, "address", address); addIdentity(out, doc, "siteDescription", firstMeta(doc.body, "description") ?? firstMeta(doc.body, "og:description"));
+    if (!out.identityFacts.some((item) => item.fieldName === "address")) addIdentity(out, doc, "address", address);
+    addIdentity(out, doc, "siteDescription", firstMeta(doc.body, "description") ?? firstMeta(doc.body, "og:description"));
     const canonical = selfClosingTags(doc.body, "link").map((tag) => tag.attrs).find((attrs) => /\bcanonical\b/i.test(attrs.rel ?? ""))?.href;
     const canonicalUrl = canonical ? sameOrigin(canonical, doc.url) : null;
     if (landingPage && canonicalUrl) addIdentity(out, doc, "canonicalUrl", canonicalUrl);

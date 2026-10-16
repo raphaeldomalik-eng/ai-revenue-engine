@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-10-16T00:12:10.859Z",
+  "totalCachedSerperRecords": 1619,
+  "newSerperApiCalls": 0,
+  "newSerperCostUsd": 0,
+  "counts": {
+    "verifiedOfficialWebsites": 5,
+    "verifiedWithUsableVenueEmail": 5,
+    "verifiedWithPublicContact": 5,
+    "uncertainCandidates": 43,
+    "invalidBusinesses": 566,
+    "genuinelyUnresolvedVenues": 1005
+  },
+  "falsePositive51OnVleiRejected": true
+}

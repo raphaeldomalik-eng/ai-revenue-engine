@@ -12,7 +12,7 @@ import {
   type WEBSITE_STATUSES,
 } from "./contracts.ts";
 import { executeSourceDiscoveryRequest, InMemoryNexusResultStore, type NexusResultStore } from "./executor.ts";
-import { verifyFirstPartyIdentity } from "./public-web.ts";
+import { locationCandidateTerms, nameMatches, verifyFirstPartyIdentity } from "./public-web.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 import type { CachedDocument, DocumentCache, FetchedDocument } from "./source-discovery/types.ts";
 import { createSerperPublicWebSearchProvider, isPublicWebSearchBudgetExhausted, serperApiKeyFromEnv } from "./search/serper-public-web-search.ts";
@@ -68,7 +68,7 @@ export const OFFICIAL_WEBSITE_DISCOVERY_EXECUTION_VERSION = "official-website-di
 
 // robots.txt and same-site redirects count against maxRequests, and many venue homepages exceed 500 KB;
 // the tighter values left verifiable sites with no page to verify.
-const VERIFICATION_BUDGET: CrawlBudget = { maxPages: 2, maxRequests: 6, maxBytesPerResponse: 1_000_000, maxRedirects: 2, maxRetries: 1, timeoutMs: 8_000, minRequestDelayMs: 0 };
+const VERIFICATION_BUDGET: CrawlBudget = { maxPages: 3, maxRequests: 8, maxBytesPerResponse: 1_000_000, maxRedirects: 2, maxRetries: 1, timeoutMs: 8_000, minRequestDelayMs: 0 };
 const SOURCE_DISCOVERY_BUDGET: CrawlBudget = { maxPages: 6, maxRequests: 12, maxBytesPerResponse: 1_000_000, maxRedirects: 3, maxRetries: 1, timeoutMs: 10_000, minRequestDelayMs: 250 };
 const HANDOFF_EXTRACTORS: SourceExtractor[] = ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES"];
 
@@ -122,15 +122,16 @@ export function acceptCrawledContacts(result: Pick<ReturnType<typeof validateSou
   const ordered = [...result.publicContacts].sort((left, right) => CONTACT_PRIORITY.indexOf(left.type) - CONTACT_PRIORITY.indexOf(right.type));
   for (const contact of ordered) {
     if (!CONTACT_PRIORITY.includes(contact.type) || !onVerifiedSite(contact.sourceUrl)) continue;
-    if (contact.reviewRequired) { if (contact.type === "EMAIL") rejectedEmails += 1; continue; }
     let value = contact.value;
     let relationship: CrawledContact["relationship"] = null;
     if (contact.type === "EMAIL") {
       if (isLabelSplitFragment(contact.value, pageEmails.filter((item) => item.sourceUrl === contact.sourceUrl).map((item) => item.value))) { rejectedEmails += 1; continue; }
-      const verdict = acceptVenueEmail(contact.value, result.source.finalUrl, venueName);
+      const verdict = acceptVenueEmail(contact.value, contact.sourceUrl || result.source.finalUrl, venueName, contact.label ?? "");
       if (!verdict.accepted) { rejectedEmails += 1; continue; }
       value = verdict.email;
       relationship = verdict.relationship;
+    } else if (contact.reviewRequired) {
+      continue;
     }
     if (contact.type === "CONTACT_FORM" && !onVerifiedSite(contact.value)) continue;
     if (contacts.some((item) => item.type === contact.type && item.value === value)) continue;
@@ -143,19 +144,20 @@ type IdentityContext = Parameters<typeof verifyFirstPartyIdentity>[1];
 
 // A site that states the full venue name and the held locality in its own title or heading identifies itself
 // as that venue even without a structured address. Description text is not enough.
-function namedLocalityOnSite(venueName: string, locality: string | null, identityFacts: Array<{ fieldName: string; value: unknown }>) {
-  const place = locality ? normalise(locality) : "";
-  const nameTokens = normalise(venueName).split(/\s+/).filter((token) => token.length > 2);
-  if (!place || !nameTokens.length) return false;
-  const headings = identityFacts.filter((item) => ["siteName", "explicitVenueName"].includes(item.fieldName) && typeof item.value === "string").map((item) => ` ${normalise(item.value as string)} `);
-  const named = headings.some((value) => nameTokens.every((token) => value.includes(` ${token} `)));
-  return named && headings.some((value) => value.includes(` ${place} `));
+function namedLocalityOnSite(venueName: string, locality: string | null, heldAddress: string | null, identityFacts: Array<{ fieldName: string; value: unknown }>) {
+  const locTerms = locationCandidateTerms(locality, heldAddress);
+  if (!locTerms.length) return false;
+  const headings = identityFacts.filter((item) => ["siteName", "explicitVenueName"].includes(item.fieldName) && typeof item.value === "string").map((item) => item.value as string);
+  const named = headings.some((value) => nameMatches(venueName, value, locTerms));
+  if (!named) return false;
+  const normHeadings = headings.map((value) => ` ${normalise(value)} `);
+  return normHeadings.some((value) => locTerms.some((place) => value.includes(` ${place} `)));
 }
 
 export function assessWebsiteIdentity(input: { venueName: string; country: "GB" | "ZA"; heldAddress: string | null; context: IdentityContext; finalUrl: string; identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }> }) {
   if (candidateRejection(input.finalUrl)) return { verified: false, state: "REJECTED" as const, reason: "REDIRECTED_TO_NON_FIRST_PARTY_HOST", path: null, signals: [] as string[], nameSignal: false };
   let verification = verifyFirstPartyIdentity(input.venueName, input.context, input.identityFacts);
-  if (!verification.verified && namedLocalityOnSite(input.venueName, input.context.locality ?? null, input.identityFacts)) {
+  if (!verification.verified && namedLocalityOnSite(input.venueName, input.context.locality ?? null, input.heldAddress, input.identityFacts)) {
     verification = { verified: true, path: "DIRECT", signals: ["direct venue name", "locality named in first-party title or heading"], nameSignal: true, locationSignal: true };
   }
   if (!verification.verified) {
@@ -205,7 +207,10 @@ function candidateFrom(result: PublicWebSearchResult, rank: number, name: string
   const origin = `${parsed.origin}/`;
   const reasons: string[] = [];
   let score = 0;
-  const host = normalise(bareHost(origin)).replace(/\s+/g, "");
+  const bare = bareHost(origin);
+  const reg = registrableDomain(bare);
+  const domainTarget = reg === "wixsite.com" ? bare : reg.split(".")[0] ?? reg;
+  const host = normalise(domainTarget).replace(/\s+/g, "");
   if (distinctiveNameTokens(name).some((token) => token.length >= 4 && host.includes(token))) { score += 2; reasons.push("DOMAIN_NAME_ALIGNMENT"); }
   if (result.title && distinctiveNameTokens(name).every((token) => normalise(result.title!).includes(token))) { score += 1; reasons.push("TITLE_NAME_ALIGNMENT"); }
   if (EVENT_DETAIL_PATH.test(parsed.pathname)) { score -= 2; reasons.push("EVENT_DETAIL_PATH_DEPRIORITISED"); }
@@ -318,9 +323,19 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
   const verifyCandidate = async (candidate: Candidate) => {
     if (!crawlAllowed) { candidate.reasons.push("PUBLIC_WEB_NOT_AUTHORISED"); return; }
     crawl.verificationCrawls += 1;
+    const budget = { ...VERIFICATION_BUDGET, ...options.verificationBudget };
+    const deepUrl = candidate.source === "PUBLIC_WEB_SEARCH" ? heldCrawlUrl(candidate.url) : null;
+    const isWix = Boolean(candidate.origin && bareHost(candidate.origin).endsWith(".wixsite.com"));
+    const tryDeepFallback = Boolean(
+      deepUrl &&
+      deepUrl !== candidate.origin &&
+      (isWix || candidate.reasons.includes("DOMAIN_NAME_ALIGNMENT")) &&
+      !EVENT_DETAIL_PATH.test(new URL(deepUrl).pathname) &&
+      !/\.pdf(?:$|\?)/i.test(deepUrl),
+    );
     let output;
     try {
-      output = await crawlVerifiedSource({ verifiedUrl: candidate.source === "PUBLIC_WEB_SEARCH" ? candidate.origin! : heldCrawlUrl(candidate.url), requestedExtractors: ["IDENTITY"], budget: { ...VERIFICATION_BUDGET, ...options.verificationBudget }, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost });
+      output = await crawlVerifiedSource({ verifiedUrl: candidate.source === "PUBLIC_WEB_SEARCH" ? candidate.origin! : heldCrawlUrl(candidate.url), requestedExtractors: ["IDENTITY"], budget, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost });
     } catch {
       crawl.unavailable += 1;
       candidate.state = "UNVERIFIED";
@@ -328,6 +343,13 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
       return;
     }
     crawl.requestCount += output.stats.requestCount;
+    if (!output.documents.length && tryDeepFallback && output.stats.status !== "BLOCKED") {
+      try {
+        const deepOut = await crawlVerifiedSource({ verifiedUrl: deepUrl!, requestedExtractors: ["IDENTITY"], budget: { ...budget, maxPages: 1, maxRequests: 2 }, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost });
+        crawl.requestCount += deepOut.stats.requestCount;
+        if (deepOut.documents.length) output = deepOut;
+      } catch { /* keep original failure */ }
+    }
     if (!output.documents.length) {
       if (output.stats.status === "BLOCKED") { crawl.blocked += 1; candidate.reasons.push("CRAWL_BLOCKED"); }
       else { crawl.unavailable += 1; candidate.reasons.push("CRAWL_UNAVAILABLE"); }
@@ -335,12 +357,31 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
       return;
     }
     evaluated += 1;
-    const extracted = extractFromFetchedDocuments(output.documents, ["IDENTITY"]);
-    const assessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl: output.finalUrl, identityFacts: extracted.identityFacts });
+    let docs = output.documents;
+    let finalUrl = output.finalUrl;
+    let extracted = extractFromFetchedDocuments(docs, ["IDENTITY"]);
+    const rootSiteNames = extracted.identityFacts.filter((f) => f.fieldName === "siteName" && typeof f.value === "string").map((f) => f.value as string);
+    const hasRootOperatorAlignment = rootSiteNames.some((s) => distinctiveNameTokens(identity.venueName).some((t) => t.length >= 4 && normalise(s).includes(t)));
+    let assessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl, identityFacts: extracted.identityFacts });
+    if (!assessment.verified && (tryDeepFallback || (hasRootOperatorAlignment && deepUrl && deepUrl !== candidate.origin && !EVENT_DETAIL_PATH.test(new URL(deepUrl).pathname) && !/\.pdf(?:$|\?)/i.test(deepUrl))) && !docs.some((d) => d.url === deepUrl)) {
+      try {
+        const deepOut = await crawlVerifiedSource({ verifiedUrl: deepUrl!, requestedExtractors: ["IDENTITY"], budget: { ...budget, maxPages: 1, maxRequests: 2 }, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost });
+        crawl.requestCount += deepOut.stats.requestCount;
+        if (deepOut.documents.length) {
+          docs = [...docs, ...deepOut.documents];
+          extracted = extractFromFetchedDocuments(docs, ["IDENTITY"]);
+          const deepAssessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl: deepOut.finalUrl, identityFacts: extracted.identityFacts });
+          if (deepAssessment.verified || (deepAssessment.nameSignal && !assessment.nameSignal)) {
+            assessment = deepAssessment;
+            if (deepAssessment.verified) finalUrl = deepOut.finalUrl;
+          }
+        }
+      } catch { /* keep initial assessment */ }
+    }
     if (assessment.nameSignal) nameAligned += 1;
     candidate.reasons.push(assessment.reason);
     if (!assessment.verified) { candidate.state = assessment.state; return; }
-    verified.push({ candidate, finalUrl: output.finalUrl, documents: output.documents, path: assessment.path, signals: assessment.signals });
+    verified.push({ candidate, finalUrl, documents: docs, path: assessment.path, signals: assessment.signals });
   };
 
   // 2. A Nexus/AIRE-verified first-party website skips identity verification and goes to contact discovery.

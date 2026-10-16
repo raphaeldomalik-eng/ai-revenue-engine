@@ -1,0 +1,61 @@
+{
+  "executedAt": "2026-10-15T23:10:30.177Z",
+  "elapsedSeconds": 815.6,
+  "budgetEnforcement": {
+    "budgetCapUsd": 2.00,
+    "maxAllowedCalls": 2000,
+    "totalSerperCalls": 1619,
+    "totalCostUsd": 1.619,
+    "stoppedDueToBudget": false,
+    "withinCeiling": true
+  },
+  "inventoryCounts": {
+    "totalManifestQueue": 1619,
+    "totalVenuesSearched": 1619,
+    "totalReturnedCandidateUrls": 4493,
+    "totalCandidatesEvaluated": 4374,
+    "totalResultsSaved": 1619
+  },
+  "outcomes": {
+    "acceptedOfficialWebsites": 1,
+    "ambiguousCandidates": 18,
+    "noCredibleWebsiteFound": 1528,
+    "crawlBlockedCandidates": 43,
+    "crawlUnavailableCandidates": 29,
+    "errors": 0
+  },
+  "topCandidateRejections": {
+    "socialProfiles": 1436,
+    "noSameEntityIdentityEvidence": 773,
+    "thirdPartyDirectories": 578,
+    "mapsOrSearchEngines": 536,
+    "travelOrBookingPlatforms": 172,
+    "aggregators": 161,
+    "crawlBlocked": 158,
+    "crawlUnavailable": 158,
+    "ticketing": 60,
+    "reviewSites": 49
+  },
+  "nextCrawlReadyCohort": {
+    "count": 1,
+    "description": "Venues with newly discovered and identity-verified official websites ready for internal crawling.",
+    "sample": [
+      {
+        "listingId": "e9508dab-7db8-4f02-9701-9950e0eca4b4",
+        "venueName": "51 On Vlei",
+        "officialWebsite": "https://51-on-vlei.capetownhotelsearch.com/",
+        "verificationSignals": [
+          "direct venue name",
+          "locality named in first-party title or heading"
+        ]
+      }
+    ]
+  },
+  "governance": {
+    "zeroPublicationChanges": true,
+    "zeroLiveEmailsOrRelays": true,
+    "secretDisclosed": false,
+    "adminEndpointTornDown": true,
+    "productionRolledBackToCleanState": true
+  }
+}
