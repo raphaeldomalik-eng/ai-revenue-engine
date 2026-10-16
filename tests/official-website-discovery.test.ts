@@ -452,6 +452,18 @@ test("email acceptance: evidenced bookings@ on the verified domain is accepted; 
   const none = await executeOfficialWebsiteDiscovery(discoveryRequest({ heldEvidence: HELD_SITE }), { fetchImpl: siteFetch({ [site]: noEmail }).fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
   assert.equal(none.publicContacts.some((item: any) => item.type === "EMAIL"), false, "no info@ or other address is generated");
   assert.equal(none.guideEmailReady, false);
+
+  const labelledOffDomain = noEmail.replace(
+    "</address>",
+    '</address><p>Venue hire: <a href="mailto:jo.smith@hospitalitygroup.co.uk">jo.smith@hospitalitygroup.co.uk</a></p><p>Website designed by <a href="mailto:hello@webdesignstudio.co.uk">hello@webdesignstudio.co.uk</a></p>',
+  );
+  const labelledResult = await executeOfficialWebsiteDiscovery(discoveryRequest({ idempotencyKey: "77777777-7777-4777-8777-777777777778", heldEvidence: HELD_SITE }), { fetchImpl: siteFetch({ [site]: labelledOffDomain }).fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
+  assert.equal(labelledResult.sourceDiscovery.publicContacts.find((item: any) => item.value === "jo.smith@hospitalitygroup.co.uk")?.label?.includes("Venue hire:"), true);
+  assert.deepEqual(
+    labelledResult.publicContacts.filter((item: any) => item.type === "EMAIL").map((item: any) => [item.value, item.relationship]),
+    [["jo.smith@hospitalitygroup.co.uk", "PUBLISHED_ON_VERIFIED_SITE"]],
+  );
+  assert.equal(labelledResult.guideEmailReady, true);
 });
 
 test("a held website with a cross-site redirect or TLS trust failure stays terminal and is not contact-crawled", async () => {

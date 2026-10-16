@@ -608,4 +608,367 @@ test("Google Places Monthly Budget Guard — Section 39 Requirements Matrix", as
     assert.equal(networkCalls, 0, "Zero mock provider calls triggered");
     assert.equal(claimCalls, 1, "Attempted claim and stopped immediately on ZERO_BUDGET_LIMIT");
   });
+
+  await t.test("18. Fresh, complete GooglePlacesEvidenceRecordV1 (direct & integration.raw_evidence wrapped) is reused before budget reservation", async () => {
+    const {
+      mergeGooglePlacesEvidence,
+      GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+      GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS,
+    } = await import("../src/ai-sales-team/google-places-evidence.ts");
+
+    const nowIso = "2026-10-16T00:00:00.000Z";
+    const placeId = "ChIJfresh000000000000000001";
+    const proRecord = mergeGooglePlacesEvidence({
+      record: null,
+      providerPlaceId: placeId,
+      fetchFields: GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+      response: {
+        id: placeId,
+        displayName: { text: "Scala London" },
+        primaryType: "event_venue",
+        types: ["event_venue", "night_club"],
+        formattedAddress: "275 Pentonville Rd, London N1 9NL, UK",
+        addressComponents: [{ longText: "London", types: ["locality"] }],
+        location: { latitude: 51.5308, longitude: -0.1206 },
+        businessStatus: "OPERATIONAL",
+      },
+      observedAt: nowIso,
+      requestingApplication: "event_suite_resources",
+      workflow: "resources_census_hydration",
+      statusCode: 200,
+    });
+
+    // Even with proLimit = 0 and apiKey = "", fresh stored evidence is reused at step 2 before budget check!
+    const budgetGuard = new MonthlyProviderBudgetGuard({ proLimit: 0, enterpriseLimit: 0 });
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore([proRecord], () => nowIso);
+    const worker = new GoogleEnrichmentWorker(budgetGuard, evidenceStore, undefined, "");
+
+    assert.equal(worker.isEvidenceUsable(proRecord, "PRO", placeId, nowIso), true);
+    assert.equal(
+      worker.isEvidenceUsable(
+        { id: "raw-ev-1", external_record_id: placeId, raw_payload: proRecord },
+        "PRO",
+        placeId,
+        nowIso
+      ),
+      true,
+      "Recognises GooglePlacesEvidenceRecordV1 wrapped in integration.raw_evidence.raw_payload"
+    );
+
+    const proBatch = await worker.processBatch(
+      "PRO",
+      [{ externalReferenceId: placeId, originatingProduct: "resources", computedPriority: 100, status: "QUEUED" }],
+      nowIso
+    );
+    assert.equal(proBatch.callsSuppressed, 1);
+    assert.equal(proBatch.callsExecuted, 0);
+    assert.equal(proBatch.results[0].outcome, "EVIDENCE_REUSED");
+
+    // Enterprise record reuse
+    const entRecord = mergeGooglePlacesEvidence({
+      record: proRecord,
+      providerPlaceId: placeId,
+      fetchFields: GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS,
+      response: {
+        ...proRecord.place,
+        websiteUri: "https://scala.co.uk/",
+        internationalPhoneNumber: "+44 20 7833 2022",
+      },
+      observedAt: nowIso,
+      requestingApplication: "event_suite_resources",
+      workflow: "official_website_enrichment",
+      statusCode: 200,
+    });
+    await evidenceStore.put(entRecord);
+
+    assert.equal(worker.isEvidenceUsable(entRecord, "ENTERPRISE", placeId, nowIso), true);
+    const entBatch = await worker.processBatch(
+      "ENTERPRISE",
+      [{
+        externalReferenceId: placeId,
+        originatingProduct: "resources",
+        computedPriority: 100,
+        status: "QUEUED",
+        resourcesVenueEligibility: "ELIGIBLE",
+        eligibilityRef: "test:scala",
+      }],
+      nowIso
+    );
+    assert.equal(entBatch.callsSuppressed, 1);
+    assert.equal(entBatch.callsExecuted, 0);
+    assert.equal(entBatch.results[0].outcome, "EVIDENCE_REUSED");
+  });
+
+  await t.test("19. Missing or stale fields trigger only genuinely necessary lookups", async () => {
+    const {
+      mergeGooglePlacesEvidence,
+      GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+    } = await import("../src/ai-sales-team/google-places-evidence.ts");
+
+    const observedIso = "2026-09-01T00:00:00.000Z";
+    const freshCheckIso = "2026-09-15T00:00:00.000Z"; // 14 days later (< 30 days)
+    const staleCheckIso = "2026-10-05T00:00:00.000Z"; // 34 days later (> 30 days)
+    const placeId = "ChIJpartial0000000000000002";
+
+    // Record has only PRO fields (missing websiteUri and internationalPhoneNumber)
+    const proOnlyRecord = mergeGooglePlacesEvidence({
+      record: null,
+      providerPlaceId: placeId,
+      fetchFields: GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+      response: {
+        id: placeId,
+        displayName: { text: "Union Chapel" },
+        primaryType: "event_venue",
+        types: ["event_venue"],
+        formattedAddress: "Compton Terrace, London N1 2UN",
+        businessStatus: "OPERATIONAL",
+      },
+      observedAt: observedIso,
+      requestingApplication: "event_suite_resources",
+      workflow: "census",
+      statusCode: 200,
+    });
+
+    const budgetGuard = new MonthlyProviderBudgetGuard({ proLimit: 5, enterpriseLimit: 5 });
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore([proOnlyRecord], () => freshCheckIso);
+    const masksCalled: string[] = [];
+    const worker = new GoogleEnrichmentWorker(
+      budgetGuard,
+      evidenceStore,
+      mockGoogle((_id, mask) => {
+        masksCalled.push(mask);
+      }),
+      "mock-places-key"
+    );
+
+    // At 14 days: PRO is reusable (0 calls), ENTERPRISE is missing websiteUri/phone (false -> triggers 1 Enterprise lookup)
+    assert.equal(worker.isEvidenceUsable(proOnlyRecord, "PRO", placeId, freshCheckIso), true);
+    assert.equal(worker.isEvidenceUsable(proOnlyRecord, "ENTERPRISE", placeId, freshCheckIso), false);
+
+    // At 34 days (> 30 days TTL): PRO is stale -> triggers refresh lookup
+    assert.equal(worker.isEvidenceUsable(proOnlyRecord, "PRO", placeId, staleCheckIso), false);
+
+    // Execute ENTERPRISE at 14 days -> triggers 1 genuinely necessary Enterprise lookup
+    const entRes = await worker.processBatch(
+      "ENTERPRISE",
+      [{
+        externalReferenceId: placeId,
+        originatingProduct: "resources",
+        computedPriority: 100,
+        status: "QUEUED",
+        resourcesVenueEligibility: "ELIGIBLE",
+        eligibilityRef: "test:union-chapel",
+      }],
+      freshCheckIso
+    );
+    assert.equal(entRes.callsExecuted, 1);
+    assert.equal(masksCalled.length, 1);
+    assert.ok(masksCalled[0].includes("websiteUri"));
+  });
+
+  await t.test("20. Provider identity verification rejects mismatched providerPlaceId, place.id, or external_record_id", async () => {
+    const {
+      mergeGooglePlacesEvidence,
+      GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+    } = await import("../src/ai-sales-team/google-places-evidence.ts");
+
+    const nowIso = "2026-10-16T00:00:00.000Z";
+    const placeA = "ChIJidentityA00000000000001";
+    const placeB = "ChIJidentityB00000000000002";
+
+    const recordA = mergeGooglePlacesEvidence({
+      record: null,
+      providerPlaceId: placeA,
+      fetchFields: GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+      response: {
+        id: placeA,
+        displayName: { text: "Venue A" },
+        primaryType: "event_venue",
+        types: ["event_venue"],
+        formattedAddress: "1 High St, London",
+        businessStatus: "OPERATIONAL",
+      },
+      observedAt: nowIso,
+      requestingApplication: "event_suite_resources",
+      workflow: "census",
+      statusCode: 200,
+    });
+
+    const worker = new GoogleEnrichmentWorker(
+      new MonthlyProviderBudgetGuard({ proLimit: 5 }),
+      createInMemoryGooglePlacesEvidenceStore(),
+      undefined,
+      "mock-key"
+    );
+
+    assert.equal(worker.isEvidenceUsable(recordA, "PRO", placeA, nowIso), true);
+    assert.equal(worker.isEvidenceUsable(recordA, "PRO", placeB, nowIso), false, "Rejects mismatched expectedPlaceId");
+    assert.equal(
+      worker.isEvidenceUsable(
+        { external_record_id: placeB, raw_payload: recordA },
+        "PRO",
+        placeA,
+        nowIso
+      ),
+      false,
+      "Rejects mismatched outer external_record_id"
+    );
+    assert.equal(
+      worker.isEvidenceUsable(
+        { ...recordA, place: { ...recordA.place, id: placeB } },
+        "PRO",
+        placeA,
+        nowIso
+      ),
+      false,
+      "Rejects mismatched inner place.id"
+    );
+  });
+
+  await t.test("21. Durable queue pre-call evidence reuse reconciles reservation with 0 consumed without requiring API key", async () => {
+    const {
+      mergeGooglePlacesEvidence,
+      GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+    } = await import("../src/ai-sales-team/google-places-evidence.ts");
+    const { InMemoryBudgetStore } = await import("../src/nexus/monthly-budget-guard.ts");
+
+    const nowIso = "2026-10-16T00:00:00.000Z";
+    const placeId = "ChIJdurableReuse00000000001";
+    const proRecord = mergeGooglePlacesEvidence({
+      record: null,
+      providerPlaceId: placeId,
+      fetchFields: GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+      response: {
+        id: placeId,
+        displayName: { text: "Roundhouse" },
+        primaryType: "event_venue",
+        types: ["event_venue"],
+        formattedAddress: "Chalk Farm Rd, London NW1 8EH",
+        businessStatus: "OPERATIONAL",
+      },
+      observedAt: nowIso,
+      requestingApplication: "event_suite_resources",
+      workflow: "census",
+      statusCode: 200,
+    });
+
+    const store = new InMemoryBudgetStore({ proLimit: 3 });
+    store.enqueueTestJob({
+      queueId: "q-reuse-1",
+      provider: "google_places",
+      billingTier: "PRO",
+      externalReferenceId: placeId,
+      reservationId: "",
+      originatingProduct: "resources",
+      computedPriority: 100,
+      evidenceGapReason: "MISSING_PRO_CLASSIFICATION",
+      targetName: "Roundhouse",
+      locality: "London",
+    });
+
+    const evidenceStore = createInMemoryGooglePlacesEvidenceStore([proRecord], () => nowIso);
+    // Pass empty API key to prove step 2 suppresses the call BEFORE step 4 API key check!
+    const worker = new GoogleEnrichmentWorker(store, evidenceStore, undefined, "");
+    const res = await worker.processDurableQueue("PRO", 5, { targetTime: nowIso });
+
+    assert.equal(res.callsSuppressed, 1);
+    assert.equal(res.callsExecuted, 0);
+    assert.equal(res.callsFailed, 0);
+    assert.equal(res.finalBudgetRemaining, 3, "Reservation reconciled with 0 consumed; full budget restored");
+    assert.equal(res.results[0].outcome, "EVIDENCE_REUSED");
+  });
+
+  await t.test("22. Worker rejects held, disputed, conflicting, closed, or legacy heldClassification evidence as non-authoritative", async () => {
+    const {
+      mergeGooglePlacesEvidence,
+      GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+    } = await import("../src/ai-sales-team/google-places-evidence.ts");
+
+    const nowIso = "2026-10-16T00:00:00.000Z";
+    const placeId = "ChIJdisputed000000000000001";
+    const baseRecord = mergeGooglePlacesEvidence({
+      record: null,
+      providerPlaceId: placeId,
+      fetchFields: GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+      response: {
+        id: placeId,
+        displayName: { text: "Disputed Venue" },
+        primaryType: "event_venue",
+        types: ["event_venue"],
+        formattedAddress: "10 Conflict Rd, London",
+        businessStatus: "OPERATIONAL",
+      },
+      observedAt: nowIso,
+      requestingApplication: "event_suite_resources",
+      workflow: "census",
+      statusCode: 200,
+    });
+
+    const disputedStore: any = {
+      record: { ...baseRecord, disputed: true } as any,
+      async get(id: string) {
+        return id === placeId ? this.record : null;
+      },
+      async put(rec: any) {
+        this.record = rec;
+        return rec;
+      },
+    };
+
+    let networkCalls = 0;
+    const budgetGuard = new MonthlyProviderBudgetGuard({ proLimit: 5 });
+    const worker = new GoogleEnrichmentWorker(
+      budgetGuard,
+      disputedStore,
+      mockGoogle(() => {
+        networkCalls += 1;
+      }),
+      "mock-places-key"
+    );
+
+    // Prove none of the held/disputed/conflicting/closed/heldClassification shapes are treated as usable
+    assert.equal(worker.isEvidenceUsable({ ...baseRecord, held: true }, "PRO", placeId, nowIso), false);
+    assert.equal(worker.isEvidenceUsable({ ...baseRecord, disputed: true }, "PRO", placeId, nowIso), false);
+    assert.equal(worker.isEvidenceUsable({ ...baseRecord, reviewRequired: true }, "PRO", placeId, nowIso), false);
+    assert.equal(worker.isEvidenceUsable({ ...baseRecord, status: "HELD" }, "PRO", placeId, nowIso), false);
+    assert.equal(worker.isEvidenceUsable({ ...baseRecord, classificationState: "REVIEW_REQUIRED" }, "PRO", placeId, nowIso), false);
+    assert.equal(worker.isEvidenceUsable({ ...baseRecord, matchStatus: "CONFLICTING" }, "PRO", placeId, nowIso), false);
+    assert.equal(
+      worker.isEvidenceUsable(
+        { ...baseRecord, place: { ...baseRecord.place, businessStatus: "CLOSED_PERMANENTLY" } },
+        "PRO",
+        placeId,
+        nowIso
+      ),
+      false
+    );
+    assert.equal(
+      worker.isEvidenceUsable(
+        { heldClassification: { displayName: "Legacy Held Only", primaryType: "event_venue" } },
+        "PRO",
+        placeId,
+        nowIso
+      ),
+      false
+    );
+
+    // When processBatch runs against disputedStore, it does NOT reuse the disputed record -> executes 1 fresh call and overwrites with authoritative record
+    const firstRun = await worker.processBatch(
+      "PRO",
+      [{ externalReferenceId: placeId, originatingProduct: "resources", computedPriority: 100, status: "QUEUED" }],
+      nowIso
+    );
+    assert.equal(firstRun.callsExecuted, 1);
+    assert.equal(networkCalls, 1);
+
+    // Replay after authoritative overwrite -> 0 calls!
+    const replayRun = await worker.processBatch(
+      "PRO",
+      [{ externalReferenceId: placeId, originatingProduct: "resources", computedPriority: 100, status: "QUEUED" }],
+      nowIso
+    );
+    assert.equal(replayRun.callsExecuted, 0);
+    assert.equal(replayRun.callsSuppressed, 1);
+    assert.equal(networkCalls, 1, "Zero duplicate paid calls on replay");
+  });
 });
