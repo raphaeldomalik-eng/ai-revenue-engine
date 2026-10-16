@@ -10,7 +10,13 @@ import {
 import {
   type GooglePlacesEvidenceStore,
   type GooglePlacesDetailsAuthorization,
+  type GooglePlacesEvidenceRecordV1,
+  GOOGLE_PLACES_EVIDENCE_CONTRACT,
+  GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+  GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS,
   GOOGLE_PLACES_VENUE_IDENTITY_AUTHORIZATION,
+  planGooglePlaceDetailsFetch,
+  validateGooglePlacesEvidenceRecord,
 } from "../ai-sales-team/google-places-evidence.ts";
 import {
   getGooglePlaceDetails,
@@ -19,6 +25,95 @@ import {
 } from "../ai-sales-team/google-places.ts";
 
 export const GOOGLE_PLACE_ID_RE = /^ChIJ[A-Za-z0-9_-]{23}$/;
+
+const NON_AUTHORITATIVE_STATUSES = new Set([
+  "HELD",
+  "DISPUTED",
+  "QUARANTINED",
+  "REJECTED",
+  "REVIEW_REQUIRED",
+  "CONFLICTING",
+  "NO_MATCH",
+]);
+
+function hasNonAuthoritativeFlags(obj: Record<string, unknown> | null | undefined): boolean {
+  if (!obj || typeof obj !== "object") return false;
+  if (
+    obj.held === true ||
+    obj.isHeld === true ||
+    obj.disputed === true ||
+    obj.isDisputed === true ||
+    obj.reviewRequired === true ||
+    obj.authorityConflict === true ||
+    obj.heldClassification != null
+  ) {
+    return true;
+  }
+  const statusCandidates = [
+    obj.status,
+    obj.heldStatus,
+    obj.disputeStatus,
+    obj.reviewStatus,
+    obj.review_status,
+    obj.classificationState,
+    obj.classification_state,
+    obj.matchStatus,
+  ];
+  for (const candidate of statusCandidates) {
+    if (typeof candidate === "string" && NON_AUTHORITATIVE_STATUSES.has(candidate.trim().toUpperCase())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function extractRawEvidenceRecord(evidence: unknown): Record<string, unknown> | null {
+  if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return null;
+  const outer = evidence as Record<string, unknown>;
+  if (outer.contract === GOOGLE_PLACES_EVIDENCE_CONTRACT) return outer;
+  if (outer.raw_payload && typeof outer.raw_payload === "object" && !Array.isArray(outer.raw_payload)) {
+    const rawPayload = outer.raw_payload as Record<string, unknown>;
+    if (rawPayload.contract === GOOGLE_PLACES_EVIDENCE_CONTRACT) return rawPayload;
+    if (
+      rawPayload.googlePlacesEvidence &&
+      typeof rawPayload.googlePlacesEvidence === "object" &&
+      !Array.isArray(rawPayload.googlePlacesEvidence)
+    ) {
+      return rawPayload.googlePlacesEvidence as Record<string, unknown>;
+    }
+  }
+  if (
+    outer.googlePlacesEvidence &&
+    typeof outer.googlePlacesEvidence === "object" &&
+    !Array.isArray(outer.googlePlacesEvidence)
+  ) {
+    return outer.googlePlacesEvidence as Record<string, unknown>;
+  }
+  if (outer.payload && typeof outer.payload === "object" && !Array.isArray(outer.payload)) {
+    const payload = outer.payload as Record<string, unknown>;
+    if (
+      payload.googlePlacesEvidence &&
+      typeof payload.googlePlacesEvidence === "object" &&
+      !Array.isArray(payload.googlePlacesEvidence)
+    ) {
+      return payload.googlePlacesEvidence as Record<string, unknown>;
+    }
+  }
+  return null;
+}
+
+function hasUsablePlaceIdentity(place: Record<string, unknown>): boolean {
+  const displayName = place.displayName;
+  const hasName =
+    (typeof displayName === "string" && displayName.trim().length > 0) ||
+    (displayName &&
+      typeof displayName === "object" &&
+      typeof (displayName as Record<string, unknown>).text === "string" &&
+      String((displayName as Record<string, unknown>).text).trim().length > 0);
+  const hasPrimaryType = typeof place.primaryType === "string" && place.primaryType.trim().length > 0;
+  const hasTypes = Array.isArray(place.types) && place.types.some((t) => typeof t === "string" && t.trim().length > 0);
+  return Boolean(hasName || hasPrimaryType || hasTypes);
+}
 
 export interface EnrichedQueueCandidate {
   externalReferenceId: string;
@@ -82,18 +177,148 @@ export class GoogleEnrichmentWorker {
   }
 
   /**
-   * Helper to check if existing durable evidence already satisfies the requested tier.
+   * Validates whether a stored record is an authoritative, non-held, non-disputed
+   * GooglePlacesEvidenceRecordV1 matching the expected Place ID.
    */
-  private isEvidenceUsable(evidence: any, tier: MonthlyBudgetTier): boolean {
-    if (!evidence) return false;
-    const held = evidence.heldClassification;
+  private extractAuthoritativeRecord(
+    evidence: unknown,
+    expectedPlaceId?: string
+  ): GooglePlacesEvidenceRecordV1 | null {
+    if (!evidence || typeof evidence !== "object" || Array.isArray(evidence)) return null;
+    const outer = evidence as Record<string, unknown>;
+    if (hasNonAuthoritativeFlags(outer)) return null;
+
+    if (
+      outer.raw_payload &&
+      typeof outer.raw_payload === "object" &&
+      !Array.isArray(outer.raw_payload) &&
+      hasNonAuthoritativeFlags(outer.raw_payload as Record<string, unknown>)
+    ) {
+      return null;
+    }
+
+    const rawRecord = extractRawEvidenceRecord(evidence);
+    if (!rawRecord || hasNonAuthoritativeFlags(rawRecord)) return null;
+
+    const placeObj =
+      rawRecord.place && typeof rawRecord.place === "object" && !Array.isArray(rawRecord.place)
+        ? (rawRecord.place as Record<string, unknown>)
+        : null;
+    if (!placeObj || hasNonAuthoritativeFlags(placeObj)) return null;
+
+    const normalizedExpected = expectedPlaceId?.trim();
+    if (normalizedExpected) {
+      if (
+        typeof outer.external_record_id === "string" &&
+        outer.external_record_id.trim() !== normalizedExpected
+      ) {
+        return null;
+      }
+      if (
+        typeof rawRecord.providerPlaceId !== "string" ||
+        rawRecord.providerPlaceId.trim() !== normalizedExpected
+      ) {
+        return null;
+      }
+      if (typeof placeObj.id === "string" && placeObj.id.trim() !== normalizedExpected) {
+        return null;
+      }
+    }
+
+    let validated: GooglePlacesEvidenceRecordV1;
+    try {
+      validated = validateGooglePlacesEvidenceRecord(rawRecord);
+    } catch {
+      return null;
+    }
+
+    if (normalizedExpected && validated.providerPlaceId !== normalizedExpected) {
+      return null;
+    }
+    if (
+      typeof validated.place.id === "string" &&
+      validated.place.id.trim() !== validated.providerPlaceId
+    ) {
+      return null;
+    }
+
+    const businessStatus =
+      typeof validated.place.businessStatus === "string"
+        ? validated.place.businessStatus.trim().toUpperCase()
+        : "";
+    if (businessStatus === "CLOSED_PERMANENTLY" || businessStatus === "CLOSED") {
+      return null;
+    }
+
+    if (!hasUsablePlaceIdentity(validated.place)) {
+      return null;
+    }
+
+    return validated;
+  }
+
+  /**
+   * Checks whether existing durable evidence in `integration.raw_evidence` (or the shared
+   * `GooglePlacesEvidenceStore`) is a fresh, complete, authoritative `GooglePlacesEvidenceRecordV1`
+   * that already satisfies the requested billing tier.
+   */
+  public isEvidenceUsable(
+    evidence: unknown,
+    tier: MonthlyBudgetTier,
+    expectedPlaceId?: string,
+    targetTime: Date | string | number = new Date()
+  ): boolean {
+    const validated = this.extractAuthoritativeRecord(evidence, expectedPlaceId);
+    if (!validated) return false;
+
+    const nowMs =
+      targetTime instanceof Date
+        ? targetTime.getTime()
+        : typeof targetTime === "number"
+          ? targetTime
+          : Date.parse(String(targetTime));
+    if (!Number.isFinite(nowMs)) return false;
+    const nowIso = new Date(nowMs).toISOString();
+
     if (tier === "PRO") {
-      return Boolean(held && (held.primaryType || held.displayName || (Array.isArray(held.types) && held.types.length > 0)));
+      const plan = planGooglePlaceDetailsFetch({
+        record: validated,
+        requestedFields: GOOGLE_PLACES_PRO_CLASSIFICATION_FIELDS,
+        now: nowIso,
+      });
+      return plan.decision === "REUSE";
     }
-    if (tier === "ENTERPRISE" || tier === "ENTERPRISE_ATMOSPHERE") {
-      return Boolean(held && held.websiteUri);
+
+    if (tier === "ENTERPRISE") {
+      const plan = planGooglePlaceDetailsFetch({
+        record: validated,
+        requestedFields: GOOGLE_PLACES_ENTERPRISE_REQUEST_FIELDS,
+        now: nowIso,
+      });
+      return plan.decision === "REUSE";
     }
+
     return false;
+  }
+
+  /**
+   * Wraps the evidence store for a provider fetch so that if an existing entry is held, disputed,
+   * or identity-mismatched, `resolveGooglePlaceDetailsWithEvidence` will not treat it as reusable,
+   * while valid partial records (e.g. fresh Pro being upgraded to Enterprise) are preserved and merged.
+   */
+  private getEffectiveEvidenceStoreForFetch(
+    existingEvidence: unknown,
+    placeId: string
+  ): GooglePlacesEvidenceStore {
+    const authoritativeExisting = this.extractAuthoritativeRecord(existingEvidence, placeId);
+    if (existingEvidence != null && !authoritativeExisting) {
+      return {
+        get: async (requestedId: string) =>
+          requestedId.trim() === placeId ? null : this.evidenceStore.get(requestedId),
+        put: (record: GooglePlacesEvidenceRecordV1) => this.evidenceStore.put(record),
+      };
+    }
+    return this.evidenceStore;
   }
 
   /**
@@ -144,7 +369,7 @@ export class GoogleEnrichmentWorker {
 
       // 2. Pre-call Evidence Recheck against shared durable evidence store
       const existingEvidence = await this.evidenceStore.get(placeId);
-      if (this.isEvidenceUsable(existingEvidence, tier)) {
+      if (this.isEvidenceUsable(existingEvidence, tier, placeId, targetTime)) {
         // Suppress provider call, reconcile 0 consumed, mark EVIDENCE_ALREADY_AVAILABLE
         await this.budgetGuard.reconcileReservation(job.reservationId, 0, "EVIDENCE_ALREADY_AVAILABLE");
         result.callsSuppressed += 1;
@@ -189,7 +414,7 @@ export class GoogleEnrichmentWorker {
         const clientOptions: GooglePlacesOptions = {
           mode: "details_selected",
           apiKey: this.apiKey,
-          evidenceStore: this.evidenceStore,
+          evidenceStore: this.getEffectiveEvidenceStoreForFetch(existingEvidence, placeId),
           fetchImpl: this.fetchImpl,
           detailsAuthorization: authorization,
           now: () => new Date(targetTime).toISOString(),
@@ -279,7 +504,7 @@ export class GoogleEnrichmentWorker {
 
       // 2. Pre-call Evidence Recheck against shared durable evidence store
       const existingEvidence = await this.evidenceStore.get(placeId);
-      if (this.isEvidenceUsable(existingEvidence, tier)) {
+      if (this.isEvidenceUsable(existingEvidence, tier, placeId, targetTime)) {
         result.callsSuppressed += 1;
         result.results.push({
           externalReferenceId: placeId,
@@ -343,7 +568,7 @@ export class GoogleEnrichmentWorker {
         const options: GooglePlacesOptions = {
           mode: "details_selected",
           apiKey: this.apiKey,
-          evidenceStore: this.evidenceStore,
+          evidenceStore: this.getEffectiveEvidenceStoreForFetch(existingEvidence, placeId),
           fetchImpl: this.fetchImpl,
           detailsAuthorization: authorization,
           now: () => new Date(targetTime).toISOString(),
