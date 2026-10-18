@@ -36,6 +36,7 @@ export type NexusHttpOptions = {
   researchExecutionVersion?: string;
   executeResearch?: Executor;
   executeSourceDiscovery?: Executor;
+  sourceDiscoveryOptions?: import("./executor.ts").SourceDiscoveryExecutorOptions;
   /**
    * When omitted, both lanes stay available for direct in-process callers.
    * The HTTP route always sets these from the environment policy.
@@ -210,7 +211,7 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
     if (payload.contractVersion === CONTRACTS.SOURCE_DISCOVERY_REQUEST) {
       if (options.allowSourceDiscovery === false) return json(404, { code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" });
       const execute = options.executeSourceDiscovery ?? (async (input, context) =>
-        executeSourceDiscoveryRequest(input, {}, context.store));
+        executeSourceDiscoveryRequest(input, options.sourceDiscoveryOptions ?? {}, context.store));
       return json(200, validateSourceDiscoveryResult(await execute(payload, { store: options.store })));
     }
     return json(422, { code: "NEXUS_CONTRACT_UNSUPPORTED" });

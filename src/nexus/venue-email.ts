@@ -25,7 +25,7 @@ const NON_CONTACT_MAILBOX = /^(?:no-?reply|do-?not-?reply|donotreply|mailer-daem
 const DESIGNER_CONTEXT = /\b(?:designed|developed|built|created)\s+by\b|\b(?:website|site|web)\s+(?:by|design(?:ed)?(?:\s+by)?)\b|\bpowered by\b|\bweb\s?design\b|\b(?:web\s*)?(?:designer|developer)\b/i;
 const PRIVACY_CONTEXT = /\b(?:privacy(?:\s+(?:officer|policy|notice))?|data[- ]protection|dpo|gdpr)\b/i;
 const EXPLICIT_VENUE_CONTACT = /(?:^|[^a-z])(?:e-?mails?|enquir(?:y|ies)|inquir(?:y|ies)|bookings?|reservations?|venue[- ]hire|contact(?:\s+us)?|functions?)\s*[:\-]/i;
-const VENUE_ROLE_MAILBOX = /^(?:info|hello|hi|contact|contactus|enquiries|enquiry|enquire|inquiries|inquiry|bookings?|book|events?|eventsteam|functions?|hire|venuehire|venue|office|reception|reservations?|hospitality|conference|conferences|conferencing|weddings?|sales|admin|manager|management|frontdesk|guests?|stay|marketing|groups?|meetings?|catering|restaurant|studio|team|mail|welcome)$/;
+const VENUE_ROLE_MAILBOX = /^(?:info|hello|hi|contact|contactus|enquiries|enquiry|enquire|inquiries|inquiry|bookings?|book|events?|eventsteam|functions?|hire|venuehire|privatehire|venues?|office|boxoffice|tickets?|ticketsales|reception|reservations?|hospitality|conference|conferences|conferencing|weddings?|sales|admin|manager|management|frontdesk|guests?|stay|marketing|press|technical|general|notes|groups?|meetings?|catering|restaurant|studio|team|mail|welcome)$/;
 const EMAIL_SHAPE = /^[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
 
 function normalise(value: string) { return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
@@ -127,7 +127,7 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   const namedFreeMail = FREE_MAIL_DOMAINS.has(shape.domain) && (VENUE_ROLE_MAILBOX.test(bare) || nameTokens.some((token) => compact.includes(token)));
   const namedVenueDomain = !FREE_MAIL_DOMAINS.has(shape.domain) && VENUE_ROLE_MAILBOX.test(bare) && nameTokens.some((token) => emailStem.includes(token));
   const explicitContact = EXPLICIT_VENUE_CONTACT.test(nearby);
-  const contactPageRole = /\/(?:contact|enquir|inquir|book|hire|get-in-touch)(?:[\/_-]|$)/i.test(new URL(verifiedSiteUrl).pathname) && VENUE_ROLE_MAILBOX.test(bare);
+  const contactPageRole = /\/(?:contact|enquir|inquir|book|hire|get-in-touch)(?:[\/_.-]|$)/i.test(new URL(verifiedSiteUrl).pathname) && VENUE_ROLE_MAILBOX.test(bare);
   if (namedFreeMail || namedVenueDomain || (FREE_MAIL_DOMAINS.has(shape.domain) && explicitContact) || explicitContact || contactPageRole) {
     return { accepted: true, email: shape.email, relationship: "PUBLISHED_ON_VERIFIED_SITE" };
   }

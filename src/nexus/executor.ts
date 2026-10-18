@@ -8,14 +8,14 @@ import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, typ
 import { deriveEmailAcquisitionOutcome } from "./source-discovery/email-outcome.ts";
 import { acceptVenueEmail } from "./venue-email.ts";
 import { crawlLogLine, extractorYields } from "./source-discovery/observability.ts";
-import type { DocumentCache } from "./source-discovery/types.ts";
+import type { CrawlInput, DocumentCache } from "./source-discovery/types.ts";
 
 export type ProposedFact = { subjectEntityType: ResearchRequest["subject"]["entityType"]; canonicalEntityId: string | null; fieldName: string; value: unknown; evidenceRef: string | null; confidence: number | null; observedAt: string | null };
 export type ResearchContext = ContractResearchContext & { googlePlacesEvidenceStore?: GooglePlacesEvidenceStore; publicWeb?: { facts?: Array<{ fieldName: string; value: unknown; sourceUrl?: string | null; evidenceRef?: string | null }>; evidence?: Array<{ externalRecordId: string; sourceUrl?: string | null; payload?: unknown }> } };
 type Cost = { currency: string; amount: number } | null;
 export type ProviderResult = { provider: ProviderAllowance; purpose: string; facts: ProposedFact[]; evidence: Array<{ evidenceRef: string; provider: ProviderAllowance; externalRecordId: string; sourceUrl: string | null; observedAt: string; dataClassification: "PUBLIC" | "INTERNAL" | "RESTRICTED" | "CONFIDENTIAL" | "PII"; licenceType: string; payload: unknown }>; unknowns: string[]; conflicts: Array<Record<string, unknown>>; cost: Cost; providerUsage?: Array<{ provider: ProviderAllowance; callCount: number; purpose: string; cost: Cost }>; error?: { code: string; message: string; retryable: boolean } };
 export type ResearchExecutorOptions = { estimatedCosts?: Partial<Record<ProviderAllowance, number>>; now?: () => string; googlePlaces?: typeof searchGooglePlaces; googlePlaceDetails?: typeof getGooglePlaceDetails; googlePlacesEvidenceStore?: GooglePlacesEvidenceStore; onGooglePlacesCallTelemetry?: (telemetry: GooglePlacesCallTelemetry) => void | Promise<void>; companiesHouse?: typeof searchCompaniesHouse; publicWeb?: (input: { request: ResearchRequest; context: ResearchContext }) => Promise<ProviderResult>; openAI?: typeof researchCompany };
-export type SourceDiscoveryExecutorOptions = { fetchImpl?: FetchLike; resolveHost?: ResolveHost; now?: () => string; documentCache?: DocumentCache; onCrawlObservability?: (observability: CrawlObservability) => void | Promise<void> };
+export type SourceDiscoveryExecutorOptions = { fetchImpl?: FetchLike; resolveHost?: ResolveHost; now?: () => string; documentCache?: DocumentCache; profiles?: CrawlInput["profiles"]; renderAdapter?: CrawlInput["renderAdapter"]; renderPolicy?: CrawlInput["renderPolicy"]; userAgent?: string; politeness?: CrawlInput["politeness"]; sleep?: (ms: number) => Promise<void>; onCrawlObservability?: (observability: CrawlObservability) => void | Promise<void> };
 
 export interface NexusResultStore { get(key: string): Promise<Record<string, unknown> | null>; set(key: string, result: Record<string, unknown>): Promise<void>; }
 export class InMemoryNexusResultStore implements NexusResultStore { private readonly values = new Map<string, Record<string, unknown>>(); async get(key: string) { return this.values.get(key) ?? null; } async set(key: string, result: Record<string, unknown>) { this.values.set(key, result); } }
@@ -166,11 +166,17 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     crawl = await crawlVerifiedSource({
       verifiedUrl: request.verifiedSourceUrl,
       requestedExtractors,
+      profiles: options.profiles,
       budget: request.crawlBudget as CrawlBudget,
       subjectType: request.subjectReference.entityType,
       fetchImpl: options.fetchImpl,
       resolveHost: options.resolveHost,
       documentCache: options.documentCache,
+      renderAdapter: options.renderAdapter,
+      renderPolicy: options.renderPolicy,
+      userAgent: options.userAgent,
+      politeness: options.politeness,
+      sleep: options.sleep,
       freshnessMaxAgeHours: request.freshnessRequirements.maxAgeHours ?? undefined,
       emailGoal,
       venueName,
