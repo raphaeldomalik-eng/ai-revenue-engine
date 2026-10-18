@@ -146,3 +146,42 @@ test("a stored VENUE_EMAIL result does not satisfy a later VENUE_FACTS request w
   assert.equal(replay.crawl.emailOutcome, "EMAIL_NOT_REQUESTED");
   assert.equal(capacityCount(replay)?.value.count, 250);
 });
+
+test("executeSourceDiscoveryRequest forwards renderAdapter and excludes generic Hire headings while accepting role mailboxes on .html contact pages", async () => {
+  const renderedUrls: string[] = [];
+  const fetchImpl = async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/robots.txt") return new Response("User-agent: *\nAllow: /");
+    if (url.pathname === "/") return html('<title>Bush Hall</title><div id="root"></div><script src="/app.js"></script><script src="/vendor.js"></script>');
+    if (url.pathname === "/contact.html") return html('<h2>Hire</h2><p>Contact <a href="mailto:notes@bushhallmusic.co.uk">notes@bushhallmusic.co.uk</a> or <a href="mailto:privatehire@bushhallmusic.co.uk">privatehire@bushhallmusic.co.uk</a></p>');
+    return new Response("missing", { status: 404 });
+  };
+  const renderAdapter = {
+    name: "test-render-adapter",
+    render: async ({ url }: { url: string }) => {
+      renderedUrls.push(url);
+      return {
+        html: '<html><head><title>Bush Hall</title></head><body><h1>Bush Hall</h1><h2>Hire</h2><h2>Main Hall</h2><p>Main Hall standing capacity 400</p><a href="/contact.html">Contact</a></body></html>',
+        finalUrl: url,
+      };
+    },
+  };
+  const result = await executeSourceDiscoveryRequest(
+    request({
+      idempotencyKey: "22222222-2222-4222-8222-222222222259",
+      discoveryRequestId: "44444444-4444-4444-8444-444444444459",
+      verifiedSourceUrl: "https://www.bushhallmusic.co.uk/",
+      venueName: "Bush Hall",
+      requestedExtractors: ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS"],
+    }),
+    { resolveHost: publicResolver, fetchImpl, renderAdapter },
+  ) as any;
+  assert.equal(renderedUrls.includes("https://www.bushhallmusic.co.uk/"), true);
+  const spaceFacts = result.venueFacts.filter((f: { fieldName: string }) => f.fieldName === "spaces");
+  assert.equal(spaceFacts.some((f: { value: string }) => f.value === "Main Hall"), true);
+  assert.equal(spaceFacts.some((f: { value: string }) => /^hire$/i.test(f.value)), false);
+  const notesEmail = result.publicContacts.find((c: { value: string }) => c.value === "notes@bushhallmusic.co.uk");
+  assert.equal(Boolean(notesEmail), true);
+  assert.equal(notesEmail.reviewRequired, false);
+});
+

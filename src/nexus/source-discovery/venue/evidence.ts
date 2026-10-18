@@ -1,6 +1,6 @@
 import type { ImageCandidate, PublicContact, ResourceExtraction, VenueFact } from "../extractors/resources.ts";
 
-const GENERIC_SPACE = /^(?:the |our |your )?(?:newsletter|contact|what'?s on|whats on|latest news|conference venue|wedding venue|corporate venue|home|gallery|events|hall|room|rooms|venue|space|spaces|guest accommodation|accommodation|facilities|amenities|our venue|outdoor space|private events|meeting rooms|chapel|weddings|conferences|functions)$/i;
+const GENERIC_SPACE = /^(?:the |our |your )?(?:newsletter|contact|what'?s on|whats on|latest news|conference venue|wedding venue|corporate venue|home|gallery|events|hall|room|rooms|venue|space|spaces|guest accommodation|accommodation|facilities|amenities|our venue|outdoor space|private events|meeting rooms|chapel|weddings|conferences|functions|hire|venue hire|private hire|corporate hire)$/i;
 const FLUFF = /\b(?:versatile venue|perfect for any event|premier destination|ideal setting|world-class experience)\b/i;
 const YEARISH = /^(?:19|20)\d{2}$/;
 const ARTICLE = /^(?:the|our|your|a|an)$/i;
