@@ -146,11 +146,13 @@ export function nexusExecutorDisabled(env: NodeJS.ProcessEnv = process.env) {
 }
 
 /**
- * Deterministic source discovery. An explicit flag admits it in production.
- * Without that flag, it follows the existing research executor switch, so
- * preview behaviour is unchanged and production stays closed.
+ * Deterministic source discovery. Production is held for this code-only release.
+ * Preview retains its explicit discovery flag and existing executor fallback.
  */
 export function nexusSourceDiscoveryDisabled(env: NodeJS.ProcessEnv = process.env) {
+  // Code-only release hold. A stale enabled flag must not start production work.
+  // Reopening production execution requires a separately authorised code release.
+  if (env.VERCEL_ENV === "production") return true;
   if (explicitlyEnabled(env.NEXUS_SOURCE_DISCOVERY_ENABLED)) return false;
   return nexusExecutorDisabled(env);
 }
