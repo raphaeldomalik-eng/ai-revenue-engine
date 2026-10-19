@@ -112,9 +112,29 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   const siteDomain = registrableDomain(new URL(verifiedSiteUrl).hostname);
   const emailDomain = registrableDomain(shape.domain);
   const nearby = context.slice(0, 240);
+  const parts = shape.mailbox.split(/[._+-]+/);
+  const compactMailbox = shape.mailbox.replace(/[^a-z0-9]/g, '');
+  const venueTokens = distinctiveNameTokens(venueName).filter(token => token.length >= 4);
+  const roleMailbox = VENUE_ROLE_MAILBOX.test(shape.mailbox) || parts.some(part => VENUE_ROLE_MAILBOX.test(part));
+  const venueMailbox = venueTokens.some(token => compactMailbox.includes(token))
+    || (compactMailbox.length >= 4 && siteDomain.split('.')[0]!.includes(compactMailbox));
+  // Group and sibling pages are not evidence of a venue-specific general mailbox.
+  const siteStemForAuthority = siteDomain.split('.')[0] ?? '';
+  const sharedOperatorSite = /(?:theatres|hotels|venues|hospitality|university|council)/i.test(siteStemForAuthority) || /\.(?:ac|gov)\.uk$/.test(siteDomain);
+  const venuePage = venueTokens.some(token => new URL(verifiedSiteUrl).pathname.toLowerCase().includes(token));
+  const namedVenueSite = venueTokens.some(token => siteStemForAuthority.includes(token));
+  if (!venueMailbox && (/\b(?:head office|group enquiries|central office|all our venues)\b/i.test(nearby)
+    || (sharedOperatorSite && venueTokens.length > 0 && !venuePage && !namedVenueSite))) {
+    return { accepted: false, reason: 'GENERIC_OPERATOR_GROUP_CONTACT' };
+  }
+  // A personal staff address must not satisfy the email dimension and end the search.
+  if (!roleMailbox && !venueMailbox) return { accepted: false, reason: FREE_MAIL_DOMAINS.has(shape.domain) ? 'PERSONAL_FREE_MAIL_ADDRESS' : 'PERSONAL_CONTACT_REQUIRES_REVIEW' };
   if (PRIVACY_CONTEXT.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "PRIVACY_OR_DPO" };
   if (DESIGNER_CONTEXT.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
   if (/\bticketing\s+provider\b/i.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
+  if (!FREE_MAIL_DOMAINS.has(shape.domain) && (venueMailbox || (roleMailbox && /\.(?:ac|gov)\.uk$/.test(shape.domain)))) {
+    return { accepted: true, email: shape.email, relationship: emailDomain === siteDomain ? 'VERIFIED_SITE_DOMAIN' : 'PUBLISHED_ON_VERIFIED_SITE' };
+  }
   if (emailDomain && emailDomain === siteDomain) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };
   const siteStem = siteDomain.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";
   const emailStem = emailDomain.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";

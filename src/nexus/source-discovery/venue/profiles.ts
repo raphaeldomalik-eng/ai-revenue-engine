@@ -25,10 +25,12 @@ export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: b
       dimensions,
       priorityDimensions: dimensions,
       linkDimensions(url, label) {
+        if (profile.extractor === 'PUBLIC_CONTACT') return profile.linkDimensions(url, label);
         return venueLinkDimensions(url, label).filter((dim) => dimensions.includes(dim));
       },
       linkStrength: venueLinkStrength,
       pdfDimensions(url, label) {
+        if (profile.extractor === 'PUBLIC_CONTACT') return profile.pdfDimensions(url, label);
         if (profile.extractor !== "VENUE_FACTS" || !isPdfUrl(url)) return null;
         const text = `${url} ${label}`;
         if (!PDF_USEFUL.test(text) || PDF_SKIP.test(text)) return null;

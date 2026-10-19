@@ -63,7 +63,7 @@ export async function crawlVenueOfficialSite(args: {
   if (!sameSite) {
     return { authority, sameSite: false, crawl, evidence: null, refusal: "CROSS_SITE_FINAL_URL" };
   }
-  const extracted = extractFromFetchedDocuments(crawl.documents, [...VENUE_EXTRACTORS]);
+  const extracted = extractFromFetchedDocuments(crawl.documents, [...VENUE_EXTRACTORS], args.venueName);
   const evidence = buildVenueEvidencePackage(extracted);
   const seen = new Set([...evidence.spaces, ...evidence.reviewSpaces].map((item) => item.name.toLowerCase()));
   for (const document of crawl.documents) {

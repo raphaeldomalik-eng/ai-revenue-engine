@@ -11,7 +11,7 @@ const matches = (pattern: RegExp, url: string, label: string) => pattern.test(`$
 const count = (state: ProfileState, key: string) => Number(state[key] ?? 0);
 const bump = (state: ProfileState, key: string, by = 1) => { state[key] = count(state, key) + by; };
 
-const CONTACT_LINK = /\b(?:contact|enquir\w*|inquir\w*|bookings?|book[- ]?(?:now|a|the|your)|get[- ]in[- ]touch|find[- ]us|hire|private[- ](?:hire|events?|dining)|venue[- ]hire|sales)\b/i;
+const CONTACT_LINK = /\b(?:contact|enquir\w*|inquir\w*|bookings?|functions?|book[- ]?(?:now|a|the|your)|get[- ]in[- ]touch|find[- ]us|hire|private[- ](?:hire|events?|dining)|venue[- ]hire|sales)\b/i;
 const CONTACT_PAGE = /\b(?:contact|enquir\w*|book\w*|hire|get-in-touch)\b/i;
 const DIRECT_PURPOSES = new Set(["SALES_HIRE", "BOOKINGS", "ENQUIRIES"]);
 
@@ -26,7 +26,7 @@ export function publicContactProfile(options: { emailGoal?: boolean; venueName?:
     strategy: emailGoal ? "GAP_PLANNED" : "LINK_FOLLOWING",
     linkDimensions: (url, label) => (matches(CONTACT_LINK, url, label) ? dimensions : []),
     linkStrength: (url) => (/contact|hire/i.test(new URL(url).pathname) ? 2 : 1),
-    pdfDimensions: () => null,
+    pdfDimensions: (url, label) => emailGoal && matches(CONTACT_LINK, url, label) ? ['PUBLIC_CONTACT:EMAIL'] : null,
     observe(document, observation, state) {
       const contactPage = CONTACT_PAGE.test(new URL(document.url).pathname);
       for (const contact of observation.resources().publicContacts) {
@@ -168,13 +168,13 @@ export function profilesFor(extractors: SourceExtractor[], site?: SiteIdentity, 
   return registry.filter((profile) => extractors.includes(profile.extractor));
 }
 
-export function createObservation(document: FetchedDocument, extractors: SourceExtractor[]): DocumentObservation {
+export function createObservation(document: FetchedDocument, extractors: SourceExtractor[], venueName = ""): DocumentObservation {
   let resources: ResourceExtraction | null = null;
   let events: number | null = null;
   return {
     resources: () => (resources ??= document.kind === "CALENDAR"
       ? { identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], evidenceRefs: [], warnings: [] }
-      : extractResourcesFromDocuments([document], extractors)),
+      : extractResourcesFromDocuments([document], extractors, venueName)),
     eventCount: () => (events ??= extractors.includes("EVENTS") && document.kind !== "PDF" ? extractEventsFromDocuments([document]).eventCandidates.length : 0),
   };
 }

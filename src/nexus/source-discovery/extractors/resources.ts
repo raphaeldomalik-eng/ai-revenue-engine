@@ -232,12 +232,12 @@ function aroundEmail(text: string, email: string): string {
   if (index < 0) return "";
   return text.slice(Math.max(0, index - 90), index + email.length);
 }
-function publishedEmailReview(email: string, pageUrl: string, context: string): boolean {
-  const verdict = acceptVenueEmail(email, pageUrl, "", context);
+function publishedEmailReview(email: string, pageUrl: string, context: string, venueName: string): boolean {
+  const verdict = acceptVenueEmail(email, pageUrl, venueName, context);
   // A free-mail local part may match the venue name, which is only known to the acquisition caller.
   return !verdict.accepted && verdict.reason !== "PERSONAL_FREE_MAIL_ADDRESS";
 }
-function contacts(doc: FetchedDocument, out: ResourceExtraction) {
+function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: string) {
   const path = new URL(doc.url).pathname;
   // These paths stay out of phone, form, and messaging extraction. Email candidates are still read and classified one by one.
   const skipNonEmail = /\b(?:accommodation|hotels?|suppliers?|partners?|sponsors?|directory|search|privacy|terms)\b/i.test(path);
@@ -249,7 +249,7 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction) {
   const addPublishedEmail = (email: string, confidence: number, context: string) => {
     const domain = email.split("@")[1] ?? "";
     if (!registrableDomain(domain)) return;
-    addContact(out, doc, "EMAIL", email, confidence, publishedEmailReview(email, doc.url, context), context);
+    addContact(out, doc, "EMAIL", email, confidence, publishedEmailReview(email, doc.url, context, venueName), context);
   };
   for (const anchor of hrefTags(doc.body)) {
     const href = (anchor.attrs.href ?? "").trim(); const label = visibleText(anchor.inner);
@@ -649,12 +649,12 @@ function pdfPageDocuments(doc: FetchedDocument): FetchedDocument[] {
   })).filter((page) => page.body.length > 0);
 }
 
-function extractDocument(source: FetchedDocument, extractors: SourceExtractor[]): ResourceExtraction {
+function extractDocument(source: FetchedDocument, extractors: SourceExtractor[], venueName: string): ResourceExtraction {
   const out: ResourceExtraction = { identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], evidenceRefs: [], warnings: [] };
   if (source.kind === "PDF") {
     for (const page of pdfPageDocuments(source)) {
       const root = parseHtml(page.body);
-      if (extractors.includes("PUBLIC_CONTACT")) contacts(page, out);
+      if (extractors.includes("PUBLIC_CONTACT")) contacts(page, out, venueName);
       if (extractors.includes("VENUE_FACTS")) venueFacts(page, out, root);
     }
     return out;
@@ -682,20 +682,20 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[])
     const canonicalUrl = canonical ? sameOrigin(canonical, doc.url) : null;
     if (landingPage && canonicalUrl) addIdentity(out, doc, "canonicalUrl", canonicalUrl);
   }
-  if (extractors.includes("PUBLIC_CONTACT")) contacts(doc, out);
+  if (extractors.includes("PUBLIC_CONTACT")) contacts(doc, out, venueName);
   if (extractors.includes("VENUE_FACTS")) venueFacts(doc, out, root);
   if (extractors.includes("SOURCE_CLASSIFICATION")) classificationEvidence(doc, out);
   if (extractors.includes("IMAGE_CANDIDATES")) images(doc, out, root);
   return out;
 }
-export function extractResourcesFromDocuments(documents: FetchedDocument[], extractors: SourceExtractor[]): ResourceExtraction {
+export function extractResourcesFromDocuments(documents: FetchedDocument[], extractors: SourceExtractor[], venueName = ""): ResourceExtraction {
   const merged: ResourceExtraction = { identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], evidenceRefs: [], warnings: [] };
   const seenSources = new Set<string>();
   for (const doc of documents) {
     const key = `${doc.url}:${doc.sourceHash}`;
     if (seenSources.has(key)) continue;
     seenSources.add(key);
-    const item = extractDocument(doc, extractors);
+    const item = extractDocument(doc, extractors, venueName);
     merged.identityFacts.push(...item.identityFacts); merged.publicContacts.push(...item.publicContacts);
     merged.venueFacts.push(...item.venueFacts); merged.imageCandidates.push(...item.imageCandidates); merged.evidenceRefs.push(...item.evidenceRefs);
   }
