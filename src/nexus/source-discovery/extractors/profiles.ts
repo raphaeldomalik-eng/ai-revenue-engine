@@ -168,13 +168,13 @@ export function profilesFor(extractors: SourceExtractor[], site?: SiteIdentity, 
   return registry.filter((profile) => extractors.includes(profile.extractor));
 }
 
-export function createObservation(document: FetchedDocument, extractors: SourceExtractor[]): DocumentObservation {
+export function createObservation(document: FetchedDocument, extractors: SourceExtractor[], venueName = ""): DocumentObservation {
   let resources: ResourceExtraction | null = null;
   let events: number | null = null;
   return {
     resources: () => (resources ??= document.kind === "CALENDAR"
       ? { identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], evidenceRefs: [], warnings: [] }
-      : extractResourcesFromDocuments([document], extractors)),
+      : extractResourcesFromDocuments([document], extractors, venueName)),
     eventCount: () => (events ??= extractors.includes("EVENTS") && document.kind !== "PDF" ? extractEventsFromDocuments([document]).eventCandidates.length : 0),
   };
 }

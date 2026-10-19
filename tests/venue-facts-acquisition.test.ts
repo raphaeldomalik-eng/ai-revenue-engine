@@ -108,7 +108,7 @@ test("VENUE_EMAIL on the same fixture still records an email acquisition", async
 });
 
 test("a stored VENUE_EMAIL result does not satisfy a later VENUE_FACTS request with the same client key", async () => {
-  assert.equal(SOURCE_DISCOVERY_EXECUTION_VERSION, "resources-v2-source-discovery-v5");
+  assert.equal(SOURCE_DISCOVERY_EXECUTION_VERSION, "resources-v2-source-discovery-v6");
   const idempotencyKey = "22222222-2222-4222-8222-222222222254";
   assert.notEqual(
     sourceDiscoveryExecutionKey(idempotencyKey, SOURCE_DISCOVERY_EXECUTION_VERSION, "VENUE_EMAIL"),

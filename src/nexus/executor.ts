@@ -85,7 +85,7 @@ export function retryableProviderFailure(result: Record<string, unknown> | null)
 // Source discovery has its own execution generation. Research stays on
 // resources-v2-unclassified-evidence-v6. v1 was the unversioned client-key cache,
 // which replayed repairable crawl failures such as the robots.txt HTTP 301 block.
-export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v5";
+export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v6";
 
 /**
  * An explicit acquisition goal wins.
@@ -194,7 +194,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     await store.set(versionedKey, result);
     return result;
   }
-  const extracted = extractFromFetchedDocuments(crawl.documents, requestedExtractors);
+  const extracted = extractFromFetchedDocuments(crawl.documents, requestedExtractors, venueName);
   const sourceHash = createHash("sha256").update(crawl.documents.map((document) => `${document.url}:${document.sourceHash}`).join("\n")).digest("hex");
   const identityFacts = extracted.identityFacts.map((item) => sourceFact(request, item.fieldName, item.value, item.sourceUrl, item.evidenceRef, now));
   const publicContacts = extracted.publicContacts.map((item) => {

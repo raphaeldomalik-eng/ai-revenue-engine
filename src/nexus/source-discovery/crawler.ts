@@ -731,7 +731,7 @@ async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, 
         } else if (document.retrieval !== "RENDERED") ctx.obs.staticPages += 1;
       }
       if (candidate.kind === "PAGE" && document.kind === "CALENDAR") continue;
-      const observation = createObservation(document, args.requestedExtractors);
+      const observation = createObservation(document, args.requestedExtractors, args.venueName);
       planner.setSatisfied(set.observe(document, observation, candidate.dims));
       if (document.kind !== "HTML") continue;
       for (const link of anchorLinks(document)) admit(link.href, link.label, link.type, document);
@@ -804,9 +804,9 @@ function gapPlanned(profiles: ExtractorProfile[]) {
   return profiles.some((profile) => profile.strategy === "GAP_PLANNED");
 }
 
-export function extractFromFetchedDocuments(documents: FetchedDocument[], requestedExtractors: SourceExtractor[]) {
+export function extractFromFetchedDocuments(documents: FetchedDocument[], requestedExtractors: SourceExtractor[], venueName = "") {
   const isCalendar = (document: FetchedDocument) => document.kind === "CALENDAR" || /text\/calendar/i.test(document.contentType ?? "") || /(?:\.ics|[?&]format=ical)(?:$|&)/i.test(document.url);
-  const resources = extractResourcesFromDocuments(documents.filter((document) => !isCalendar(document)), requestedExtractors);
+  const resources = extractResourcesFromDocuments(documents.filter((document) => !isCalendar(document)), requestedExtractors, venueName);
   const events = requestedExtractors.includes("EVENTS")
     ? extractEventsFromDocuments(documents.filter((document) => document.kind !== "PDF"))
     : { eventCandidates: [], warnings: [], evidenceRefs: [] };
