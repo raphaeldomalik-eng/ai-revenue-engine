@@ -85,7 +85,7 @@ export function retryableProviderFailure(result: Record<string, unknown> | null)
 // Source discovery has its own execution generation. Research stays on
 // resources-v2-unclassified-evidence-v6. v1 was the unversioned client-key cache,
 // which replayed repairable crawl failures such as the robots.txt HTTP 301 block.
-export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v4";
+export const SOURCE_DISCOVERY_EXECUTION_VERSION = "resources-v2-source-discovery-v5";
 
 /**
  * An explicit acquisition goal wins.
@@ -106,7 +106,7 @@ function versionedUuid(seed: string) {
 }
 
 export function sourceDiscoveryExecutionKey(idempotencyKey: string, version = SOURCE_DISCOVERY_EXECUTION_VERSION, acquisitionGoal: string | null = null) {
-  // Email and omitted goals keep the v4 key. A venue-facts request must not replay an email result stored under the same client key.
+  // A venue-facts request must not replay an email result stored under the same client key.
   const distinction = acquisitionGoal === "VENUE_FACTS" ? ":VENUE_FACTS" : "";
   return versionedUuid(`nexus-source-discovery:${version}:${idempotencyKey}${distinction}`);
 }

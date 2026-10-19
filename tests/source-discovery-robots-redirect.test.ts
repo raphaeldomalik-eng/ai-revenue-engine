@@ -204,7 +204,7 @@ test("a legacy completed source-discovery result is replayed and research execut
   }, store);
   assert.equal(result, legacy);
   assert.equal(calls, 0);
-  assert.equal(SOURCE_DISCOVERY_EXECUTION_VERSION, "resources-v2-source-discovery-v4");
+  assert.equal(SOURCE_DISCOVERY_EXECUTION_VERSION, "resources-v2-source-discovery-v5");
   const route = readFileSync(new URL("../app/api/integrations/nexus/execute/route.ts", import.meta.url), "utf8");
   assert.match(route, /researchExecutionVersion:\s*"resources-v2-unclassified-evidence-v6"/);
   assert.match(route, /nexusExecutorDisabled\(\)/);
