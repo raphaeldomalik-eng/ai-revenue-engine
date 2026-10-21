@@ -34,7 +34,8 @@ export class SupabaseNexusResultStore implements NexusResultStore, ContentExecut
     const { data, error } = await this.client.rpc("reserve_nexus_source_discovery_batch_request", {
       p_scope_id: input.scopeId, p_manifest_sha256: input.manifestSha256, p_valid_from: input.validFrom, p_valid_until: input.validUntil,
       p_max_venues: input.maxVenues, p_max_requests_per_venue: input.maxRequestsPerVenue, p_max_total_requests: input.maxTotalRequests,
-      p_listing_id: input.listingId, p_host: input.host, p_idempotency_key: input.idempotencyKey, p_request_budget: input.requestBudget,
+      p_listing_id: input.listingId, p_host: input.host, p_idempotency_key: input.idempotencyKey,
+      p_request_sha256: input.requestSha256, p_request_budget: input.requestBudget,
     });
     if (error) throw error;
     return data?.state === "RESERVED";

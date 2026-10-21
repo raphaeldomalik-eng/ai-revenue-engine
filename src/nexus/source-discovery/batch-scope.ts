@@ -68,5 +68,6 @@ export function authorizeBatchRequest(scope: SourceDiscoveryBatchScope, request:
   const budget = request.crawlBudget ?? {};
   if (budget.maxRequests < 1 || budget.maxRequests > scope.maxRequestsPerVenue) throw new Error("BATCH_SCOPE_HOST_BUDGET_EXCEEDED");
   if (budget.maxPages > 8 || budget.maxBytesPerResponse > 1_500_000 || budget.maxRedirects > 4 || budget.maxRetries > 1) throw new Error("BATCH_SCOPE_REQUEST_BUDGET_EXCEEDED");
-  return { listingId, host, requestBudget: budget.maxRequests, scopeId: scope.scopeId, manifestSha256: scope.manifestSha256 };
+  return { listingId, host, requestBudget: budget.maxRequests, scopeId: scope.scopeId,
+    manifestSha256: scope.manifestSha256, requestSha256: record.requestSha256.toLowerCase() };
 }

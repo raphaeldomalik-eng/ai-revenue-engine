@@ -29,7 +29,8 @@ const scopedRequest = { ...request, batchExecution: { scopeId: scope.scopeId, ma
 test("exact manifest identity, venue, host and request key authorize only within the window", () => {
   assert.equal(validateBatchScope(scope, Date.parse("2026-10-21T05:30:00Z")).active, true);
   assert.deepEqual(authorizeBatchRequest(scope, scopedRequest, Date.parse("2026-10-21T05:30:00Z")), {
-    scopeId: scope.scopeId, manifestSha256: scope.manifestSha256, listingId: scope.records[0].listingId, host: "venue.example", requestBudget: 14,
+    scopeId: scope.scopeId, manifestSha256: scope.manifestSha256, requestSha256: scope.records[0].requestSha256,
+    listingId: scope.records[0].listingId, host: "venue.example", requestBudget: 14,
   });
 });
 

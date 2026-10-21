@@ -21,6 +21,7 @@ create table if not exists public.nexus_source_discovery_batch_receipts (
   listing_id uuid not null,
   host text not null,
   idempotency_key uuid not null,
+  request_sha256 text not null check (request_sha256 ~ '^[0-9a-f]{64}$'),
   reserved_requests integer not null check (reserved_requests between 1 and 14),
   request_count integer not null default 0 check (request_count between 0 and reserved_requests),
   bytes_read bigint not null default 0 check (bytes_read >= 0),
@@ -42,7 +43,7 @@ grant select, insert, update on public.nexus_source_discovery_batch_scopes, publ
 create or replace function public.reserve_nexus_source_discovery_batch_request(
   p_scope_id uuid, p_manifest_sha256 text, p_valid_from timestamptz, p_valid_until timestamptz,
   p_max_venues integer, p_max_requests_per_venue integer, p_max_total_requests integer,
-  p_listing_id uuid, p_host text, p_idempotency_key uuid, p_request_budget integer
+  p_listing_id uuid, p_host text, p_idempotency_key uuid, p_request_sha256 text, p_request_budget integer
 ) returns jsonb language plpgsql security definer set search_path = pg_catalog, public as $$
 declare s public.nexus_source_discovery_batch_scopes%rowtype; existing_count integer;
 begin
@@ -62,8 +63,9 @@ begin
   if p_request_budget < 1 or p_request_budget > s.max_requests_per_venue then return jsonb_build_object('state','DENIED','reason','HOST_BUDGET_EXCEEDED'); end if;
   select count(*) into existing_count from public.nexus_source_discovery_batch_receipts where scope_id=p_scope_id;
   if existing_count >= s.max_venues or s.reserved_requests + p_request_budget > s.max_total_requests then return jsonb_build_object('state','DENIED','reason','BATCH_BUDGET_EXCEEDED'); end if;
-  insert into public.nexus_source_discovery_batch_receipts(scope_id,listing_id,host,idempotency_key,reserved_requests)
-  values(p_scope_id,p_listing_id,lower(p_host),p_idempotency_key,p_request_budget)
+  if p_request_sha256 !~ '^[0-9a-f]{64}$' then return jsonb_build_object('state','DENIED','reason','REQUEST_FINGERPRINT_INVALID'); end if;
+  insert into public.nexus_source_discovery_batch_receipts(scope_id,listing_id,host,idempotency_key,request_sha256,reserved_requests)
+  values(p_scope_id,p_listing_id,lower(p_host),p_idempotency_key,lower(p_request_sha256),p_request_budget)
   on conflict do nothing;
   if not found then return jsonb_build_object('state','DENIED','reason','DUPLICATE_VENUE_OR_REPLAY'); end if;
   update public.nexus_source_discovery_batch_scopes set reserved_requests=reserved_requests+p_request_budget,receipt=receipt||jsonb_build_object('lastReservation',now()) where scope_id=p_scope_id;
@@ -90,7 +92,7 @@ begin
   return jsonb_build_object('state','RECORDED');
 end; $$;
 
-revoke all on function public.reserve_nexus_source_discovery_batch_request(uuid,text,timestamptz,timestamptz,integer,integer,integer,uuid,text,uuid,integer) from public, anon, authenticated;
+revoke all on function public.reserve_nexus_source_discovery_batch_request(uuid,text,timestamptz,timestamptz,integer,integer,integer,uuid,text,uuid,text,integer) from public, anon, authenticated;
 revoke all on function public.complete_nexus_source_discovery_batch_request(uuid,uuid,uuid,text,integer,bigint,text) from public, anon, authenticated;
-grant execute on function public.reserve_nexus_source_discovery_batch_request(uuid,text,timestamptz,timestamptz,integer,integer,integer,uuid,text,uuid,integer) to service_role;
+grant execute on function public.reserve_nexus_source_discovery_batch_request(uuid,text,timestamptz,timestamptz,integer,integer,integer,uuid,text,uuid,text,integer) to service_role;
 grant execute on function public.complete_nexus_source_discovery_batch_request(uuid,uuid,uuid,text,integer,bigint,text) to service_role;
