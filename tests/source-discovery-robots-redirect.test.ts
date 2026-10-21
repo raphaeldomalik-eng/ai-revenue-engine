@@ -127,6 +127,21 @@ test("robots redirects fail closed for missing, cross-origin, downgrade, credent
   assert.match(bounded.stats.warnings.join("\n"), /Redirect budget exhausted/);
 });
 
+test("a manifest host allowlist blocks even the initial URL before any network request", async () => {
+  let fetches = 0;
+  const result = await crawlVerifiedSource({
+    verifiedUrl: "https://venue.org/",
+    requestedExtractors: ["SOURCE_CLASSIFICATION"],
+    budget,
+    allowedHosts: ["approved.example"],
+    resolveHost: publicResolver,
+    fetchImpl: async () => { fetches += 1; return page(); },
+  });
+  assert.equal(fetches, 0);
+  assert.equal(result.stats.status, "BLOCKED");
+  assert.equal(result.stats.failureClass, "TERMINAL");
+});
+
 test("an explicit robots disallow is replayed and a retryable robots failure runs again", async () => {
   const store = new InMemoryNexusResultStore();
   let mode = "disallow";

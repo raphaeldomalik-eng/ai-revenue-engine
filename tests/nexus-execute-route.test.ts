@@ -32,7 +32,7 @@ test("production keeps the Nexus executor unavailable", () => {
   assert.equal(nexusExecutorDisabled(env({ VERCEL_ENV: "preview", NEXUS_EXECUTOR_ENABLED: "true" })), false);
 });
 
-test("code-only release holds production discovery even with stale enabled flags", () => {
+test("source discovery stays globally closed in production and retains preview flag behaviour", () => {
   const env = (value: Record<string, string>) => value as NodeJS.ProcessEnv;
   const productionResearchOn = env({ VERCEL_ENV: "production", NEXUS_EXECUTOR_ENABLED: "true" });
   assert.equal(nexusExecutorDisabled(productionResearchOn), true);
@@ -48,5 +48,6 @@ test("code-only release holds production discovery even with stale enabled flags
   assert.match(source, /nexusSourceDiscoveryDisabled\(\)/);
   assert.match(source, /allowResearch: !researchDisabled/);
   assert.match(source, /allowSourceDiscovery: !sourceDiscoveryDisabled/);
+  assert.match(source, /allowScopedSourceDiscovery: true/);
   assert.match(source, /researchDisabled && sourceDiscoveryDisabled/);
 });

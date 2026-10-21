@@ -5,6 +5,7 @@ import {
   CONTRACTS,
   validateResearchRequest,
   validateResearchResult,
+  validateSourceDiscoveryRequest,
   validateSourceDiscoveryResult,
 } from "./contracts.ts";
 import {
@@ -37,6 +38,8 @@ export type NexusHttpOptions = {
   executeResearch?: Executor;
   executeSourceDiscovery?: Executor;
   sourceDiscoveryOptions?: import("./executor.ts").SourceDiscoveryExecutorOptions;
+  sourceDiscoveryBatchScope?: import("./source-discovery/batch-scope.ts").SourceDiscoveryBatchScope;
+  allowScopedSourceDiscovery?: boolean;
   /**
    * When omitted, both lanes stay available for direct in-process callers.
    * The HTTP route always sets these from the environment policy.
@@ -150,8 +153,8 @@ export function nexusExecutorDisabled(env: NodeJS.ProcessEnv = process.env) {
  * Preview retains its explicit discovery flag and existing executor fallback.
  */
 export function nexusSourceDiscoveryDisabled(env: NodeJS.ProcessEnv = process.env) {
-  // Code-only release hold. A stale enabled flag must not start production work.
-  // Reopening production execution requires a separately authorised code release.
+  // The signed handler may admit a matching batch scope without opening global discovery.
+  // This remains fail-closed for every other production request.
   if (env.VERCEL_ENV === "production") return true;
   if (explicitlyEnabled(env.NEXUS_SOURCE_DISCOVERY_ENABLED)) return false;
   return nexusExecutorDisabled(env);
@@ -211,7 +214,42 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
       return json(200, validateResearchResult(responseResult));
     }
     if (payload.contractVersion === CONTRACTS.SOURCE_DISCOVERY_REQUEST) {
-      if (options.allowSourceDiscovery === false) return json(404, { code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" });
+      const production = process.env.VERCEL_ENV === "production";
+      if (options.allowSourceDiscovery === false && !(production && options.allowScopedSourceDiscovery === true)) return json(404, { code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" });
+      if (production) {
+        const scope = options.sourceDiscoveryBatchScope;
+        if (!scope || !options.store.reserveBatchRequest || !options.store.completeBatchRequest) return json(404, { code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" });
+        const { authorizeBatchRequest } = await import("./source-discovery/batch-scope.ts");
+        const { sourceDiscoveryExecutionKey, sourceDiscoveryReplayable } = await import("./executor.ts");
+        const request = validateSourceDiscoveryRequest(payload);
+        let binding;
+        try { binding = authorizeBatchRequest(scope, request, options.now?.() ?? Date.now()); }
+        catch (error) { return json(403, { code: error instanceof Error ? error.message : "BATCH_SCOPE_DENIED" }); }
+        const versionedKey = sourceDiscoveryExecutionKey(request.idempotencyKey, undefined, request.acquisitionGoal);
+        const cached = await options.store.get(versionedKey);
+        if (sourceDiscoveryReplayable(cached)) return json(200, validateSourceDiscoveryResult(cached));
+        const reserved = await options.store.reserveBatchRequest({ ...binding, idempotencyKey: request.idempotencyKey,
+          validFrom: scope.validFrom, validUntil: scope.validUntil, maxVenues: scope.maxVenues,
+          maxRequestsPerVenue: scope.maxRequestsPerVenue, maxTotalRequests: scope.maxTotalRequests });
+        if (!reserved) return json(409, { code: "BATCH_SCOPE_BUDGET_OR_REPLAY_DENIED" });
+        const observation: { current: import("./source-discovery/types.ts").CrawlObservability | null } = { current: null };
+        const execute = options.executeSourceDiscovery ?? (async (input, context) => executeSourceDiscoveryRequest(input,
+          { ...options.sourceDiscoveryOptions, allowedHosts: [binding.host], onCrawlObservability: async value => {
+            observation.current = value;
+            await options.sourceDiscoveryOptions?.onCrawlObservability?.(value);
+          } }, context.store));
+        try {
+          const result = validateSourceDiscoveryResult(await execute(payload, { store: options.store }));
+          await options.store.completeBatchRequest({ ...binding, idempotencyKey: request.idempotencyKey, status: "COMPLETED",
+            requestCount: result.crawl.requestCount, bytesRead: result.crawl.bytesRead ?? 0, providerCostUsd: 0, resultStatus: result.crawl.status });
+          return json(200, result);
+        } catch (error) {
+          await options.store.completeBatchRequest({ ...binding, idempotencyKey: request.idempotencyKey, status: "FAILED",
+            requestCount: observation.current?.requests ?? 0, bytesRead: observation.current?.bytes ?? 0, providerCostUsd: 0,
+            resultStatus: observation.current?.finalStatus ?? "FAILED" });
+          throw error;
+        }
+      }
       const execute = options.executeSourceDiscovery ?? (async (input, context) =>
         executeSourceDiscoveryRequest(input, options.sourceDiscoveryOptions ?? {}, context.store));
       return json(200, validateSourceDiscoveryResult(await execute(payload, { store: options.store })));

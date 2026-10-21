@@ -138,6 +138,8 @@ export type CrawlInput = {
   renderPolicy?: RenderPolicy;
   /** When set, PUBLIC_CONTACT:EMAIL stays open until an accepted venue email is evidenced. */
   emailGoal?: boolean;
+  /** Hard host allowlist for an owner-authorized batch; checked for every network request, including redirects and robots. */
+  allowedHosts?: string[];
   venueName?: string;
   now?: () => Date;
   sleep?: (ms: number) => Promise<void>;

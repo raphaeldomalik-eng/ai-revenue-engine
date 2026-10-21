@@ -155,6 +155,12 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
 
 /** One network request: public-network check, budget accounting, per-origin politeness, single-flight, size ceiling. */
 async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: number, headers: Record<string, string> = {}): Promise<ResponseSnapshot> {
+  const allowedHosts = ctx.input.allowedHosts;
+  if (allowedHosts?.length && !allowedHosts.includes(new URL(url).hostname.toLowerCase())) {
+    ctx.stats.blockedCount += 1;
+    ctx.obs.blockedPages.push({ url, reason: "BATCH_SCOPE_ORIGIN_DENIED" });
+    throw new CrawlRefusal("Request origin is outside the approved batch host scope.", "TERMINAL");
+  }
   try {
     if (ctx.fetchImpl) await assertPublicNetworkTarget(url, ctx.resolveHost);
   } catch (error) {

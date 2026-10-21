@@ -4,6 +4,7 @@ import { createContentInterpretationModel } from "../../../../../src/nexus/conte
 import { SupabaseNexusResultStore } from "../../../../../src/nexus/persistence.ts";
 import { createPublicWebProvider, researchContextFromPayload } from "../../../../../src/nexus/public-web.ts";
 import {configuredOrganisationSeed} from "../../../../../src/nexus/organisation-source-seed-config.ts";
+import type { SourceDiscoveryBatchScope } from "../../../../../src/nexus/source-discovery/batch-scope.ts";
 
 export const runtime = "nodejs";
 
@@ -11,9 +12,15 @@ export async function POST(request: Request) {
   const researchDisabled = nexusExecutorDisabled();
   const sourceDiscoveryDisabled = nexusSourceDiscoveryDisabled();
   const contentInterpretationDisabled = nexusContentInterpretationDisabled();
-  // Both lanes closed: keep the endpoint absent. A signed source-discovery
-  // request is the only production exception, and only when its own flag is set.
-  if (researchDisabled && sourceDiscoveryDisabled && contentInterpretationDisabled) {
+  let batchScope: SourceDiscoveryBatchScope | null = null;
+  try {
+    const encoded = process.env.NEXUS_SOURCE_DISCOVERY_BATCH_SCOPE?.trim();
+    if (encoded) batchScope = JSON.parse(encoded) as SourceDiscoveryBatchScope;
+  } catch {
+    return Response.json({ code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" }, { status: 404 });
+  }
+  // Keep global discovery closed. The signed handler admits only requests in the short-lived manifest scope.
+  if (researchDisabled && sourceDiscoveryDisabled && contentInterpretationDisabled && !batchScope) {
     return Response.json({ code: "NEXUS_EXECUTOR_NOT_AVAILABLE" }, { status: 404 });
   }
 
@@ -35,6 +42,8 @@ export async function POST(request: Request) {
     researchContext: researchContextFromPayload,
     allowResearch: !researchDisabled,
     allowSourceDiscovery: !sourceDiscoveryDisabled,
+    allowScopedSourceDiscovery: true,
+    sourceDiscoveryBatchScope: batchScope ?? undefined,
     allowContentInterpretation: !contentInterpretationDisabled,
     contentModel: contentInterpretationDisabled ? null : createContentInterpretationModel(),
     // Research generation stays v6. Source-discovery replay uses SOURCE_DISCOVERY_EXECUTION_VERSION.
