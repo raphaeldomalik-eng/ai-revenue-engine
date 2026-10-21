@@ -39,6 +39,7 @@ export type PublicWebSearchCostModel = { kind: "ZERO_INCREMENTAL" | "METERED"; c
 export type PublicWebSearchProvider = {
   id: string;
   costModel: PublicWebSearchCostModel;
+  usage?: {requests:number;cacheReused:number;reservedCreditMicroUsd:number;observedAt?:string};
   search(input: { query: string; country: "GB" | "ZA"; maxResults: number }): Promise<PublicWebSearchResult[]>;
 };
 
@@ -64,7 +65,7 @@ export type OfficialWebsiteDiscoveryOptions = {
 };
 
 // v3 follows the v4 source-discovery extraction. A stored v2 result embeds the old footer-stripped contacts.
-export const OFFICIAL_WEBSITE_DISCOVERY_EXECUTION_VERSION = "official-website-discovery-v3";
+export const OFFICIAL_WEBSITE_DISCOVERY_EXECUTION_VERSION = "official-website-discovery-v4";
 
 // robots.txt and same-site redirects count against maxRequests, and many venue homepages exceed 500 KB;
 // the tighter values left verifiable sites with no page to verify.
@@ -422,7 +423,6 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
       search.costModel = provider.costModel.kind;
       const maxCalls = Math.max(0, Math.min(2, options.maxSearchCalls ?? 2));
       const maxCandidates = Math.max(1, Math.min(5, options.maxCandidates ?? 3));
-      const seen = new Set(candidates.map((item) => item.origin).filter(Boolean));
       let providerFailed = false;
       let budgetExhausted = false;
       for (const query of searchQueries(request, heldAddress).slice(0, maxCalls)) {
@@ -447,16 +447,28 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
           unknowns.push("The public web search provider failed safely; no candidate was retained from it.");
           break;
         }
-        const fresh: Candidate[] = [];
+        // Rank all results before deduplicating origins. An event/deep page ranked first
+        // must not hide the venue homepage, including a better result in a later query.
+        const bestByOrigin = new Map<string, Candidate>();
         results.forEach((item, index) => {
           if (typeof item?.url !== "string") return;
           search.returnedCandidateUrls.push(item.url.slice(0, 4096));
           const candidate = candidateFrom(item, index + 1, identity.venueName);
-          if (candidate.origin && seen.has(candidate.origin)) return;
-          if (candidate.origin) seen.add(candidate.origin);
-          candidates.push(candidate);
-          if (candidate.state === "NOT_EVALUATED") fresh.push(candidate);
+          if (!candidate.origin) { candidates.push(candidate); return; }
+          const previous = bestByOrigin.get(candidate.origin);
+          const better = !previous || candidate.score > previous.score
+            || candidate.score === previous.score && new URL(candidate.url).pathname === "/" && new URL(previous.url).pathname !== "/";
+          if (better) bestByOrigin.set(candidate.origin, candidate);
         });
+        const fresh: Candidate[] = [];
+        for (const candidate of bestByOrigin.values()) {
+          const index = candidates.findIndex(item => item.origin === candidate.origin);
+          const previous = candidates[index];
+          if (previous && (previous.state === "SELECTED" || candidate.score < previous.score
+            || candidate.score === previous.score && !(new URL(candidate.url).pathname === "/" && new URL(previous.url).pathname !== "/"))) continue;
+          if (index >= 0) candidates[index] = candidate; else candidates.push(candidate);
+          if (candidate.state === "NOT_EVALUATED") fresh.push(candidate);
+        }
         const ranked = fresh.sort((left, right) => right.score - left.score || left.rank - right.rank).slice(0, maxCandidates);
         for (const candidate of ranked) await verifyCandidate(candidate);
         if (verified.length) break;

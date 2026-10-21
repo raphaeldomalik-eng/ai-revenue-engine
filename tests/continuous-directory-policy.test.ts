@@ -40,3 +40,9 @@ test('retryable partial results remain retryable rather than complete',async()=>
 test('explicit permanent failure is quarantined',async()=>{
  let state='';await runContinuousDirectoryTick([item()],policy,policyHash(policy),{reserve:async()=>true,complete:async r=>{state=r.state}},async()=>({requestCount:2,costUsd:0,status:'FAILED',retryable:false}),now);assert.equal(state,'QUARANTINED');
 });
+
+test('unverified or blocked websites do not stop unrelated eligible work in the tick',async()=>{
+ const rows=Array.from({length:7},(_,i)=>item('site'+i));
+ const result=await runContinuousDirectoryTick(rows,policy,policyHash(policy),{reserve:async()=>true,complete:async()=>{}},async work=>({requestCount:2,costUsd:0,status:work.queueId==='site6'?'COMPLETED':'BLOCKED',retryable:false}),now);
+ assert.equal(result.executed,7);assert.equal(result.stopped,null);
+});

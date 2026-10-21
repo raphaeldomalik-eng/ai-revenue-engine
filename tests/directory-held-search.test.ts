@@ -34,3 +34,20 @@ test('a second eligible site at rank nine prevents a false unique-seed decision'
  results[0]={url:'https://alphahall.example/',title:'Alpha Hall Bristol'};results[8]={url:'https://otheralphahall.example/',title:'Alpha Hall Bristol'};
  const r=await consumeDirectorySearchEvidence(request(),[{...receipt(),results}],{now});assert.equal(r.candidates.length,2);
 });
+
+test('an earlier event page cannot suppress a later homepage on the same origin',async()=>{
+ const r=await consumeDirectorySearchEvidence(request(),[{...receipt(),results:[
+  {url:'https://alphahall.example/events/concert',title:'Alpha Hall Bristol concert'},
+  {url:'https://alphahall.example/',title:'Alpha Hall Bristol'}
+ ]}],{now});
+ assert.deepEqual(r.candidates.map(c=>c.websiteSeed),['https://alphahall.example/']);
+});
+
+test('a name-aligned homepage supersedes a weaker same-origin result without losing other domains',async()=>{
+ const r=await consumeDirectorySearchEvidence(request(),[{...receipt(),results:[
+  {url:'https://neutral.example/old',title:'Old programme'},
+  {url:'https://neutral.example/',title:'Alpha Hall Bristol'},
+  {url:'https://otheralphahall.example/',title:'Alpha Hall Bristol'}
+ ]}],{now});
+ assert.equal(r.candidates.length,2);assert(r.candidates.some(c=>c.websiteSeed==='https://neutral.example/'));
+});

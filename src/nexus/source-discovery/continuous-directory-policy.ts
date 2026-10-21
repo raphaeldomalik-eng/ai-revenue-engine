@@ -1,5 +1,5 @@
 import {createHash} from 'node:crypto';
-export type DirectoryAction='ENRICH_VERIFIED_VENUE'|'VERIFY_WEBSITE';
+export type DirectoryAction='ENRICH_VERIFIED_VENUE'|'VERIFY_WEBSITE'|'DISCOVER_WEBSITE';
 export type StandingPolicy={policyId:string;version:number;enabled:boolean;validFrom:string;validUntil:string;countries:string[];actions?:string[];maxVenuesPerDay:number;maxRequestsPerDay:number;maxRequestsPerVenue:number;maxBatchVenues:number;paidProviderBudgetUsd:number;minHostDelayMs:number;freshnessHours:number;maxAttempts:number;retryBackoffHours:number;stopAfterConsecutiveFailures:number;publicationAllowed:boolean;outreachAllowed:boolean};
 export type DirectoryWork={queueId:string;identityKey:string;country:string;verifiedSourceUrl:string;verifiedAt:string|null;evidenceRef:string;entityType:string;gaps:string[];ownership:string;status:string;attempts:number;requestBudget:number;cacheObservedAt?:string;cacheSatisfiedGaps?:string[];nextAttemptAt?:string;identityConflict?:boolean;suppressed?:boolean};
 export type Reservation={policyId:string;policySha256:string;queueId:string;identityKey:string;country:string;host:string;reservationKey:string;requestBudget:number;day:string;action?:DirectoryAction};
@@ -15,7 +15,7 @@ export function validateStandingPolicy(p:StandingPolicy,approvedHash:string,now:
  if(!p.enabled||!Number.isFinite(time)||!Number.isFinite(start)||!Number.isFinite(end)||time<start||time>=end)throw Error('STANDING_POLICY_INACTIVE');
  const positive=[p.version,p.maxVenuesPerDay,p.maxRequestsPerDay,p.maxRequestsPerVenue,p.maxBatchVenues,p.minHostDelayMs,p.freshnessHours,p.maxAttempts,p.retryBackoffHours,p.stopAfterConsecutiveFailures];
  if(!p.policyId||positive.some(n=>!Number.isSafeInteger(n)||n<1)||p.maxRequestsPerVenue>14||p.maxBatchVenues>50||p.minHostDelayMs<1000||p.maxAttempts>5||p.paidProviderBudgetUsd!==0||p.publicationAllowed!==false||p.outreachAllowed!==false||!p.countries.length||p.countries.some(c=>!['GB','ZA'].includes(c)))throw Error('STANDING_POLICY_SCOPE_INVALID');
- if(p.actions&&(!Array.isArray(p.actions)||!p.actions.length||p.actions.some(a=>!['ENRICH_VERIFIED_VENUE','VERIFY_WEBSITE'].includes(a))))throw Error('STANDING_POLICY_ACTION_INVALID');
+ if(p.actions&&(!Array.isArray(p.actions)||!p.actions.length||p.actions.some(a=>!['ENRICH_VERIFIED_VENUE','VERIFY_WEBSITE','DISCOVER_WEBSITE'].includes(a))))throw Error('STANDING_POLICY_ACTION_INVALID');
  return Object.freeze({...p,countries:[...p.countries]});
 }
 export function selectContinuousWork(items:DirectoryWork[],p:StandingPolicy,now:string){
@@ -53,7 +53,7 @@ export async function runContinuousDirectoryTick(items:DirectoryWork[],policy:St
    await ledger.complete({...reservation,state:'QUARANTINED',requestCount:Number.isFinite(receipt.requestCount)?receipt.requestCount:null,costUsd:Number.isFinite(receipt.costUsd)?receipt.costUsd:null,nextAttemptAt:null,error:'EXECUTOR_BUDGET_VIOLATION'});result.stopped='EXECUTOR_BUDGET_VIOLATION';break;
   }
   result.actualHttpRequestsKnown+=receipt.requestCount;result.knownCostUsd+=receipt.costUsd;
-  const ok=!receipt.retryable&&['COMPLETED','PARTIAL'].includes(receipt.status);failures=ok?0:failures+1;
+  const ok=!receipt.retryable&&['COMPLETED','PARTIAL'].includes(receipt.status);failures=0;
   const state=ok?'COMPLETED':receipt.status==='BLOCKED'||receipt.retryable===false?'QUARANTINED':'RETRYABLE';
   await ledger.complete({...reservation,state,requestCount:receipt.requestCount,costUsd:receipt.costUsd,resultRef:receipt.resultRef,nextAttemptAt:state==='RETRYABLE'?new Date(Date.parse(now)+p.retryBackoffHours*3600000*2**item.attempts).toISOString():null});
   if(failures>=p.stopAfterConsecutiveFailures){result.stopped='CONSECUTIVE_FAILURE_LIMIT';break;}
