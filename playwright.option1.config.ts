@@ -1,0 +1,2 @@
+import {defineConfig,devices} from '@playwright/test';
+export default defineConfig({testDir:'./tests/e2e',testMatch:'option1-journey.spec.ts',workers:1,retries:0,timeout:15000,reporter:'list',use:{...devices['Desktop Chrome'],viewport:{width:1440,height:1080},channel:'chrome',baseURL:'http://127.0.0.1:3107',trace:'retain-on-failure'},outputDir:'test-results/option1',webServer:{command:'npm run dev -- --hostname 127.0.0.1 --port 3107',url:'http://127.0.0.1:3107/operator/prospects',reuseExistingServer:!process.env.CI,timeout:120000}});

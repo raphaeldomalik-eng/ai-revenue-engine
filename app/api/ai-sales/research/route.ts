@@ -3,6 +3,7 @@ import { researchCompany } from "../../../../src/ai-sales-team/research";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import { classifyAccountRelationship } from "../../../../src/ai-sales-team/outreach-model";
 import { evaluateProspectIntelligence } from "../../../../src/ai-sales-team/prospect-intelligence";
+import { saveResearchedContact, saveResearchedOpportunity } from "../../../../src/ai-sales-team/research-persistence";
 
 export async function GET() {
   const client = await createServerSupabaseClient();
@@ -36,10 +37,11 @@ export async function POST(request: Request) {
     if (existing.error) throw existing.error;
     const existingAccount = (existing.data ?? []).find((row) => (row.website ?? null) === website);
     const metadata = { ...(existingAccount?.metadata ?? {}), aiSalesBrief: true, fit: brief.qualification.fit, lastResearchedDate: new Date().toISOString(), relationship: relationship.relationship, outreachEligibility: prospectIntelligence.outreachEligibility, outreachEligibilityReason: prospectIntelligence.outreachBlockOrReviewReason, prospectIntelligence };
-    const accountQuery = existingAccount
-      ? client.from("accounts").update({ website, country_code: brief.territory.code === "UNKNOWN" ? null : brief.territory.code, source: "ai_sales_team", metadata }).eq("id", existingAccount.id).select("id").single()
-      : client.from("accounts").insert({ name: companyName, website, country_code: brief.territory.code === "UNKNOWN" ? null : brief.territory.code, source: "ai_sales_team", metadata }).select("id").single();
-    const { data: account, error: accountError } = await accountQuery;
+    // Reuse the account without replacing relationship, ownership or metadata.
+    // Fresh interpretation remains in this run's brief and evidence history.
+    const { data: account, error: accountError } = existingAccount
+      ? { data: existingAccount, error: null }
+      : await client.from("accounts").insert({ name: companyName, website, country_code: brief.territory.code === "UNKNOWN" ? null : brief.territory.code, source: "ai_sales_team", metadata }).select("id").single();
     if (accountError) throw accountError;
     const evidence = [...brief.facts, ...brief.inferences].filter((item) => item.claim.trim()).map((item) => ({ account_id: account.id, evidence_type: item.sourceUrl ? "WEBSITE" : "OTHER", claim: item.claim, source_url: item.sourceUrl, source_title: item.sourceTitle, source_reference: item.sourceUrl ?? "ai-sales-team", observed_at: new Date().toISOString(), evidence_kind: item.kind, qualitative_confidence: item.confidence, metadata: { provider: result.provider, model: result.model } }));
     if (evidence.length) {
@@ -51,12 +53,7 @@ export async function POST(request: Request) {
     }
     const people = brief.people.filter((person) => person.name.trim());
     for (const person of people) {
-      const existingPerson = await client.from("contacts").select("id").eq("account_id", account.id).eq("full_name", person.name).maybeSingle();
-      if (existingPerson.error) throw existingPerson.error;
-      const values = { account_id: account.id, full_name: person.name, role_title: person.role, verification_status: person.kind === "FACT" ? "UNVERIFIED" : "UNKNOWN", source: "ai_sales_team", metadata: { sourceUrl: person.sourceUrl, evidenceKind: person.kind, confidence: person.confidence } };
-      const contactQuery = existingPerson.data ? client.from("contacts").update(values).eq("id", existingPerson.data.id) : client.from("contacts").insert(values);
-      const { error } = await contactQuery;
-      if (error) throw error;
+      await saveResearchedContact(client, account.id, person);
     }
     let opportunityId: string | null = null;
     if (brief.territory.code !== "UNKNOWN" && brief.eventSuite.salesMotion !== "UNKNOWN") {
@@ -67,12 +64,7 @@ export async function POST(request: Request) {
       ]);
       if (product.data && territory.data && motion.data) {
         const values = { account_id: account.id, product_id: product.data.id, territory_id: territory.data.id, sales_motion_id: motion.data.id, commercial_program_id: null, stage: "identified", conversion_route: brief.eventSuite.conversionRoute, qualitative_confidence: brief.qualification.fit === "UNKNOWN" ? null : "MEDIUM", route_reason: prospectIntelligence.primaryEntryOpportunity === "UNKNOWN" ? prospectIntelligence.outreachBlockOrReviewReason ?? brief.eventSuite.rationale : prospectIntelligence.recommendedNextAction, next_action: prospectIntelligence.recommendedNextAction, metadata: { aiSalesTeam: true, pains: brief.pains, useCases: brief.useCases, signals: brief.signals, prospectIntelligence } };
-        const existingOpportunity = await client.from("product_opportunities").select("id").eq("account_id", account.id).eq("product_id", product.data.id).maybeSingle();
-        if (existingOpportunity.error) throw existingOpportunity.error;
-        const opportunityQuery = existingOpportunity.data ? client.from("product_opportunities").update(values).eq("id", existingOpportunity.data.id).select("id").single() : client.from("product_opportunities").insert(values).select("id").single();
-        const savedOpportunity = await opportunityQuery;
-        if (savedOpportunity.error) throw savedOpportunity.error;
-        opportunityId = savedOpportunity.data.id;
+        opportunityId = await saveResearchedOpportunity(client, values);
       }
     }
     const { error: activityError } = await client.from("activities").insert({ account_id: account.id, opportunity_id: opportunityId, activity_type: "AI_RESEARCH_NEXT_ACTION", summary: brief.nextBestAction.action, metadata: { reason: brief.nextBestAction.reason, owner: brief.nextBestAction.owner } });
