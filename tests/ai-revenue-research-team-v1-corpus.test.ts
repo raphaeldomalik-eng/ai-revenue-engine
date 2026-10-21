@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
+import { runOrganisationContactResearch } from "../src/ai-sales-team/organisation-contact-research.ts";
+import { option1Journey } from "./fixtures/option1-journey.ts";
 import { contactPersistenceTargets, isContactResearchEligible, normaliseContactResearch, type ContactResearchTargetIdentity } from "../src/ai-sales-team/contact-research.ts";
 import { evaluateProspectIntelligence } from "../src/ai-sales-team/prospect-intelligence.ts";
 import { classifySourceSite, evaluateDiscoveryCandidate, identityHandoffGate, parseDiscovery } from "../src/ai-sales-team/discovery.ts";
@@ -124,10 +125,13 @@ test("R31-R37 deterministic handoffs preserve advancement, eligibility, state co
   assert.match(countered.ecc.rationale ?? "", /counter|mature/i);
 });
 
-test("R33 null-account eligibility does not create account-linked persistence", () => {
+test("R33 null-account eligibility does not create account-linked persistence", async () => {
   const routeResult = normaliseContactResearch({ targetIdentity: target, namedContact: null, organisationRoute: route("info@abc-events.example"), facts: [], unknowns: [] });
   assert.equal(isContactResearchEligible({ status: "REVIEW_REQUIRED", relationship: "PROSPECT", account_id: null, prospect_intelligence: { eventConnection: { state: "CONFIRMED" }, primaryEntryOpportunity: "EGS", organisationResolution: { status: "RESOLVED" } } }), true);
   assert.equal(contactPersistenceTargets(routeResult).length, 1);
-  const routeSource = readFileSync("app/api/ai-sales/contact-research/route.ts", "utf8");
-  assert.match(routeSource, /candidate\.account_id \? contactPersistenceTargets/);
+  const journey = option1Journey();
+  journey.tables.ai_prospect_candidates[0].account_id = null;
+  await assert.rejects(runOrganisationContactResearch({action:'link',candidateId:'hall',nexusOrganisationId:journey.identity.nexusOrganisationId},journey.actor,journey.deps), /PROSPECT_ACCOUNT_REQUIRED/);
+  assert.equal(journey.replayLoads, 0);
+  assert.ok(journey.requests.every(request => request.method === 'GET'));
 });

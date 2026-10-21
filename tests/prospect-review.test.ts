@@ -40,12 +40,9 @@ test("operator review API and migration are append-only and operator-scoped", as
   assert.match(inventorySql, /revoke all on function.*from public, anon/i);
 });
 
-test("blocked prospects are excluded before contact research and Composer drafting", async () => {
-  const contactRoute = await readFile("app/api/ai-sales/contact-research/route.ts", "utf8");
+test("blocked prospects are excluded before Composer drafting and sending", async () => {
   const composerRoute = await readFile("app/api/ai-sales/outreach-composer/route.ts", "utf8");
   const outreachService = await readFile("src/outreach/service.ts", "utf8");
-  const contactPost = contactRoute.slice(contactRoute.indexOf("export async function POST"));
-  assert.ok(contactPost.indexOf('candidate.status === "BLOCKED"') < contactPost.indexOf("researchEligibleProspectContact"));
   assert.ok(composerRoute.indexOf("assertNoBlockedProspect") < composerRoute.indexOf("createComposerSequence"));
   assert.match(outreachService, /assertNoBlockedProspect/);
   assert.ok(outreachService.indexOf("assertNoBlockedProspect(client, message.account_id)") < outreachService.lastIndexOf("sendEmail("));

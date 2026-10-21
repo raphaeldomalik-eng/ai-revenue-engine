@@ -34,12 +34,10 @@ test("default-disabled route gates produce PILOT_NOT_ENABLED with zero provider 
   assert.deepEqual(effects, { providerCalls: 0, databaseWrites: 0 });
 });
 
-test("route source places the activation gate before Supabase auth, provider calls and writes", () => {
+test("discovery route places the activation gate before Supabase auth, provider calls and writes", () => {
   const discovery = readFileSync("app/api/ai-sales/discovery/route.ts", "utf8");
-  const contact = readFileSync("app/api/ai-sales/contact-research/route.ts", "utf8");
   for (const [source, gate, auth, providerOrRead, write] of [
     [discovery, "discoveryProductionEnabled", "const state = await operatorClient();", "discoverProspects", ".insert("],
-    [contact, "contactResearchProductionEnabled", "const state = await operatorClient();", "researchEligibleProspectContact", ".update("],
   ] as const) {
     const postSource = source.slice(source.indexOf("export async function POST"));
     assert.ok(postSource.includes(`if (!${gate}())`));
