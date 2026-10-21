@@ -4,13 +4,14 @@ import {buildNexusEnvelope,parseNexusEnvelope,verifyNexusSignature,NEXUS_MAX_BOD
 import {validateSourceDiscoveryRequest,validateSourceDiscoveryResult} from '../contracts.ts';
 import {sourceDiscoveryRequestSha256,type SourceDiscoveryBatchScope} from './batch-scope.ts';
 import {sourceDiscoveryExecutionKey,sourceDiscoveryReplayable} from '../executor.ts';
-import {runContinuousDirectoryTick,validateStandingPolicy,type StandingPolicy,type ContinuousLedger,type DirectoryWork} from './continuous-directory-policy.ts';
+import {runContinuousDirectoryTick,validateStandingPolicy,standingPolicyAllows,type StandingPolicy,type ContinuousLedger,type DirectoryWork} from './continuous-directory-policy.ts';
 const uuid=(s:string)=>{const h=createHash('sha256').update(s).digest('hex');return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`;};
 export type ContinuousHttpOptions={policy:StandingPolicy;approvedPolicyHash:string;ledger:ContinuousLedger;executor:NexusHttpOptions;now?:()=>number};
 /** Signed existing source-discovery envelope plus signed internal queue context; execution reuses the existing handler. */
 export async function handleContinuousDirectoryRequest(request:Request,options:ContinuousHttpOptions):Promise<Response>{
  const nowMs=options.now?.()??Date.now(),now=new Date(nowMs).toISOString();
  try{validateStandingPolicy(options.policy,options.approvedPolicyHash,now)}catch{return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404})}
+ if(!standingPolicyAllows(options.policy,'ENRICH_VERIFIED_VENUE'))return Response.json({code:'DIRECTORY_ACTION_INACTIVE'},{status:404});
  const reader=request.body?.getReader();let body='';let length=0;
  if(!reader)return Response.json({code:'BODY_REQUIRED'},{status:400});
  const chunks:Uint8Array[]=[];while(true){const {done,value}=await reader.read();if(done)break;length+=value.length;if(length>NEXUS_MAX_BODY_BYTES){await reader.cancel();return Response.json({code:'NEXUS_PAYLOAD_TOO_LARGE'},{status:413})}chunks.push(value)}body=Buffer.concat(chunks).toString('utf8');
@@ -19,8 +20,8 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
  try{
   const payload=parseNexusEnvelope(body),input=validateSourceDiscoveryRequest(payload);
   if(input.originatingProduct!=='event_suite_resources'||input.subjectReference.entityType!=='VENUE'||input.acquisitionGoal!=='VENUE_EMAIL'||input.crawlBudget.minRequestDelayMs<options.policy.minHostDelayMs)return Response.json({code:'DIRECTORY_REQUEST_SCOPE'},{status:403});
-  const context=JSON.parse(body).directoryContext as (Partial<DirectoryWork>&{policyId?:string;policySha256?:string})|undefined;
-  if(context?.policyId!==options.policy.policyId||context?.policySha256!==options.approvedPolicyHash)return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
+  const context=JSON.parse(body).directoryContext as (Partial<DirectoryWork>&{policyId?:string;policySha256?:string;action?:string})|undefined;
+  if(context?.policyId!==options.policy.policyId||context?.policySha256!==options.approvedPolicyHash||(context.action??'ENRICH_VERIFIED_VENUE')!=='ENRICH_VERIFIED_VENUE')return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
   if(!context?.queueId||!context.identityKey||!context.country||!context.verifiedAt||!context.evidenceRef||!Array.isArray(context.gaps)||!Number.isSafeInteger(context.attempts)||context.attempts!<0)return Response.json({code:'DIRECTORY_QUEUE_CONTEXT_REQUIRED'},{status:400});
   if(!input.existingEvidenceRefs.includes(context.evidenceRef))return Response.json({code:'DIRECTORY_EVIDENCE_BINDING_REQUIRED'},{status:403});
   const subject=input.subjectReference;

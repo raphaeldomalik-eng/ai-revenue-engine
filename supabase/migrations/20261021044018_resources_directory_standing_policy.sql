@@ -41,6 +41,9 @@ begin
  if (p.policy->>'paidProviderBudgetUsd')::numeric<>0 or (p.policy->>'publicationAllowed')::boolean is distinct from false
   or (p.policy->>'outreachAllowed')::boolean is distinct from false or not (p.policy->'countries' ? (p_reservation->>'country'))
   then return jsonb_build_object('state','DENIED','reason','POLICY_SCOPE'); end if;
+ if coalesce(p_reservation->>'action','ENRICH_VERIFIED_VENUE') not in ('ENRICH_VERIFIED_VENUE','VERIFY_WEBSITE')
+  or not (coalesce(p.policy->'actions','["ENRICH_VERIFIED_VENUE"]'::jsonb) ? coalesce(p_reservation->>'action','ENRICH_VERIFIED_VENUE'))
+  then return jsonb_build_object('state','DENIED','reason','POLICY_ACTION'); end if;
  req:=(p_reservation->>'requestBudget')::integer;
  if req<1 or req>least(14,(p.policy->>'maxRequestsPerVenue')::integer) or p_reservation->>'day'<>d::text
   or coalesce(p_reservation->>'host','') !~ '^[a-z0-9.-]+$' or coalesce(p_reservation->>'reservationKey','') !~ '^[0-9a-f]{64}$'
@@ -79,18 +82,51 @@ begin
  select * into p from public.nexus_directory_standing_policy where policy_id=p_receipt->>'policyId' for update;
  if not found then return jsonb_build_object('state','DENIED','reason','POLICY_MISSING'); end if;
  select * into r from public.nexus_directory_work_receipt where reservation_key=p_receipt->>'reservationKey' for update;
- if not found or r.state<>'RESERVED' or r.policy_id<>p_receipt->>'policyId' or r.queue_id<>p_receipt->>'queueId'
+ if not found or r.policy_id is distinct from p_receipt->>'policyId' or r.queue_id is distinct from p_receipt->>'queueId'
+  or r.identity_key is distinct from p_receipt->>'identityKey' or r.host is distinct from p_receipt->>'host'
   then return jsonb_build_object('state','DENIED','reason','RECEIPT_NOT_RESERVED'); end if;
  actual:=(p_receipt->>'requestCount')::integer;cost:=(p_receipt->>'costUsd')::numeric;outcome:=p_receipt->>'state';
+ if r.state=outcome and r.request_count is not distinct from actual and r.cost_usd is not distinct from cost then return jsonb_build_object('state','RECORDED','reused',true); end if;
+ if r.state<>'RESERVED' and not (r.state='RETRYABLE' and r.request_count is null and r.cost_usd is null) then return jsonb_build_object('state','DENIED','reason','RECEIPT_ALREADY_FINAL'); end if;
  if outcome not in ('COMPLETED','RETRYABLE','QUARANTINED') or actual<0 or cost<0 then return jsonb_build_object('state','DENIED','reason','RECEIPT_INVALID'); end if;
  if actual>r.reserved_requests or cost>0 then
   outcome:='QUARANTINED';update public.nexus_directory_standing_policy set enabled=false,updated_at=now() where policy_id=r.policy_id;
  end if;
  update public.nexus_directory_work_receipt set state=outcome,request_count=actual,cost_usd=cost,
   next_attempt_at=(p_receipt->>'nextAttemptAt')::timestamptz,receipt=p_receipt,completed_at=now() where reservation_key=r.reservation_key;
- update public.nexus_directory_standing_policy set consecutive_failures=case when outcome='COMPLETED' then 0 else consecutive_failures+1 end,
-  enabled=enabled and (outcome='COMPLETED' or consecutive_failures+1<(policy->>'stopAfterConsecutiveFailures')::integer),updated_at=now() where policy_id=r.policy_id;
+ update public.nexus_directory_standing_policy set consecutive_failures=case when outcome='COMPLETED' then 0 else consecutive_failures+case when r.state='RETRYABLE' then 0 else 1 end end,
+  enabled=enabled and (outcome='COMPLETED' or consecutive_failures+case when r.state='RETRYABLE' then 0 else 1 end<(policy->>'stopAfterConsecutiveFailures')::integer),updated_at=now() where policy_id=r.policy_id;
  return jsonb_build_object('state','RECORDED');
 end; $$;
 revoke all on function public.reserve_nexus_directory_work(jsonb),public.complete_nexus_directory_work(jsonb) from public,anon,authenticated;
 grant execute on function public.reserve_nexus_directory_work(jsonb),public.complete_nexus_directory_work(jsonb) to service_role;
+
+-- Policy workers may replace retryable failures, but never overwrite a terminal result.
+-- The existing generic store intentionally ignores duplicates; policy retries need this guarded transition.
+create function public.store_nexus_directory_result(p_key text,p_result jsonb) returns jsonb
+language plpgsql security definer set search_path=pg_catalog,public as $$
+declare prior jsonb; retryable boolean;
+begin
+ if p_key !~ '^[a-f0-9-]{36}$' or p_result->>'contractVersion' not in ('nexus.research-result.v1','nexus.source-discovery-result.v1')
+  or nullif(coalesce(p_result->>'requestId',p_result->>'discoveryRequestId'),'') is null then raise exception 'DIRECTORY_RESULT_INVALID'; end if;
+ perform pg_advisory_xact_lock(hashtextextended(p_key,0));
+ select result_payload into prior from public.nexus_executor_results where idempotency_key=p_key for update;
+ if found then
+  if prior->'subjectReference' is distinct from p_result->'subjectReference'
+   or prior#>'{source,verifiedUrl}' is distinct from p_result#>'{source,verifiedUrl}'
+   or prior->'directoryRequestSha256' is distinct from p_result->'directoryRequestSha256'
+   or coalesce(prior->>'requestId',prior->>'discoveryRequestId') is distinct from coalesce(p_result->>'requestId',p_result->>'discoveryRequestId')
+   then raise exception 'DIRECTORY_RESULT_IDEMPOTENCY_COLLISION'; end if;
+  retryable:=prior#>>'{crawl,retryable}'='true' or (prior->>'status'='UNRESOLVED'
+   and jsonb_array_length(coalesce(prior->'researchErrors','[]'::jsonb))>0
+   and not exists(select 1 from jsonb_array_elements(prior->'researchErrors') e where e->>'retryable' is distinct from 'true'));
+  if not coalesce(retryable,false) then return jsonb_build_object('state','REUSED'); end if;
+  update public.nexus_executor_results set result_payload=p_result where idempotency_key=p_key;
+ else
+  insert into public.nexus_executor_results(idempotency_key,contract_version,request_id,result_payload)
+   values(p_key,p_result->>'contractVersion',coalesce(p_result->>'requestId',p_result->>'discoveryRequestId'),p_result);
+ end if;
+ return jsonb_build_object('state','STORED');
+end; $$;
+revoke all on function public.store_nexus_directory_result(text,jsonb) from public,anon,authenticated;
+grant execute on function public.store_nexus_directory_result(text,jsonb) to service_role;

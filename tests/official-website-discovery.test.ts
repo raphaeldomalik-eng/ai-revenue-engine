@@ -211,7 +211,7 @@ test("verification rejects a same-name site in the wrong city and accepts name p
   const rejected = await executeOfficialWebsiteDiscovery(discoveryRequest(), { searchProvider: provider, fetchImpl, resolveHost: resolver, now: () => NOW }) as any;
   assert.equal(rejected.officialWebsite, null);
   assert.equal(rejected.status, "WEBSITE_CANDIDATES_AMBIGUOUS");
-  assert.deepEqual(rejected.candidates.map((item: any) => item.reasons.at(-1)), ["NAME_ALIGNED_WITHOUT_LOCATION_OR_IDENTITY_PROOF"]);
+  assert.deepEqual(rejected.candidates.map((item: any) => item.reasons.at(-1)), ["ADDRESS_POSTCODE_CONFLICT"]);
 
   const unrelated = siteFetch({ "https://www.other.co.uk/": "<title>Other Business</title><h1>Other Business</h1><address>1 High Street, Bristol</address>" });
   const none = await executeOfficialWebsiteDiscovery(discoveryRequest(), { searchProvider: fakeSearch([{ url: "https://www.other.co.uk/" }]).provider, fetchImpl: unrelated.fetchImpl, resolveHost: resolver, now: () => NOW }) as any;

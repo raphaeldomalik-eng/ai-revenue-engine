@@ -156,6 +156,9 @@ function namedLocalityOnSite(venueName: string, locality: string | null, heldAdd
 
 export function assessWebsiteIdentity(input: { venueName: string; country: "GB" | "ZA"; heldAddress: string | null; context: IdentityContext; finalUrl: string; identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }> }) {
   if (candidateRejection(input.finalUrl)) return { verified: false, state: "REJECTED" as const, reason: "REDIRECTED_TO_NON_FIRST_PARTY_HOST", path: null, signals: [] as string[], nameSignal: false };
+  const heldPostcode=postcodeOf(input.heldAddress,input.country);
+  const sitePostcodes=input.identityFacts.filter(f=>f.fieldName==='address'&&typeof f.value==='string').map(f=>postcodeOf(f.value as string,input.country)).filter(Boolean);
+  if(heldPostcode&&sitePostcodes.length&&!sitePostcodes.includes(heldPostcode))return {verified:false,state:'REJECTED' as const,reason:'ADDRESS_POSTCODE_CONFLICT',path:null,signals:[] as string[],nameSignal:true};
   let verification = verifyFirstPartyIdentity(input.venueName, input.context, input.identityFacts);
   if (!verification.verified && namedLocalityOnSite(input.venueName, input.context.locality ?? null, input.heldAddress, input.identityFacts)) {
     verification = { verified: true, path: "DIRECT", signals: ["direct venue name", "locality named in first-party title or heading"], nameSignal: true, locationSignal: true };

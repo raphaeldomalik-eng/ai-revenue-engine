@@ -7,6 +7,7 @@ import type { ProviderResult, ResearchContext } from "./executor.ts";
 import { distinctiveNameTokens } from "./venue-email.ts";
 
 export type PublicWebProviderOptions = {
+  onCrawl?: (output: CrawlOutput) => void | Promise<void>;
   fetchImpl?: FetchLike;
   resolveHost?: ResolveHost;
   now?: () => string;
@@ -310,6 +311,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
         fetchImpl: options.fetchImpl,
         resolveHost: options.resolveHost,
       });
+      await options.onCrawl?.(crawl);
       const extracted = seedExtraction??extractFromFetchedDocuments(crawl.documents, [...extractors]);
       if (!crawl.documents.length) {
         return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: true } });

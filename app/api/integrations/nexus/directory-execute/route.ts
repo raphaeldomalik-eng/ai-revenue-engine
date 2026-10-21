@@ -1,6 +1,5 @@
 import {createClient} from '@supabase/supabase-js';
-import {SupabaseNexusResultStore} from '../../../../../src/nexus/persistence.ts';
-import {SupabaseContinuousDirectoryLedger} from '../../../../../src/nexus/source-discovery/continuous-directory-store.ts';
+import {SupabaseDirectoryResultStore,SupabaseContinuousDirectoryLedger} from '../../../../../src/nexus/source-discovery/continuous-directory-store.ts';
 import {handleContinuousDirectoryRequest} from '../../../../../src/nexus/source-discovery/continuous-directory-http.ts';
 import type {StandingPolicy} from '../../../../../src/nexus/source-discovery/continuous-directory-policy.ts';
 export const runtime='nodejs';
@@ -12,5 +11,5 @@ export async function POST(request:Request){
  const client=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data,error}=await client.from('nexus_directory_standing_policy').select('policy,policy_sha256,enabled').eq('policy_id',policyId).single();
  if(error||!data?.enabled||data.policy_sha256!==approvedPolicyHash)return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404});
- return handleContinuousDirectoryRequest(request,{policy:data.policy as StandingPolicy,approvedPolicyHash,ledger:new SupabaseContinuousDirectoryLedger(client),executor:{secret,store:new SupabaseNexusResultStore(client)}});
+ return handleContinuousDirectoryRequest(request,{policy:data.policy as StandingPolicy,approvedPolicyHash,ledger:new SupabaseContinuousDirectoryLedger(client),executor:{secret,store:new SupabaseDirectoryResultStore(client)}});
 }
