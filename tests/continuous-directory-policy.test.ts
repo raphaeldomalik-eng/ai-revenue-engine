@@ -37,3 +37,6 @@ test('fresh partial cache does not hide an outstanding email gap',()=>{
 test('retryable partial results remain retryable rather than complete',async()=>{
  let state='';await runContinuousDirectoryTick([item()],policy,policyHash(policy),{reserve:async()=>true,complete:async r=>{state=r.state}},async()=>({requestCount:2,costUsd:0,status:'PARTIAL',retryable:true}),now);assert.equal(state,'RETRYABLE');
 });
+test('explicit permanent failure is quarantined',async()=>{
+ let state='';await runContinuousDirectoryTick([item()],policy,policyHash(policy),{reserve:async()=>true,complete:async r=>{state=r.state}},async()=>({requestCount:2,costUsd:0,status:'FAILED',retryable:false}),now);assert.equal(state,'QUARANTINED');
+});

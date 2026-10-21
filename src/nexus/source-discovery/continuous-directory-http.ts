@@ -26,14 +26,18 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
   const subject=input.subjectReference;
   const expectedIdentity=subject.canonicalEntityId?'canonical:'+subject.canonicalEntityId:subject.candidateReference?subject.candidateReference.sourceSystem+':'+subject.candidateReference.sourceRecordId:null;
   if(context.identityKey!==expectedIdentity||!options.policy.countries.includes(context.country))return Response.json({code:'DIRECTORY_SUBJECT_BINDING_REQUIRED'},{status:403});
+  const item:DirectoryWork={...context,queueId:context.queueId,identityKey:context.identityKey,country:context.country,verifiedAt:context.verifiedAt,evidenceRef:context.evidenceRef,gaps:context.gaps,attempts:context.attempts!,verifiedSourceUrl:input.verifiedSourceUrl,entityType:'VENUE',ownership:context.ownership||'INTERNAL',status:context.status||'PENDING',requestBudget:input.crawlBudget.maxRequests};
   const cacheKey=sourceDiscoveryExecutionKey(input.idempotencyKey,undefined,input.acquisitionGoal);
   const cached=await options.executor.store.get(cacheKey);
   if(sourceDiscoveryReplayable(cached)){
    const result=validateSourceDiscoveryResult(cached);
    if(result.source.verifiedUrl!==input.verifiedSourceUrl||JSON.stringify(result.subjectReference)!==JSON.stringify(input.subjectReference))return Response.json({code:'DIRECTORY_REPLAY_SUBJECT_MISMATCH'},{status:409});
+   if(['BLOCKED','FAILED'].includes(result.crawl.status)){
+    const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async()=>({requestCount:0,costUsd:0,status:result.crawl.status,retryable:false}),now);
+    return Response.json({result,receipt:{...receipt,cacheReused:1}},{status:receipt.denied?409:200});
+   }
    return Response.json({result,receipt:{cacheReused:1,executed:0,actualHttpRequestsKnown:0,knownCostUsd:0}});
   }
-  const item:DirectoryWork={...context,queueId:context.queueId,identityKey:context.identityKey,country:context.country,verifiedAt:context.verifiedAt,evidenceRef:context.evidenceRef,gaps:context.gaps,attempts:context.attempts!,verifiedSourceUrl:input.verifiedSourceUrl,entityType:'VENUE',ownership:context.ownership||'INTERNAL',status:context.status||'PENDING',requestBudget:input.crawlBudget.maxRequests};
   let output:Record<string,unknown>|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const scopeId=uuid(reservation.reservationKey),listingId=uuid(item.identityKey),manifestSha256=createHash('sha256').update(JSON.stringify({policySha256:options.approvedPolicyHash,reservation,input})).digest('hex');
@@ -45,6 +49,6 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
    const result=validateSourceDiscoveryResult(await response.json());output=result as unknown as Record<string,unknown>;return {requestCount:result.crawl.requestCount,costUsd:0,status:result.crawl.status,retryable:result.crawl.retryable,resultRef:input.discoveryRequestId};
   },now);
   const crawl=(output as {crawl?:{status?:string;retryable?:boolean}}|null)?.crawl;
-  return Response.json({result:output,receipt},{status:receipt.stopped||receipt.actualRequestsUnknown||crawl?.retryable||crawl?.status==='FAILED'?503:receipt.executed?200:receipt.denied?409:202});
+  return Response.json({result:output,receipt},{status:receipt.stopped||receipt.actualRequestsUnknown||crawl?.retryable||crawl?.status==='FAILED'&&crawl?.retryable!==false?503:receipt.executed?200:receipt.denied?409:202});
  }catch(error){return Response.json({code:error instanceof Error?error.message:'DIRECTORY_REQUEST_FAILED'},{status:400})}
 }

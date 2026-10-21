@@ -49,7 +49,7 @@ export async function runContinuousDirectoryTick(items:DirectoryWork[],policy:St
   }
   result.actualHttpRequestsKnown+=receipt.requestCount;result.knownCostUsd+=receipt.costUsd;
   const ok=!receipt.retryable&&['COMPLETED','PARTIAL'].includes(receipt.status);failures=ok?0:failures+1;
-  const state=ok?'COMPLETED':receipt.status==='BLOCKED'?'QUARANTINED':'RETRYABLE';
+  const state=ok?'COMPLETED':receipt.status==='BLOCKED'||receipt.retryable===false?'QUARANTINED':'RETRYABLE';
   await ledger.complete({...reservation,state,requestCount:receipt.requestCount,costUsd:receipt.costUsd,resultRef:receipt.resultRef,nextAttemptAt:state==='RETRYABLE'?new Date(Date.parse(now)+p.retryBackoffHours*3600000*2**item.attempts).toISOString():null});
   if(failures>=p.stopAfterConsecutiveFailures){result.stopped='CONSECUTIVE_FAILURE_LIMIT';break;}
  }

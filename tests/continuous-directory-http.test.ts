@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {handleContinuousDirectoryRequest} from '../src/nexus/source-discovery/continuous-directory-http.ts';
 import {policyHash} from '../src/nexus/source-discovery/continuous-directory-policy.ts';
-import {InMemoryNexusResultStore} from '../src/nexus/executor.ts';
+import {InMemoryNexusResultStore,sourceDiscoveryExecutionKey} from '../src/nexus/executor.ts';
 import {nexusSignatureFor} from '../src/nexus/transport.ts';
 const now=Date.parse('2026-10-21T12:00:00Z'),secret='isolated-test-secret';
 const canonical='11111111-1111-4111-8111-111111111111';
@@ -24,5 +24,8 @@ test('standing route reuses the exact existing production executor and honours d
   assert.equal((await handleContinuousDirectoryRequest(request({policyId:'revoked',policySha256:'f'.repeat(64)}),opts)).status,403);
   const failed=await handleContinuousDirectoryRequest(request(),{...opts,executor:{...executor,store:new InMemoryNexusResultStore(),executeSourceDiscovery:async()=>{const value=await executor.executeSourceDiscovery();return {...value,crawl:{...value.crawl,status:'FAILED',retryable:true}}}}});
   assert.equal(failed.status,503);
+  const cachedStore=new InMemoryNexusResultStore();const base=await executor.executeSourceDiscovery();await cachedStore.set(sourceDiscoveryExecutionKey(payload.idempotencyKey,undefined,payload.acquisitionGoal),{...base,crawl:{...base.crawl,status:'BLOCKED',retryable:false}});
+  let cachedState='';const cached=await handleContinuousDirectoryRequest(request(),{...opts,ledger:{reserve:async()=>true,complete:async r=>{cachedState=r.state}},executor:{...executor,store:cachedStore,executeSourceDiscovery:async()=>{throw Error('CACHE_MUST_NOT_CRAWL')}}});
+  assert.equal(cached.status,200);assert.equal(cachedState,'QUARANTINED');assert.equal((await cached.json() as any).receipt.actualHttpRequestsKnown,0);
  }finally{if(old===undefined)delete process.env.VERCEL_ENV;else process.env.VERCEL_ENV=old;}
 });
