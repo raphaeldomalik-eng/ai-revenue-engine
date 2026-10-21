@@ -38,4 +38,6 @@ For a separately authorised non-production pilot, the existing two contact pilot
 
 ## Limits and next action
 
+Post-merge hosted preparation exposed a packaging defect: the dynamically configured replay file was absent from the generated contact-research function trace. The narrow correction explicitly includes only the synthetic fixture for that route. `scripts/check-option1-replay-bundle.mjs` checks the generated deployment manifest and reads the traced file during every normal build. This check failed before the correction and passed afterward; the complete offline check gate also passed (770 passed, one skipped). This uses Next.js [file tracing includes](https://nextjs.org/docs/15/app/api-reference/config/next-config-js/output) and does not activate a provider or change production gates.
+
 This is locally verified replay delivery, not a production deployment or a live Apollo acceptance. No hosted migration, real-user login, production Nexus lookup or paid provider was exercised. The next action is to review this implementation PR and its working replay journey. Live provider enablement, budgets and production rollout remain separate subsequent product decisions; none is needed to review Option 1. No Option 2 consolidation is proposed.
