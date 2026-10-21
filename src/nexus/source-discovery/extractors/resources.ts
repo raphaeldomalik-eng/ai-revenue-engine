@@ -668,9 +668,11 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
     const landingPage = isWixSiteRoot || /^\/(?:(?:index|default)\.(?:html?|php|aspx?)|(?:en|af|za|uk|gb|home|welcome)\/?)?$/i.test(parsedDocUrl.pathname);
     const title = clean(visibleText(tags(doc.body, "title")[0]?.inner ?? "")) ?? firstMeta(doc.body, "og:site_name");
     const heading = clean(visibleText(tags(doc.body, "h1")[0]?.inner ?? ""));
+    const footerText=visibleText(tags(doc.body, "footer").map((tag) => tag.inner).join(" "));
     const address = clean(visibleText(tags(doc.body, "address")[0]?.inner ?? ""))
       ?? clean(visibleText(doc.body).match(/\b(?:(?:physical|street|postal|our|venue)\s+)?address\b\s*[:\-–]?\s+(.{5,240}?)(?=\b(?:contact(?:\s+us)?|phone|tel(?:ephone)?|mobile|cell|email|e-mail|company|opening|hours|copyright|gps)\b|$)/i)?.[1])
-      ?? clean(tags(doc.body, "footer").map((tag) => visibleText(tag.inner)).join(" ").match(/\b(\d{1,5}\s+[a-z0-9 .,'/-]{3,120},\s*[a-z ]{3,60}(?:,\s*\d{4})?)\b/i)?.[1]);
+      ?? clean(footerText.match(/\b(\d{1,5}[a-z]?\s+[^,\n]{3,80},\s*[a-z][a-z .'-]{1,40},?\s+[a-z]{1,2}\d[a-z\d]?\s?\d[a-z]{2})\b/i)?.[1])
+      ?? clean(footerText.match(/\b(\d{1,5}\s+[a-z0-9 .,'/-]{3,120},\s*[a-z ]{3,60}(?:,\s*\d{4})?)\b/i)?.[1]);
     if (landingPage && !out.identityFacts.some((item) => item.fieldName === "siteName")) {
       if (title && !/^(?:home|homepage)$/i.test(title)) addIdentity(out, doc, "siteName", title);
     }

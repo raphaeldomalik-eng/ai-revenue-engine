@@ -148,7 +148,7 @@ type IdentityContext = Parameters<typeof verifyFirstPartyIdentity>[1];
 function namedLocalityOnSite(venueName: string, locality: string | null, heldAddress: string | null, identityFacts: Array<{ fieldName: string; value: unknown }>) {
   const locTerms = locationCandidateTerms(locality, heldAddress);
   if (!locTerms.length) return false;
-  const headings = identityFacts.filter((item) => ["siteName", "explicitVenueName"].includes(item.fieldName) && typeof item.value === "string").map((item) => item.value as string);
+  const headings = identityFacts.filter((item) => ["siteName", "explicitVenueName", "placeName"].includes(item.fieldName) && typeof item.value === "string").map((item) => item.value as string);
   const named = headings.some((value) => nameMatches(venueName, value, locTerms));
   if (!named) return false;
   const normHeadings = headings.map((value) => ` ${normalise(value)} `);

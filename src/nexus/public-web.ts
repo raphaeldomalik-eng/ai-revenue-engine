@@ -166,7 +166,14 @@ export function businessEmail(value: string) {
 }
 
 function verifyIdentity(request: ResearchRequest, context: ResearchContext, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
-  return verifyFirstPartyIdentity(targetName(request, context), context, identityFacts);
+  return verifyFirstPartyIdentity(targetName(request, context), withVerifiedNexusOrigin(request, context), identityFacts);
+}
+
+export function withVerifiedNexusOrigin(request: ResearchRequest, context: ResearchContext): ResearchContext {
+  const targetHost = (() => { try { return new URL(context.targetWebsite ?? "").hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } })();
+  const verifiedSource = context.existingFacts?.some(f => f.fieldName === "verifiedWebsiteOrigin" && f.value === targetHost && Boolean(f.evidenceRef) && request.existingEvidenceRefs.includes(f.evidenceRef!));
+  const verifiedOriginFact = verifiedSource ? { fieldName: "verifiedWebsiteOriginMatch", value: true, evidenceRef: "nexus:verified-source-origin" } : null;
+  return verifiedOriginFact ? { ...context, existingFacts: [...(context.existingFacts ?? []), verifiedOriginFact] } : context;
 }
 
 export function verifyFirstPartyIdentity(name: string | null, context: Pick<ResearchContext, "locality" | "existingFacts">, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
@@ -175,7 +182,7 @@ export function verifyFirstPartyIdentity(name: string | null, context: Pick<Rese
   const locality = context.locality?.trim();
   const locTerms = locationCandidateTerms(locality, existingAddress);
 
-  const values = identityFacts.filter((item) => ["siteName", "explicitVenueName"].includes(item.fieldName)).map((item) => text(item.value)).filter((item): item is string => Boolean(item));
+  const values = identityFacts.filter((item) => ["siteName", "explicitVenueName", "placeName"].includes(item.fieldName)).map((item) => text(item.value)).filter((item): item is string => Boolean(item));
   const nameSignal = values.some((value) => nameMatches(name, value, locTerms));
 
   const addressValues = identityFacts.filter((item) => item.fieldName === "address").map((item) => text(item.value)).filter((item): item is string => Boolean(item));
@@ -187,14 +194,17 @@ export function verifyFirstPartyIdentity(name: string | null, context: Pick<Rese
     }),
   );
 
-  const hasTitle = identityFacts.some((item) => item.fieldName === "siteName" && text(item.value) && nameMatches(name, text(item.value)!, locTerms));
-  const hasHeading = identityFacts.some((item) => item.fieldName === "explicitVenueName" && text(item.value) && nameMatches(name, text(item.value)!, locTerms));
-  const existingPlaceEvidence = Boolean(
-    context.existingFacts?.some((item) => item.fieldName === "placeId")
-      && context.existingFacts?.some((item) => item.fieldName === "placeName" && nameMatches(name, text(item.value) ?? "", locTerms)),
-  );
-  if (nameSignal && (!locationRequired || locationSignal) && (locationSignal || (hasTitle && hasHeading) || existingPlaceEvidence)) {
-    return { verified: true, path: "DIRECT" as const, signals: ["direct venue name", ...(locationSignal ? ["location alignment"] : []), ...(existingPlaceEvidence ? ["known Place identity"] : [])], nameSignal, locationSignal };
+  const hasTitle = identityFacts.some((item) => ["siteName", "placeName"].includes(item.fieldName) && text(item.value) && nameMatches(name, text(item.value)!, locTerms));
+  const hasHeading = identityFacts.some((item) => ["explicitVenueName", "placeName"].includes(item.fieldName) && text(item.value) && nameMatches(name, text(item.value)!, locTerms));
+  const existingPlaceEvidence = Boolean(context.existingFacts?.some((place) =>
+    ["placeId", "google_place_id"].includes(place.fieldName)
+      && /^ChIJ[A-Za-z0-9_-]{23}$/.test(text(place.value) ?? "")
+      && Boolean(place.evidenceRef)
+      && context.existingFacts?.some((known) => known.fieldName === "placeName" && known.evidenceRef === place.evidenceRef && nameMatches(name, text(known.value) ?? "", locTerms)),
+  ));
+  const existingVerifiedOrigin = Boolean(context.existingFacts?.some((item) => item.fieldName === "verifiedWebsiteOriginMatch" && item.value === true && item.evidenceRef));
+  if (nameSignal && (locationSignal || ((existingPlaceEvidence || existingVerifiedOrigin) && hasTitle) || (!locationRequired && hasTitle && hasHeading))) {
+    return { verified: true, path: "DIRECT" as const, signals: ["direct venue name", ...(locationSignal ? ["location alignment"] : []), ...(existingPlaceEvidence ? ["known Place identity"] : []), ...(existingVerifiedOrigin ? ["existing verified Nexus origin"] : [])], nameSignal, locationSignal };
   }
 
   const siteNames = identityFacts.filter((item) => item.fieldName === "siteName").map((item) => text(item.value)).filter((item): item is string => Boolean(item));
