@@ -15,10 +15,33 @@ export type ResearchContext = ContractResearchContext & { googlePlacesEvidenceSt
 type Cost = { currency: string; amount: number } | null;
 export type ProviderResult = { provider: ProviderAllowance; purpose: string; facts: ProposedFact[]; evidence: Array<{ evidenceRef: string; provider: ProviderAllowance; externalRecordId: string; sourceUrl: string | null; observedAt: string; dataClassification: "PUBLIC" | "INTERNAL" | "RESTRICTED" | "CONFIDENTIAL" | "PII"; licenceType: string; payload: unknown }>; unknowns: string[]; conflicts: Array<Record<string, unknown>>; cost: Cost; providerUsage?: Array<{ provider: ProviderAllowance; callCount: number; purpose: string; cost: Cost }>; error?: { code: string; message: string; retryable: boolean } };
 export type ResearchExecutorOptions = { estimatedCosts?: Partial<Record<ProviderAllowance, number>>; now?: () => string; googlePlaces?: typeof searchGooglePlaces; googlePlaceDetails?: typeof getGooglePlaceDetails; googlePlacesEvidenceStore?: GooglePlacesEvidenceStore; onGooglePlacesCallTelemetry?: (telemetry: GooglePlacesCallTelemetry) => void | Promise<void>; companiesHouse?: typeof searchCompaniesHouse; publicWeb?: (input: { request: ResearchRequest; context: ResearchContext }) => Promise<ProviderResult>; openAI?: typeof researchCompany };
-export type SourceDiscoveryExecutorOptions = { fetchImpl?: FetchLike; resolveHost?: ResolveHost; now?: () => string; documentCache?: DocumentCache; profiles?: CrawlInput["profiles"]; renderAdapter?: CrawlInput["renderAdapter"]; renderPolicy?: CrawlInput["renderPolicy"]; userAgent?: string; politeness?: CrawlInput["politeness"]; sleep?: (ms: number) => Promise<void>; onCrawlObservability?: (observability: CrawlObservability) => void | Promise<void> };
+export type SourceDiscoveryExecutorOptions = { fetchImpl?: FetchLike; resolveHost?: ResolveHost; now?: () => string; documentCache?: DocumentCache; profiles?: CrawlInput["profiles"]; renderAdapter?: CrawlInput["renderAdapter"]; renderPolicy?: CrawlInput["renderPolicy"]; userAgent?: string; politeness?: CrawlInput["politeness"]; sleep?: (ms: number) => Promise<void>; allowedHosts?: string[]; onCrawlObservability?: (observability: CrawlObservability) => void | Promise<void> };
 
-export interface NexusResultStore { get(key: string): Promise<Record<string, unknown> | null>; set(key: string, result: Record<string, unknown>): Promise<void>; }
-export class InMemoryNexusResultStore implements NexusResultStore { private readonly values = new Map<string, Record<string, unknown>>(); async get(key: string) { return this.values.get(key) ?? null; } async set(key: string, result: Record<string, unknown>) { this.values.set(key, result); } }
+export type BatchRequestReservation = { scopeId: string; manifestSha256: string; listingId: string; host: string; idempotencyKey: string; requestBudget: number; validFrom: string; validUntil: string; maxVenues: number; maxRequestsPerVenue: number; maxTotalRequests: number };
+export type BatchRequestReceipt = { scopeId: string; manifestSha256: string; listingId: string; host: string; idempotencyKey: string; status: string; requestCount: number; bytesRead: number; providerCostUsd: 0; resultStatus: string };
+export interface NexusResultStore {
+  get(key: string): Promise<Record<string, unknown> | null>;
+  set(key: string, result: Record<string, unknown>): Promise<void>;
+  reserveBatchRequest?(reservation: BatchRequestReservation): Promise<boolean>;
+  completeBatchRequest?(receipt: BatchRequestReceipt): Promise<void>;
+}
+export class InMemoryNexusResultStore implements NexusResultStore {
+  private readonly values = new Map<string, Record<string, unknown>>();
+  private readonly batchReservations = new Map<string, BatchRequestReservation>();
+  private batchReservedRequests = new Map<string, number>();
+  async get(key: string) { return this.values.get(key) ?? null; }
+  async set(key: string, result: Record<string, unknown>) { this.values.set(key, result); }
+  async reserveBatchRequest(input: BatchRequestReservation) {
+    if (!this.batchReservedRequests.has(input.scopeId)) this.batchReservedRequests.set(input.scopeId, 0);
+    const requests = this.batchReservedRequests.get(input.scopeId)!;
+    const existing = [...this.batchReservations.values()].some(row => row.scopeId === input.scopeId && (row.listingId === input.listingId || row.idempotencyKey === input.idempotencyKey));
+    if (existing || requests + input.requestBudget > input.maxTotalRequests) return false;
+    this.batchReservations.set(`${input.scopeId}:${input.listingId}`, input);
+    this.batchReservedRequests.set(input.scopeId, requests + input.requestBudget);
+    return true;
+  }
+  async completeBatchRequest(_receipt: BatchRequestReceipt) {}
+}
 
 function nowOf(options: { now?: () => string }) { return options.now?.() ?? new Date().toISOString(); }
 function text(value: unknown): string | null { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -180,6 +203,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
       freshnessMaxAgeHours: request.freshnessRequirements.maxAgeHours ?? undefined,
       emailGoal,
       venueName,
+      allowedHosts: options.allowedHosts,
     });
   } catch (error) {
     const result = validateSourceDiscoveryResult({

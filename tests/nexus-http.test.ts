@@ -3,6 +3,8 @@ import test from "node:test";
 import { InMemoryNexusResultStore } from "../src/nexus/executor.ts";
 import { handleNexusExecuteRequest } from "../src/nexus/http.ts";
 import { buildNexusEnvelope, nexusSignatureFor, NEXUS_MAX_BODY_BYTES } from "../src/nexus/transport.ts";
+import { sourceDiscoveryRequestSha256 } from "../src/nexus/source-discovery/batch-scope.ts";
+import { validateSourceDiscoveryRequest } from "../src/nexus/contracts.ts";
 
 const secret = "test-nexus-secret";
 const nowSeconds = 1_800_000_000;
@@ -328,4 +330,42 @@ test("source discovery stays unavailable when its lane is closed", async () => {
   assert.equal(response.status, 404);
   assert.equal((await response.json() as { code: string }).code, "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE");
   assert.equal(discoveryCalls, 0);
+});
+
+test("production admits only an exact scoped source request and records one durable reservation", async () => {
+  const previous = process.env.VERCEL_ENV;
+  process.env.VERCEL_ENV = "production";
+  try {
+    const payload = sourceDiscovery({ acquisitionGoal: "VENUE_EMAIL", requestedExtractors: ["IDENTITY", "PUBLIC_CONTACT"],
+      batchExecution: { scopeId: "77777777-7777-4777-8777-777777777777", manifestSha256: "a".repeat(64), listingId: "88888888-8888-4888-8888-888888888888" } }) as Record<string, any>;
+    const normalized = validateSourceDiscoveryRequest(payload);
+    const { batchExecution: _binding, ...unbound } = normalized;
+    const scope = { scopeId: payload.batchExecution.scopeId, manifestSha256: payload.batchExecution.manifestSha256,
+      validFrom: "2027-01-15T07:00:00.000Z", validUntil: "2027-01-15T09:00:00.000Z", maxVenues: 1,
+      maxRequestsPerVenue: 2, maxTotalRequests: 2, paidProviderBudgetUsd: 0 as const,
+      records: [{ listingId: payload.batchExecution.listingId, host: "venue.example", idempotencyKey: payload.idempotencyKey,
+        requestSha256: sourceDiscoveryRequestSha256(unbound as Record<string, unknown>) }] };
+    let reservations = 0, receipts = 0, executions = 0;
+    const store = new InMemoryNexusResultStore();
+    store.reserveBatchRequest = async () => { reservations++; return true; };
+    store.completeBatchRequest = async () => { receipts++; };
+    const executeSourceDiscovery = async (input: unknown) => { executions++; return {
+      contractVersion: "nexus.source-discovery-result.v1", discoveryRequestId: payload.discoveryRequestId, idempotencyKey: payload.idempotencyKey,
+      subjectReference: payload.subjectReference, source: { verifiedUrl: "https://venue.example/", finalUrl: "https://venue.example/", observedAt: "2027-01-15T08:00:00.000Z", sourceHash: "abc" },
+      crawl: { status: "COMPLETED", warnings: [], requestCount: 1, pageCount: 1, bytesRead: 10, redirects: 0, blockedCount: 0, retryable: false },
+      identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [],
+    }; };
+    const response = await handleNexusExecuteRequest(signedRequest(payload), { ...options(store), allowSourceDiscovery: false,
+      allowScopedSourceDiscovery: true, sourceDiscoveryBatchScope: scope, executeSourceDiscovery });
+    assert.equal(response.status, 200);
+    assert.equal(executions, 1); assert.equal(reservations, 1); assert.equal(receipts, 1);
+    const altered = await handleNexusExecuteRequest(signedRequest(sourceDiscovery({ ...payload, venueName: "Changed request" })), {
+      ...options(new InMemoryNexusResultStore()), allowSourceDiscovery: false, allowScopedSourceDiscovery: true,
+      sourceDiscoveryBatchScope: scope, executeSourceDiscovery,
+    });
+    assert.equal(altered.status, 403);
+    assert.equal(executions, 1);
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = previous;
+  }
 });
