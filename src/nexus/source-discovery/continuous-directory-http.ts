@@ -33,8 +33,10 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
    const result=validateSourceDiscoveryResult(cached);
    if(result.source.verifiedUrl!==input.verifiedSourceUrl||JSON.stringify(result.subjectReference)!==JSON.stringify(input.subjectReference))return Response.json({code:'DIRECTORY_REPLAY_SUBJECT_MISMATCH'},{status:409});
    if(['BLOCKED','FAILED'].includes(result.crawl.status)){
+    const quarantined=()=>options.ledger.isQuarantined?.(options.policy.policyId,item.identityKey)??Promise.resolve(false);
+    if(await quarantined())return Response.json({result,receipt:{cacheReused:1,executed:0,quarantined:1,actualHttpRequestsKnown:0,knownCostUsd:0}});
     const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async()=>({requestCount:0,costUsd:0,status:result.crawl.status,retryable:false}),now);
-    return Response.json({result,receipt:{...receipt,cacheReused:1}},{status:receipt.denied?409:200});
+    return Response.json({result,receipt:{...receipt,cacheReused:1}},{status:receipt.denied&&!await quarantined()?409:200});
    }
    return Response.json({result,receipt:{cacheReused:1,executed:0,actualHttpRequestsKnown:0,knownCostUsd:0}});
   }

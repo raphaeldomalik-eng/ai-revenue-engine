@@ -4,7 +4,7 @@ export type DirectoryWork={queueId:string;identityKey:string;country:string;veri
 export type Reservation={policyId:string;policySha256:string;queueId:string;identityKey:string;country:string;host:string;reservationKey:string;requestBudget:number;day:string};
 export type ExecutionReceipt={requestCount:number;costUsd:number;status:string;retryable?:boolean;resultRef?:string};
 export type Completion=Reservation&{state:string;requestCount:number|null;costUsd:number|null;nextAttemptAt:string|null;error?:string;resultRef?:string};
-export type ContinuousLedger={reserve:(r:Reservation)=>Promise<boolean>;complete:(r:Completion)=>Promise<void>};
+export type ContinuousLedger={reserve:(r:Reservation)=>Promise<boolean>;complete:(r:Completion)=>Promise<void>;isQuarantined?:(policyId:string,identityKey:string)=>Promise<boolean>};
 const stable=(v:unknown):string=>Array.isArray(v)?'['+v.map(stable).join(',')+']':v&&typeof v==='object'?'{'+Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>JSON.stringify(k)+':'+stable(x)).join(',')+'}':JSON.stringify(v)??'null';
 export const policyHash=(p:unknown)=>createHash('sha256').update(stable(p)).digest('hex');
 export function validateStandingPolicy(p:StandingPolicy,approvedHash:string,now:string){

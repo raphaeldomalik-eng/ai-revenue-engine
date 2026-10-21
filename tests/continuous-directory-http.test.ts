@@ -25,7 +25,9 @@ test('standing route reuses the exact existing production executor and honours d
   const failed=await handleContinuousDirectoryRequest(request(),{...opts,executor:{...executor,store:new InMemoryNexusResultStore(),executeSourceDiscovery:async()=>{const value=await executor.executeSourceDiscovery();return {...value,crawl:{...value.crawl,status:'FAILED',retryable:true}}}}});
   assert.equal(failed.status,503);
   const cachedStore=new InMemoryNexusResultStore();const base=await executor.executeSourceDiscovery();await cachedStore.set(sourceDiscoveryExecutionKey(payload.idempotencyKey,undefined,payload.acquisitionGoal),{...base,crawl:{...base.crawl,status:'BLOCKED',retryable:false}});
-  let cachedState='';const cached=await handleContinuousDirectoryRequest(request(),{...opts,ledger:{reserve:async()=>true,complete:async r=>{cachedState=r.state}},executor:{...executor,store:cachedStore,executeSourceDiscovery:async()=>{throw Error('CACHE_MUST_NOT_CRAWL')}}});
+  let cachedState='',cachedReservations=0;const cachedOptions={...opts,ledger:{isQuarantined:async()=>cachedState==='QUARANTINED',reserve:async()=>{cachedReservations++;return cachedReservations===1},complete:async (r:{state:string})=>{cachedState=r.state}},executor:{...executor,store:cachedStore,executeSourceDiscovery:async()=>{throw Error('CACHE_MUST_NOT_CRAWL')}}};
+  const cached=await handleContinuousDirectoryRequest(request(),cachedOptions);
   assert.equal(cached.status,200);assert.equal(cachedState,'QUARANTINED');assert.equal((await cached.json() as any).receipt.actualHttpRequestsKnown,0);
+  assert.equal((await handleContinuousDirectoryRequest(request(),cachedOptions)).status,200);assert.equal(cachedReservations,1);
  }finally{if(old===undefined)delete process.env.VERCEL_ENV;else process.env.VERCEL_ENV=old;}
 });
