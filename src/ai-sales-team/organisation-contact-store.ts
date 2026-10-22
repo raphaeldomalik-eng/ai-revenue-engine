@@ -3,7 +3,7 @@ import {ContactResearchError,type OrganisationContactStore,type OrganisationRese
 
 const table='organisation_contact_intelligence';
 function checked(error:unknown){if(error)throw new ContactResearchError('CONTACT_RESEARCH_PERSISTENCE_NOT_READY',503);}
-function encode(record:OrganisationResearchRecord,actor:string){return {nexus_organisation_id:record.nexusOrganisationId,identity:record.identity,revision:record.revision,shortlist:record.shortlist,selections:record.selections,replay_fingerprint:record.replayFingerprint,replay_observed_at:record.replayObservedAt,updated_by:actor,updated_at:new Date().toISOString()};}
+function encode(record:OrganisationResearchRecord,actor:string){return {identity:record.identity,revision:record.revision,shortlist:record.shortlist,selections:record.selections,replay_fingerprint:record.replayFingerprint,replay_observed_at:record.replayObservedAt,updated_by:actor,updated_at:new Date().toISOString()};}
 function decode(row:Record<string,unknown>):OrganisationResearchRecord{return {nexusOrganisationId:row.nexus_organisation_id as string,identity:row.identity as OrganisationResearchRecord['identity'],revision:Number(row.revision),shortlist:row.shortlist as OrganisationResearchRecord['shortlist'],selections:row.selections as OrganisationResearchRecord['selections'],replayFingerprint:row.replay_fingerprint as string|null,replayObservedAt:row.replay_observed_at as string|null,createdBy:row.created_by as string};}
 
 /** Session client preserves existing internal-member RLS; never uses a service key. */
@@ -22,7 +22,7 @@ export function createOrganisationContactStore(client:SupabaseClient,actor:strin
     },
     read,
     async create(record){
-      const {error}=await client.from(table).upsert({...encode(record,actor),created_by:actor},{onConflict:'nexus_organisation_id',ignoreDuplicates:true});checked(error);
+      const {error}=await client.from(table).upsert({nexus_organisation_id:record.nexusOrganisationId,...encode(record,actor),created_by:actor},{onConflict:'nexus_organisation_id',ignoreDuplicates:true});checked(error);
       const saved=await read(record.nexusOrganisationId);if(!saved)throw new ContactResearchError('CONTACT_RESEARCH_PERSISTENCE_NOT_READY',503);return saved;
     },
     async save(record,expectedRevision){

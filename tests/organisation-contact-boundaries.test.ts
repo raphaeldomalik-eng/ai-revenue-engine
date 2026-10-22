@@ -6,6 +6,19 @@ import {readNexusOrganisationResearchIdentity} from '../src/nexus/organisation-r
 import {handleOrganisationContactRequest} from '../src/ai-sales-team/organisation-contact-http.ts';
 import {ContactResearchError} from '../src/ai-sales-team/organisation-contact-research.ts';
 
+test('research refresh succeeds under hosted column grants without updating the canonical reference',async()=>{
+  const writable=new Set(['identity','revision','shortlist','selections','replay_fingerprint','replay_observed_at','updated_by','updated_at']);
+  const record={nexusOrganisationId:'org',identity:{} as never,revision:2,shortlist:[],selections:[],replayFingerprint:null,replayObservedAt:null,createdBy:'actor'};
+  const client=createClient('https://db.example','offline',{auth:{persistSession:false},global:{fetch:async(input,init)=>{
+    const request=new Request(input,init),url=new URL(request.url),patch=await request.json();
+    assert.equal(request.method,'PATCH');assert.equal(url.searchParams.get('nexus_organisation_id'),'eq.org');
+    if(Object.keys(patch).some(key=>!writable.has(key)))return Response.json({code:'42501',message:'permission denied for immutable column'},{status:403});
+    return Response.json({nexus_organisation_id:'org',created_by:'actor',...patch});
+  }}});
+  const saved=await createOrganisationContactStore(client,'actor').save(record,1);
+  assert.equal(saved.revision,2);assert.equal(saved.nexusOrganisationId,'org');assert.equal(saved.createdBy,'actor');
+});
+
 test('account reference update preserves metadata and rejects a concurrent user change',async()=>{
   let current={owner:'human',decision:'retain'};const before=structuredClone(current);
   const client=createClient('https://db.example','offline',{auth:{persistSession:false},global:{fetch:async(input,init)=>{

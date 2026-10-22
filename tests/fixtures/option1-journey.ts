@@ -27,7 +27,11 @@ export function option1Journey(){
       const body=await request.json(),existing=tables[table].find(row=>body.nexus_organisation_id&&row.nexus_organisation_id===body.nexus_organisation_id);
       if(existing&&request.headers.get('prefer')?.includes('ignore-duplicates'))matched=[existing];
       else {const row={id:'new-record',...body};tables[table].push(row);matched=[row];}
-    }else if(request.method==='PATCH'){const body=await request.json();matched.forEach(row=>Object.assign(row,body));}
+    }else if(request.method==='PATCH'){
+      const body=await request.json();
+      if(table==='organisation_contact_intelligence'&&('nexus_organisation_id' in body||'created_by' in body))return Response.json({code:'42501',message:'permission denied for immutable column'},{status:403});
+      matched.forEach(row=>Object.assign(row,body));
+    }
     else if(request.method!=='GET')throw Error('Unexpected request '+request.method);
     const singular=request.headers.get('accept')?.includes('vnd.pgrst.object');
     return new Response(JSON.stringify(singular?matched[0]:matched),{status:200,headers:{'content-type':'application/json'}});
