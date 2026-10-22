@@ -240,6 +240,14 @@ test("nested Place name remains evidence without replacing the organisation site
   assert.ok(facts.some((item) => item.fieldName === "placeName" && item.value === "iSibaya Room"));
 });
 
+test("a visible UK postal address in an unlabeled first-party footer retains its full postcode and source", () => {
+  const source = page("/", `<title>fabric London</title><footer><p>77a Charterhouse Street, London, EC1M 6HJ</p></footer>`);
+  const fact = extractFromFetchedDocuments([source], ["IDENTITY"]).identityFacts.find(item => item.fieldName === "address");
+  assert.equal(fact?.value, "77a Charterhouse Street, London, EC1M 6HJ");
+  assert.equal(fact?.sourceUrl, `${origin}/`);
+  assert.ok(fact?.evidenceRef.startsWith("source:"));
+});
+
 test("standalone booking ContactPoint on an explicit contact page retains contact type evidence", () => {
   const source = page("/contact", `<script type="application/ld+json">{"@type":"ContactPoint",
     "contactType":"venue bookings","telephone":"+44 20 7000 1111","email":"hire@venue.org"}</script>`);

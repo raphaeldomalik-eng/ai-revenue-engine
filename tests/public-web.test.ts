@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createPublicWebProvider, researchContextFromPayload } from "../src/nexus/public-web.ts";
+import { createPublicWebProvider, researchContextFromPayload, verifyFirstPartyIdentity } from "../src/nexus/public-web.ts";
 import { executeResearchRequest, InMemoryNexusResultStore } from "../src/nexus/executor.ts";
 import type { ResearchRequest } from "../src/nexus/contracts.ts";
 import { CONTRACTS, validateResearchRequest } from "../src/nexus/contracts.ts";
@@ -140,7 +140,7 @@ test("PUBLIC_WEB verifies a facility on its first-party operator site only with 
     context: {
       targetName: "SSISA Conference Centre", targetWebsite: "https://www.ssisa.test/", locality: "Cape Town",
       existingFacts: [
-        { fieldName: "placeId", value: "places/ssisa", evidenceRef: "place:ssisa" },
+        { fieldName: "placeId", value: `ChIJ${"S".repeat(23)}`, evidenceRef: "place:ssisa" },
         { fieldName: "placeName", value: "SSISA Conference Centre", evidenceRef: "place:ssisa" },
         { fieldName: "formattedAddress", value: "Boundary Road, Newlands, Cape Town, 7700, South Africa", evidenceRef: "place:ssisa" },
       ],
@@ -148,6 +148,25 @@ test("PUBLIC_WEB verifies a facility on its first-party operator site only with 
   });
   assert.equal(result.facts.some((fact) => fact.fieldName === "officialWebsite"), true);
   assert.equal((result.evidence.find((item) => item.provider === "PUBLIC_WEB")?.payload as any).verificationPath, "FACILITY_OPERATOR");
+});
+
+test("first-party structured placeName and the exact existing Place ID repair venue-name false negatives", () => {
+  const placeId = `ChIJ${"A".repeat(23)}`;
+  const facts = [{ fieldName: "siteName", value: "Parkwood Theatres" }, { fieldName: "placeName", value: "The Hazlitt Theatre" }];
+  const existingFacts = [{ fieldName: "placeId", value: placeId, evidenceRef: "listing:hazlitt:google_place_id" }, { fieldName: "placeName", value: "The Hazlitt Theatre", evidenceRef: "listing:hazlitt:google_place_id" }];
+  assert.equal(verifyFirstPartyIdentity("The Hazlitt Theatre", { locality: "Maidstone", existingFacts }, facts).verified, true);
+  assert.equal(verifyFirstPartyIdentity("The Hazlitt Theatre", { locality: "Maidstone", existingFacts: [{ ...existingFacts[0], value: "not-a-place-id" }, existingFacts[1]] }, facts).verified, false);
+});
+
+test("a previously verified Nexus source origin plus the same first-party venue name is reusable without an address on that page", async () => {
+  const body = '<html><head><title>Union Chapel</title></head><body><h1>Union Chapel</h1><p>Venue hire and private events in London.</p></body></html>';
+  const provider = createPublicWebProvider({ fetchImpl: fetchSite(body), resolveHost: resolver });
+  const evidenceRef = "nexus:source_entity_classification:union";
+  const result = await provider({ request: { ...request(), existingEvidenceRefs: [evidenceRef] }, context: {
+    targetName: "Union Chapel", targetWebsite: "https://unionchapel.test/", locality: "London",
+    existingFacts: [{ fieldName: "verifiedWebsiteOrigin", value: "unionchapel.test", evidenceRef }],
+  } });
+  assert.equal(result.facts.some(f => f.fieldName === "officialWebsite"), true);
 });
 
 test("PUBLIC_WEB does not treat an organisation in the same locality as facility proof", async () => {

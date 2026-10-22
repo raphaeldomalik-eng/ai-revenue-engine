@@ -38,6 +38,14 @@ test('existing crawler verifies a seed, returns neutral research evidence, accou
  const first=h.counts();const replay=await handleDirectoryVerificationRequest(request(),h.options);assert.equal(replay.status,200);assert.equal((await replay.json() as any).receipt.actualHttpRequestsKnown,0);assert.deepEqual(h.counts(),first);
  const substituted={...payload,researchContext:{...payload.researchContext,locality:'York'}};assert.equal((await handleDirectoryVerificationRequest(request(substituted),h.options)).status,409);
 });
+test('cached first-party name can reuse an independently verified exact Nexus origin without copying its address into website evidence',async()=>{
+ const h=harness();h.options.fetchImpl=async(input:RequestInfo|URL)=>{const u=new URL(String(input));if(u.pathname==='/robots.txt')return new Response('',{status:404});return new Response('<html><head><title>Alpha Hall</title></head><body><h1>Alpha Hall</h1><p>Venue hire and private events.</p></body></html>',{headers:{'content-type':'text/html'}})};
+ const evidenceRef='nexus:source_entity_classification:alpha';const facts=[{fieldName:'formattedAddress',value:'10 High Street, Bristol, BS1 1AA',evidenceRef:'listing:alpha:stored_address'},{fieldName:'verifiedWebsiteOrigin',value:'alpha.example',evidenceRef}];
+ const input={...payload,existingEvidenceRefs:[...payload.existingEvidenceRefs,evidenceRef],researchContext:{...payload.researchContext,existingFacts:facts}};
+ const response=await handleDirectoryVerificationRequest(request(input,{evidenceRef:'osm:node/1'}),h.options);const body=await response.json() as any;
+ assert.equal(response.status,200,JSON.stringify(body));assert.equal(body.verification.state,'VERIFIED');
+ assert.equal(body.result.facts.some((f:any)=>f.fieldName==='address'),false);
+});
 test('same name in the wrong town cannot become an official site or a venue; terminal replay stays idempotent',async()=>{
  const h=harness('York');const response=await handleDirectoryVerificationRequest(request(),h.options);const body=await response.json() as any;
  assert.equal(response.status,200);assert.equal(body.verification.state,'UNVERIFIED');assert.equal(body.result.facts.length,0);assert.equal(h.counts().states[0],'QUARANTINED');

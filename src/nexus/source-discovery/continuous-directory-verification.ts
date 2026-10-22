@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {validateResearchRequest,validateResearchResult} from '../contracts.ts';
 import {executeResearchRequest,InMemoryNexusResultStore,retryableProviderFailure,type NexusResultStore,type ProviderResult} from '../executor.ts';
-import {createPublicWebProvider} from '../public-web.ts';
+import {createPublicWebProvider,withVerifiedNexusOrigin} from '../public-web.ts';
 import {assessWebsiteIdentity,candidateRejection} from '../official-website-discovery.ts';
 import {visibleText} from './html.ts';
 import {parseNexusEnvelope,verifyNexusSignature,NEXUS_MAX_BODY_BYTES} from '../transport.ts';
@@ -46,13 +46,13 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[]}|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const observation:{crawl:CrawlOutput|null}={crawl:null};
-   const provider=createPublicWebProvider({fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:2,maxRequests:context.requestBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
+   const provider=createPublicWebProvider({fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:context.requestBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
    const adapted=async(args:Parameters<typeof provider>[0]):Promise<ProviderResult>=>{
     const value=await provider(args),crawl=observation.crawl;
     if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
     const facts=extractFromFetchedDocuments(crawl.documents,['IDENTITY']).identityFacts;
     const address=research.existingFacts?.find(f=>f.fieldName==='formattedAddress')?.value;
-    const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:research,finalUrl:crawl.finalUrl,identityFacts:facts});
+    const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts});
     const siteEvidence=value.evidence.find(e=>(e.payload as {kind?:string})?.kind==='FIRST_PARTY_WEBSITE');
     const state=crawl.stats.status==='BLOCKED'?'BLOCKED':assessment.verified?'VERIFIED':'UNVERIFIED';
     verification={state,url:assessment.verified?crawl.finalUrl:null,evidenceRef:siteEvidence?.evidenceRef??null,signals:assessment.signals};
