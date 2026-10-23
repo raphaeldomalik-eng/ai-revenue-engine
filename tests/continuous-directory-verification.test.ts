@@ -27,6 +27,12 @@ test('verification requires explicit policy scope, signed authority, neutral sub
  const p={...policy,actions:['ENRICH_VERIFIED_VENUE']};assert.equal((await handleDirectoryVerificationRequest(request(),{...h.options,policy:p,approvedPolicyHash:policyHash(p)})).status,404);
  assert.equal(h.counts().requests,0);assert.equal(h.counts().reservations,0);
 });
+test('shared policy accepts signed LTH verification with a bound run while retaining neutral research scope',async()=>{
+ const h=harness(),{maxVenuesPerDay,maxRequestsPerDay,...base}=policy;
+ const p={...base,budgetMode:'PER_RUN' as const,maxVenuesPerRun:500,maxRequestsPerRun:2500};const runId='55555555-5555-4555-8555-555555555555';let reservations=0;
+ const response=await handleDirectoryVerificationRequest(request({...payload,originatingProduct:'last_train_home'},{policySha256:policyHash(p),runId}),{...h.options,policy:p,approvedPolicyHash:policyHash(p),ledger:{reserve:async r=>{assert.equal(r.runId,runId);reservations++;return false},complete:async()=>{}}});
+ assert.equal(response.status,409);assert.equal(reservations,1);assert.equal(h.counts().requests,0);
+});
 test('a cached result repairs a lost completion receipt without recrawling or reserving twice',async()=>{
  const h=harness();let lost=true;const complete=h.options.ledger.complete;h.options.ledger.complete=async r=>{if(lost){lost=false;throw Error('LOST_DATABASE_ACK')}await complete(r)};
  assert.notEqual((await handleDirectoryVerificationRequest(request(),h.options)).status,200);const first=h.counts();
