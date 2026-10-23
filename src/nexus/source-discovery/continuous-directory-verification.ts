@@ -8,7 +8,21 @@ import {parseNexusEnvelope,verifyNexusSignature,NEXUS_MAX_BODY_BYTES} from '../t
 import {extractFromFetchedDocuments,type CrawlOutput,type FetchLike,type ResolveHost} from './crawler.ts';
 import {policyHash,validateStandingPolicy,standingPolicyAllows,runContinuousDirectoryTick,type StandingPolicy,type ContinuousLedger,type DirectoryWork} from './continuous-directory-policy.ts';
 
-type Options={policy:StandingPolicy;approvedPolicyHash:string;secret:string;store:NexusResultStore;ledger:ContinuousLedger;now?:()=>number;fetchImpl?:FetchLike;resolveHost?:ResolveHost};
+type ContinuationEntry={queueId:string;requestId:string;identityKey:string;host:string};
+type Continuation={sourcePolicyId:string;sourcePolicySha256:string;originalRequestBudget:number;priorRequestCount:number;additionalRequestBudget:number;entries:ContinuationEntry[]};
+export type VerificationPolicy=StandingPolicy&{continuation?:Continuation};
+type Options={policy:VerificationPolicy;approvedPolicyHash:string;secret:string;store:NexusResultStore;ledger:ContinuousLedger;now?:()=>number;fetchImpl?:FetchLike;resolveHost?:ResolveHost;continuationReady?:(entry:ContinuationEntry,now:string)=>Promise<boolean>};
+export function validatedVerificationContinuation(policy:VerificationPolicy):Continuation|null{
+ const c=policy.continuation;if(!c)return null;
+ const window=Date.parse(policy.validUntil)-Date.parse(policy.validFrom);
+ if(!c.sourcePolicyId||!/^[a-f0-9]{64}$/.test(c.sourcePolicySha256)||c.originalRequestBudget!==6||c.priorRequestCount!==3||c.additionalRequestBudget!==3
+  ||c.entries?.length!==2||new Set(c.entries.map(e=>e.queueId)).size!==2||c.entries.some(e=>!/^[a-f0-9]{64}$/.test(e.queueId)||!e.requestId||!e.identityKey||!e.host)
+  ||policy.actions?.length!==1||policy.actions[0]!=='VERIFY_WEBSITE'||policy.countries.length!==1||policy.countries[0]!=='GB'
+  ||policy.maxVenuesPerDay!==2||policy.maxRequestsPerDay!==6||policy.maxRequestsPerVenue!==3||policy.maxBatchVenues!==2
+  ||policy.minHostDelayMs<2000||policy.maxAttempts!==1||!Number.isFinite(window)||window<=0||window>30*60*1000
+  ||policy.paidProviderBudgetUsd!==0||policy.publicationAllowed!==false||policy.outreachAllowed!==false)throw Error('DIRECTORY_CONTINUATION_SCOPE_INVALID');
+ return c;
+}
 const uuid=(seed:string)=>{const h=createHash('sha256').update(seed).digest('hex');return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`;};
 const cacheReceipt={cacheReused:1,executed:0,actualHttpRequestsKnown:0,knownCostUsd:0};
 
@@ -16,6 +30,8 @@ const cacheReceipt={cacheReused:1,executed:0,actualHttpRequestsKnown:0,knownCost
 export async function handleDirectoryVerificationRequest(request:Request,options:Options):Promise<Response>{
  const nowMs=options.now?.()??Date.now(),now=new Date(nowMs).toISOString();
  try{validateStandingPolicy(options.policy,options.approvedPolicyHash,now)}catch{return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404})}
+ let continuation:Continuation|null;
+ try{continuation=validatedVerificationContinuation(options.policy)}catch{return Response.json({code:'DIRECTORY_CONTINUATION_SCOPE_INVALID'},{status:404})}
  if(!standingPolicyAllows(options.policy,'VERIFY_WEBSITE'))return Response.json({code:'DIRECTORY_VERIFICATION_INACTIVE'},{status:404});
  const reader=request.body?.getReader();if(!reader)return Response.json({code:'BODY_REQUIRED'},{status:400});
  const chunks:Uint8Array[]=[];let length=0;
@@ -27,26 +43,44 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   if(raw.contractVersion!=='nexus.research-request.v1'||raw.originatingProduct!=='event_suite_resources'||raw.researchPurpose!=='SOURCE_ENTITY_CLASSIFICATION'||(raw.subject as {entityType?:string})?.entityType!=='UNKNOWN'||JSON.stringify(raw.providerAllowances)!=='["PUBLIC_WEB"]'||(raw.costCeiling as {currency?:string;amount?:number})?.currency!=='USD'||(raw.costCeiling as {amount?:number})?.amount!==0)return Response.json({code:'DIRECTORY_VERIFICATION_SCOPE'},{status:403});
   const input=validateResearchRequest(raw),context=JSON.parse(body).directoryContext;
   const research=input.researchContext,seed=research?.targetWebsite;
-  if(context?.policyId!==options.policy.policyId||context?.policySha256!==options.approvedPolicyHash||context?.action!=='VERIFY_WEBSITE')return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
+  const entry=continuation?.entries.find(e=>e.queueId===context?.queueId);
+  const policyBound=continuation?Boolean(entry&&context?.policyId===continuation.sourcePolicyId&&context?.policySha256===continuation.sourcePolicySha256
+    &&entry.requestId===input.requestId&&entry.identityKey===context.identityKey&&entry.host===new URL(seed??'https://invalid.example').hostname.toLowerCase()
+    &&context.requestBudget===continuation.originalRequestBudget)
+   :context?.policyId===options.policy.policyId&&context?.policySha256===options.approvedPolicyHash;
+  if(!policyBound||context?.action!=='VERIFY_WEBSITE')return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
   const identity=input.subject.canonicalEntityId?'canonical:'+input.subject.canonicalEntityId:input.subject.candidateReference?.sourceSystem+':'+input.subject.candidateReference?.sourceRecordId;
   if(context.identityKey!==identity||context.country!==research?.territory||!options.policy.countries.includes(context.country)||!input.existingEvidenceRefs.includes(context.evidenceRef))return Response.json({code:'DIRECTORY_SUBJECT_BINDING_REQUIRED'},{status:403});
   if(context.canonicalImportAllowed!==false||policyHash(context.sourceLineage??[])!==policyHash(research?.existingFacts?.find(f=>f.fieldName==='sourceLineage')?.value??[]))return Response.json({code:'DIRECTORY_LINEAGE_BINDING_REQUIRED'},{status:403});
-  if(!seed||!research?.targetName||!research.locality||candidateRejection(seed)||!context.queueId||!Number.isSafeInteger(context.attempts)||context.attempts<0||!Number.isSafeInteger(context.requestBudget)||context.requestBudget<1||context.requestBudget>options.policy.maxRequestsPerVenue||!Array.isArray(context.gaps)||!context.gaps.length)return Response.json({code:'DIRECTORY_VERIFICATION_CONTEXT_REQUIRED'},{status:400});
-  const fingerprint=policyHash({subject:input.subject,purpose:input.researchPurpose,facts:input.requestedFactTypes,context:research,evidenceRefs:input.existingEvidenceRefs,freshness:input.freshnessRequirements,policy:options.approvedPolicyHash,queue:context.queueId,budget:context.requestBudget,gaps:context.gaps});
+  if(!seed||!research?.targetName||!research.locality||candidateRejection(seed)||!context.queueId||!Number.isSafeInteger(context.attempts)||context.attempts<0||!Number.isSafeInteger(context.requestBudget)||context.requestBudget<1||context.requestBudget>(continuation?.originalRequestBudget??options.policy.maxRequestsPerVenue)||!Array.isArray(context.gaps)||!context.gaps.length)return Response.json({code:'DIRECTORY_VERIFICATION_CONTEXT_REQUIRED'},{status:400});
+  const fingerprint=policyHash({subject:input.subject,purpose:input.researchPurpose,facts:input.requestedFactTypes,context:research,evidenceRefs:input.existingEvidenceRefs,freshness:input.freshnessRequirements,policy:continuation?.sourcePolicySha256??options.approvedPolicyHash,queue:context.queueId,budget:context.requestBudget,gaps:context.gaps});
   const key=uuid('directory-verification-v1:'+input.idempotencyKey),cached=await options.store.get(key);
   if(cached&&cached.directoryRequestSha256!==fingerprint)return Response.json({code:'DIRECTORY_REPLAY_SUBJECT_MISMATCH'},{status:409});
+  if(continuation){
+   if(!entry||!cached)return Response.json({code:'DIRECTORY_CONTINUATION_ORIGINAL_REQUIRED'},{status:409});
+   const prior=cached.directoryReservation as Parameters<ContinuousLedger['complete']>[0]|undefined;
+   if(!retryableProviderFailure(cached)){
+    if(prior?.policyId!==options.policy.policyId||prior.policySha256!==options.approvedPolicyHash||prior.queueId!==entry.queueId||prior.identityKey!==entry.identityKey)
+     return Response.json({code:'DIRECTORY_CONTINUATION_ALREADY_FINAL'},{status:409});
+   }else{
+    if(cached.directoryRequestCount!==continuation.priorRequestCount||!prior||prior.policyId!==continuation.sourcePolicyId||prior.policySha256!==continuation.sourcePolicySha256||prior.queueId!==entry.queueId||prior.identityKey!==entry.identityKey)
+     return Response.json({code:'DIRECTORY_CONTINUATION_ORIGINAL_REQUIRED'},{status:409});
+    if(!options.continuationReady||!await options.continuationReady(entry,now))return Response.json({code:'DIRECTORY_CONTINUATION_NOT_READY'},{status:409});
+   }
+  }
   if(cached&&!retryableProviderFailure(cached)){
    const reservation=cached.directoryReservation as Parameters<ContinuousLedger['complete']>[0]|undefined;
    if(!reservation||reservation.policyId!==options.policy.policyId||reservation.policySha256!==options.approvedPolicyHash||reservation.identityKey!==identity||reservation.queueId!==context.queueId)return Response.json({code:'DIRECTORY_CACHED_RESERVATION_SCOPE'},{status:409});
    await options.ledger.complete({...reservation,state:(cached.directoryVerification as {state:string}).state==='VERIFIED'?'COMPLETED':'QUARANTINED',requestCount:Number(cached.directoryRequestCount),costUsd:0,nextAttemptAt:null,resultRef:input.requestId});
    return Response.json({result:validateResearchResult(cached),verification:cached.directoryVerification,receipt:cacheReceipt});
   }
-  const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:context.attempts,requestBudget:context.requestBudget,action:'VERIFY_WEBSITE'} as DirectoryWork;
+  const executionBudget=continuation?.additionalRequestBudget??context.requestBudget;
+  const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:context.attempts,requestBudget:executionBudget,action:'VERIFY_WEBSITE'} as DirectoryWork;
   let result:ReturnType<typeof validateResearchResult>|null=null;
   let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[]}|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const observation:{crawl:CrawlOutput|null}={crawl:null};
-   const provider=createPublicWebProvider({fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:context.requestBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
+   const provider=createPublicWebProvider({fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
    const adapted=async(args:Parameters<typeof provider>[0]):Promise<ProviderResult>=>{
     const value=await provider(args),crawl=observation.crawl;
     if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
