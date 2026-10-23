@@ -46,3 +46,14 @@ test('unverified or blocked websites do not stop unrelated eligible work in the 
  const result=await runContinuousDirectoryTick(rows,policy,policyHash(policy),{reserve:async()=>true,complete:async()=>{}},async work=>({requestCount:2,costUsd:0,status:work.queueId==='site6'?'COMPLETED':'BLOCKED',retryable:false}),now);
  assert.equal(result.executed,7);assert.equal(result.stopped,null);
 });
+
+test('version 2 uses bounded runs without requiring daily quotas and binds every durable reservation to the run',async()=>{
+ const {maxVenuesPerDay,maxRequestsPerDay,...base}=policy;
+ const p={...base,version:2,budgetMode:'PER_RUN' as const,maxVenuesPerRun:500,maxRequestsPerRun:2500,maxBatchVenues:500};
+ const runId='11111111-1111-4111-8111-111111111111',reservations:any[]=[];
+ assert.equal(validateStandingPolicy(p,policyHash(p),now).version,2);
+ const r=await runContinuousDirectoryTick([item('a'),item('b')],p,policyHash(p),{reserve:async value=>{reservations.push(value);return true},complete:async()=>{}},async()=>({requestCount:1,costUsd:0,status:'COMPLETED'}),now,runId);
+ assert.equal(r.executed,2);assert(reservations.every(value=>value.runId===runId));
+ for(const invalid of [{...p,maxVenuesPerRun:501},{...p,maxRequestsPerRun:2501}])assert.throws(()=>validateStandingPolicy(invalid,policyHash(invalid),now),/SCOPE/);
+ await assert.rejects(runContinuousDirectoryTick([item()],p,policyHash(p),{reserve:async()=>true,complete:async()=>{}},async()=>({requestCount:1,costUsd:0,status:'COMPLETED'}),now),/RUN_ID/);
+});

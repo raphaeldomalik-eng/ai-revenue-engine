@@ -1,0 +1,2 @@
+# The approval gate checks the exact owner-approved bytes, including CRLF.
+docs/agents/outreach-composer-prompt-pack-v1.md text eol=crlf
