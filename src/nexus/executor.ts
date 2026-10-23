@@ -9,6 +9,7 @@ import { deriveEmailAcquisitionOutcome } from "./source-discovery/email-outcome.
 import { acceptVenueEmail } from "./venue-email.ts";
 import { crawlLogLine, extractorYields } from "./source-discovery/observability.ts";
 import type { CrawlInput, DocumentCache } from "./source-discovery/types.ts";
+import { storeWithWebsiteOpportunity } from "./source-discovery/website-opportunity.ts";
 
 export type ProposedFact = { subjectEntityType: ResearchRequest["subject"]["entityType"]; canonicalEntityId: string | null; fieldName: string; value: unknown; evidenceRef: string | null; confidence: number | null; observedAt: string | null };
 export type ResearchContext = ContractResearchContext & { googlePlacesEvidenceStore?: GooglePlacesEvidenceStore; publicWeb?: { facts?: Array<{ fieldName: string; value: unknown; sourceUrl?: string | null; evidenceRef?: string | null }>; evidence?: Array<{ externalRecordId: string; sourceUrl?: string | null; payload?: unknown }> } };
@@ -172,7 +173,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   const emailGoal = venueEmailAcquisitionRequested(request);
   const versionedKey = sourceDiscoveryExecutionKey(request.idempotencyKey, SOURCE_DISCOVERY_EXECUTION_VERSION, request.acquisitionGoal);
   const versioned = await store.get(versionedKey);
-  if (sourceDiscoveryReplayable(versioned)) return versioned;
+  if (sourceDiscoveryReplayable(versioned)) return validateSourceDiscoveryResult(versioned);
   // v1 stored the client idempotency key with no email outcome. An email acquisition must not reuse it.
   // A venue-facts request must not reuse that legacy email payload either.
   if (!emailGoal && request.acquisitionGoal !== "VENUE_FACTS" && !versioned) {
@@ -253,7 +254,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     guideEmailReady: emailFound,
   });
   if (crawl.observability) await reportCrawlObservability({ ...crawl.observability, extractorYields: extractorYields(extracted) }, options);
-  await store.set(versionedKey, result);
+  await storeWithWebsiteOpportunity(store, versionedKey, result, crawl.websiteOpportunity);
   return result;
 }
 

@@ -362,6 +362,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
           verificationPath: verification.path,
           verificationSignals: verification.signals,
           sourceHashes: crawl.documents.map((item) => item.sourceHash),
+          websiteOpportunity: crawl.websiteOpportunity,
         }),
       }];
       const facts: ProviderResult["facts"] = [...seededPlaceFacts, { fieldName: "officialWebsite", value: finalUrl, evidenceRef: ref, confidence: verification.verified ? 0.95 : 0.6, observedAt, subjectEntityType: request.subject.entityType, canonicalEntityId: request.subject.canonicalEntityId }];
