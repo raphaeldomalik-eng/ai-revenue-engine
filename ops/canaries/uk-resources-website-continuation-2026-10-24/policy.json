@@ -1,0 +1,42 @@
+{
+  "policyId": "resources-directory-uk-verify-continuation-20261024",
+  "version": 1,
+  "enabled": true,
+  "validFrom": "2026-10-24T11:07:00.000Z",
+  "validUntil": "2026-10-24T11:37:00.000Z",
+  "countries": ["GB"],
+  "actions": ["VERIFY_WEBSITE"],
+  "maxVenuesPerDay": 2,
+  "maxRequestsPerDay": 6,
+  "maxRequestsPerVenue": 3,
+  "maxBatchVenues": 2,
+  "paidProviderBudgetUsd": 0,
+  "minHostDelayMs": 2000,
+  "freshnessHours": 720,
+  "maxAttempts": 1,
+  "retryBackoffHours": 24,
+  "stopAfterConsecutiveFailures": 2,
+  "publicationAllowed": false,
+  "outreachAllowed": false,
+  "continuation": {
+    "sourcePolicyId": "resources-directory-uk-verify-canary-20261022",
+    "sourcePolicySha256": "6d8346510acdbf4fb6e28fba5264b2270ef8914c8a8d64d57fcb3632717ded26",
+    "originalRequestBudget": 6,
+    "priorRequestCount": 3,
+    "additionalRequestBudget": 3,
+    "entries": [
+      {
+        "queueId": "84f63d82198d3e1c8a808d988323d132983e31ab328f92c2f2a9988e6508b0c7",
+        "requestId": "6d0630d5-3725-5af3-a5c3-cf39c5729a9b",
+        "identityKey": "event_suite_resources:6a3a2b05-4e5b-4c13-addb-7e9ac2b5fb7b",
+        "host": "estoneventscentre.co.uk"
+      },
+      {
+        "queueId": "9918efc1bc326cbaeb9f234e0232fd7b194e638e95a9ddcebfa2f90b2efc4b3f",
+        "requestId": "8bd79800-2c7b-57e0-abeb-dc42ff677d3e",
+        "identityKey": "event_suite_resources:80ff93b6-37aa-40d2-abb2-d71f034499ab",
+        "host": "actorschurch.org"
+      }
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {handleDirectoryVerificationRequest} from '../src/nexus/source-discovery/continuous-directory-verification.ts';
+import {handleDirectoryVerificationRequest,validatedVerificationContinuation} from '../src/nexus/source-discovery/continuous-directory-verification.ts';
+import fs from 'node:fs';
 import {policyHash} from '../src/nexus/source-discovery/continuous-directory-policy.ts';
 import {InMemoryNexusResultStore} from '../src/nexus/executor.ts';
 import {nexusSignatureFor} from '../src/nexus/transport.ts';
@@ -9,8 +10,9 @@ const now=Date.parse('2026-10-21T06:15:00Z'),secret='fixture-only';
 const id='11111111-1111-4111-8111-111111111111';
 const policy={policyId:'verification-test',version:2,enabled:true,actions:['ENRICH_VERIFIED_VENUE','VERIFY_WEBSITE'],validFrom:'2026-10-21T00:00:00Z',validUntil:'2027-01-01T00:00:00Z',countries:['GB','ZA'],maxVenuesPerDay:100,maxRequestsPerDay:1400,maxRequestsPerVenue:14,maxBatchVenues:26,paidProviderBudgetUsd:0,minHostDelayMs:1000,freshnessHours:720,maxAttempts:3,retryBackoffHours:24,stopAfterConsecutiveFailures:5,publicationAllowed:false,outreachAllowed:false};
 const payload={contractVersion:'nexus.research-request.v1',requestId:id,idempotencyKey:id,correlationId:id,originatingProduct:'event_suite_resources',subject:{canonicalEntityId:null,entityType:'UNKNOWN',candidateReference:{sourceSystem:'openstreetmap',sourceRecordId:'node/1'}},researchPurpose:'SOURCE_ENTITY_CLASSIFICATION',requestedFactTypes:['officialWebsite','schemaOrgTypes','address','classificationSignals'],providerAllowances:['PUBLIC_WEB'],costCeiling:{currency:'USD',amount:0},freshnessRequirements:{maxAgeHours:720},existingEvidenceRefs:['osm:node/1'],requestedBy:{actorType:'SYSTEM',actorId:'directory'},createdAt:new Date(now).toISOString(),researchContext:{targetName:'Alpha Hall',targetWebsite:'https://alpha.example/',territory:'GB',locality:'Bristol',existingFacts:[{fieldName:'formattedAddress',value:'10 High Street, Bristol, BS1 1AA',evidenceRef:'osm:node/1'}]}};
-const context={policyId:policy.policyId,policySha256:policyHash(policy),action:'VERIFY_WEBSITE',canonicalImportAllowed:false,queueId:'verification-1',identityKey:'openstreetmap:node/1',country:'GB',evidenceRef:'osm:node/1',gaps:['OFFICIAL_WEBSITE','SOURCE_CLASSIFICATION'],attempts:0,requestBudget:6};
+const context={policyId:policy.policyId,policySha256:policyHash(policy),action:'VERIFY_WEBSITE',canonicalImportAllowed:false,queueId:'a'.repeat(64),identityKey:'openstreetmap:node/1',country:'GB',evidenceRef:'osm:node/1',gaps:['OFFICIAL_WEBSITE','SOURCE_CLASSIFICATION'],attempts:0,requestBudget:6};
 function request(input:Record<string,unknown>=payload,change:Record<string,unknown>={},signed=true){const body=JSON.stringify({payload:input,directoryContext:{...context,...change}}),timestamp=String(now/1000);return new Request('https://aire.example/api/integrations/nexus/directory-verify',{method:'POST',headers:{'x-nexus-timestamp':timestamp,'x-nexus-signature':signed?nexusSignatureFor(timestamp,body,secret):'invalid'},body});}
+function requestAt(at:number,change:Record<string,unknown>={}){const body=JSON.stringify({payload,directoryContext:{...context,...change}}),timestamp=String(at/1000);return new Request('https://aire.example/api/integrations/nexus/directory-verify',{method:'POST',headers:{'x-nexus-timestamp':timestamp,'x-nexus-signature':nexusSignatureFor(timestamp,body,secret)},body});}
 function harness(city='Bristol'){
  let requests=0,reservations=0;const states:string[]=[];const store=new InMemoryNexusResultStore();
  const fetchImpl=async(input:RequestInfo|URL)=>{requests++;const url=new URL(String(input));if(url.pathname==='/robots.txt')return new Response('',{status:404});return new Response(`<html><head><title>Alpha Hall ${city}</title><script type="application/ld+json">{"@type":"EventVenue","name":"Alpha Hall","address":{"streetAddress":"10 High Street","addressLocality":"${city}","postalCode":"${city==='Bristol'?'BS1 1AA':'YO1 1AA'}"}}</script></head><body><h1>Alpha Hall ${city}</h1><p>Venue hire and conference facilities.</p></body></html>`,{headers:{'content-type':'text/html'}})};
@@ -55,4 +57,29 @@ test('temporary loss of the identity corroboration page remains retryable rather
  const h=harness();h.options.fetchImpl=async(input:RequestInfo|URL)=>{const u=new URL(String(input));if(u.pathname==='/robots.txt')return new Response('',{status:404});if(u.pathname==='/contact')return new Response('',{status:503});return new Response('<html><head><title>Alpha Hall</title></head><body><h1>Alpha Hall</h1><a href="/contact">Contact</a></body></html>',{headers:{'content-type':'text/html'}})};
  const response=await handleDirectoryVerificationRequest(request(),h.options);const body=await response.json() as any;
  assert.equal(response.status,503,JSON.stringify(body));assert.equal(h.counts().states[0],'RETRYABLE');assert(body.result.researchErrors.some((e:any)=>e.retryable));
+});
+test('a bounded continuation reuses only the original retryable request and caps its new crawl at three',async()=>{
+ const h=harness();let firstCalls=0;h.options.fetchImpl=async(input:RequestInfo|URL)=>{firstCalls++;const u=new URL(String(input));if(u.pathname==='/robots.txt')return new Response('',{status:404});if(u.pathname==='/contact')return new Response('',{status:503});return new Response('<html><head><title>Alpha Hall</title></head><body><h1>Alpha Hall</h1><a href="/contact">Contact</a></body></html>',{headers:{'content-type':'text/html'}})};
+ assert.equal((await handleDirectoryVerificationRequest(request(),h.options)).status,503);
+ assert.equal(firstCalls,3);
+ const later=Date.parse('2026-10-22T06:17:00Z');
+ const continuation={...policy,policyId:'verification-continuation-test',version:1,actions:['VERIFY_WEBSITE'],validFrom:'2026-10-22T06:16:00Z',validUntil:'2026-10-22T06:46:00Z',countries:['GB'],maxVenuesPerDay:2,maxRequestsPerDay:6,maxRequestsPerVenue:3,maxBatchVenues:2,minHostDelayMs:2000,maxAttempts:1,continuation:{sourcePolicyId:policy.policyId,sourcePolicySha256:policyHash(policy),originalRequestBudget:6,priorRequestCount:3,additionalRequestBudget:3,entries:[{queueId:context.queueId,requestId:id,identityKey:context.identityKey,host:'alpha.example'},{queueId:'f'.repeat(64),requestId:'22222222-2222-4222-8222-222222222222',identityKey:'event_suite_resources:second',host:'beta.example'}]}};
+ let ready=true;
+ let secondCalls=0;const goodFetch=async(input:RequestInfo|URL)=>{secondCalls++;const u=new URL(String(input));if(u.pathname==='/robots.txt')return new Response('',{status:404});return new Response('<html><head><title>Alpha Hall Bristol</title><script type="application/ld+json">{"@type":"EventVenue","name":"Alpha Hall","address":{"streetAddress":"10 High Street","addressLocality":"Bristol","postalCode":"BS1 1AA"}}</script></head><body><h1>Alpha Hall Bristol</h1></body></html>',{headers:{'content-type':'text/html'}})};
+ const options={...h.options,policy:continuation,approvedPolicyHash:policyHash(continuation),now:()=>later,fetchImpl:goodFetch,continuationReady:async()=>ready};
+ ready=false;assert.equal((await handleDirectoryVerificationRequest(requestAt(later),options)).status,409);assert.equal(secondCalls,0);ready=true;
+ const response=await handleDirectoryVerificationRequest(requestAt(later),options);assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
+ const second=h.counts();assert(secondCalls>0&&secondCalls<=3);assert.equal(second.reservations,2);
+ assert.equal((await handleDirectoryVerificationRequest(requestAt(later),options)).status,200);assert.deepEqual(h.counts(),second);assert(secondCalls<=3);
+ assert.equal((await handleDirectoryVerificationRequest(requestAt(later,{queueId:'another-queue'}),options)).status,403);
+ assert.equal((await handleDirectoryVerificationRequest(requestAt(later,{requestBudget:5}),options)).status,403);
+ const other=harness();const notReady={...options,store:other.options.store,continuationReady:async()=>false};
+ assert.equal((await handleDirectoryVerificationRequest(requestAt(later),notReady)).status,409);
+ assert.equal((await handleDirectoryVerificationRequest(requestAt(later),{...options,policy:{...continuation,maxRequestsPerDay:7},approvedPolicyHash:policyHash({...continuation,maxRequestsPerDay:7})})).status,404);
+});
+test('the recorded UK continuation policy is limited to two original requests and a thirty-minute window',()=>{
+ const recorded=JSON.parse(fs.readFileSync(new URL('../ops/canaries/uk-resources-website-continuation-2026-10-24/policy.json',import.meta.url),'utf8'));
+ assert.equal(policyHash(recorded),'6e46709713bbd8d3e835a8cfa7852a5ca827d7cb2555f3f64b80d636fd1bb46d');
+ assert.equal(validatedVerificationContinuation(recorded)?.entries.length,2);
+ assert.equal(recorded.continuation.sourcePolicySha256,'6d8346510acdbf4fb6e28fba5264b2270ef8914c8a8d64d57fcb3632717ded26');
 });
