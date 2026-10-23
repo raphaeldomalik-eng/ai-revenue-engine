@@ -3,6 +3,7 @@ import type { Dimension, ExtractorProfile } from "./planner.ts";
 import type { OriginPoliteness } from "./politeness.ts";
 import type { RenderAdapter, RenderPolicy } from "./render.ts";
 import type { OriginGrant, RedirectHop } from "./site-identity.ts";
+import type { WebsiteOpportunity } from "./website-opportunity.ts";
 
 export type ResolveHost = (hostname: string) => Promise<Array<{ address: string; family: number }>>;
 export type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
@@ -93,6 +94,7 @@ export type CrawlObservability = {
   extractors: SourceExtractor[];
   /** Filled after extraction by the caller that ran the extractors (see observability.ts). */
   extractorYields?: ExtractorYields;
+  websiteOpportunity?: WebsiteOpportunity;
 };
 export type ExtractorYields = {
   identityFacts: number;
@@ -110,6 +112,7 @@ export type CrawlOutput = {
   stats: CrawlStats;
   canonicalOrigin?: string;
   observability?: CrawlObservability;
+  websiteOpportunity?: WebsiteOpportunity;
 };
 
 /** Prior observation of one URL; supplied by the caller's existing evidence store, not a crawler-owned cache. */

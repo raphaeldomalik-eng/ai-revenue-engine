@@ -66,5 +66,10 @@ export function crawlLogLine(observability: CrawlObservability) {
     skippedContent: observability.skippedContent.length,
     dimensionsMissing: observability.dimensionsMissing,
     yields: observability.extractorYields ?? null,
+    websiteOpportunity: observability.websiteOpportunity ? {
+      version: observability.websiteOpportunity.version,
+      classification: observability.websiteOpportunity.classification,
+      signals: [...new Set(observability.websiteOpportunity.evidence.map(item => item.signal))],
+    } : null,
   });
 }

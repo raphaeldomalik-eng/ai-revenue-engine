@@ -15,6 +15,7 @@ import { DEFAULT_RENDER_POLICY, guardedRender } from "./render.ts";
 import { SiteIdentity } from "./site-identity.ts";
 import { conventionalSitemapUrls, inflateSitemap, parseSitemap, rankChildSitemaps, robotsSitemapDirectives, SITEMAP_LIMITS } from "./sitemap.ts";
 import { assessStaticRetrieval, hydrationMarkup } from "./spa.ts";
+import { assessWebsiteOpportunity } from "./website-opportunity.ts";
 import type { CachedDocument, CrawlBudget, CrawlInput, CrawlObservability, CrawlOutput, CrawlStats, CrawlStopReason, FetchLike, FetchedDocument, ResolveHost } from "./types.ts";
 
 export { assertPublicNetworkTarget, canonicalHttpsUrl, isPublicHttpsUrl, isPublicNetworkAddress } from "./network.ts";
@@ -441,7 +442,9 @@ function finish(ctx: Ctx, output: { verifiedUrl: string; finalUrl: string; docum
   obs.finalStatus = ctx.stats.status;
   obs.dimensionsSatisfied = obs.dimensionsRequested.filter((dim) => satisfied.includes(dim));
   obs.dimensionsMissing = obs.dimensionsRequested.filter((dim) => !satisfied.includes(dim));
-  return { ...output, stats: ctx.stats, canonicalOrigin: ctx.site.canonicalOrigin, observability: obs };
+  const websiteOpportunity = assessWebsiteOpportunity(output.documents);
+  obs.websiteOpportunity = websiteOpportunity;
+  return { ...output, stats: ctx.stats, canonicalOrigin: ctx.site.canonicalOrigin, observability: obs, websiteOpportunity };
 }
 
 /** Thin static shells are first read through embedded hydration data, then (only if still inadequate) rendered. */

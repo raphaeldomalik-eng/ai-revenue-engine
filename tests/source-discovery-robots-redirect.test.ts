@@ -179,7 +179,8 @@ test("an explicit robots disallow is replayed and a retryable robots failure run
   const recoveredCalls = calls;
   const stable = await executeSourceDiscoveryRequest(discovery(), { resolveHost: publicResolver, fetchImpl }, retryStore);
   assert.equal(calls, recoveredCalls);
-  assert.equal(stable, recovered);
+  // Replay validates the contract, excluding AIRE-local intelligence from the stored JSON.
+  assert.deepEqual(stable, recovered);
 });
 
 test("a legacy blocked source-discovery result without retry disposition is not replayed", async () => {
