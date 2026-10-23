@@ -46,7 +46,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   const entry=continuation?.entries.find(e=>e.queueId===context?.queueId);
   const policyBound=continuation?Boolean(entry&&context?.policyId===continuation.sourcePolicyId&&context?.policySha256===continuation.sourcePolicySha256
     &&entry.requestId===input.requestId&&entry.identityKey===context.identityKey&&entry.host===new URL(seed??'https://invalid.example').hostname.toLowerCase()
-    &&context.requestBudget===continuation.originalRequestBudget)
+    &&context.requestBudget===continuation.originalRequestBudget&&context.attempts===1)
    :context?.policyId===options.policy.policyId&&context?.policySha256===options.approvedPolicyHash;
   if(!policyBound||context?.action!=='VERIFY_WEBSITE')return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
   const identity=input.subject.canonicalEntityId?'canonical:'+input.subject.canonicalEntityId:input.subject.candidateReference?.sourceSystem+':'+input.subject.candidateReference?.sourceRecordId;
@@ -75,7 +75,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    return Response.json({result:validateResearchResult(cached),verification:cached.directoryVerification,receipt:cacheReceipt});
   }
   const executionBudget=continuation?.additionalRequestBudget??context.requestBudget;
-  const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:context.attempts,requestBudget:executionBudget,action:'VERIFY_WEBSITE'} as DirectoryWork;
+  const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:continuation?0:context.attempts,requestBudget:executionBudget,action:'VERIFY_WEBSITE'} as DirectoryWork;
   let result:ReturnType<typeof validateResearchResult>|null=null;
   let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[]}|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
