@@ -3,6 +3,17 @@ import assert from 'node:assert/strict';
 import {createBravePublicWebSearchProvider} from '../src/nexus/search/brave-public-web-search.ts';
 
 const input={query:'Bristol conference venue hire',country:'GB' as const,maxResults:10};
+
+test('explicit empty Brave response is cached while malformed or mismatched emptiness stays uncertain',async()=>{
+ let completed=0,failed=0;
+ const options={apiKey:'fixture',requestKey:'empty',allowanceId:'finite',reserve:async()=>true,complete:async(_r:unknown,rows:unknown)=>{assert.deepEqual(rows,[]);completed++;},fail:async()=>{failed++;}};
+ const empty={type:'search',query:{original:input.query,more_results_available:false},web:null};
+ assert.deepEqual(await createBravePublicWebSearchProvider({...options,fetchImpl:async()=>Response.json(empty)}).search(input),[]);
+ assert.equal(completed,1);assert.equal(failed,0);
+ for(const payload of [{},{...empty,query:{original:'another venue',more_results_available:false}},{...empty,query:{original:input.query,more_results_available:true}},{...empty,web:{results:'invalid'}}]){
+  await assert.rejects(()=>createBravePublicWebSearchProvider({...options,fetchImpl:async()=>Response.json(payload)}).search(input),/BRAVE_RESPONSE_INVALID/);
+ }assert.equal(completed,1);assert.equal(failed,4);
+});
 test('Brave reserves verified free allowance before network access and keeps the key in a header',async()=>{
  const order:string[]=[];
  const p=createBravePublicWebSearchProvider({apiKey:'test-secret',requestKey:'job:1',allowanceId:'test-credits',reserve:async r=>{order.push('reserve');assert.equal(r.allowanceId,'test-credits');return true},fetchImpl:async(url,init)=>{
