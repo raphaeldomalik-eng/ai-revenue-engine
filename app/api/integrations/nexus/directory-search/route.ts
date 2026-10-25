@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {handleDirectorySearchRequest} from '../../../../../src/nexus/search/continuous-directory-search.ts';
-import {configuredBraveDirectorySearch} from '../../../../../src/nexus/search/brave-search-store.ts';
+import {configuredDirectorySearch} from '../../../../../src/nexus/search/brave-search-store.ts';
 import type {StandingPolicy} from '../../../../../src/nexus/source-discovery/continuous-directory-policy.ts';
 export const runtime='nodejs';
 export async function POST(request:Request){
@@ -13,5 +13,5 @@ export async function POST(request:Request){
  if(error||!data?.enabled||data.policy_sha256!==approvedPolicyHash)return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404});
  // The durable cache binds the full normalized query and parameters. Request ID is
  // intentionally not its key, so a redelivery or another venue cannot rebuy it.
- return handleDirectorySearchRequest(request,{policy:data.policy as StandingPolicy,approvedPolicyHash,secret,searchProvider:null,providerFor:(key,scope)=>configuredBraveDirectorySearch(client,key,scope)});
+ return handleDirectorySearchRequest(request,{policy:data.policy as StandingPolicy,approvedPolicyHash,secret,searchProvider:null,providerFor:(key,scope)=>configuredDirectorySearch(client,key,scope)});
 }
