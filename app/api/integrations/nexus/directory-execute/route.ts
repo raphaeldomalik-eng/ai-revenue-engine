@@ -2,10 +2,12 @@ import {createClient} from '@supabase/supabase-js';
 import {SupabaseDirectoryResultStore,SupabaseContinuousDirectoryLedger} from '../../../../../src/nexus/source-discovery/continuous-directory-store.ts';
 import {handleContinuousDirectoryRequest} from '../../../../../src/nexus/source-discovery/continuous-directory-http.ts';
 import type {StandingPolicy} from '../../../../../src/nexus/source-discovery/continuous-directory-policy.ts';
+import {directoryPolicyConfig} from '../../../../../src/nexus/source-discovery/directory-policy-config.ts';
 export const runtime='nodejs';
 export async function POST(request:Request){
- const policyId=process.env.NEXUS_DIRECTORY_STANDING_POLICY_ID?.trim(),approvedPolicyHash=process.env.NEXUS_DIRECTORY_STANDING_POLICY_SHA256?.trim();
- if(!policyId||!approvedPolicyHash)return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404});
+ const selected=directoryPolicyConfig(request.url,process.env);
+ if(!selected)return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404});
+ const {policyId,approvedPolicyHash}=selected;
  const url=process.env.NEXT_PUBLIC_SUPABASE_URL?.trim(),key=(process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY)?.trim(),secret=process.env.NEXUS_HMAC_SECRET?.trim();
  if(!url||!key||!secret)return Response.json({code:'DIRECTORY_CONFIGURATION_MISSING'},{status:503});
  const client=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});

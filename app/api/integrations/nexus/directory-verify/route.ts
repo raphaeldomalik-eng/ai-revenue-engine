@@ -2,12 +2,14 @@ import {createClient} from '@supabase/supabase-js';
 import {SupabaseContinuousDirectoryLedger,SupabaseDirectoryResultStore} from '../../../../../src/nexus/source-discovery/continuous-directory-store.ts';
 import {handleDirectoryVerificationRequest,validatedVerificationContinuation,type VerificationPolicy} from '../../../../../src/nexus/source-discovery/continuous-directory-verification.ts';
 import {policyHash} from '../../../../../src/nexus/source-discovery/continuous-directory-policy.ts';
+import {directoryPolicyConfig} from '../../../../../src/nexus/source-discovery/directory-policy-config.ts';
 export const runtime='nodejs';
 const ORIGINAL_POLICY_ID='resources-directory-uk-verify-canary-20261022';
 const CONTINUATION_POLICY_ID='resources-directory-uk-verify-continuation-20261024';
 export async function POST(request:Request){
- const policyId=process.env.NEXUS_DIRECTORY_STANDING_POLICY_ID?.trim(),approvedPolicyHash=process.env.NEXUS_DIRECTORY_STANDING_POLICY_SHA256?.trim();
- if(!policyId||!approvedPolicyHash)return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404});
+ const selected=directoryPolicyConfig(request.url,process.env);
+ if(!selected)return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404});
+ const {policyId,approvedPolicyHash}=selected;
  const url=process.env.NEXT_PUBLIC_SUPABASE_URL?.trim(),key=(process.env.SUPABASE_SECRET_KEY||process.env.SUPABASE_SERVICE_ROLE_KEY)?.trim(),secret=process.env.NEXUS_HMAC_SECRET?.trim();
  if(!url||!key||!secret)return Response.json({code:'DIRECTORY_CONFIGURATION_MISSING'},{status:503});
  const client=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
