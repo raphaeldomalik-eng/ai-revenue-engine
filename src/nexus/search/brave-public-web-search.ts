@@ -43,10 +43,14 @@ export function createBravePublicWebSearchProvider(options:BraveSearchOptions):P
   if(!response.ok){await response.body?.cancel();const reset=response.headers.get('Retry-After')??response.headers.get('X-RateLimit-Reset');const seconds=reset?Math.max(...reset.split(',').map(Number).filter(Number.isFinite)):null;throw new BraveSearchFailure(response.status,'BRAVE_HTTP_'+response.status,seconds);}
   let bytes=0;const chunks:Uint8Array[]=[];const reader=response.body?.getReader();
   if(reader)while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>131072){await reader.cancel();throw new BraveSearchFailure(200,'BRAVE_RESPONSE_TOO_LARGE');}chunks.push(part.value);}
-  let payload:{web?:{results?:unknown}};try{payload=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new BraveSearchFailure(200,'BRAVE_RESPONSE_INVALID');}
-  if(!Array.isArray(payload?.web?.results))throw new BraveSearchFailure(200,'BRAVE_RESPONSE_INVALID');
+  let payload:{type?:unknown;query?:{original?:unknown;more_results_available?:unknown};web?:{results?:unknown}|null};try{payload=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new BraveSearchFailure(200,'BRAVE_RESPONSE_INVALID');}
+  // Brave documents nullable web results. Only an explicitly final, matching
+  // search response proves emptiness; malformed/unknown outcomes stay consumed.
+  const empty=payload?.web==null&&payload?.type==='search'&&payload.query?.original===parameters.q&&payload.query.more_results_available===false;
+  if(!Array.isArray(payload?.web?.results)&&!empty)throw new BraveSearchFailure(200,'BRAVE_RESPONSE_INVALID');
+  const rows=empty?[]:payload.web!.results as unknown[];
   const results:PublicWebSearchResult[]=[];
-  for(const row of payload.web.results.slice(0,parameters.count)){
+  for(const row of rows.slice(0,parameters.count)){
    if(!row||typeof row!=='object')continue;const r=row as Record<string,unknown>;if(typeof r.url!=='string'||r.url.length>4096)continue;
    try{const u=new URL(r.url);if(!['https:','http:'].includes(u.protocol)||u.username||u.password)continue;}catch{continue;}
    results.push({url:r.url,title:typeof r.title==='string'?r.title.slice(0,2048):null,snippet:typeof r.description==='string'?r.description.slice(0,6000):null});
