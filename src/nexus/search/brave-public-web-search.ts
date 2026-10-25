@@ -4,9 +4,13 @@ import {PublicWebSearchBudgetExhaustedError} from './serper-public-web-search.ts
 
 export const BRAVE_SEARCH_URL='https://api.search.brave.com/res/v1/web/search';
 export type BraveSearchInput={query:string;country:'GB'|'ZA';maxResults:number;locality?:string;category?:string};
-export type BraveReservation={allowanceId:string;requestKey:string;querySha256:string;parameters:Record<string,string|number>};
-export type BraveReservationResult=boolean|{state:string;results?:PublicWebSearchResult[];observedAt?:string;reservedMicroUsd?:number};
-export type BraveSearchOptions={apiKey:string;allowanceId:string;requestKey:string;locality?:string;category?:string;reserve:(reservation:BraveReservation)=>Promise<BraveReservationResult>;complete?:(reservation:BraveReservation,results:PublicWebSearchResult[],usage:Record<string,unknown>)=>Promise<void>;fail?:(reservation:BraveReservation,code:string)=>Promise<void>;fetchImpl?:typeof fetch;onResponse?:(headers:Headers,status:number)=>Promise<void>};
+export type BraveReservation={allowanceId:string;requestKey:string;querySha256:string;parameters:Record<string,string|number>;runId?:string};
+export type BraveReservationResult=boolean|{state:string;reason?:string;results?:PublicWebSearchResult[];observedAt?:string;reservedMicroUsd?:number};
+export class DirectorySearchAllocationDeniedError extends PublicWebSearchBudgetExhaustedError {
+ readonly reason:string;
+ constructor(reason:string){super();this.reason=reason;}
+}
+export type BraveSearchOptions={apiKey:string;allowanceId:string;requestKey:string;locality?:string;category?:string;runId?:string;reserve:(reservation:BraveReservation)=>Promise<BraveReservationResult>;complete?:(reservation:BraveReservation,results:PublicWebSearchResult[],usage:Record<string,unknown>)=>Promise<void>;fail?:(reservation:BraveReservation,code:string)=>Promise<void>;fetchImpl?:typeof fetch;onResponse?:(headers:Headers,status:number)=>Promise<void>};
 export function braveSearchParameters(input:BraveSearchInput){
  if(!['GB','ZA'].includes(input.country)||!input.query.trim()||input.query.length>400||!Number.isSafeInteger(input.maxResults)||input.maxResults<1)throw Error('BRAVE_QUERY_INVALID');
  return {q:input.query.normalize('NFKC').trim().replace(/\s+/g,' '),country:input.country.toLowerCase(),search_lang:'en',count:Math.min(10,input.maxResults),safesearch:'moderate',result_filter:'web'};
@@ -26,10 +30,10 @@ export function createBravePublicWebSearchProvider(options:BraveSearchOptions):P
  return {id:'brave-web-search',usage,costModel:{kind:'ZERO_INCREMENTAL',currency:'USD',amountPerCall:0},async search(input){
   if(!options.apiKey?.trim()||!options.allowanceId||!options.requestKey)throw Error('BRAVE_CONFIGURATION_REQUIRED');
   const parameters=braveSearchParameters(input),querySha256=braveQueryFingerprint({...input,locality:options.locality,category:options.category});
-  const reservation={allowanceId:options.allowanceId,requestKey:options.requestKey,querySha256,parameters};
+  const reservation={allowanceId:options.allowanceId,requestKey:options.requestKey,querySha256,parameters,...(options.runId?{runId:options.runId}:{})};
   const reserved=await options.reserve(reservation);
   if(typeof reserved==='object'&&reserved.state==='CACHED'&&Array.isArray(reserved.results)){usage.cacheReused++;usage.observedAt=reserved.observedAt;return reserved.results;}
-  if(reserved!==true&&(typeof reserved!=='object'||reserved.state!=='RESERVED'))throw new PublicWebSearchBudgetExhaustedError();
+  if(reserved!==true&&(typeof reserved!=='object'||reserved.state!=='RESERVED'))throw new DirectorySearchAllocationDeniedError(typeof reserved==='object'?reserved.reason??'DENIAL_UNKNOWN':'DENIAL_UNKNOWN');
   try{
   usage.requests++;usage.reservedCreditMicroUsd+=typeof reserved==='object'?Number(reserved.reservedMicroUsd??0):0;
   const url=new URL(BRAVE_SEARCH_URL);for(const [key,value] of Object.entries(parameters))url.searchParams.set(key,String(value));

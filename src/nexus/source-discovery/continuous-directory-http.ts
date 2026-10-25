@@ -19,7 +19,7 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
  if(!secret||!verifyNexusSignature(request.headers.get('x-nexus-signature'),request.headers.get('x-nexus-timestamp'),body,secret,nowMs))return Response.json({code:'NEXUS_SIGNATURE_INVALID'},{status:401});
  try{
   const payload=parseNexusEnvelope(body),input=validateSourceDiscoveryRequest(payload);
-  if(!['event_suite_resources',...(options.policy.budgetMode==='PER_RUN'?['last_train_home']:[])].includes(input.originatingProduct)||input.subjectReference.entityType!=='VENUE'||input.acquisitionGoal!=='VENUE_EMAIL'||input.crawlBudget.minRequestDelayMs<options.policy.minHostDelayMs)return Response.json({code:'DIRECTORY_REQUEST_SCOPE'},{status:403});
+  if(!['event_suite_resources',...(options.policy.quotaMode==='PER_RUN'?['last_train_home']:[])].includes(input.originatingProduct)||input.subjectReference.entityType!=='VENUE'||input.acquisitionGoal!=='VENUE_EMAIL'||input.crawlBudget.minRequestDelayMs<options.policy.minHostDelayMs)return Response.json({code:'DIRECTORY_REQUEST_SCOPE'},{status:403});
   const context=JSON.parse(body).directoryContext as (Partial<DirectoryWork>&{policyId?:string;policySha256?:string;action?:string;runId?:string})|undefined;
   if(context?.policyId!==options.policy.policyId||context?.policySha256!==options.approvedPolicyHash||(context.action??'ENRICH_VERIFIED_VENUE')!=='ENRICH_VERIFIED_VENUE')return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
   if(!context?.queueId||!context.identityKey||!context.country||!context.verifiedAt||!context.evidenceRef||!Array.isArray(context.gaps)||!Number.isSafeInteger(context.attempts)||context.attempts!<0)return Response.json({code:'DIRECTORY_QUEUE_CONTEXT_REQUIRED'},{status:400});
@@ -27,7 +27,7 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
   const subject=input.subjectReference;
   const expectedIdentity=subject.canonicalEntityId?'canonical:'+subject.canonicalEntityId:subject.candidateReference?subject.candidateReference.sourceSystem+':'+subject.candidateReference.sourceRecordId:null;
   if(context.identityKey!==expectedIdentity||!options.policy.countries.includes(context.country))return Response.json({code:'DIRECTORY_SUBJECT_BINDING_REQUIRED'},{status:403});
-  const item:DirectoryWork={...context,queueId:context.queueId,identityKey:context.identityKey,country:context.country,verifiedAt:context.verifiedAt,evidenceRef:context.evidenceRef,gaps:context.gaps,attempts:context.attempts!,verifiedSourceUrl:input.verifiedSourceUrl,entityType:'VENUE',ownership:context.ownership||'INTERNAL',status:context.status||'PENDING',requestBudget:input.crawlBudget.maxRequests};
+  const item:DirectoryWork={...context,queueId:context.queueId,identityKey:context.identityKey,country:context.country,verifiedAt:context.verifiedAt,evidenceRef:context.evidenceRef,gaps:context.gaps,attempts:context.attempts!,verifiedSourceUrl:input.verifiedSourceUrl,entityType:'VENUE',ownership:context.ownership||'INTERNAL',status:context.status||'PENDING',requestBudget:input.crawlBudget.maxRequests,runId:context.runId};
   const cacheKey=sourceDiscoveryExecutionKey(input.idempotencyKey,undefined,input.acquisitionGoal);
   const cached=await options.executor.store.get(cacheKey);
   if(sourceDiscoveryReplayable(cached)){
@@ -36,7 +36,7 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
    if(['BLOCKED','FAILED'].includes(result.crawl.status)){
     const quarantined=()=>options.ledger.isQuarantined?.(options.policy.policyId,item.identityKey)??Promise.resolve(false);
     if(await quarantined())return Response.json({result,receipt:{cacheReused:1,executed:0,quarantined:1,actualHttpRequestsKnown:0,knownCostUsd:0}});
-    const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async()=>({requestCount:0,costUsd:0,status:result.crawl.status,retryable:false}),now,context.runId);
+    const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async()=>({requestCount:0,costUsd:0,status:result.crawl.status,retryable:false}),now);
     return Response.json({result,receipt:{...receipt,cacheReused:1}},{status:receipt.denied&&!await quarantined()?409:200});
    }
    return Response.json({result,receipt:{cacheReused:1,executed:0,actualHttpRequestsKnown:0,knownCostUsd:0}});
@@ -50,7 +50,7 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
    const response=await handleNexusExecuteRequest(new Request(request.url,{method:'POST',headers:{'content-type':'application/json','x-nexus-timestamp':envelope.timestamp,'x-nexus-signature':envelope.signature},body:envelope.body}),{...options.executor,now:()=>nowMs,allowResearch:false,allowSourceDiscovery:process.env.VERCEL_ENV!=='production',allowContentInterpretation:false,allowScopedSourceDiscovery:true,sourceDiscoveryBatchScope:scope});
    if(!response.ok)throw Error(`EXISTING_EXECUTOR_${response.status}`);
    const result=validateSourceDiscoveryResult(await response.json());output=result as unknown as Record<string,unknown>;return {requestCount:result.crawl.requestCount,costUsd:0,status:result.crawl.status,retryable:result.crawl.retryable,resultRef:input.discoveryRequestId};
-  },now,context.runId);
+  },now);
   const crawl=(output as {crawl?:{status?:string;retryable?:boolean}}|null)?.crawl;
   return Response.json({result:output,receipt},{status:receipt.stopped||receipt.actualRequestsUnknown||crawl?.retryable||crawl?.status==='FAILED'&&crawl?.retryable!==false?503:receipt.executed?200:receipt.denied?409:202});
  }catch(error){return Response.json({code:error instanceof Error?error.message:'DIRECTORY_REQUEST_FAILED'},{status:400})}

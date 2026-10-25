@@ -32,7 +32,7 @@ test('standing route reuses the exact existing production executor and honours d
  }finally{if(old===undefined)delete process.env.VERCEL_ENV;else process.env.VERCEL_ENV=old;}
 });
 test('shared bounded policy accepts signed LTH requests and passes the same run to its durable ledger',async()=>{
- const {maxVenuesPerDay,maxRequestsPerDay,...base}=policy;const p={...base,budgetMode:'PER_RUN' as const,maxVenuesPerRun:500,maxRequestsPerRun:2500};
+ const {maxVenuesPerDay,maxRequestsPerDay,...base}=policy;const p={...base,quotaMode:'PER_RUN' as const,maxVenuesPerRun:500,maxRequestsPerRun:2500};
  const runId='55555555-5555-4555-8555-555555555555';let reservations=0;
  const body=JSON.stringify({payload:{...payload,originatingProduct:'last_train_home'},directoryContext:{...context,policySha256:policyHash(p),runId}}),timestamp=String(now/1000);
  const req=new Request('https://aire.example/api/integrations/nexus/directory-execute',{method:'POST',headers:{'x-nexus-timestamp':timestamp,'x-nexus-signature':nexusSignatureFor(timestamp,body,secret)},body});

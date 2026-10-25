@@ -40,7 +40,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
  if(!options.secret||!verifyNexusSignature(request.headers.get('x-nexus-signature'),request.headers.get('x-nexus-timestamp'),body,options.secret,nowMs))return Response.json({code:'NEXUS_SIGNATURE_INVALID'},{status:401});
  try{
   const raw=parseNexusEnvelope(body);
-  if(raw.contractVersion!=='nexus.research-request.v1'||!['event_suite_resources',...(options.policy.budgetMode==='PER_RUN'?['last_train_home']:[])].includes(String(raw.originatingProduct))||raw.researchPurpose!=='SOURCE_ENTITY_CLASSIFICATION'||(raw.subject as {entityType?:string})?.entityType!=='UNKNOWN'||JSON.stringify(raw.providerAllowances)!=='["PUBLIC_WEB"]'||(raw.costCeiling as {currency?:string;amount?:number})?.currency!=='USD'||(raw.costCeiling as {amount?:number})?.amount!==0)return Response.json({code:'DIRECTORY_VERIFICATION_SCOPE'},{status:403});
+  if(raw.contractVersion!=='nexus.research-request.v1'||!['event_suite_resources',...(options.policy.quotaMode==='PER_RUN'?['last_train_home']:[])].includes(String(raw.originatingProduct))||raw.researchPurpose!=='SOURCE_ENTITY_CLASSIFICATION'||(raw.subject as {entityType?:string})?.entityType!=='UNKNOWN'||JSON.stringify(raw.providerAllowances)!=='["PUBLIC_WEB"]'||(raw.costCeiling as {currency?:string;amount?:number})?.currency!=='USD'||(raw.costCeiling as {amount?:number})?.amount!==0)return Response.json({code:'DIRECTORY_VERIFICATION_SCOPE'},{status:403});
   const input=validateResearchRequest(raw),context=JSON.parse(body).directoryContext;
   const research=input.researchContext,seed=research?.targetWebsite;
   const entry=continuation?.entries.find(e=>e.queueId===context?.queueId);
@@ -75,7 +75,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    return Response.json({result:validateResearchResult(cached),verification:cached.directoryVerification,receipt:cacheReceipt});
   }
   const executionBudget=continuation?.additionalRequestBudget??context.requestBudget;
-  const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:continuation?0:context.attempts,requestBudget:executionBudget,action:'VERIFY_WEBSITE'} as DirectoryWork;
+  const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:continuation?0:context.attempts,requestBudget:executionBudget,runId:context.runId,action:'VERIFY_WEBSITE'} as DirectoryWork;
   let result:ReturnType<typeof validateResearchResult>|null=null;
   let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[]}|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
@@ -101,7 +101,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    await options.store.set(key,{...result,directoryRequestSha256:fingerprint,directoryVerification:verification,directoryReservation:reservation,directoryRequestCount:crawl.stats.requestCount});
    const retryable=retryableProviderFailure(result);
    return {requestCount:crawl.stats.requestCount,costUsd:0,status:retryable?'FAILED':verification?.state==='VERIFIED'?'COMPLETED':'BLOCKED',retryable,resultRef:input.requestId};
-  },now,context.runId);
+  },now);
   return Response.json({result,verification,receipt},{status:receipt.stopped||receipt.actualRequestsUnknown||result&&retryableProviderFailure(result)?503:receipt.denied?409:result?200:202});
  }catch(error){return Response.json({code:error instanceof Error?error.message:'DIRECTORY_VERIFICATION_FAILED'},{status:400})}
 }

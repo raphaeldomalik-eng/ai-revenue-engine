@@ -4,6 +4,14 @@ import {policyHash,validateStandingPolicy,selectContinuousWork,runContinuousDire
 const now='2026-10-21T12:00:00Z';
 const policy={policyId:'resources-continuous-v1',version:1,enabled:true,validFrom:'2026-10-21T00:00:00Z',validUntil:'2026-11-21T00:00:00Z',countries:['GB','ZA'],maxVenuesPerDay:1000,maxRequestsPerDay:14000,maxRequestsPerVenue:14,maxBatchVenues:26,paidProviderBudgetUsd:0,minHostDelayMs:1500,freshnessHours:720,maxAttempts:3,retryBackoffHours:24,stopAfterConsecutiveFailures:5,publicationAllowed:false,outreachAllowed:false};
 const item=(id='a')=>({queueId:id,country:'GB',identityKey:'canonical:'+id,verifiedSourceUrl:'https://'+id+'.example.org',verifiedAt:'2026-10-20T00:00:00Z',evidenceRef:'e:'+id,entityType:'VENUE',gaps:['PUBLIC_CONTACT'],ownership:'INTERNAL',status:'PENDING',attempts:0,requestBudget:14});
+test('a per-run policy permits 500 venues without daily quotas and binds reservations to the signed run',async()=>{
+ const {maxVenuesPerDay:_venues,maxRequestsPerDay:_requests,...base}=policy;
+ const p={...base,quotaMode:'PER_RUN' as const,maxVenuesPerRun:500,maxRequestsPerRun:2500,maxBatchVenues:500};
+ assert.doesNotThrow(()=>validateStandingPolicy(p,policyHash(p),now));
+ let runId='';await runContinuousDirectoryTick([{...item(),runId:'11111111-1111-4111-8111-111111111111'}],p,policyHash(p),{reserve:async r=>{runId=r.runId??'';return true;},complete:async()=>{}},async()=>({requestCount:1,costUsd:0,status:'COMPLETED'}),now);
+ assert.equal(runId,'11111111-1111-4111-8111-111111111111');
+ await assert.rejects(()=>runContinuousDirectoryTick([item()],p,policyHash(p),{reserve:async()=>true,complete:async()=>{}},async()=>({requestCount:1,costUsd:0,status:'COMPLETED'}),now),/RUN_ID_REQUIRED/);
+});
 test('policy hash and explicit activation are required',()=>{
  assert.throws(()=>validateStandingPolicy(policy,'wrong',now),/HASH/);
  assert.throws(()=>validateStandingPolicy({...policy,enabled:false},policyHash({...policy,enabled:false}),now),/INACTIVE/);
@@ -49,10 +57,10 @@ test('unverified or blocked websites do not stop unrelated eligible work in the 
 
 test('version 2 uses bounded runs without requiring daily quotas and binds every durable reservation to the run',async()=>{
  const {maxVenuesPerDay,maxRequestsPerDay,...base}=policy;
- const p={...base,version:2,budgetMode:'PER_RUN' as const,maxVenuesPerRun:500,maxRequestsPerRun:2500,maxBatchVenues:500};
+ const p={...base,version:2,quotaMode:'PER_RUN' as const,maxVenuesPerRun:500,maxRequestsPerRun:2500,maxBatchVenues:500};
  const runId='11111111-1111-4111-8111-111111111111',reservations:any[]=[];
  assert.equal(validateStandingPolicy(p,policyHash(p),now).version,2);
- const r=await runContinuousDirectoryTick([item('a'),item('b')],p,policyHash(p),{reserve:async value=>{reservations.push(value);return true},complete:async()=>{}},async()=>({requestCount:1,costUsd:0,status:'COMPLETED'}),now,runId);
+ const r=await runContinuousDirectoryTick([{...item('a'),runId},{...item('b'),runId}],p,policyHash(p),{reserve:async value=>{reservations.push(value);return true},complete:async()=>{}},async()=>({requestCount:1,costUsd:0,status:'COMPLETED'}),now);
  assert.equal(r.executed,2);assert(reservations.every(value=>value.runId===runId));
  for(const invalid of [{...p,maxVenuesPerRun:501},{...p,maxRequestsPerRun:2501}])assert.throws(()=>validateStandingPolicy(invalid,policyHash(invalid),now),/SCOPE/);
  await assert.rejects(runContinuousDirectoryTick([item()],p,policyHash(p),{reserve:async()=>true,complete:async()=>{}},async()=>({requestCount:1,costUsd:0,status:'COMPLETED'}),now),/RUN_ID/);

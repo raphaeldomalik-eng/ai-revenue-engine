@@ -6,9 +6,10 @@ on:
       - src/nexus/source-discovery/directory-policy-config.ts
       - app/api/integrations/nexus/directory-execute/route.ts
       - app/api/integrations/nexus/directory-verify/route.ts
+      - app/api/integrations/nexus/directory-run/route.ts
       - tests/directory-policy-config.test.ts
       - tests/continuous-directory-*.test.ts
-      - supabase/migrations/20261023204000_shared_directory_run_budgets.sql
+      - supabase/migrations/20261023182003_resources_provider_and_run_budgets.sql
       - package.json
       - package-lock.json
       - .github/workflows/shared-directory-runs.yml
