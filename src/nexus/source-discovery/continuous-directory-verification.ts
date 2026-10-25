@@ -75,7 +75,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    return Response.json({result:validateResearchResult(cached),verification:cached.directoryVerification,receipt:cacheReceipt});
   }
   const executionBudget=continuation?.additionalRequestBudget??context.requestBudget;
-  const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:continuation?0:context.attempts,requestBudget:executionBudget,action:'VERIFY_WEBSITE'} as DirectoryWork;
+  const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:continuation?0:context.attempts,requestBudget:executionBudget,runId:context.runId,action:'VERIFY_WEBSITE'} as DirectoryWork;
   let result:ReturnType<typeof validateResearchResult>|null=null;
   let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[]}|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{

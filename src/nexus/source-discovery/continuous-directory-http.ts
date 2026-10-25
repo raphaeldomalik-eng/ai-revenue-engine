@@ -27,7 +27,7 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
   const subject=input.subjectReference;
   const expectedIdentity=subject.canonicalEntityId?'canonical:'+subject.canonicalEntityId:subject.candidateReference?subject.candidateReference.sourceSystem+':'+subject.candidateReference.sourceRecordId:null;
   if(context.identityKey!==expectedIdentity||!options.policy.countries.includes(context.country))return Response.json({code:'DIRECTORY_SUBJECT_BINDING_REQUIRED'},{status:403});
-  const item:DirectoryWork={...context,queueId:context.queueId,identityKey:context.identityKey,country:context.country,verifiedAt:context.verifiedAt,evidenceRef:context.evidenceRef,gaps:context.gaps,attempts:context.attempts!,verifiedSourceUrl:input.verifiedSourceUrl,entityType:'VENUE',ownership:context.ownership||'INTERNAL',status:context.status||'PENDING',requestBudget:input.crawlBudget.maxRequests};
+  const item:DirectoryWork={...context,queueId:context.queueId,identityKey:context.identityKey,country:context.country,verifiedAt:context.verifiedAt,evidenceRef:context.evidenceRef,gaps:context.gaps,attempts:context.attempts!,verifiedSourceUrl:input.verifiedSourceUrl,entityType:'VENUE',ownership:context.ownership||'INTERNAL',status:context.status||'PENDING',requestBudget:input.crawlBudget.maxRequests,runId:context.runId};
   const cacheKey=sourceDiscoveryExecutionKey(input.idempotencyKey,undefined,input.acquisitionGoal);
   const cached=await options.executor.store.get(cacheKey);
   if(sourceDiscoveryReplayable(cached)){
