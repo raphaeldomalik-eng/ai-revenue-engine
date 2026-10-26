@@ -213,7 +213,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
       idempotencyKey: request.idempotencyKey,
       subjectReference: request.subjectReference,
       source: { verifiedUrl: request.verifiedSourceUrl, finalUrl: request.verifiedSourceUrl, observedAt: now, sourceHash: createHash("sha256").update(request.verifiedSourceUrl).digest("hex") },
-      crawl: { status: "FAILED", warnings: boundCrawlWarnings([error instanceof Error ? error.message : "Source discovery failed safely."]), requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 1, retryable: true, emailOutcome: emailGoal ? "TRANSIENT_FAILURE" : "EMAIL_NOT_REQUESTED" },
+      crawl: { status: "FAILED", warnings: boundCrawlWarnings([error instanceof Error ? error.message : "Source discovery failed safely."]), requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 1, retryable: true, emailOutcome: emailGoal ? "TRANSIENT_FAILURE" : "EMAIL_NOT_REQUESTED", evidenceManifest: { version: 1, attemptedRequests: 0, requests: [], requestsOmitted: 0, unrecordedRequests: 0, pages: [] } },
       identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [], guideEmailReady: false,
     });
     await store.set(versionedKey, result);
@@ -234,19 +234,36 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   const emailOutcome = deriveEmailAcquisitionOutcome({
     emailGoal,
     emailFound,
+    emailCandidatesHeld: emailGoal ? publicContacts.filter((contact) => contact.type === "EMAIL" && contact.reviewRequired).length : 0,
     status: crawlStatus,
     retryable,
     stopReason: crawl.observability?.stopReason ?? null,
     renderNeeded: (crawl.observability?.renderNeededButUnavailable.length ?? 0) > 0,
     contactPathsRemaining: crawl.observability?.contactPathsRemaining ?? 0,
   });
+  const evidenceByPage = new Map<string, string[]>();
+  for (const item of [...extracted.identityFacts, ...extracted.publicContacts, ...extracted.venueFacts]) {
+    const refs = evidenceByPage.get(item.sourceUrl) ?? []; refs.push(item.evidenceRef); evidenceByPage.set(item.sourceUrl, refs);
+  }
+  for (const item of extracted.imageCandidates) {
+    const imageRef = `image:${createHash("sha256").update(item.sourceImageUrl).digest("hex").slice(0, 24)}`;
+    const refs = evidenceByPage.get(item.sourcePageUrl) ?? []; refs.push(imageRef); evidenceByPage.set(item.sourcePageUrl, refs);
+    extracted.evidenceRefs.push(imageRef);
+  }
+  const listingPath = /^\/venues\/venue-[^/]+-\d+\/?$/i;
+  const evidenceManifest = { ...(crawl.evidenceManifest ?? { version: 1 as const, attemptedRequests: 0, requests: [], requestsOmitted: 0, unrecordedRequests: 0, pages: [] }),
+    pages: (crawl.evidenceManifest?.pages ?? []).map((page) => ({ ...page,
+      publisherType: listingPath.test(new URL(page.url).pathname) ? "THIRD_PARTY_DIRECTORY" as const : "VERIFIED_FIRST_PARTY" as const,
+      subjectAssignment: "TARGET" as const,
+      evidenceRefs: [...new Set(evidenceByPage.get(page.url) ?? [])],
+    })) };
   const result = validateSourceDiscoveryResult({
     contractVersion: CONTRACTS.SOURCE_DISCOVERY_RESULT,
     discoveryRequestId: request.discoveryRequestId,
     idempotencyKey: request.idempotencyKey,
     subjectReference: request.subjectReference,
     source: { verifiedUrl: request.verifiedSourceUrl, finalUrl: crawl.finalUrl, observedAt: now, sourceHash },
-    crawl: { status: crawlStatus, warnings, requestCount: crawl.stats.requestCount, pageCount: crawl.stats.pageCount, bytesRead: crawl.stats.bytesRead, redirects: crawl.stats.redirects, blockedCount: crawl.stats.blockedCount, retryable, emailOutcome },
+    crawl: { status: crawlStatus, warnings, requestCount: crawl.stats.requestCount, pageCount: crawl.stats.pageCount, bytesRead: crawl.stats.bytesRead, redirects: crawl.stats.redirects, blockedCount: crawl.stats.blockedCount, retryable, emailOutcome, evidenceManifest },
     identityFacts, publicContacts, venueFacts,
     imageCandidates: extracted.imageCandidates.map((item) => ({ ...item, discoveredAt: now })),
     eventCandidates: extracted.eventCandidates,

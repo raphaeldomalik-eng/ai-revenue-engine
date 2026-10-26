@@ -6,6 +6,7 @@ import { executeSourceDiscoveryRequest, InMemoryNexusResultStore, sourceDiscover
 import { deriveEmailAcquisitionOutcome } from "../src/nexus/source-discovery/email-outcome.ts";
 import { hrefTags } from "../src/nexus/source-discovery/html.ts";
 import { canonicalHttpsUrl } from "../src/nexus/source-discovery/network.ts";
+import { crawlVerifiedSource } from "../src/nexus/source-discovery/crawler.ts";
 
 const publicResolver = async () => [{ address: "93.184.216.34", family: 4 }];
 const budget = { maxPages: 4, maxRequests: 10, maxBytesPerResponse: 100000, maxRedirects: 2, maxRetries: 0, timeoutMs: 1000, minRequestDelayMs: 0 };
@@ -55,6 +56,7 @@ test("email outcome names the stop without redefining crawl status", () => {
   assert.equal(deriveEmailAcquisitionOutcome({ ...open, status: "FAILED", retryable: true, stopReason: "ENTRY_FAILED" }), "TRANSIENT_FAILURE");
   assert.equal(deriveEmailAcquisitionOutcome({ ...open, status: "BLOCKED", stopReason: "ROBOTS_BLOCKED" }), "BLOCKED");
   assert.equal(deriveEmailAcquisitionOutcome({ ...open, emailFound: true }), "EMAIL_FOUND");
+  assert.equal(deriveEmailAcquisitionOutcome({ ...open, emailCandidatesHeld: 2 }), "EMAIL_CANDIDATES_HELD");
   assert.equal(deriveEmailAcquisitionOutcome({ ...open, emailGoal: false }), "EMAIL_NOT_REQUESTED");
 });
 
@@ -67,6 +69,39 @@ test("a Resources venue identity request searches for an accepted email", async 
   assert.equal(result.guideEmailReady, true);
   assert.equal(result.publicContacts.some((item: { type: string; value: string }) => item.type === "EMAIL" && item.value === "info@venue.org"), true);
   assert.equal(result.publicContacts.some((item: { type: string }) => item.type === "PHONE"), true);
+  assert.equal(result.crawl.evidenceManifest.attemptedRequests, result.crawl.requestCount);
+  assert.equal(result.crawl.evidenceManifest.pages.length, result.crawl.pageCount);
+  assert.equal("body" in result.crawl.evidenceManifest.pages[0], false);
+});
+
+test("a www-subdomain mailbox is preserved verbatim but held until its address is validated", async () => {
+  const { fetchImpl } = site({
+    "/": html('<h1>Strand Tower Hotel</h1><a href="mailto:conference@www.strandtowerhotel.co.za">Conference bookings</a>'),
+  });
+  const result = await executeSourceDiscoveryRequest(request({
+    verifiedSourceUrl: "https://www.strandtowerhotel.co.za/",
+    venueName: "Strand Tower Hotel",
+  }), { resolveHost: publicResolver, fetchImpl }) as any;
+  const candidate = result.publicContacts.find((item: any) => item.value === "conference@www.strandtowerhotel.co.za");
+  assert.ok(candidate);
+  assert.equal(candidate.reviewRequired, true);
+  assert.match(candidate.label, /www subdomain.*retained unchanged/i);
+  assert.equal(result.crawl.emailOutcome, "EMAIL_CANDIDATES_HELD");
+  assert.equal(result.guideEmailReady, false);
+});
+
+test("an exact official-domain mailbox qualifies without changing its observed value", async () => {
+  const { fetchImpl } = site({
+    "/": html('<h1>Strand Tower Hotel</h1><a href="mailto:Conference@strandtowerhotel.co.za">Conference enquiries</a>'),
+  });
+  const result = await executeSourceDiscoveryRequest(request({
+    verifiedSourceUrl: "https://www.strandtowerhotel.co.za/",
+    venueName: "Strand Tower Hotel",
+  }), { resolveHost: publicResolver, fetchImpl }) as any;
+  const contact = result.publicContacts.find((item: any) => item.value === "Conference@strandtowerhotel.co.za");
+  assert.ok(contact);
+  assert.equal(contact.reviewRequired, false);
+  assert.equal(result.crawl.emailOutcome, "EMAIL_FOUND");
 });
 
 test("a generic identity crawl does not claim an email search completed", async () => {
@@ -134,6 +169,23 @@ test("an email goal keeps the held path and follows its contact link", async () 
   assert.equal(result.crawl.pageCount >= 2, true);
   assert.equal(result.crawl.emailOutcome, "EMAIL_FOUND");
   assert.equal(result.source.finalUrl, "https://venue.org/eventsvenue/");
+});
+
+test("a third-party venue listing cannot crawl sibling listings or guide pages", async () => {
+  const { fetchImpl, requested } = site({
+    "/venues/venue-caf-on-par-7800": html('<h1>Café on Par</h1><a href="/venues/starlet-exclusive-events-7941">More venues</a><a href="/guides/couples/guest-room-booking">Guide</a>'),
+    "/venues/starlet-exclusive-events-7941": html("<h1>Unrelated Venue</h1>"),
+    "/guides/couples/guest-room-booking": html("Guide content"),
+  });
+  const result = await crawlVerifiedSource({
+    verifiedUrl: "https://venue.org/venues/venue-caf-on-par-7800",
+    requestedExtractors: ["VENUE_FACTS", "IMAGE_CANDIDATES"], budget,
+    fetchImpl, resolveHost: publicResolver, sleep: async () => {}, venueName: "Café on Par",
+  });
+  assert.deepEqual(result.documents.map((document) => new URL(document.url).pathname), ["/venues/venue-caf-on-par-7800"]);
+  assert.equal(requested.includes("/venues/starlet-exclusive-events-7941"), false);
+  assert.equal(requested.includes("/guides/couples/guest-room-booking"), false);
+  assert.ok(result.observability?.skippedContent.some((item) => item.reason === "UNRELATED_DIRECTORY_LISTING_SCOPE"));
 });
 
 test("gzip HTML is parsed and a gzip archive is still rejected", async () => {

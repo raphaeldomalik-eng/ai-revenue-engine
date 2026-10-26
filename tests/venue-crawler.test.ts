@@ -181,6 +181,19 @@ test("capacity-linked proper names and containsPlace stay confirmed while a cate
   assert.ok(menuEvidence.capacities.some((item) => item.count === 180 && item.space === "Grand Hall"));
 });
 
+test("third-party venue listing keeps publisher address separate from the target venue", () => {
+  const listing: FetchedDocument = {
+    url: "https://aisle.wedding/venues/venue-caf-on-par-7800",
+    body: `<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"Aisle Wedding","address":{"addressLocality":"Portland","addressRegion":"OR","addressCountry":"US"},"email":"hello@aisle.wedding","logo":"https://aisle.wedding/platform-logo.png"},{"@type":"EventVenue","name":"Café on Par","url":"https://aisle.wedding/venues/venue-caf-on-par-7800","address":{"addressLocality":"Cape Town","addressCountry":"ZA"},"image":"https://images.example/cafe-par.jpg","maximumAttendeeCapacity":150}]}</script><h1>Café on Par</h1>`,
+    contentType: "text/html", bytes: 600, sourceHash: "aisle-fixture", observedAt: "2026-10-26T00:00:00Z", kind: "HTML",
+  };
+  const result = extractFromFetchedDocuments([listing], ["IDENTITY", "VENUE_FACTS", "PUBLIC_CONTACT", "IMAGE_CANDIDATES"], "Café on Par");
+  assert.equal(result.identityFacts.some((fact) => JSON.stringify(fact.value).includes("Portland")), false);
+  assert.equal(result.identityFacts.some((fact) => JSON.stringify(fact.value).includes("Cape Town")), true);
+  assert.equal(result.publicContacts.some((contact) => contact.value === "hello@aisle.wedding" && contact.reviewRequired), true);
+  assert.deepEqual(result.imageCandidates.map((item) => item.sourceImageUrl), ["https://images.example/cafe-par.jpg"]);
+});
+
 test("conflicting capacities stay review-required and several real spaces are still fetched", async () => {
   const images = Array.from({ length: 8 }, (_, index) => `<img src="/photos/${index}.jpg" alt="Hall interior" width="800" height="600">`).join("");
   const pages: Record<string, string> = {

@@ -27,6 +27,11 @@ const PAGE_ACCEPT = "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1";
 const CALENDAR_ACCEPT = "text/calendar,*/*;q=0.1";
 const PDF_ACCEPT = "application/pdf,*/*;q=0.1";
 const SITEMAP_ACCEPT = "application/xml,text/xml;q=0.9,text/plain;q=0.5,*/*;q=0.1";
+function manifestSafeUrl(value: string) {
+  const safe = new URL(value); safe.hash = "";
+  for (const key of [...safe.searchParams.keys()]) if (/(?:token|secret|password|auth|session|signature|^sig$|^key$|email|code)/i.test(key)) safe.searchParams.delete(key);
+  return safe.toString();
+}
 
 function realSleep(ms: number) {
   return ms > 0 ? new Promise<void>((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
@@ -178,7 +183,7 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
   const origin = new URL(url).origin;
   const key = `${url}\n${accept}\n${JSON.stringify(headers)}`;
   try {
-    return await ctx.politeness.singleFlight(key, () => ctx.politeness.run(origin, ctx.budget.minRequestDelayMs, async () => {
+    const snapshot = await ctx.politeness.singleFlight(key, () => ctx.politeness.run(origin, ctx.budget.minRequestDelayMs, async () => {
       if (!ctx.fetchImpl) {
         const response = await fetchPinned({ url, resolveHost: ctx.resolveHost, userAgent: ctx.userAgent, accept, maxBytes, timeoutMs: ctx.budget.timeoutMs, headers, refuseContentType: refuseByHeaders });
         return { status: response.status, headers: response.headers, bytes: new Uint8Array(await response.arrayBuffer()) };
@@ -202,6 +207,10 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
         return { status: response.status, headers: response.headers, bytes };
       })(), ctx.budget.timeoutMs);
     }));
+    if (ctx.obs.responseManifest.length < 256) {
+      ctx.obs.responseManifest.push({ url: manifestSafeUrl(url), status: snapshot.status, contentType: snapshot.headers.get("content-type"), bytes: snapshot.bytes.length, responseHash: createHash("sha256").update(snapshot.bytes).digest("hex") });
+    } else ctx.obs.responseManifestOmitted += 1;
+    return snapshot;
   } catch (error) {
     if (error instanceof CrawlRefusal) throw error;
     if (error instanceof UnsupportedContent) throw new ContentSkipped(error.message);
@@ -423,7 +432,7 @@ function emptyObservability(verifiedUrl: string, site: SiteIdentity, args: Crawl
     subjectType: args.subjectType ?? "UNKNOWN", extractors: [...args.requestedExtractors],
     staticPages: 0, renderedPages: 0, renderNeededButUnavailable: [], hydrationPages: 0, pdfDocuments: 0, pdfPagesWithText: 0, contactPathsRemaining: 0,
     requests: 0, bytes: 0, redirects: 0, retries: 0, retryAfterWaits: 0, cacheFreshHits: 0, revalidatedNotModified: 0, singleFlightHits: 0,
-    blockedPages: [], skippedContent: [], selections: [], dimensionsRequested: [...new Set(profiles.flatMap((profile) => profile.dimensions))], dimensionsSatisfied: [], dimensionsMissing: [],
+    blockedPages: [], skippedContent: [], selections: [], responseManifest: [], responseManifestOmitted: 0, dimensionsRequested: [...new Set(profiles.flatMap((profile) => profile.dimensions))], dimensionsSatisfied: [], dimensionsMissing: [],
     stopReason: "QUEUE_EXHAUSTED", finalStatus: "COMPLETED",
   };
 }
@@ -444,7 +453,10 @@ function finish(ctx: Ctx, output: { verifiedUrl: string; finalUrl: string; docum
   obs.dimensionsMissing = obs.dimensionsRequested.filter((dim) => !satisfied.includes(dim));
   const websiteOpportunity = assessWebsiteOpportunity(output.documents);
   obs.websiteOpportunity = websiteOpportunity;
-  return { ...output, stats: ctx.stats, canonicalOrigin: ctx.site.canonicalOrigin, observability: obs, websiteOpportunity };
+  return { ...output, stats: ctx.stats, canonicalOrigin: ctx.site.canonicalOrigin, observability: obs, websiteOpportunity,
+    evidenceManifest: { version: 1, attemptedRequests: ctx.stats.requestCount, requests: obs.responseManifest, requestsOmitted: obs.responseManifestOmitted,
+      unrecordedRequests: Math.max(0, ctx.stats.requestCount - obs.responseManifest.length - obs.responseManifestOmitted),
+      pages: output.documents.filter((item) => item.kind !== "CALENDAR").map((item) => ({ url: item.url, sourceHash: item.sourceHash, contentType: item.contentType, bytes: item.bytes, kind: item.kind ?? "HTML", retrieval: item.retrieval ?? null, publisherType: "VERIFIED_FIRST_PARTY" as const, subjectAssignment: "TARGET" as const, evidenceRefs: [] })) } };
 }
 
 /** Thin static shells are first read through embedded hydration data, then (only if still inadequate) rendered. */
@@ -668,6 +680,7 @@ async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, 
   let retryableCandidateFailure = false;
   let stop: CrawlStopReason = "QUEUE_EXHAUSTED";
   const fetchedKeys = new Set<string>();
+  const targetListing = /^\/venues\/venue-[^/]+-\d+\/?$/i.test(new URL(verifiedUrl).pathname);
   planner.add({ url: verifiedUrl, kind: "PAGE", dims: set.requested, source: "ENTRY", discoveredFrom: null, label: "", strength: 100 });
 
   const admit = (href: string, label: string, type: string, from: FetchedDocument) => {
@@ -677,6 +690,13 @@ async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, 
     for (const key of [...parsed.searchParams.keys()]) if (TRACKING_PARAM.test(key)) parsed.searchParams.delete(key);
     const clean = parsed.toString();
     if (planner.has(clean) || ICS_URL.test(clean) || !planableUrl(clean)) return;
+    // Third-party directory detail pages are subject-scoped. Related venue cards,
+    // guides, navigation and footer links are not evidence for the requested venue.
+    if (targetListing && parsed.origin === new URL(verifiedUrl).origin
+      && parsed.pathname.replace(/\/$/, "") !== new URL(verifiedUrl).pathname.replace(/\/$/, "")) {
+      ctx.obs.skippedContent.push({ url: clean, reason: "UNRELATED_DIRECTORY_LISTING_SCOPE" });
+      return;
+    }
     if (!ctx.site.isAllowedOrigin(parsed.origin)) {
       const dims = set.linkDimensions(clean, label).filter((dim) => set.priority.includes(dim));
       if (!dims.length || !ctx.site.admitLinkedSubdomain(clean, from.url)) return;
