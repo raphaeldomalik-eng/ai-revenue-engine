@@ -24,6 +24,7 @@
     "nexus.research-result.v1",
     "nexus.source-discovery-request.v1",
     "nexus.source-discovery-result.v1",
+    "nexus.source-discovery-result.v2",
     "nexus.source-entity-classification.v1",
     "nexus.entity-change.v1",
     "nexus.research-refresh.v1",
