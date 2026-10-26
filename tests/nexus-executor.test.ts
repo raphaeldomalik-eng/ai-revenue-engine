@@ -176,7 +176,7 @@ test("a crawler warning longer than the contract limit is bounded before result 
     idempotencyKey: ids.idempotencyKey,
     subjectReference: discovery().subjectReference,
     source: { verifiedUrl: "https://venue.org/", finalUrl: "https://venue.org/", observedAt: "2026-09-21T00:00:00.000Z", sourceHash: "abc" },
-    crawl: { status: "PARTIAL", warnings, requestCount: 1, pageCount: 1, bytesRead: 1, redirects: 0, blockedCount: 0, retryable: false },
+    crawl: { status: "PARTIAL", warnings, requestCount: 1, pageCount: 1, bytesRead: 1, redirects: 0, blockedCount: 0, retryable: false, evidenceManifest: { version: 1, attemptedRequests: 1, requests: [], requestsOmitted: 0, unrecordedRequests: 1, pages: [{ url: "https://venue.org/", sourceHash: "abc", contentType: "text/html", bytes: 1, kind: "HTML", retrieval: "STATIC", publisherType: "VERIFIED_FIRST_PARTY", subjectAssignment: "TARGET", evidenceRefs: [] }] } },
     identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [],
   }));
 });

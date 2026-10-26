@@ -80,6 +80,9 @@ export type CrawlObservability = {
   cacheFreshHits: number;
   revalidatedNotModified: number;
   singleFlightHits: number;
+  /** Bounded response ledger: URLs/status/size/hash only, never response bodies or headers. */
+  responseManifest: Array<{ url: string; status: number; contentType: string | null; bytes: number; responseHash: string }>;
+  responseManifestOmitted: number;
   blockedPages: Array<{ url: string; reason: string }>;
   skippedContent: Array<{ url: string; reason: string }>;
   selections: Array<{ url: string; kind: string; reason: string }>;
@@ -113,6 +116,7 @@ export type CrawlOutput = {
   canonicalOrigin?: string;
   observability?: CrawlObservability;
   websiteOpportunity?: WebsiteOpportunity;
+  evidenceManifest?: { version: 1; attemptedRequests: number; requests: CrawlObservability["responseManifest"]; requestsOmitted: number; unrecordedRequests: number; pages: Array<{ url: string; sourceHash: string; contentType: string | null; bytes: number; kind: DocumentKind; retrieval: string | null; publisherType: "VERIFIED_FIRST_PARTY" | "THIRD_PARTY_DIRECTORY"; subjectAssignment: "TARGET" | "UNRESOLVED"; evidenceRefs: string[] }> };
 };
 
 /** Prior observation of one URL; supplied by the caller's existing evidence store, not a crawler-owned cache. */

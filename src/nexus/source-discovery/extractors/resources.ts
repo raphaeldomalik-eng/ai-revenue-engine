@@ -71,19 +71,21 @@ const PURPOSE_RANK: Record<ContactPurpose, number> = { SALES_HIRE: 0, BOOKINGS: 
 function addContact(out: ResourceExtraction, doc: FetchedDocument, type: string, raw: string | null, confidence: number, reviewRequired = false, context = "") {
   if (!raw) return;
   const original = raw.trim();
-  const value = type === "EMAIL" ? original.toLowerCase() : original;
+  const value = original;
   if (type === "EMAIL" && !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)) return;
   if (type === "EMAIL" && !recognisedEmailDomain(value.split("@")[1] ?? "")) return;
+  const webSubdomainMailbox = type === "EMAIL" && /^www\./i.test(value.split("@")[1] ?? "");
   if (type === "EMAIL") {
     const domain = value.split("@")[1]!;
     const unrelatedMailbox = TICKETING_DOMAINS.test(`.${domain}`) && registrableDomain(domain) !== registrableDomain(new URL(doc.url).hostname)
-      || /^(?:newsletter|marketing|unsubscribe|noreply|no-reply|donotreply|careers|jobs|recruitment)@/.test(value);
+      || /^(?:newsletter|marketing|unsubscribe|noreply|no-reply|donotreply|careers|jobs|recruitment)@/i.test(value);
     if (unrelatedMailbox) reviewRequired = true;
+    if (webSubdomainMailbox) reviewRequired = true;
   }
-  const normalized = type === "EMAIL" ? value : type === "PHONE" || type === "WHATSAPP" && !/^https?:|^whatsapp:/i.test(value) ? normalizePhone(value, new URL(doc.url).hostname) : value;
+  const normalized = type === "EMAIL" ? value.toLowerCase() : type === "PHONE" || type === "WHATSAPP" && !/^https?:|^whatsapp:/i.test(value) ? normalizePhone(value, new URL(doc.url).hostname) : value;
   if ((type === "PHONE") && normalized.replace(/\D/g, "").length < 7) return;
   const evidenceRef = ref(doc, "contact", `${type}:${value}`);
-  const label = clean(context) ? clean(context)!.slice(0, 160) : null;
+  const label = `${clean(context) ?? ""}${webSubdomainMailbox ? " Mailbox uses a www subdomain and is retained unchanged pending validation." : ""}`.trim().slice(0, 160) || null;
   out.publicContacts.push({ type, value, sourceUrl: doc.url, confidence, reviewRequired, evidenceRef, purpose: classifyPurpose(type, `${type === "EMAIL" ? value : ""} ${context} ${new URL(doc.url).pathname.replace(/[\/_-]/g, " ")}`), normalized, original, label });
   out.evidenceRefs.push(evidenceRef);
 }
@@ -132,14 +134,37 @@ const validCount = (value: unknown) => {
   const text = String(value ?? "").trim();
   return /^\d{1,6}$/.test(text) && Number(text) >= 1 && Number(text) <= 100000 ? Number(text) : null;
 };
-function structured(doc: FetchedDocument, out: ResourceExtraction, extractors: SourceExtractor[]) {
+const thirdPartyVenueListing = (url: string) => /^\/venues\/venue-[^/]+-\d+\/?$/i.test(new URL(url).pathname);
+function structured(doc: FetchedDocument, out: ResourceExtraction, extractors: SourceExtractor[], venueName = "") {
   const { nodes, contained } = structuredNodes(doc);
-  const hasLocalBusiness = nodes.some((node) => typed(node, "LocalBusiness") && (!clean(node.url) || sameOrigin(clean(node.url)!, doc.url)));
+  const listingPage = thirdPartyVenueListing(doc.url);
+  const normalizedName = (value: unknown) => clean(value)?.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() ?? "";
+  const matchesTarget = (node: Record<string, unknown>) => {
+    if (!listingPage) return true;
+    const name = normalizedName(node.name);
+    const target = normalizedName(venueName);
+    if (target && name === target) return true;
+    const nodeUrl = clean(node.url) ?? clean(node["@id"]);
+    if (!nodeUrl) return false;
+    const resolved = sameOrigin(nodeUrl, doc.url);
+    return Boolean(resolved && new URL(resolved).pathname.replace(/\/$/, "") === new URL(doc.url).pathname.replace(/\/$/, ""));
+  };
+  const hasLocalBusiness = nodes.some((node) => matchesTarget(node) && typed(node, "LocalBusiness") && (!clean(node.url) || sameOrigin(clean(node.url)!, doc.url)));
   for (const node of nodes) {
+    // On a directory listing, JSON-LD often includes the platform publisher plus the
+    // target venue. Only the target listing node can contribute venue evidence.
+    if (listingPage && !matchesTarget(node)) {
+      // Keep a publisher contact as observed evidence, but explicitly hold it
+      // as unassociated so the product consumer cannot turn it into a venue route.
+      if (extractors.includes("PUBLIC_CONTACT") && clean(node.email)) {
+        addContact(out, doc, "EMAIL", clean(node.email), 0.9, true, "Third-party platform publisher contact; target venue association unresolved");
+      }
+      continue;
+    }
     if (typed(node, "ContactPoint") && (/^\/(?:index\.html?)?$/i.test(new URL(doc.url).pathname) || /\b(?:contact|enquir\w*|book\w*|hire)\b/i.test(new URL(doc.url).pathname))
       && (!clean(node.email) || clean(node.email)!.toLowerCase().endsWith(`@${bareHost(doc.url)}`))
       && /\b(?:book\w*|enquir\w*|venue hire)\b/i.test(clean(node.contactType) ?? "")) {
-      if (extractors.includes("PUBLIC_CONTACT")) { addContact(out, doc, "PHONE", clean(node.telephone), 0.9, false, clean(node.contactType) ?? ""); addContact(out, doc, "EMAIL", clean(node.email), 0.9, false, clean(node.contactType) ?? ""); }
+      if (extractors.includes("PUBLIC_CONTACT")) { addContact(out, doc, "PHONE", clean(node.telephone), 0.9, listingPage, clean(node.contactType) ?? ""); addContact(out, doc, "EMAIL", clean(node.email), 0.9, listingPage, clean(node.contactType) ?? ""); }
       if (extractors.includes("IDENTITY")) addIdentity(out, doc, "contactType", clean(node.contactType));
       continue;
     }
@@ -249,7 +274,7 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: stri
   const addPublishedEmail = (email: string, confidence: number, context: string) => {
     const domain = email.split("@")[1] ?? "";
     if (!registrableDomain(domain)) return;
-    addContact(out, doc, "EMAIL", email, confidence, publishedEmailReview(email, doc.url, context, venueName), context);
+    addContact(out, doc, "EMAIL", email, confidence, thirdPartyVenueListing(doc.url) || publishedEmailReview(email, doc.url, context, venueName), context);
   };
   for (const anchor of hrefTags(doc.body)) {
     const href = (anchor.attrs.href ?? "").trim(); const label = visibleText(anchor.inner);
@@ -559,7 +584,11 @@ function imageRole(filename: string | null, alt: string | null, element: DomElem
   if (/gallery|photos/i.test(new URL(docUrl).pathname) || (element && closestAncestor(element, (item) => /gallery|carousel|slider|swiper|lightbox/i.test(`${item.attrs.class ?? ""} ${item.attrs.id ?? ""}`)))) return "GALLERY";
   return "OTHER";
 }
-function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement | null) {
+function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement | null, venueName = "") {
+  const listingPage = thirdPartyVenueListing(doc.url);
+  const normalizedName = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const targetName = normalizedName(venueName);
+  const explicitlyNamesTarget = (...values: Array<string | null>) => Boolean(targetName && values.some((value) => value && normalizedName(value).includes(targetName)));
   const rights = imageRights(doc); if (rights.rightsEvidence) out.evidenceRefs.push(rights.rightsEvidence.evidenceRef);
   const push = (source: ImageSource, alt: string | null, title: string | null, caption: string | null, element: DomElement | null, options: { og?: boolean; exactVenue?: boolean | null; role?: string } = {}) => {
     if (TRACKER.test(source.url)) return;
@@ -588,19 +617,21 @@ function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement 
       if (!url) continue;
       const figure = closestAncestor(img, (item) => item.tag === "figure");
       const caption = figure ? clean(textContent(byTag(figure, "figcaption")[0] ?? { type: "text", text: "", parent: null })) : null;
+      if (listingPage && !explicitlyNamesTarget(clean(attrs.alt), clean(attrs.title), caption)) continue;
       push({ url, width: best?.width ?? dimension(attrs.width), height: best?.width ? null : dimension(attrs.height) }, clean(attrs.alt), clean(attrs.title), caption, img);
     }
   } else {
     for (const tag of selfClosingTags(doc.body, "img")) {
       const url = canonicalHttpsUrl(tag.attrs.src ?? "", doc.url); if (!url) continue;
-      push({ url, width: dimension(tag.attrs.width), height: dimension(tag.attrs.height) }, clean(tag.attrs.alt), clean(tag.attrs.title), null, null);
+      if (!listingPage || explicitlyNamesTarget(clean(tag.attrs.alt), clean(tag.attrs.title))) push({ url, width: dimension(tag.attrs.width), height: dimension(tag.attrs.height) }, clean(tag.attrs.alt), clean(tag.attrs.title), null, null);
     }
   }
   const og = firstMeta(doc.body, "og:image") ?? firstMeta(doc.body, "og:image:secure_url") ?? firstMeta(doc.body, "twitter:image");
   const ogUrl = og ? canonicalHttpsUrl(og, doc.url) : null;
-  if (ogUrl) push({ url: ogUrl, width: dimension(firstMeta(doc.body, "og:image:width") ?? undefined), height: dimension(firstMeta(doc.body, "og:image:height") ?? undefined) }, clean(firstMeta(doc.body, "og:image:alt")), null, null, null, { og: true });
+  if (ogUrl && (!listingPage || explicitlyNamesTarget(clean(firstMeta(doc.body, "og:image:alt"))))) push({ url: ogUrl, width: dimension(firstMeta(doc.body, "og:image:width") ?? undefined), height: dimension(firstMeta(doc.body, "og:image:height") ?? undefined) }, clean(firstMeta(doc.body, "og:image:alt")), null, null, null, { og: true });
   const { nodes, contained } = structuredNodes(doc);
   for (const node of nodes) {
+    if (listingPage && (!targetName || normalizedName(clean(node.name) ?? "") !== targetName)) continue;
     const subject = ["Place", "EventVenue", "LocalBusiness", "Organization", "CivicStructure", "PerformingArtsTheater", "MusicVenue"].some((name) => typed(node, name));
     if (!subject || (clean(node.url) && !sameOrigin(clean(node.url)!, doc.url))) continue;
     for (const [key, role] of [["logo", "LOGO"], ["image", null], ["photo", null]] as const) {
@@ -661,7 +692,7 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
   }
   const doc = source.derivedMarkup ? { ...source, body: `${source.body}\n${source.derivedMarkup}` } : source;
   const root = extractors.includes("VENUE_FACTS") || extractors.includes("IMAGE_CANDIDATES") ? parseHtml(doc.body) : null;
-  structured(doc, out, extractors);
+  structured(doc, out, extractors, venueName);
   if (extractors.includes("IDENTITY")) {
     const parsedDocUrl = new URL(doc.url);
     const isWixSiteRoot = parsedDocUrl.hostname.toLowerCase().endsWith(".wixsite.com") && /^\/[^/]+\/?$/i.test(parsedDocUrl.pathname);
@@ -687,7 +718,7 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
   if (extractors.includes("PUBLIC_CONTACT")) contacts(doc, out, venueName);
   if (extractors.includes("VENUE_FACTS")) venueFacts(doc, out, root);
   if (extractors.includes("SOURCE_CLASSIFICATION")) classificationEvidence(doc, out);
-  if (extractors.includes("IMAGE_CANDIDATES")) images(doc, out, root);
+  if (extractors.includes("IMAGE_CANDIDATES")) images(doc, out, root, venueName);
   return out;
 }
 export function extractResourcesFromDocuments(documents: FetchedDocument[], extractors: SourceExtractor[], venueName = ""): ResourceExtraction {

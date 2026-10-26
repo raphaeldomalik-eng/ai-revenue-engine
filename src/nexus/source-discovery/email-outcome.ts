@@ -8,6 +8,7 @@ import type { CrawlStats, CrawlStopReason } from "./types.ts";
 export function deriveEmailAcquisitionOutcome(input: {
   emailGoal: boolean;
   emailFound: boolean;
+  emailCandidatesHeld?: number;
   status: CrawlStats["status"];
   retryable: boolean;
   stopReason: CrawlStopReason | null;
@@ -16,6 +17,7 @@ export function deriveEmailAcquisitionOutcome(input: {
 }): EmailAcquisitionOutcome {
   if (!input.emailGoal) return "EMAIL_NOT_REQUESTED";
   if (input.emailFound) return "EMAIL_FOUND";
+  if ((input.emailCandidatesHeld ?? 0) > 0) return "EMAIL_CANDIDATES_HELD";
   if (input.status === "BLOCKED" || input.stopReason === "ROBOTS_BLOCKED" || input.stopReason === "ROBOTS_UNAVAILABLE") return "BLOCKED";
   if (input.status === "FAILED") return input.retryable ? "TRANSIENT_FAILURE" : "BLOCKED";
   if (input.renderNeeded) return "RENDER_NEEDED";
