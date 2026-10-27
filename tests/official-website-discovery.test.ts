@@ -423,10 +423,10 @@ test("a held EventSuite relay address or phone is never GUIDE_EMAIL_READY and do
   assert.equal(heldVenueEmail.crawl.sourceDiscoveryCrawls, 0);
 });
 
-test("email acceptance: evidenced bookings@ on the verified domain is accepted; guessed, third-party, and personal addresses are not", async () => {
+test("email acceptance retains genuine named and purpose-labelled contacts and excludes unrelated or fabricated addresses", async () => {
   const site = "https://www.cornexhall.co.uk/";
   assert.deepEqual(acceptVenueEmail("Bookings@CornexHall.co.uk", site, "Cornex Hall"), { accepted: true, email: "bookings@cornexhall.co.uk", relationship: "VERIFIED_SITE_DOMAIN" });
-  assert.deepEqual(acceptVenueEmail("jo.smith@events.cornexhall.co.uk", site, "Cornex Hall"), { accepted: false, reason: "PERSONAL_CONTACT_REQUIRES_REVIEW" });
+  assert.deepEqual(acceptVenueEmail("jo.smith@events.cornexhall.co.uk", site, "Cornex Hall"), { accepted: true,email:'jo.smith@events.cornexhall.co.uk',relationship:'VERIFIED_SITE_DOMAIN' });
   assert.equal((acceptVenueEmail("cornexhall.bookings@gmail.com", site, "Cornex Hall") as any).relationship, "PUBLISHED_ON_VERIFIED_SITE");
   for (const [email, reason] of [
     ["jane.doe1984@gmail.com", "PERSONAL_FREE_MAIL_ADDRESS"],
@@ -461,10 +461,10 @@ test("email acceptance: evidenced bookings@ on the verified domain is accepted; 
   assert.equal(labelledResult.sourceDiscovery.publicContacts.find((item: any) => item.value === "jo.smith@hospitalitygroup.co.uk")?.label?.includes("Venue hire:"), true);
   assert.deepEqual(
     labelledResult.publicContacts.filter((item: any) => item.type === "EMAIL").map((item: any) => [item.value, item.relationship]),
-    [],
+    [['jo.smith@hospitalitygroup.co.uk','PUBLISHED_ON_VERIFIED_SITE']],
   );
-  assert.equal(labelledResult.guideEmailReady, false);
-  assert.equal(labelledResult.sourceDiscovery.publicContacts.find((item: any) => item.value === "jo.smith@hospitalitygroup.co.uk")?.reviewRequired, true);
+  assert.equal(labelledResult.guideEmailReady, true);
+  assert.equal(labelledResult.sourceDiscovery.publicContacts.find((item: any) => item.value === "jo.smith@hospitalitygroup.co.uk")?.reviewRequired, false);
 });
 
 test("a held website with a cross-site redirect or TLS trust failure stays terminal and is not contact-crawled", async () => {

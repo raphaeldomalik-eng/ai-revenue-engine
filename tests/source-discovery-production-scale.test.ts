@@ -376,7 +376,7 @@ test("conflicting capacities for the same named room and layout across pages req
   assert.ok(extracted.warnings.some((warning) => /grand hall:banquet requires review/.test(warning)));
 });
 
-test("contact purposes rank sales/hire first, normalise phones, and exclude ticketing, newsletter and no-reply addresses", async () => {
+test("contact purposes retain legitimate venue mailboxes while ticketing and no-reply addresses remain excluded", async () => {
   const { extracted } = await crawl({
     [`${origin}/robots.txt`]: ALLOW,
     [`${origin}/`]: { body: `<a href="/contact">Contact</a>` },
@@ -390,9 +390,9 @@ test("contact purposes rank sales/hire first, normalise phones, and exclude tick
   const emails = emailContacts.filter((item) => !item.reviewRequired).map((item) => item.value);
   assert.equal(emails[0], "events@venue.org");
   assert.ok(emails.includes("info@venue.org"));
-  assert.ok(!emails.some((value) => /ticketmaster|newsletter|noreply/.test(value)));
+  assert.ok(!emails.some((value) => /ticketmaster|noreply/.test(value)));
   assert.ok(emailContacts.some((item) => item.value === "help@ticketmaster.co.uk" && item.reviewRequired));
-  assert.ok(emailContacts.some((item) => item.value === "newsletter@venue.org" && item.reviewRequired));
+  assert.ok(emailContacts.some((item) => item.value === "newsletter@venue.org" && !item.reviewRequired));
   assert.ok(emailContacts.some((item) => item.value === "noreply@venue.org" && item.reviewRequired));
   const phones = extracted.publicContacts.filter((item) => item.type === "PHONE");
   assert.ok(phones.some((item) => item.normalized === "01174960123" && item.purpose === "SALES_HIRE"), JSON.stringify(phones));

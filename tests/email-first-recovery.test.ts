@@ -19,8 +19,8 @@ test('the venue acquisition profile preserves the email goal for functions and d
   assert.ok(profile.pdfDimensions('https://venue.org/venue-hire.pdf', 'Hire pack')?.includes('PUBLIC_CONTACT:EMAIL'));
 });
 
-test('personal staff mailbox cannot stop the email search on the same domain', () => {
-  assert.equal(acceptVenueEmail('jane.smith@venue.org', 'https://venue.org/contact/', 'Hazlitt Theatre', 'Contact: Jane Smith').accepted, false);
+test('source-published named staff mailbox is a legitimate initial contact', () => {
+  assert.equal(acceptVenueEmail('jane.smith@venue.org', 'https://venue.org/contact/', 'Hazlitt Theatre', 'Contact: Jane Smith').accepted, true);
 });
 
 test('published university and council venue mailboxes retain their first-party relationship', () => {
@@ -81,7 +81,8 @@ test('venue-specific compound mailbox survives extraction with venue identity', 
  const extracted = extractFromFetchedDocuments([{url:'https://www.parkwoodtheatres.co.uk/hazlitt-theatre',body:'<a href="mailto:hazlitthire@parkwoodtheatres.co.uk">Hazlitt hire</a>',kind:'HTML',contentType:'text/html',bytes:120,observedAt:'2026-10-19T00:00:00Z',sourceHash:'a'.repeat(64)}], ['PUBLIC_CONTACT'], 'Hazlitt Theatre');
  assert.equal(extracted.publicContacts[0]?.reviewRequired,false);
 });
-test('shared operator root and sibling pages cannot satisfy venue email goal', () => {
- for (const page of ['https://parkwoodtheatres.co.uk/', 'https://parkwoodtheatres.co.uk/other-theatre']) assert.equal(acceptVenueEmail('info@parkwoodtheatres.co.uk',page,'Hazlitt Theatre','General enquiries').accepted,false,page);
+test('verified operator contact can satisfy initial contact but sibling-property contact stays held', () => {
+ assert.equal(acceptVenueEmail('info@parkwoodtheatres.co.uk','https://parkwoodtheatres.co.uk/','Hazlitt Theatre','General enquiries').accepted,true);
+ assert.equal(acceptVenueEmail('info@parkwoodtheatres.co.uk','https://parkwoodtheatres.co.uk/other-theatre','Hazlitt Theatre','General enquiries').accepted,false);
  assert.equal(acceptVenueEmail('boxoffice@parkwoodtheatres.co.uk','https://parkwoodtheatres.co.uk/other-theatre','Hazlitt Theatre','Other Theatre box office').accepted,false);
 });

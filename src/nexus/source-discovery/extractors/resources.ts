@@ -9,7 +9,7 @@ import { acceptVenueEmail } from "../../venue-email.ts";
 import type { FetchedDocument } from "../types.ts";
 
 export type IdentityFact = { fieldName: string; value: unknown; sourceUrl: string; evidenceRef: string };
-export type ContactPurpose = "ENQUIRIES" | "BOOKINGS" | "SALES_HIRE" | "GENERAL" | "SWITCHBOARD" | "BOX_OFFICE" | "MESSAGING" | "FORM";
+export type ContactPurpose = "ENQUIRIES" | "BOOKINGS" | "SALES_HIRE" | "CORPORATE_SUPPORT" | "GENERAL" | "SWITCHBOARD" | "BOX_OFFICE" | "MESSAGING" | "FORM";
 export type PublicContact = {
   type: string; value: string; sourceUrl: string; confidence: number | null; reviewRequired: boolean; evidenceRef: string;
   /** Internal classification; V1 publicContact cannot carry these, so they drive ordering and telemetry only. */
@@ -59,14 +59,16 @@ function classifyPurpose(type: string, context: string): ContactPurpose {
   if (type === "WHATSAPP" || type === "BUSINESS_MESSAGING") return "MESSAGING";
   if (type === "CONTACT_FORM") return "FORM";
   const text = context.toLowerCase();
+  if (/\b(?:corporate|business) support\b/.test(text)) return "CORPORATE_SUPPORT";
+  if (/\b(?:special requests|larger groups|drop us a note|contact form)\b/.test(text)) return "ENQUIRIES";
   if (/\b(?:venue[- ]hire|private[- ](?:hire|events?|dining)|hire|functions?|sales|conference|corporate|weddings?|meetings?|events? (?:team|sales|office|enquir))\b|^(?:events|hire|sales|functions|weddings|conference)@/.test(text)) return "SALES_HIRE";
   if (/\b(?:bookings?|reservations?|book (?:the|a|your|now))\b|^(?:bookings?|reservations?|book)@/.test(text)) return "BOOKINGS";
   if (/\bbox[- ]office\b|^(?:boxoffice|tickets)@/.test(text)) return "BOX_OFFICE";
   if (/\b(?:switchboard|main (?:line|office|number)|reception desk)\b/.test(text)) return "SWITCHBOARD";
-  if (/\benquir\w*|\binquir\w*|^(?:enquiries|inquiries)@/.test(text)) return "ENQUIRIES";
+  if (/\benquir\w*|\binquir\w*|special requests|larger groups|all other enquiries|^(?:enquiries|inquiries)@/.test(text)) return "ENQUIRIES";
   return "GENERAL";
 }
-const PURPOSE_RANK: Record<ContactPurpose, number> = { SALES_HIRE: 0, BOOKINGS: 1, ENQUIRIES: 2, GENERAL: 3, SWITCHBOARD: 4, BOX_OFFICE: 5, FORM: 6, MESSAGING: 7 };
+const PURPOSE_RANK: Record<ContactPurpose, number> = { SALES_HIRE: 0, BOOKINGS: 1, ENQUIRIES: 2, CORPORATE_SUPPORT: 3, GENERAL: 4, SWITCHBOARD: 5, BOX_OFFICE: 6, FORM: 7, MESSAGING: 8 };
 
 function addContact(out: ResourceExtraction, doc: FetchedDocument, type: string, raw: string | null, confidence: number, reviewRequired = false, context = "") {
   if (!raw) return;
@@ -78,18 +80,18 @@ function addContact(out: ResourceExtraction, doc: FetchedDocument, type: string,
   if (type === "EMAIL") {
     const domain = value.split("@")[1]!;
     const unrelatedMailbox = TICKETING_DOMAINS.test(`.${domain}`) && registrableDomain(domain) !== registrableDomain(new URL(doc.url).hostname)
-      || /^(?:newsletter|marketing|unsubscribe|noreply|no-reply|donotreply|careers|jobs|recruitment)@/i.test(value);
+      || /^(?:unsubscribe|noreply|no-reply|donotreply)@/i.test(value);
     if (unrelatedMailbox) reviewRequired = true;
     if (webSubdomainMailbox) reviewRequired = true;
   }
   const normalized = type === "EMAIL" ? value.toLowerCase() : type === "PHONE" || type === "WHATSAPP" && !/^https?:|^whatsapp:/i.test(value) ? normalizePhone(value, new URL(doc.url).hostname) : value;
   if ((type === "PHONE") && normalized.replace(/\D/g, "").length < 7) return;
   const evidenceRef = ref(doc, "contact", `${type}:${value}`);
-  const label = `${clean(context) ?? ""}${webSubdomainMailbox ? " Mailbox uses a www subdomain and is retained unchanged pending validation." : ""}`.trim().slice(0, 160) || null;
+  const label = `${clean(context) ?? ""}${webSubdomainMailbox ? " Mailbox uses a www subdomain and is retained unchanged pending validation." : ""}`.trim().slice(-512) || null;
   out.publicContacts.push({ type, value, sourceUrl: doc.url, confidence, reviewRequired, evidenceRef, purpose: classifyPurpose(type, `${type === "EMAIL" ? value : ""} ${context} ${new URL(doc.url).pathname.replace(/[\/_-]/g, " ")}`), normalized, original, label });
   out.evidenceRefs.push(evidenceRef);
 }
-function addFact(out: ResourceExtraction, doc: FetchedDocument, fieldName: string, value: unknown, confidence = 0.8) {
+function addFact(out: ResourceExtraction, doc: FetchedDocument, fieldName: string, value: unknown, confidence = 0.8,reviewRequired=false) {
   if (fieldName === "capacity") {
     const next = value as { space: string | null; layout: string; count: number };
     const duplicate = out.venueFacts.some((item) => item.fieldName === "capacity" && item.sourceUrl === doc.url
@@ -99,7 +101,7 @@ function addFact(out: ResourceExtraction, doc: FetchedDocument, fieldName: strin
   }
   if (fieldName === "spaces" && out.venueFacts.some((item) => item.fieldName === "spaces" && item.sourceUrl === doc.url && String(item.value).toLowerCase() === String(value).toLowerCase())) return;
   const evidenceRef = ref(doc, "venue", `${fieldName}:${JSON.stringify(value)}`);
-  out.venueFacts.push({ fieldName, value, sourceUrl: doc.url, confidence, reviewRequired: false, evidenceRef }); out.evidenceRefs.push(evidenceRef);
+  out.venueFacts.push({ fieldName, value, sourceUrl: doc.url, confidence, reviewRequired, evidenceRef }); out.evidenceRefs.push(evidenceRef);
 }
 function jsonLdRoots(doc: FetchedDocument): unknown[] {
   const roots: unknown[] = [];
@@ -123,12 +125,24 @@ function structuredNodes(doc: FetchedDocument): { nodes: Record<string, unknown>
   return { nodes, contained };
 }
 function structuredAddress(value: unknown): string | null {
-  if (typeof value === "string") return clean(value);
+  if (typeof value === "string") return explicitPublishedAddress(value);
   const address = object(value);
-  const hasLocalityOrStreet = Boolean(clean(address.streetAddress) ?? clean(address.addressLocality) ?? clean(object(address.addressLocality).name) ?? clean(address.postalCode));
-  if (!hasLocalityOrStreet) return null;
+  const street = clean(address.streetAddress);
+  const locality = clean(address.addressLocality) ?? clean(object(address.addressLocality).name);
+  // A street, region, or postcode on its own is not enough to identify the venue's address.
+  if (!street || !locality) return null;
   const parts = ["streetAddress", "addressLocality", "addressRegion", "postalCode", "addressCountry"].map((key) => clean(address[key]) ?? clean(object(address[key]).name)).filter(Boolean);
   return parts.length ? parts.join(", ") : null;
+}
+function explicitPublishedAddress(text:string):string|null{
+  const value=clean(text);
+  return value&&value.length>=8&&value.length<=500&&/[a-z]/i.test(value)&&value.includes(',')&&!/\b(?:privacy|copyright|newsletter|subscribe)\b/i.test(value)?value:null;
+}
+function completePublishedUkAddress(text: string): string | null {
+  const normalized = clean(text)?.replace(/[•·]/g, ", ") ?? "";
+  // Require a numbered street, a named locality, and either a UK postcode or a UK nation.
+  const match = normalized.match(/\b(\d{1,5}[a-z]?\s+[a-z][a-z0-9'’.-]*(?:\s+[a-z][a-z0-9'’.-]*){0,4},\s*[a-z][a-z .'-]{1,50}?(?:,\s*[a-z][a-z .'-]{1,40}){0,2},?\s+(?:[a-z]{1,2}\d[a-z\d]?\s*\d[a-z]{2}|(?:England|Scotland|Wales|Northern Ireland)))\b/i);
+  return clean(match?.[1] ?? null);
 }
 const validCount = (value: unknown) => {
   const text = String(value ?? "").trim();
@@ -185,7 +199,11 @@ function structured(doc: FetchedDocument, out: ResourceExtraction, extractors: S
     if (business && extractors.includes("IDENTITY")) {
       if(organisation){addIdentity(out,doc,"legalName",clean(node.legalName));for(const name of list(node.alternateName))addIdentity(out,doc,"tradingName",clean(name));}
       addIdentity(out, doc, typed(node, "Organization") && !typed(node, "LocalBusiness") && hasLocalBusiness ? "operatorName" : organisation ? "siteName" : "placeName", clean(node.name));
-      addIdentity(out, doc, "address", structuredAddress(node.address));
+      const fullAddress=structuredAddress(node.address);addIdentity(out, doc, "address",fullAddress);
+      if(!fullAddress){
+        const partial=object(node.address);
+        for(const key of ['addressLocality','addressRegion','postalCode','streetAddress'])addIdentity(out,doc,key,clean(partial[key])??clean(object(partial[key]).name));
+      }
       const website = clean(node.url); if (website) addIdentity(out, doc, "website", sameOrigin(website, doc.url));
       for (const link of list(node.sameAs)) if (clean(link)) addIdentity(out, doc, "sameAs", clean(link));
     }
@@ -252,10 +270,14 @@ function publishedDescriptions(html: string): string[] {
   }
   return descriptions;
 }
-function aroundEmail(text: string, email: string): string {
+function aroundEmail(text: string, email: string, span = 400): string {
   const index = text.toLowerCase().indexOf(email.toLowerCase());
   if (index < 0) return "";
-  return text.slice(Math.max(0, index - 90), index + email.length);
+  const preceding=text.slice(0,index),previous=[...preceding.matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi)].at(-1);
+  const boundary=previous?(previous.index??0)+previous[0].length:0;
+  // A neighbouring mailbox's role must not qualify this one, and a later
+  // designer footer must not contaminate the venue contact preceding it.
+  return text.slice(Math.max(boundary,index-span),index+email.length);
 }
 function publishedEmailReview(email: string, pageUrl: string, context: string, venueName: string): boolean {
   const verdict = acceptVenueEmail(email, pageUrl, venueName, context);
@@ -281,7 +303,9 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: stri
     if (/^mailto:/i.test(href)) {
       let email = href.slice(7).split("?")[0] ?? "";
       try { email = decodeURIComponent(email); } catch { /* keep raw */ }
-      const context = `${label} ${aroundEmail(emailText, email)}`.trim();
+      const anchorIndex=doc.body.toLowerCase().indexOf(href.toLowerCase());
+      const fallback=anchorIndex>=0?`${emailSurface(doc.body.slice(Math.max(0,anchorIndex-2000),anchorIndex))} ${email}`:'';
+      const context = `${label} ${aroundEmail(emailText, email)||aroundEmail(fallback,email)}`.trim();
       addPublishedEmail(email, 0.95, context);
     }
     else if (skipNonEmail) continue;
@@ -333,7 +357,7 @@ const practical: Array<[string, RegExp]> = [
   ["loadingAccess", /\b(?:loading bay|loading access|load[- ]?in)\b[^.]{0,100}/i],
   ["wifi", /\b(?:wi[- ]?fi|wireless internet)\b[^.]{0,100}/i],
   ["power", /\b(?:three[- ]phase power|power outlets?|power supply)\b[^.]{0,100}/i],
-  ["outdoorSpace", /\b(?:outdoor space|terrace|garden|courtyard)\b[^.]{0,100}/i],
+  ["outdoorSpace", /\b((?:(?:sunny|heated|covered|enclosed)\s+)?(?:beer\s+)?(?:garden|terrace|courtyard|outdoor space))\b/i],
   ["accommodation", /\b(?:on[- ]site accommodation|hotel rooms?|bedrooms?)\b[^.]{0,100}/i],
   ["cloakroom", /\b(?:cloakroom|coat check)\b[^.]{0,100}/i],
   ["hireSuitability", /\b(?:available|suitable)\s+for\s+(?:weddings?|receptions?|corporate events?|conferences?|private events?|meetings?|exhibitions?)\b[^.]{0,100}/i],
@@ -471,7 +495,16 @@ export function capacityMatrixLines(lines: string[]): Array<{ space: string; lay
 
 function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElement | null) {
   const body = visibleText(doc.body);
-  for (const [field, pattern] of practical) { const statement = clean(body.match(pattern)?.[0]); if (statement && !/^no\s/i.test(statement)) addFact(out, doc, field, statement); }
+  for (const [field, pattern] of practical) {
+    const match=body.match(pattern);let statement=clean(field==='outdoorSpace'?match?.[1]:match?.[0]);
+    if(field==='outdoorSpace'&&match){
+      const context=body.slice(Math.max(0,(match.index??0)-30),(match.index??0)+match[0].length+90);
+      if(/\b(?:no|without)\s+(?:\w+\s+){0,2}(?:garden|terrace|courtyard|outdoor space)\b|\b(?:garden|terrace|courtyard|outdoor space)\b.{0,35}\b(?:not|unavailable|closed|may|might|subject to)\b/i.test(context)){
+        addFact(out,doc,field,clean(context)??context,.8,true);continue;
+      }
+    }
+    if(statement&&!/^no\s/i.test(statement))addFact(out,doc,field,statement);
+  }
   let html = doc.body;
   if (root) {
     const before = out.venueFacts.length;
@@ -700,16 +733,20 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
     const title = clean(visibleText(tags(doc.body, "title")[0]?.inner ?? "")) ?? firstMeta(doc.body, "og:site_name");
     const heading = clean(visibleText(tags(doc.body, "h1")[0]?.inner ?? ""));
     const footerText=visibleText(tags(doc.body, "footer").map((tag) => tag.inner).join(" "));
-    const address = clean(visibleText(tags(doc.body, "address")[0]?.inner ?? ""))
-      ?? clean(visibleText(doc.body).match(/\b(?:(?:physical|street|postal|our|venue)\s+)?address\b\s*[:\-–]?\s+(.{5,240}?)(?=\b(?:contact(?:\s+us)?|phone|tel(?:ephone)?|mobile|cell|email|e-mail|company|opening|hours|copyright|gps)\b|$)/i)?.[1])
-      ?? clean(footerText.match(/\b(\d{1,5}[a-z]?\s+[^,\n]{3,80},\s*[a-z][a-z .'-]{1,40},?\s+[a-z]{1,2}\d[a-z\d]?\s?\d[a-z]{2})\b/i)?.[1])
-      ?? clean(footerText.match(/\b(\d{1,5}\s+[a-z0-9 .,'/-]{3,120},\s*[a-z ]{3,60}(?:,\s*\d{4})?)\b/i)?.[1]);
+    const pageText = visibleText(doc.body);
+    const address = explicitPublishedAddress(visibleText(tags(doc.body, "address")[0]?.inner ?? ""))
+      ?? explicitPublishedAddress([...doc.body.matchAll(/<(?:div|p|span)[^>]*class=["'][^"']*\baddress\b[^"']*["'][^>]*>([\s\S]{0,800}?)<\/(?:div|p|span)>/gi)].map((m) => visibleText(m[1]!)).join(" "))
+      ?? explicitPublishedAddress(pageText.match(/\b(?:(?:physical|street|postal|our|venue)\s+)?address\b\s*[:\-–]?\s+(.{5,240}?)(?=\b(?:contact(?:\s+us)?|phone|tel(?:ephone)?|mobile|cell|email|e-mail|company|opening|hours|copyright|gps)\b|$)/i)?.[1] ?? "")
+      ?? completePublishedUkAddress(pageText)
+      ?? completePublishedUkAddress(footerText)
+      ?? clean(footerText.match(/\b(\d{1,5}[a-z]?\s+[a-z][a-z .'-]{2,70},\s*[a-z][a-z .'-]{2,60},\s*\d{4})\b/i)?.[1]);
     if (landingPage && !out.identityFacts.some((item) => item.fieldName === "siteName")) {
       if (title && !/^(?:home|homepage)$/i.test(title)) addIdentity(out, doc, "siteName", title);
     }
     // Keep the heading even when structured data already supplied the same site name.
     if (landingPage && heading && !/^(?:home|welcome|contact us)$/i.test(heading)) addIdentity(out, doc, "explicitVenueName", heading);
-    if (!out.identityFacts.some((item) => item.fieldName === "address")) addIdentity(out, doc, "address", address);
+    const existingAddresses = out.identityFacts.filter((item) => item.fieldName === "address").map((item) => String(item.value).replace(/\s+/g, " ").trim().toLowerCase());
+    if (address && !existingAddresses.includes(address.replace(/\s+/g, " ").trim().toLowerCase())) addIdentity(out, doc, "address", address);
     addIdentity(out, doc, "siteDescription", firstMeta(doc.body, "description") ?? firstMeta(doc.body, "og:description"));
     const canonical = selfClosingTags(doc.body, "link").map((tag) => tag.attrs).find((attrs) => /\bcanonical\b/i.test(attrs.rel ?? ""))?.href;
     const canonicalUrl = canonical ? sameOrigin(canonical, doc.url) : null;
@@ -735,7 +772,11 @@ export function extractResourcesFromDocuments(documents: FetchedDocument[], extr
   const unique = <T>(items: T[], key: (item: T) => string) => [...new Map(items.map((item) => [key(item), item])).values()];
   const identityFacts = unique(merged.identityFacts, (item) => `${item.fieldName}:${JSON.stringify(item.value)}:${item.sourceUrl}`);
   const firstByKey = new Map<string, PublicContact>();
-  for (const item of merged.publicContacts) { const key = `${item.type}:${item.normalized}`; if (!firstByKey.has(key)) firstByKey.set(key, item); }
+  for (const item of merged.publicContacts) {
+    const key = `${item.type}:${item.normalized}`;
+    const existing = firstByKey.get(key);
+    if (!existing || (existing.reviewRequired && !item.reviewRequired) || (existing.reviewRequired === item.reviewRequired && (item.confidence ?? 0) > (existing.confidence ?? 0))) firstByKey.set(key, item);
+  }
   const publicContacts = [...firstByKey.values()].map((item, order) => ({ item, order }))
     .sort((a, b) => PURPOSE_RANK[a.item.purpose] - PURPOSE_RANK[b.item.purpose] || a.order - b.order).map(({ item }) => item);
   const venueFacts = unique(merged.venueFacts, (item) => `${item.fieldName}:${JSON.stringify(item.value)}:${item.sourceUrl}`);
@@ -758,7 +799,9 @@ export function extractResourcesFromDocuments(documents: FetchedDocument[], extr
       merged.evidenceRefs.push(restriction.rightsEvidence.evidenceRef);
     }
   }
-  for (const type of ["EMAIL", "PHONE"]) {
+  // Different genuine contacts are independent contact routes, not conflicting
+  // assertions about a single venue field. Keep telephone conflict policy intact.
+  for (const type of ["PHONE"]) {
     const items = publicContacts.filter((item) => item.type === type);
     const valuesByPage = new Map<string, Set<string>>();
     for (const item of merged.publicContacts.filter((contact) => contact.type === type && (type !== "EMAIL" || !contact.reviewRequired))) {
