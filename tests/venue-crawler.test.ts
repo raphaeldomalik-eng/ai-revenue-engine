@@ -78,12 +78,12 @@ test("room captions on a rooms page become named spaces", () => {
   assert.deepEqual(namedSpacesInText("Jakkalsbessie Chalet met dubbelbed", `${origin}/news/`), []);
 });
 
-test("venue contacts keep hire email and drop newsletter and hotel addresses", () => {
+test("source-published venue contacts retain their purposes and unrelated hotel addresses stay excluded", () => {
   const contact = page("/contact", `<main>    <a href="mailto:hire@venue.org">Venue hire</a>
     <a href="mailto:newsletter@venue.org">Newsletter</a></main>`);
   const hotels = page("/accommodation", `<h1>Nearby hotels</h1><a href="mailto:reservations@hotel.org">Hotel</a>`);
   const evidence = buildVenueEvidencePackage(extractFromFetchedDocuments([contact, hotels], ["PUBLIC_CONTACT"]));
-  assert.deepEqual(evidence.contacts.map((item) => item.value), ["hire@venue.org"]);
+  assert.deepEqual(evidence.contacts.map((item) => item.value), ["hire@venue.org","newsletter@venue.org"]);
   assert.equal(evidence.routingAuthority, "not_operator_confirmed");
   assert.ok(evidence.excludedContacts.some((item) => item.value === "reservations@hotel.org"));
 });

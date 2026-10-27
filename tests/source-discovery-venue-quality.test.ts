@@ -197,13 +197,13 @@ test("several labelled departments on one page do not become a cross-page contac
   assert.ok(result.publicContacts.every((item) => !item.reviewRequired));
 });
 
-test("different sole business emails on separate pages require review with both evidence refs", () => {
+test("different genuine business emails on separate pages retain both evidence refs without a conflict hold", () => {
   const pages = [page("/contact", `<a href="mailto:bookings@venue.org">Bookings</a>`),
     page("/hire", `<a href="mailto:events@venue.org">Events hire</a>`)];
   const result = extractFromFetchedDocuments(pages, ["PUBLIC_CONTACT"]);
   assert.equal(result.publicContacts.length, 2);
-  assert.ok(result.publicContacts.every((item) => item.reviewRequired && item.evidenceRef.includes("source:")));
-  assert.ok(result.warnings.some((warning) => /Conflicting.*email/.test(warning)));
+  assert.ok(result.publicContacts.every((item) => !item.reviewRequired && item.evidenceRef.includes("source:")));
+  assert.equal(result.warnings.some((warning) => /Conflicting.*email/.test(warning)),false);
 });
 
 test("named room capacities in a published capacity list retain names without inventing layouts", () => {

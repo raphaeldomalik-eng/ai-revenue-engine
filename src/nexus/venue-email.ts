@@ -25,6 +25,8 @@ const NON_CONTACT_MAILBOX = /^(?:no-?reply|do-?not-?reply|donotreply|mailer-daem
 const DESIGNER_CONTEXT = /\b(?:designed|developed|built|created)\s+by\b|\b(?:website|site|web)\s+(?:by|design(?:ed)?(?:\s+by)?)\b|\bpowered by\b|\bweb\s?design\b|\b(?:web\s*)?(?:designer|developer)\b/i;
 const PRIVACY_CONTEXT = /\b(?:privacy(?:\s+(?:officer|policy|notice))?|data[- ]protection|dpo|gdpr)\b/i;
 const EXPLICIT_VENUE_CONTACT = /(?:^|[^a-z])(?:e-?mails?|enquir(?:y|ies)|inquir(?:y|ies)|bookings?|reservations?|venue[- ]hire|contact(?:\s+us)?|functions?)\s*[:\-]/i;
+const PURPOSE_PUBLISHED_CONTACT = /\b(?:venue[- ]hire|private[- ](?:hire|events?|dining)|hire|functions?|sales|conference|corporate support|corporate|weddings?|meetings?|events? enquiries|all other enquiries|general enquiries|box[- ]office|ticket(?:ing| sales)?|bookings?|reservations?|enquir(?:y|ies)|inquir(?:y|ies)|special requests|larger groups|contact form|please (?:email|contact)|email (?:[A-Z][\p{L}'-]+|us)|contact (?:[A-Z][\p{L}'-]+|us)|drop us a note)\b/iu;
+const NAMED_STAFF_CONTACT = /\b(?:please )?(?:email|contact)\s+[A-Z][\p{L}'-]+(?:\s+[A-Z][\p{L}'-]+){0,2}\b/iu;
 const VENUE_ROLE_MAILBOX = /^(?:info|hello|hi|contact|contactus|enquiries|enquiry|enquire|inquiries|inquiry|bookings?|book|events?|eventsteam|functions?|hire|venuehire|privatehire|venues?|office|boxoffice|tickets?|ticketsales|reception|reservations?|hospitality|conference|conferences|conferencing|weddings?|sales|admin|manager|management|frontdesk|guests?|stay|marketing|press|technical|general|notes|groups?|meetings?|catering|restaurant|studio|team|mail|welcome)$/;
 const EMAIL_SHAPE = /^[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)+$/;
 
@@ -111,28 +113,30 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   if ("reason" in shape) return { accepted: false, reason: shape.reason };
   const siteDomain = registrableDomain(new URL(verifiedSiteUrl).hostname);
   const emailDomain = registrableDomain(shape.domain);
-  const nearby = context.slice(0, 240);
+  const nearby = context.slice(-768);
   const parts = shape.mailbox.split(/[._+-]+/);
   const compactMailbox = shape.mailbox.replace(/[^a-z0-9]/g, '');
   const venueTokens = distinctiveNameTokens(venueName).filter(token => token.length >= 4);
   const roleMailbox = VENUE_ROLE_MAILBOX.test(shape.mailbox) || parts.some(part => VENUE_ROLE_MAILBOX.test(part));
   const venueMailbox = venueTokens.some(token => compactMailbox.includes(token))
     || (compactMailbox.length >= 4 && siteDomain.split('.')[0]!.includes(compactMailbox));
-  // Group and sibling pages are not evidence of a venue-specific general mailbox.
-  const siteStemForAuthority = siteDomain.split('.')[0] ?? '';
-  const sharedOperatorSite = /(?:theatres|hotels|venues|hospitality|university|council)/i.test(siteStemForAuthority) || /\.(?:ac|gov)\.uk$/.test(siteDomain);
-  const venuePage = venueTokens.some(token => new URL(verifiedSiteUrl).pathname.toLowerCase().includes(token));
-  const namedVenueSite = venueTokens.some(token => siteStemForAuthority.includes(token));
-  if (!venueMailbox && (/\b(?:head office|group enquiries|central office|all our venues)\b/i.test(nearby)
-    || (sharedOperatorSite && venueTokens.length > 0 && !venuePage && !namedVenueSite))) {
-    return { accepted: false, reason: 'GENERIC_OPERATOR_GROUP_CONTACT' };
-  }
-  // A personal staff address must not satisfy the email dimension and end the search.
-  if (!roleMailbox && !venueMailbox) return { accepted: false, reason: FREE_MAIL_DOMAINS.has(shape.domain) ? 'PERSONAL_FREE_MAIL_ADDRESS' : 'PERSONAL_CONTACT_REQUIRES_REVIEW' };
+  const explicitPurpose = PURPOSE_PUBLISHED_CONTACT.test(nearby) || EXPLICIT_VENUE_CONTACT.test(nearby);
+  const namedStaffPurpose = NAMED_STAFF_CONTACT.test(nearby) && explicitPurpose;
+  if (DESIGNER_CONTEXT.test(nearby)) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
+  const path=new URL(verifiedSiteUrl).pathname.toLowerCase();
+  const sharedSite=/(?:theatres|hotels|venues|hospitality|university|council)/i.test(siteDomain);
+  const siblingProperty=sharedSite&&venueTokens.length>0&&/\b(?:theatre|hotel|venue)\b/i.test(path.replace(/[-_/]/g,' '))&&!venueTokens.some(token=>path.includes(token))&&!/\b(?:hire|contact|enquir|corporate|events|our spaces)\b/i.test(path.replace(/[-_/]/g,' '));
+  if(siblingProperty)return {accepted:false,reason:'SIBLING_PROPERTY_CONTACT'};
+  if(emailDomain!==siteDomain&&/\b(?:nearby|local|recommended)\s+(?:hotels?|accommodation)|\baccommodation directory\b/i.test(nearby))return {accepted:false,reason:'UNRELATED_ACCOMMODATION_CONTACT'};
+  if (emailDomain === siteDomain) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };
+  const operatorContact=/\b(?:head office|group enquiries|central office|all our venues|operator group)\b/i.test(nearby);
+  // Personal mailboxes qualify only when the verified first-party page explicitly names the contact
+  // in a stated venue, booking, ticketing, or operator service role.
+  if (!roleMailbox && !venueMailbox && !namedStaffPurpose && !explicitPurpose&&!operatorContact) return { accepted: false, reason: FREE_MAIL_DOMAINS.has(shape.domain) ? 'PERSONAL_FREE_MAIL_ADDRESS' : 'PERSONAL_CONTACT_REQUIRES_REVIEW' };
   if (PRIVACY_CONTEXT.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "PRIVACY_OR_DPO" };
   if (DESIGNER_CONTEXT.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
   if (/\bticketing\s+provider\b/i.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
-  if (!FREE_MAIL_DOMAINS.has(shape.domain) && (venueMailbox || (roleMailbox && /\.(?:ac|gov)\.uk$/.test(shape.domain)))) {
+  if (!FREE_MAIL_DOMAINS.has(shape.domain) && (venueMailbox || (roleMailbox && /\.(?:ac|gov)\.uk$/.test(shape.domain)) || namedStaffPurpose || explicitPurpose||operatorContact)) {
     return { accepted: true, email: shape.email, relationship: emailDomain === siteDomain ? 'VERIFIED_SITE_DOMAIN' : 'PUBLISHED_ON_VERIFIED_SITE' };
   }
   if (emailDomain && emailDomain === siteDomain) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };

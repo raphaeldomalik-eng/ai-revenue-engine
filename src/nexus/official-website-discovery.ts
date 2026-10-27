@@ -14,6 +14,7 @@ import {
 import { executeSourceDiscoveryRequest, InMemoryNexusResultStore, type NexusResultStore } from "./executor.ts";
 import { locationCandidateTerms, nameMatches, verifyFirstPartyIdentity } from "./public-web.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
+import type { ContactPurpose } from "./source-discovery/extractors/resources.ts";
 import type { CachedDocument, DocumentCache, FetchedDocument } from "./source-discovery/types.ts";
 import { createSerperPublicWebSearchProvider, isPublicWebSearchBudgetExhausted, serperApiKeyFromEnv } from "./search/serper-public-web-search.ts";
 import { acceptHeldVenueEmail, acceptVenueEmail, candidateRejection, distinctiveNameTokens, isGenericVenueName, isLabelSplitFragment, registrableDomain } from "./venue-email.ts";
@@ -110,7 +111,7 @@ function addressCorroborated(identityFacts: Array<{ fieldName: string; value: un
   return siteAddresses.some((value) => (postcode && value.replace(/\s+/g, "").includes(postcode)) || (street && value.includes(street)));
 }
 
-type CrawledContact = { type: "EMAIL" | "PHONE" | "CONTACT_FORM"; value: string; sourceUrl: string; evidenceRef: string; relationship: typeof VENUE_EMAIL_RELATIONSHIPS[number] | null };
+type CrawledContact = { type: "EMAIL" | "PHONE" | "CONTACT_FORM"; value: string; sourceUrl: string | null; evidenceRef: string; relationship: typeof VENUE_EMAIL_RELATIONSHIPS[number] | null; purpose?: ContactPurpose; label?: string | null; deliveryVerified?: false };
 
 // Only contacts published on the verified site's registrable domain count, in EMAIL > PHONE > CONTACT_FORM order;
 // an email must also pass venue-mailbox acceptance.
@@ -129,14 +130,14 @@ export function acceptCrawledContacts(result: Pick<ReturnType<typeof validateSou
       if (isLabelSplitFragment(contact.value, pageEmails.filter((item) => item.sourceUrl === contact.sourceUrl).map((item) => item.value))) { rejectedEmails += 1; continue; }
       const verdict = acceptVenueEmail(contact.value, contact.sourceUrl || result.source.finalUrl, venueName, contact.label ?? "");
       if (!verdict.accepted) { rejectedEmails += 1; continue; }
-      value = verdict.email;
+      value = contact.value;
       relationship = verdict.relationship;
     } else if (contact.reviewRequired) {
       continue;
     }
     if (contact.type === "CONTACT_FORM" && !onVerifiedSite(contact.value)) continue;
-    if (contacts.some((item) => item.type === contact.type && item.value === value)) continue;
-    contacts.push({ type: contact.type as CrawledContact["type"], value, sourceUrl: contact.sourceUrl, evidenceRef: contact.evidenceRef ?? fallbackEvidenceRef, relationship });
+    if (contacts.some((item) => item.type === contact.type && item.value.toLowerCase() === value.toLowerCase())) continue;
+    contacts.push({ type: contact.type as CrawledContact["type"], value, sourceUrl: contact.sourceUrl, evidenceRef: contact.evidenceRef ?? fallbackEvidenceRef, relationship, purpose: contact.purpose, label: contact.label, ...(contact.type === "EMAIL" ? { deliveryVerified: false as const } : {}) });
   }
   return { contacts, rejectedEmails };
 }
@@ -244,7 +245,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
   const search = { provider: null as string | null, costModel: null as PublicWebSearchCostModel["kind"] | null, queries: [] as string[], callCount: 0, returnedCandidateUrls: [] as string[], cost: { currency: request.costCeiling.currency, amount: 0 } };
   const crawl = { verificationCrawls: 0, sourceDiscoveryCrawls: 0, requestCount: 0, blocked: 0, unavailable: 0 };
   let officialWebsite: { url: string; source: "RESOURCES_HELD" | "NEXUS_VERIFIED" | "STORED_GOOGLE_EVIDENCE_VERIFIED" | "PUBLIC_WEB_SEARCH_VERIFIED"; verificationPath: string | null; verificationSignals: string[]; evidenceRef: string } | null = null;
-  const publicContacts: Array<{ type: "EMAIL" | "PHONE" | "CONTACT_FORM" | "WHATSAPP" | "BUSINESS_MESSAGING"; value: string; source: "RESOURCES_HELD" | "NEXUS_VERIFIED" | "STORED_GOOGLE_EVIDENCE" | "VERIFIED_FIRST_PARTY_SITE"; sourceUrl: string | null; evidenceRef: string; relationship: typeof VENUE_EMAIL_RELATIONSHIPS[number] | null }> = [];
+  const publicContacts: Array<{ type: "EMAIL" | "PHONE" | "CONTACT_FORM" | "WHATSAPP" | "BUSINESS_MESSAGING"; value: string; source: "RESOURCES_HELD" | "NEXUS_VERIFIED" | "STORED_GOOGLE_EVIDENCE" | "VERIFIED_FIRST_PARTY_SITE"; sourceUrl: string | null; evidenceRef: string; relationship: typeof VENUE_EMAIL_RELATIONSHIPS[number] | null; purpose?: ContactPurpose; label?: string | null; deliveryVerified?: false }> = [];
   let sourceDiscovery: ReturnType<typeof validateSourceDiscoveryResult> | null = null;
   let websiteStatus: typeof WEBSITE_STATUSES[number] = "NOT_REQUIRED";
   let contactStatus: typeof CONTACT_STATUSES[number] = "NOT_ATTEMPTED";
@@ -294,7 +295,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
     const verdict = acceptHeldVenueEmail(email);
     if (!verdict.accepted) { unknowns.push(`A held email was not accepted as a venue mailbox (${verdict.reason}).`); continue; }
     if (publicContacts.some((item) => item.type === "EMAIL" && item.value === verdict.email)) continue;
-    publicContacts.push({ type: "EMAIL", value: verdict.email, source, sourceUrl: null, evidenceRef: ref, relationship: "HELD_VENUE_EVIDENCE" });
+    publicContacts.push({ type: "EMAIL", value: email, source, sourceUrl: null, evidenceRef: ref, relationship: "HELD_VENUE_EVIDENCE" });
     evidenceRefs.push(ref);
   }
   const heldRoutes = [

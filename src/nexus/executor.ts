@@ -224,7 +224,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   const identityFacts = extracted.identityFacts.map((item) => sourceFact(request, item.fieldName, item.value, item.sourceUrl, item.evidenceRef, now));
   const publicContacts = extracted.publicContacts.map((item) => {
     const verdict = item.type === "EMAIL" ? acceptVenueEmail(item.value, item.sourceUrl, venueName, item.label ?? "") : null;
-    return { type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.type === "EMAIL" ? item.reviewRequired || !verdict!.accepted : item.reviewRequired, ...(item.label ? { label: item.label } : {}) };
+    return { type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.type === "EMAIL" ? item.reviewRequired || !verdict!.accepted : item.reviewRequired, ...(item.label ? { label: item.label } : {}), purpose: item.purpose, ...(item.type === "EMAIL" ? { sourceVerification: "PUBLISHED_ON_SOURCE" as const, deliveryVerified: false } : {}) };
   });
   const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
   const warnings = boundCrawlWarnings([...crawl.stats.warnings, ...extracted.warnings]);
