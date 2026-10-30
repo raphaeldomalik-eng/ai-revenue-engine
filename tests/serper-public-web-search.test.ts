@@ -19,6 +19,29 @@ import {
 } from "../src/nexus/search/serper-public-web-search.ts";
 
 const NOW = "2026-10-03T12:00:00.000Z";
+
+test('Serper resolves Google result wrappers once without buying another search', async () => {
+  const calls:string[]=[];const budget=createPublicWebSearchBudget(1);
+  const organic=[{link:'https://alpha.example/',title:'Alpha Hall'},{link:'https://www.google.com/goto?url=opaque',title:'Beta Hall'}];
+  const provider=createSerperPublicWebSearchProvider({apiKey:'fixture',budget,fetchImpl:async(url,init)=>{
+    calls.push(String(url));assert.equal(new Headers(init?.headers).get('X-API-KEY'),'fixture');
+    if(String(url)===SERPER_SEARCH_URL)return Response.json({organic});
+    assert.equal(String(url),'https://google.serper.dev/resolve');
+    assert.deepEqual(JSON.parse(String(init?.body)),{organic});
+    return Response.json({organic:[organic[0],{...organic[1],link:'https://beta.example/'}]});
+  }});
+  assert.deepEqual((await provider.search({query:'venue official website',country:'GB',maxResults:10})).map(r=>r.url),['https://alpha.example/','https://beta.example/']);
+  assert.deepEqual(calls,[SERPER_SEARCH_URL,'https://google.serper.dev/resolve']);assert.equal(budget.used,1);
+});
+
+test('an unavailable or not-yet-ready free resolution preserves real URLs and never emits Google wrappers', async()=>{
+ for(const response of [()=>new Response('',{status:503}),()=>Response.json({organic:[{link:'https://www.google.com/goto?url=opaque'}],retryAfter:30})]){
+  let calls=0;const provider=createSerperPublicWebSearchProvider({apiKey:'fixture',budget:createPublicWebSearchBudget(1),fetchImpl:async url=>{
+   calls++;return String(url)===SERPER_SEARCH_URL?Response.json({organic:[{link:'https://alpha.example/',title:'Alpha'},{link:'https://www.google.com/goto?url=opaque',title:'Beta'}]}):response();
+  }});
+  assert.deepEqual((await provider.search({query:'venue',country:'ZA',maxResults:10})).map(r=>r.url),['https://alpha.example/']);assert.equal(calls,2);
+ }
+});
 const resolver = async () => [{ address: "93.184.216.34", family: 4 }];
 const CORNEX_HOME = "<html><head><title>Cornex Hall | Events venue in Bristol</title></head><body><h1>Cornex Hall</h1><address>12 Mill Lane, Bristol BS1 4AA</address><a href=\"mailto:events@cornexhall.co.uk\">events@cornexhall.co.uk</a><a href=\"/venue-hire\">Venue hire</a></body></html>";
 const WRONG_CITY = "<html><head><title>Cornex Hall | Leeds</title></head><body><h1>Cornex Hall</h1><address>4 Dock Road, Leeds LS1 1AA</address></body></html>";

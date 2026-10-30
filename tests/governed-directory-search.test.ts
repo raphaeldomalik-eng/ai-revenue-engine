@@ -4,6 +4,18 @@ import {createGovernedSerperSearch,preferGovernedSearch} from '../src/nexus/sear
 import {createBravePublicWebSearchProvider,DirectorySearchAllocationDeniedError} from '../src/nexus/search/brave-public-web-search.ts';
 const input={query:'Alpha Hall Bristol official website',country:'GB' as const,maxResults:5};
 
+test('free Serper link resolution shares one paid reservation and retains the original provider response',async()=>{
+ let reservations=0;const calls:string[]=[];let savedUsage:any;
+ const original={organic:[{link:'https://www.google.com/goto?url=opaque',title:'Alpha Hall'}]};
+ const provider=createGovernedSerperSearch({apiKey:'fixture',allowanceId:'serper',requestKey:'one-search',
+  reserve:async()=>{reservations++;return {state:'RESERVED',reservedMicroUsd:1000};},
+  complete:async(_r,_result,usage)=>{savedUsage=usage;},fail:async()=>{throw Error('UNEXPECTED_FAILURE');},
+  fetchImpl:async url=>{calls.push(String(url));return Response.json(String(url).endsWith('/resolve')?{organic:[{link:'https://alpha.example/',title:'Alpha Hall'}]}:original);}});
+ assert.equal((await provider.search(input))[0]?.url,'https://alpha.example/');
+ assert.equal(reservations,1);assert.equal(provider.usage?.requests,1);assert.equal(provider.usage?.reservedCreditMicroUsd,1000);
+ assert.equal(calls.length,2);assert.equal(savedUsage.resolutionRequests,1);assert.deepEqual(savedUsage.responsePayload,original);
+});
+
 test('Serper reserves durable credit before fetch and reuses shared cached evidence',async()=>{
  const order:string[]=[];let saved:unknown;const rows=new Map();
  const options={apiKey:'fixture',allowanceId:'serper-100',requestKey:'venue-1',

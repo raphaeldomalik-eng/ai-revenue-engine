@@ -12,6 +12,13 @@ export const PUBLIC_WEB_SEARCH_REQUEST_CAP = 2_500;
 export const PUBLIC_WEB_SEARCH_BUDGET_EXHAUSTED = "PUBLIC_WEB_SEARCH_BUDGET_EXHAUSTED";
 export const PUBLIC_WEB_SEARCH_PROVIDER_FAILURE = "PUBLIC_WEB_SEARCH_PROVIDER_FAILURE";
 export const SERPER_SEARCH_URL = "https://google.serper.dev/search";
+export const SERPER_RESOLVE_URL = "https://google.serper.dev/resolve";
+
+function isGoogleResultWrapper(value: unknown) {
+  if (typeof value !== 'string') return false;
+  try { const url=new URL(value);return ['google.com','www.google.com'].includes(url.hostname)&&url.pathname==='/goto'; }
+  catch { return false; }
+}
 
 /** Google's gl code for the United Kingdom is `uk`, not `gb`. South Africa is `za`. */
 const SERPER_LOCALISATION = {
@@ -117,7 +124,7 @@ export function mapSerperOrganicResults(payload: unknown, maxResults: number): P
     if (results.length >= limit) break;
     if (!item || typeof item !== "object") continue;
     const link = (item as { link?: unknown }).link;
-    if (typeof link !== "string" || !isPublicHttpUrl(link)) continue;
+    if (typeof link !== "string" || !isPublicHttpUrl(link) || isGoogleResultWrapper(link)) continue;
     results.push({ url: link, title: boundedText((item as { title?: unknown }).title), snippet: boundedText((item as { snippet?: unknown }).snippet) });
   }
   return results;
@@ -181,6 +188,24 @@ export function createSerperPublicWebSearchProvider(options: SerperPublicWebSear
         payload = await response.json();
       } catch {
         throw new PublicWebSearchProviderFailure(response.status);
+      }
+      // Serper's 30 Oct 2026 transport change leaves ranks 4–10 wrapped.
+      // Its fixed /resolve endpoint is free; never follow Google links or
+      // repeat the paid search when resolution is unavailable/not ready.
+      const organic=payload&&typeof payload==='object'?(payload as {organic?:unknown}).organic:null;
+      if(Array.isArray(organic)&&organic.some(item=>item&&typeof item==='object'&&isGoogleResultWrapper(item.link))){
+        try {
+          const resolution=await fetchImpl(SERPER_RESOLVE_URL,{method:'POST',redirect:'error',signal:AbortSignal.timeout(60000),
+            headers:{'X-API-KEY':apiKey,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({organic})});
+          if(resolution.ok){
+            const resolved:unknown=await resolution.json();
+            const rows=resolved&&typeof resolved==='object'?(resolved as {organic?:unknown}).organic:null;
+            if(Array.isArray(rows)&&rows.length===organic.length)payload={organic:organic.map((item,index)=>{
+              const link=rows[index]?.link;
+              return isGoogleResultWrapper(item?.link)&&typeof link==='string'&&isPublicHttpUrl(link)&&!isGoogleResultWrapper(link)?{...item,link}:item;
+            })};
+          }else await resolution.arrayBuffer().catch(()=>undefined);
+        }catch { /* Real URLs remain usable; original response stays in the governed receipt. */ }
       }
       const results = mapSerperOrganicResults(payload, maxResults);
       entry.resultCount = results.length;
