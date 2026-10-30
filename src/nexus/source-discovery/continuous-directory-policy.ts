@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 export type DirectoryAction='ENRICH_VERIFIED_VENUE'|'VERIFY_WEBSITE'|'DISCOVER_WEBSITE';
-export type StandingPolicy={policyId:string;version:number;enabled:boolean;validFrom:string;validUntil:string;countries:string[];actions?:string[];maxVenuesPerDay?:number;maxRequestsPerDay?:number;quotaMode?:'PER_RUN';maxVenuesPerRun?:number;maxRequestsPerRun?:number;braveMaxRequestsPerRun?:number;serperMaxRequestsPerRun?:number;maxRequestsPerVenue:number;maxBatchVenues:number;paidProviderBudgetUsd:number;minHostDelayMs:number;freshnessHours:number;maxAttempts:number;retryBackoffHours:number;stopAfterConsecutiveFailures:number;publicationAllowed:boolean;outreachAllowed:boolean};
+export type StandingPolicy={policyId:string;version:number;enabled:boolean;validFrom:string;validUntil:string;countries:string[];actions?:string[];allowedIdentityKeys?:string[];maxVenuesPerDay?:number;maxRequestsPerDay?:number;quotaMode?:'PER_RUN';maxVenuesPerRun?:number;maxRequestsPerRun?:number;braveMaxRequestsPerRun?:number;serperMaxRequestsPerRun?:number;maxRequestsPerVenue:number;maxBatchVenues:number;paidProviderBudgetUsd:number;minHostDelayMs:number;freshnessHours:number;maxAttempts:number;retryBackoffHours:number;stopAfterConsecutiveFailures:number;publicationAllowed:boolean;outreachAllowed:boolean};
 export type DirectoryWork={queueId:string;identityKey:string;country:string;verifiedSourceUrl:string;verifiedAt:string|null;evidenceRef:string;entityType:string;gaps:string[];ownership:string;status:string;attempts:number;requestBudget:number;runId?:string;cacheObservedAt?:string;cacheSatisfiedGaps?:string[];nextAttemptAt?:string;identityConflict?:boolean;suppressed?:boolean};
 export type Reservation={policyId:string;policySha256:string;queueId:string;identityKey:string;country:string;host:string;reservationKey:string;requestBudget:number;day:string;runId?:string;action?:DirectoryAction};
 export type ExecutionReceipt={requestCount:number;costUsd:number;status:string;retryable?:boolean;resultRef?:string};
@@ -17,12 +17,16 @@ export function validateStandingPolicy(p:StandingPolicy,approvedHash:string,now:
  if(!p.policyId||positive.some(n=>!Number.isSafeInteger(n)||Number(n)<1)||p.maxRequestsPerVenue>14||p.maxBatchVenues>(p.quotaMode==='PER_RUN'?500:50)||(p.quotaMode==='PER_RUN'&&(Number(p.maxVenuesPerRun)>500||Number(p.maxRequestsPerRun)>2500))||p.minHostDelayMs<1000||p.maxAttempts>5||p.paidProviderBudgetUsd!==0||p.publicationAllowed!==false||p.outreachAllowed!==false||!p.countries.length||p.countries.some(c=>!['GB','ZA'].includes(c)))throw Error('STANDING_POLICY_SCOPE_INVALID');
  if([p.braveMaxRequestsPerRun,p.serperMaxRequestsPerRun].some(n=>n!==undefined&&(!Number.isSafeInteger(n)||n<0||n>500)))throw Error('STANDING_POLICY_PROVIDER_BUDGET_INVALID');
  if(p.actions&&(!Array.isArray(p.actions)||!p.actions.length||p.actions.some(a=>!['ENRICH_VERIFIED_VENUE','VERIFY_WEBSITE','DISCOVER_WEBSITE'].includes(a))))throw Error('STANDING_POLICY_ACTION_INVALID');
+ if(p.allowedIdentityKeys&&(!Array.isArray(p.allowedIdentityKeys)||p.allowedIdentityKeys.length<1||p.allowedIdentityKeys.length>Number(p.maxVenuesPerDay??p.maxVenuesPerRun)
+  ||new Set(p.allowedIdentityKeys).size!==p.allowedIdentityKeys.length
+  ||p.allowedIdentityKeys.some(key=>!/^event_suite_resources:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(key))))
+  throw Error('STANDING_POLICY_IDENTITY_SCOPE_INVALID');
  return Object.freeze({...p,countries:[...p.countries]});
 }
 export function selectContinuousWork(items:DirectoryWork[],p:StandingPolicy,now:string){
  const selected:DirectoryWork[]=[],reuseCache:DirectoryWork[]=[],quarantined:DirectoryWork[]=[],websiteResolution:DirectoryWork[]=[],deferred:DirectoryWork[]=[];const hosts=new Set<string>(),identities=new Set<string>();const time=Date.parse(now);
  for(const item of items){
-  if(!p.countries.includes(item.country)||item.suppressed||item.identityConflict||['BLOCKED','PROHIBITED','AMBIGUOUS','QUARANTINED'].includes(item.status)||item.attempts>=p.maxAttempts){quarantined.push(item);continue;}
+  if(!p.countries.includes(item.country)||(p.allowedIdentityKeys&&!p.allowedIdentityKeys.includes(item.identityKey))||item.suppressed||item.identityConflict||['BLOCKED','PROHIBITED','AMBIGUOUS','QUARANTINED'].includes(item.status)||item.attempts>=p.maxAttempts){quarantined.push(item);continue;}
   if(!item.gaps.length)continue;
   if(item.cacheObservedAt&&item.gaps.every(g=>(item.cacheSatisfiedGaps||[]).includes(g))&&Number.isFinite(Date.parse(item.cacheObservedAt))&&Date.parse(item.cacheObservedAt)<=time&&time-Date.parse(item.cacheObservedAt)<p.freshnessHours*3600000){reuseCache.push(item);continue;}
   let u:URL;try{u=new URL(item.verifiedSourceUrl)}catch{websiteResolution.push(item);continue;}

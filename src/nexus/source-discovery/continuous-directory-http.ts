@@ -30,6 +30,7 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
   const subject=input.subjectReference;
   const expectedIdentity=subject.canonicalEntityId?'canonical:'+subject.canonicalEntityId:subject.candidateReference?subject.candidateReference.sourceSystem+':'+subject.candidateReference.sourceRecordId:null;
   if(context.identityKey!==expectedIdentity||!options.policy.countries.includes(context.country))return Response.json({code:'DIRECTORY_SUBJECT_BINDING_REQUIRED'},{status:403});
+  if(options.policy.allowedIdentityKeys&&!options.policy.allowedIdentityKeys.includes(context.identityKey))return Response.json({code:'DIRECTORY_COHORT_BINDING_REQUIRED'},{status:403});
   if(recovery){
    const parentRequestId=(context as typeof context&{parentVerificationRequestId?:string}).parentVerificationRequestId;
    const entry=recovery.entries.find(value=>value.requestId===parentRequestId);

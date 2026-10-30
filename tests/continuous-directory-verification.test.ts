@@ -120,3 +120,12 @@ test('the UK recovery policy binds exactly the eleven pending queue identities',
  assert.deepEqual([...new Set(entries.map((entry:{sourcePolicyId:string})=>entry.sourcePolicyId))].sort(),
   ['resources-directory-uk-verify-50-20261024','resources-directory-uk-verify-canary-20261022'].sort());
 });
+test('the ten-venue canary policy is signed to exactly ten existing candidate identities',async()=>{
+ const recorded=JSON.parse(fs.readFileSync(new URL('../ops/canaries/uk-resources-ten-existing-venues-2026-10-30/policy.json',import.meta.url),'utf8'));
+ assert.equal(recorded.allowedIdentityKeys.length,10);
+ assert.equal(new Set(recorded.allowedIdentityKeys).size,10);
+ const h=harness(),scoped={...policy,allowedIdentityKeys:recorded.allowedIdentityKeys};
+ assert.equal((await handleDirectoryVerificationRequest(request(payload,{policyId:scoped.policyId,policySha256:policyHash(scoped)}),
+  {...h.options,policy:scoped,approvedPolicyHash:policyHash(scoped)})).status,403);
+ assert.equal(h.counts().requests,0);
+});

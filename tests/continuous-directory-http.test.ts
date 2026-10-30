@@ -13,6 +13,9 @@ test('standing route preserves signed authority and rejects subject-context subs
  let reservations=0;const opts={policy,approvedPolicyHash:policyHash(policy),now:()=>now,ledger:{reserve:async()=>{reservations++;return true},complete:async()=>{}},executor:{secret,store:new InMemoryNexusResultStore()}};
  assert.equal((await handleContinuousDirectoryRequest(request({},false),opts)).status,401);
  assert.equal((await handleContinuousDirectoryRequest(request({identityKey:'canonical:other'}),opts)).status,403);assert.equal(reservations,0);
+ const scoped={...policy,allowedIdentityKeys:['event_suite_resources:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa']};
+ assert.equal((await handleContinuousDirectoryRequest(request({policyId:scoped.policyId,policySha256:policyHash(scoped)}),
+  {...opts,policy:scoped,approvedPolicyHash:policyHash(scoped)})).status,403);
 });
 test('standing route reuses the exact existing production executor and honours durable denial',async()=>{
  const old=process.env.VERCEL_ENV;process.env.VERCEL_ENV='production';let executed=0,completed=0;
