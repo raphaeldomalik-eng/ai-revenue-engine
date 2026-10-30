@@ -17,6 +17,9 @@ const REJECTED_HOSTS: Record<RejectionCategory, string[]> = {
   CACHED_OR_MIRRORED: ["webcache.googleusercontent.com", "cc.bingj.com", "archive.org", "archive.ph", "archive.today", "translate.goog"],
 };
 const SOCIAL_HOSTS = ["facebook.com", "instagram.com", "linkedin.com", "twitter.com", "x.com", "youtube.com", "tiktok.com", "linktr.ee"];
+// Measured historical false-positive: these hotel subdomains belong to a
+// multi-property booking directory, not to the named hotel or its operator.
+REJECTED_HOSTS.TRAVEL_OR_BOOKING_PLATFORM.push("hotels-of-london.com");
 const GENERIC_NAME_TOKENS = new Set(["the", "and", "venue", "venues", "grand", "hall", "halls", "club", "barn", "hotel", "hotels", "conference", "conferences", "centre", "center", "room", "rooms", "house", "lodge", "manor", "estate", "farm", "inn", "arms", "bar", "lounge", "studio", "studios", "event", "events", "function", "functions", "park", "gardens", "garden", "court", "place", "spa", "country", "city", "town", "village", "community", "church", "theatre", "theater", "arena", "pavilion", "suite", "suites", "space", "spaces", "loft", "warehouse", "boutique", "guest", "guesthouse", "resort", "retreat", "restaurant", "cafe", "social", "sports", "golf", "cricket", "rugby", "football", "bowls", "royal", "old", "new"]);
 const SECOND_LEVEL_SUFFIX = /^(?:co|org|ac|gov|net|com|ltd|plc|me|nic|web|nom|sch|police|mod|nhs)\.(?:uk|za)$/;
 const FREE_MAIL_DOMAINS = new Set(["gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.co.uk", "live.com", "live.co.uk", "msn.com", "yahoo.com", "yahoo.co.uk", "ymail.com", "icloud.com", "me.com", "aol.com", "btinternet.com", "sky.com", "talktalk.net", "virginmedia.com", "gmx.com", "protonmail.com", "proton.me", "mweb.co.za", "telkomsa.net", "vodamail.co.za", "webmail.co.za", "iafrica.com", "absamail.co.za", "lantic.net", "polka.co.za", "afrihost.co.za", "cybersmart.co.za"]);

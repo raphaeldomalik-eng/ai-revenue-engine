@@ -1,0 +1,142 @@
+{
+  "policyId": "resources-directory-uk-verify-recovery-20261030",
+  "version": 1,
+  "enabled": true,
+  "validFrom": "2026-10-30T00:00:00Z",
+  "validUntil": "2026-11-01T00:00:00Z",
+  "countries": [
+    "GB"
+  ],
+  "actions": [
+    "VERIFY_WEBSITE",
+    "ENRICH_VERIFIED_VENUE"
+  ],
+  "maxVenuesPerDay": 22,
+  "maxRequestsPerDay": 132,
+  "maxRequestsPerVenue": 6,
+  "maxBatchVenues": 11,
+  "paidProviderBudgetUsd": 0,
+  "minHostDelayMs": 2000,
+  "freshnessHours": 720,
+  "maxAttempts": 1,
+  "retryBackoffHours": 24,
+  "stopAfterConsecutiveFailures": 5,
+  "publicationAllowed": false,
+  "outreachAllowed": false,
+  "recovery": {
+    "originalRequestBudget": 6,
+    "additionalRequestBudget": 3,
+    "entries": [
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "fb9a36d2307cbc226da60e9380e650cfd8d4106dc83195678553a08e8fa29113",
+        "requestId": "1055a65d-3b83-525f-a1c6-65fc962c4bc4",
+        "identityKey": "event_suite_resources:cbe0203d-b72f-493d-8851-8f22282743e0",
+        "host": "theproducehall.com",
+        "mode": "UNRESERVED",
+        "priorRequestCount": 0
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "8defb8250689a4d7e8b5f4e3c21cf80a64dd2c6c3ef1d181527448b040092442",
+        "requestId": "1ef5d003-1f07-518c-ab80-010cf1d9708b",
+        "identityKey": "event_suite_resources:043d21a0-1088-45b6-ac82-3749095f705d",
+        "host": "kingsarmsdorking.co.uk",
+        "mode": "RETRYABLE",
+        "priorRequestCount": 6
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "62167b6e9052a500e59c298a203f127c5408cfa733e26ab487137e63d7c86e95",
+        "requestId": "4ef9da60-ffb3-5bf4-a8bc-3ab1ba47175b",
+        "identityKey": "event_suite_resources:3e6a2fca-95ed-475d-bf48-95e2f7ba9fdb",
+        "host": "sixtymillionpostcards.com",
+        "mode": "UNRESERVED",
+        "priorRequestCount": 0
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "783140d43286d837c14db6b7f873dedb3c0b8d26fc8d5b9924901be7f7ccb049",
+        "requestId": "55dfaf31-94cd-5006-a04c-1ccf1f23d74d",
+        "identityKey": "event_suite_resources:7eea553f-dbfa-4080-817f-6852864090ce",
+        "host": "thecanopi.org",
+        "mode": "UNRESERVED",
+        "priorRequestCount": 0
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-canary-20261022",
+        "sourcePolicySha256": "6d8346510acdbf4fb6e28fba5264b2270ef8914c8a8d64d57fcb3632717ded26",
+        "queueId": "84f63d82198d3e1c8a808d988323d132983e31ab328f92c2f2a9988e6508b0c7",
+        "requestId": "6d0630d5-3725-5af3-a5c3-cf39c5729a9b",
+        "identityKey": "event_suite_resources:6a3a2b05-4e5b-4c13-addb-7e9ac2b5fb7b",
+        "host": "estoneventscentre.co.uk",
+        "mode": "RETRYABLE",
+        "priorRequestCount": 3
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "365a16c7859706695bdcda398ed2a43f981f8615af3297aca1b4387760ef134d",
+        "requestId": "770306ca-ab25-59b2-a8fa-a81ac907f337",
+        "identityKey": "event_suite_resources:d45bece0-5413-4c00-aad2-1cb0f10c9c5b",
+        "host": "thequeenshall.net",
+        "mode": "UNRESERVED",
+        "priorRequestCount": 0
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-canary-20261022",
+        "sourcePolicySha256": "6d8346510acdbf4fb6e28fba5264b2270ef8914c8a8d64d57fcb3632717ded26",
+        "queueId": "9918efc1bc326cbaeb9f234e0232fd7b194e638e95a9ddcebfa2f90b2efc4b3f",
+        "requestId": "8bd79800-2c7b-57e0-abeb-dc42ff677d3e",
+        "identityKey": "event_suite_resources:80ff93b6-37aa-40d2-abb2-d71f034499ab",
+        "host": "actorschurch.org",
+        "mode": "RETRYABLE",
+        "priorRequestCount": 3
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "1653622a79f21eb15502271d9db903c73a4fb223b42baa66e65e5aeac578dffa",
+        "requestId": "a5cfab7f-b362-5565-a0fd-96774c75c184",
+        "identityKey": "event_suite_resources:f743b438-a0e8-4741-8ad0-4c461b335308",
+        "host": "northstreetsocial.co.uk",
+        "mode": "UNRESERVED",
+        "priorRequestCount": 0
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "50c477a580180db435ad3a94fbf393f75fd18266ab07b30d4dce57ab80ae514b",
+        "requestId": "a8e6e0c1-d861-5fb3-aa8e-c9a2c33999bb",
+        "identityKey": "event_suite_resources:7cd93f9b-3da7-4ae9-adb0-6fc6fe806351",
+        "host": "thecovehouseinn.co.uk",
+        "mode": "UNRESERVED",
+        "priorRequestCount": 0
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "c7cace44f5ca7426fecaf281b73dd655951ae5de209d37eb38beb84d3fa83503",
+        "requestId": "d98391a6-03b9-512c-a0d7-515952119a81",
+        "identityKey": "event_suite_resources:8e22ba3d-0781-4bcf-8bf3-ee70a53941e9",
+        "host": "queenshall.co.uk",
+        "mode": "UNRESERVED",
+        "priorRequestCount": 0
+      },
+      {
+        "sourcePolicyId": "resources-directory-uk-verify-50-20261024",
+        "sourcePolicySha256": "c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923",
+        "queueId": "bb793d6f46d9a8e170c9527359ba53ae9fd389d45feca63421484ee05fc99321",
+        "requestId": "f3b426e4-1e47-5521-af0b-1ef736d46df0",
+        "identityKey": "event_suite_resources:616d30d1-6eeb-4e71-849a-519eed49e485",
+        "host": "wurzelbush.org",
+        "mode": "UNRESERVED",
+        "priorRequestCount": 0
+      }
+    ]
+  }
+}

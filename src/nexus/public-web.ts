@@ -4,7 +4,7 @@ import { officialWebsiteDetailsAuthorization, validateResearchRequest, type Rese
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type CrawlOutput,type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 import {discoverOrganisationSource,type OrganisationSeedOptions} from "./organisation-source-seed.ts";
 import type { ProviderResult, ResearchContext } from "./executor.ts";
-import { distinctiveNameTokens } from "./venue-email.ts";
+import { acceptVenueEmail, distinctiveNameTokens } from "./venue-email.ts";
 
 export type PublicWebProviderOptions = {
   onCrawl?: (output: CrawlOutput) => void | Promise<void>;
@@ -39,24 +39,6 @@ const SOCIAL_HOSTS = new Set([
   "youtube.com",
   "tiktok.com",
   "linktr.ee",
-]);
-const BUSINESS_MAILBOXES = new Set([
-  "admin",
-  "bookings",
-  "contact",
-  "enquiries",
-  "enquiry",
-  "events",
-  "hello",
-  "hire",
-  "info",
-  "inquiries",
-  "marketing",
-  "office",
-  "reservations",
-  "sales",
-  "support",
-  "venue",
 ]);
 const INTERCHANGEABLE_VENUE_SUFFIXES = new Set([
   "venue", "venues", "centre", "center", "hall", "halls", "room", "rooms", "space", "spaces",
@@ -160,11 +142,6 @@ function bounded(value: unknown, max = 2048): unknown {
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).slice(0, 20).map(([key, item]) => [key, bounded(item, 512)]));
   return value;
 }
-export function businessEmail(value: string) {
-  const [mailbox, domain] = value.toLowerCase().split("@");
-  return Boolean(mailbox && domain && BUSINESS_MAILBOXES.has(mailbox) && domain.includes("."));
-}
-
 function verifyIdentity(request: ResearchRequest, context: ResearchContext, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
   return verifyFirstPartyIdentity(targetName(request, context), withVerifiedNexusOrigin(request, context), identityFacts);
 }
@@ -335,13 +312,16 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       const observedAt = nowOf(options);
       const finalUrl = crawl.finalUrl;
       const origin = new URL(finalUrl).origin;
-      const contacts = extracted.publicContacts.filter((item) => {
-        if (new URL(item.sourceUrl).origin !== origin) return false;
-        if (item.type === "EMAIL") return businessEmail(item.value);
-        if (item.type === "CONTACT_FORM") {
-          try { return new URL(item.value).origin === origin; } catch { return false; }
+      const contacts = extracted.publicContacts.flatMap((item) => {
+        if (new URL(item.sourceUrl).origin !== origin) return [];
+        if (item.type === "EMAIL") {
+          const verdict = acceptVenueEmail(item.value, item.sourceUrl, targetName(request, context) ?? "", item.label ?? "");
+          return verdict.accepted ? [{ ...item, value: verdict.email, relationship: verdict.relationship }] : [];
         }
-        return item.type === "PHONE";
+        if (item.type === "CONTACT_FORM") {
+          try { return new URL(item.value).origin === origin ? [item] : []; } catch { return []; }
+        }
+        return item.type === "PHONE" ? [item] : [];
       });
       const fingerprint = createHash("sha256").update(`${finalUrl}:${crawl.documents.map((item) => item.sourceHash).join(":")}`).digest("hex").slice(0, 24);
       const ref = evidenceRef(request, fingerprint);
@@ -358,7 +338,8 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
           verifiedUrl: website,
           finalUrl,
           identityFacts: extracted.identityFacts,
-           contacts: contacts.map((item) => ({ type: item.type, value: item.value, sourceUrl: item.sourceUrl })),
+          contacts: contacts.map((item) => ({ type: item.type, value: item.value, sourceUrl: item.sourceUrl,
+            ...(item.type === "EMAIL" && "relationship" in item ? { relationship: item.relationship } : {}) })),
           verificationPath: verification.path,
           verificationSignals: verification.signals,
           sourceHashes: crawl.documents.map((item) => item.sourceHash),

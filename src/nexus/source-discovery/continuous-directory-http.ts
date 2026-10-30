@@ -4,13 +4,16 @@ import {buildNexusEnvelope,parseNexusEnvelope,verifyNexusSignature,NEXUS_MAX_BOD
 import {validateSourceDiscoveryRequest,validateSourceDiscoveryResult} from '../contracts.ts';
 import {sourceDiscoveryRequestSha256,type SourceDiscoveryBatchScope} from './batch-scope.ts';
 import {sourceDiscoveryExecutionKey,sourceDiscoveryReplayable} from '../executor.ts';
-import {runContinuousDirectoryTick,validateStandingPolicy,standingPolicyAllows,type StandingPolicy,type ContinuousLedger,type DirectoryWork} from './continuous-directory-policy.ts';
+import {runContinuousDirectoryTick,validateStandingPolicy,standingPolicyAllows,type ContinuousLedger,type DirectoryWork} from './continuous-directory-policy.ts';
+import {validatedVerificationRecovery,type RecoveryPolicy} from './continuous-directory-recovery.ts';
 const uuid=(s:string)=>{const h=createHash('sha256').update(s).digest('hex');return `${h.slice(0,8)}-${h.slice(8,12)}-5${h.slice(13,16)}-8${h.slice(17,20)}-${h.slice(20,32)}`;};
-export type ContinuousHttpOptions={policy:StandingPolicy;approvedPolicyHash:string;ledger:ContinuousLedger;executor:NexusHttpOptions;now?:()=>number};
+export type ContinuousHttpOptions={policy:RecoveryPolicy;approvedPolicyHash:string;ledger:ContinuousLedger;executor:NexusHttpOptions;now?:()=>number};
 /** Signed existing source-discovery envelope plus signed internal queue context; execution reuses the existing handler. */
 export async function handleContinuousDirectoryRequest(request:Request,options:ContinuousHttpOptions):Promise<Response>{
  const nowMs=options.now?.()??Date.now(),now=new Date(nowMs).toISOString();
  try{validateStandingPolicy(options.policy,options.approvedPolicyHash,now)}catch{return Response.json({code:'DIRECTORY_STANDING_POLICY_INACTIVE'},{status:404})}
+ let recovery:ReturnType<typeof validatedVerificationRecovery>;
+ try{recovery=validatedVerificationRecovery(options.policy)}catch{return Response.json({code:'DIRECTORY_RECOVERY_SCOPE_INVALID'},{status:404})}
  if(!standingPolicyAllows(options.policy,'ENRICH_VERIFIED_VENUE'))return Response.json({code:'DIRECTORY_ACTION_INACTIVE'},{status:404});
  const reader=request.body?.getReader();let body='';let length=0;
  if(!reader)return Response.json({code:'BODY_REQUIRED'},{status:400});
@@ -21,12 +24,32 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
   const payload=parseNexusEnvelope(body),input=validateSourceDiscoveryRequest(payload);
   if(input.originatingProduct!=='event_suite_resources'||input.subjectReference.entityType!=='VENUE'||input.acquisitionGoal!=='VENUE_EMAIL'||input.crawlBudget.minRequestDelayMs<options.policy.minHostDelayMs)return Response.json({code:'DIRECTORY_REQUEST_SCOPE'},{status:403});
   const context=JSON.parse(body).directoryContext as (Partial<DirectoryWork>&{policyId?:string;policySha256?:string;action?:string})|undefined;
-  if(context?.policyId!==options.policy.policyId||context?.policySha256!==options.approvedPolicyHash||(context.action??'ENRICH_VERIFIED_VENUE')!=='ENRICH_VERIFIED_VENUE')return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
+  if((context?.action??'ENRICH_VERIFIED_VENUE')!=='ENRICH_VERIFIED_VENUE')return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
   if(!context?.queueId||!context.identityKey||!context.country||!context.verifiedAt||!context.evidenceRef||!Array.isArray(context.gaps)||!Number.isSafeInteger(context.attempts)||context.attempts!<0)return Response.json({code:'DIRECTORY_QUEUE_CONTEXT_REQUIRED'},{status:400});
   if(!input.existingEvidenceRefs.includes(context.evidenceRef))return Response.json({code:'DIRECTORY_EVIDENCE_BINDING_REQUIRED'},{status:403});
   const subject=input.subjectReference;
   const expectedIdentity=subject.canonicalEntityId?'canonical:'+subject.canonicalEntityId:subject.candidateReference?subject.candidateReference.sourceSystem+':'+subject.candidateReference.sourceRecordId:null;
   if(context.identityKey!==expectedIdentity||!options.policy.countries.includes(context.country))return Response.json({code:'DIRECTORY_SUBJECT_BINDING_REQUIRED'},{status:403});
+  if(options.policy.allowedIdentityKeys&&!options.policy.allowedIdentityKeys.includes(context.identityKey))return Response.json({code:'DIRECTORY_COHORT_BINDING_REQUIRED'},{status:403});
+  if(recovery){
+   const parentRequestId=(context as typeof context&{parentVerificationRequestId?:string}).parentVerificationRequestId;
+   const entry=recovery.entries.find(value=>value.requestId===parentRequestId);
+   if(!entry||context?.policyId!==entry.sourcePolicyId||context?.policySha256!==entry.sourcePolicySha256
+    ||context.identityKey!==entry.identityKey||context.country!=='GB'||context.attempts!==0
+    ||new URL(input.verifiedSourceUrl).hostname.toLowerCase()!==entry.host
+    ||input.crawlBudget.maxRequests>recovery.originalRequestBudget||input.crawlBudget.maxRequests<1
+    ||context.requestBudget!==input.crawlBudget.maxRequests
+    ||(context as typeof context&{canonicalImportAllowed?:boolean}).canonicalImportAllowed!==false)
+    return Response.json({code:'DIRECTORY_RECOVERY_PARENT_BINDING_REQUIRED'},{status:403});
+   const parent=await options.executor.store.get(uuid('directory-verification-v1:'+entry.requestId));
+   const verification=parent?.directoryVerification as {state?:string;url?:string;evidenceRef?:string}|undefined;
+   const reservation=parent?.directoryReservation as {policyId?:string;policySha256?:string;queueId?:string;identityKey?:string}|undefined;
+   if(verification?.state!=='VERIFIED'||verification.url!==input.verifiedSourceUrl||verification.evidenceRef!==context.evidenceRef
+    ||reservation?.policyId!==options.policy.policyId||reservation.policySha256!==options.approvedPolicyHash
+    ||reservation.queueId!==entry.queueId||reservation.identityKey!==entry.identityKey)
+    return Response.json({code:'DIRECTORY_RECOVERY_PARENT_NOT_VERIFIED'},{status:409});
+  }else if(context.policyId!==options.policy.policyId||context.policySha256!==options.approvedPolicyHash)
+   return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
   const item:DirectoryWork={...context,queueId:context.queueId,identityKey:context.identityKey,country:context.country,verifiedAt:context.verifiedAt,evidenceRef:context.evidenceRef,gaps:context.gaps,attempts:context.attempts!,verifiedSourceUrl:input.verifiedSourceUrl,entityType:'VENUE',ownership:context.ownership||'INTERNAL',status:context.status||'PENDING',requestBudget:input.crawlBudget.maxRequests,runId:context.runId};
   const cacheKey=sourceDiscoveryExecutionKey(input.idempotencyKey,undefined,input.acquisitionGoal);
   const cached=await options.executor.store.get(cacheKey);

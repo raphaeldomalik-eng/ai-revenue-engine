@@ -515,6 +515,7 @@ test("candidate host filter classifies prohibited sources", () => {
   assert.equal(candidateRejection("https://webcache.googleusercontent.com/search?q=cache:x"), "CACHED_OR_MIRRORED");
   assert.equal(candidateRejection("https://www.quicket.co.za/events/1"), "TICKETING");
   assert.equal(candidateRejection("https://www.sa-venues.com/venue"), "DIRECTORY");
+  assert.equal(candidateRejection("https://the-goring.hotels-of-london.com/en/"), "TRAVEL_OR_BOOKING_PLATFORM");
   assert.equal(candidateRejection("https://en.wikipedia.org/wiki/Venue"), "AGGREGATOR");
   assert.equal(candidateRejection("https://127.0.0.1/"), "INVALID_URL");
   assert.equal(candidateRejection("https://www.cornexhall.co.uk/"), null);

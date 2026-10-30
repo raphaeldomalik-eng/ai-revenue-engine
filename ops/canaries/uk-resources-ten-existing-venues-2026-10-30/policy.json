@@ -1,0 +1,33 @@
+{
+  "policyId": "resources-directory-uk-ten-existing-venues-20261030",
+  "version": 1,
+  "enabled": true,
+  "validFrom": "2026-10-30T00:00:00Z",
+  "validUntil": "2026-11-01T00:00:00Z",
+  "countries": ["GB"],
+  "actions": ["VERIFY_WEBSITE", "ENRICH_VERIFIED_VENUE"],
+  "allowedIdentityKeys": [
+    "event_suite_resources:ea8a9754-8aee-4365-bca2-0bbe24e363e0",
+    "event_suite_resources:ebe9d2a9-1f3c-49cf-b68a-7022bdf76a5d",
+    "event_suite_resources:245bf6f0-ae23-447f-8bad-6b221787d7ed",
+    "event_suite_resources:3e22515c-097a-4f68-ae62-02a0174d6e9a",
+    "event_suite_resources:8145551b-0721-4785-a635-56827b171789",
+    "event_suite_resources:1f496c41-6540-425b-b90f-d53f9e6a79d3",
+    "event_suite_resources:45235e16-3930-4925-a00b-87e33c6cd053",
+    "event_suite_resources:1ba3f50e-d80b-403b-acba-c8672b797456",
+    "event_suite_resources:8eefbcef-c7f7-40ef-8366-a769da6ff088",
+    "event_suite_resources:1289964c-cad0-4a8b-a860-ae7538519f5b"
+  ],
+  "maxVenuesPerDay": 20,
+  "maxRequestsPerDay": 120,
+  "maxRequestsPerVenue": 6,
+  "maxBatchVenues": 10,
+  "paidProviderBudgetUsd": 0,
+  "minHostDelayMs": 2000,
+  "freshnessHours": 720,
+  "maxAttempts": 1,
+  "retryBackoffHours": 24,
+  "stopAfterConsecutiveFailures": 5,
+  "publicationAllowed": false,
+  "outreachAllowed": false
+}
