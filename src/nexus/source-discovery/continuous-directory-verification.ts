@@ -40,7 +40,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
  if(!options.secret||!verifyNexusSignature(request.headers.get('x-nexus-signature'),request.headers.get('x-nexus-timestamp'),body,options.secret,nowMs))return Response.json({code:'NEXUS_SIGNATURE_INVALID'},{status:401});
  try{
   const raw=parseNexusEnvelope(body);
-  if(raw.contractVersion!=='nexus.research-request.v1'||raw.originatingProduct!=='event_suite_resources'||raw.researchPurpose!=='SOURCE_ENTITY_CLASSIFICATION'||(raw.subject as {entityType?:string})?.entityType!=='UNKNOWN'||JSON.stringify(raw.providerAllowances)!=='["PUBLIC_WEB"]'||(raw.costCeiling as {currency?:string;amount?:number})?.currency!=='USD'||(raw.costCeiling as {amount?:number})?.amount!==0)return Response.json({code:'DIRECTORY_VERIFICATION_SCOPE'},{status:403});
+  if(raw.contractVersion!=='nexus.research-request.v1'||!['event_suite_resources',...(options.policy.quotaMode==='PER_RUN'?['last_train_home']:[])].includes(String(raw.originatingProduct))||raw.researchPurpose!=='SOURCE_ENTITY_CLASSIFICATION'||(raw.subject as {entityType?:string})?.entityType!=='UNKNOWN'||JSON.stringify(raw.providerAllowances)!=='["PUBLIC_WEB"]'||(raw.costCeiling as {currency?:string;amount?:number})?.currency!=='USD'||(raw.costCeiling as {amount?:number})?.amount!==0)return Response.json({code:'DIRECTORY_VERIFICATION_SCOPE'},{status:403});
   const input=validateResearchRequest(raw),context=JSON.parse(body).directoryContext;
   const research=input.researchContext,seed=research?.targetWebsite;
   const entry=continuation?.entries.find(e=>e.queueId===context?.queueId);

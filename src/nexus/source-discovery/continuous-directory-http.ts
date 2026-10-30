@@ -19,8 +19,8 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
  if(!secret||!verifyNexusSignature(request.headers.get('x-nexus-signature'),request.headers.get('x-nexus-timestamp'),body,secret,nowMs))return Response.json({code:'NEXUS_SIGNATURE_INVALID'},{status:401});
  try{
   const payload=parseNexusEnvelope(body),input=validateSourceDiscoveryRequest(payload);
-  if(input.originatingProduct!=='event_suite_resources'||input.subjectReference.entityType!=='VENUE'||input.acquisitionGoal!=='VENUE_EMAIL'||input.crawlBudget.minRequestDelayMs<options.policy.minHostDelayMs)return Response.json({code:'DIRECTORY_REQUEST_SCOPE'},{status:403});
-  const context=JSON.parse(body).directoryContext as (Partial<DirectoryWork>&{policyId?:string;policySha256?:string;action?:string})|undefined;
+  if(!['event_suite_resources',...(options.policy.quotaMode==='PER_RUN'?['last_train_home']:[])].includes(input.originatingProduct)||input.subjectReference.entityType!=='VENUE'||input.acquisitionGoal!=='VENUE_EMAIL'||input.crawlBudget.minRequestDelayMs<options.policy.minHostDelayMs)return Response.json({code:'DIRECTORY_REQUEST_SCOPE'},{status:403});
+  const context=JSON.parse(body).directoryContext as (Partial<DirectoryWork>&{policyId?:string;policySha256?:string;action?:string;runId?:string})|undefined;
   if(context?.policyId!==options.policy.policyId||context?.policySha256!==options.approvedPolicyHash||(context.action??'ENRICH_VERIFIED_VENUE')!=='ENRICH_VERIFIED_VENUE')return Response.json({code:'DIRECTORY_POLICY_BINDING_REQUIRED'},{status:403});
   if(!context?.queueId||!context.identityKey||!context.country||!context.verifiedAt||!context.evidenceRef||!Array.isArray(context.gaps)||!Number.isSafeInteger(context.attempts)||context.attempts!<0)return Response.json({code:'DIRECTORY_QUEUE_CONTEXT_REQUIRED'},{status:400});
   if(!input.existingEvidenceRefs.includes(context.evidenceRef))return Response.json({code:'DIRECTORY_EVIDENCE_BINDING_REQUIRED'},{status:403});

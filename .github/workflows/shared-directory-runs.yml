@@ -1,0 +1,28 @@
+name: Shared directory run verification
+on:
+  pull_request:
+    paths:
+      - src/nexus/source-discovery/continuous-directory-*.ts
+      - src/nexus/source-discovery/directory-policy-config.ts
+      - app/api/integrations/nexus/directory-execute/route.ts
+      - app/api/integrations/nexus/directory-verify/route.ts
+      - app/api/integrations/nexus/directory-run/route.ts
+      - tests/directory-policy-config.test.ts
+      - tests/continuous-directory-*.test.ts
+      - supabase/migrations/20261023182003_resources_provider_and_run_budgets.sql
+      - package.json
+      - package-lock.json
+      - .github/workflows/shared-directory-runs.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run check
