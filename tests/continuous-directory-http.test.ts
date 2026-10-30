@@ -31,3 +31,36 @@ test('standing route reuses the exact existing production executor and honours d
   assert.equal((await handleContinuousDirectoryRequest(request(),cachedOptions)).status,200);assert.equal(cachedReservations,1);
  }finally{if(old===undefined)delete process.env.VERCEL_ENV;else process.env.VERCEL_ENV=old;}
 });
+test('recovery enriches only a child bound to its verified parent result',async()=>{
+ const sourcePolicyId='resources-directory-uk-verify-50-20261024';
+ const sourcePolicySha256='c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923';
+ const candidateId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',identityKey=`event_suite_resources:${candidateId}`;
+ const parentId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',queueId='a'.repeat(64);
+ const recovery={...policy,policyId:'recovery-test',validUntil:'2026-10-22T00:00:00Z',countries:['GB'],actions:['VERIFY_WEBSITE','ENRICH_VERIFIED_VENUE'],
+  maxVenuesPerDay:2,maxRequestsPerDay:12,maxRequestsPerVenue:6,maxBatchVenues:1,minHostDelayMs:2000,maxAttempts:1,
+  recovery:{originalRequestBudget:6,additionalRequestBudget:3,entries:[{sourcePolicyId,sourcePolicySha256,
+   queueId,requestId:parentId,identityKey,host:'venue.example',mode:'UNRESERVED' as const,priorRequestCount:0}]}};
+ const hash=policyHash(recovery),store=new InMemoryNexusResultStore(),child={...payload,
+  subjectReference:{canonicalEntityId:null,entityType:'VENUE',candidateReference:{sourceSystem:'event_suite_resources',sourceRecordId:candidateId}},
+  crawlBudget:{...payload.crawlBudget,maxRequests:6,minRequestDelayMs:2000}};
+ const childContext={...context,policyId:sourcePolicyId,policySha256:sourcePolicySha256,queueId:'child-queue',requestBudget:6,canonicalImportAllowed:false,
+  identityKey,attempts:0,parentVerificationRequestId:parentId};
+ const signed=(change:Record<string,unknown>={})=>{const body=JSON.stringify({payload:child,directoryContext:{...childContext,...change}}),timestamp=String(now/1000);
+  return new Request('https://aire.example/api/integrations/nexus/directory-execute',{method:'POST',headers:{'x-nexus-timestamp':timestamp,'x-nexus-signature':nexusSignatureFor(timestamp,body,secret)},body});};
+ let calls=0;
+ const result={contractVersion:'nexus.source-discovery-result.v1',discoveryRequestId:child.discoveryRequestId,idempotencyKey:child.idempotencyKey,
+  subjectReference:child.subjectReference,source:{verifiedUrl:child.verifiedSourceUrl,finalUrl:child.verifiedSourceUrl,observedAt:new Date(now).toISOString(),sourceHash:'abc'},
+  crawl:{status:'COMPLETED',warnings:[],requestCount:2,pageCount:1,bytesRead:10,redirects:0,blockedCount:0,retryable:false},
+  identityFacts:[],publicContacts:[],venueFacts:[],imageCandidates:[],eventCandidates:[],evidenceRefs:[]};
+ const options={policy:recovery,approvedPolicyHash:hash,now:()=>now,ledger:{reserve:async()=>true,complete:async()=>{}},
+  executor:{secret,store,executeSourceDiscovery:async()=>{calls++;return result}}};
+ assert.equal((await handleContinuousDirectoryRequest(signed(),options)).status,409);
+ const {createHash}=await import('node:crypto');const digest=createHash('sha256').update('directory-verification-v1:'+parentId).digest('hex');
+ const parentKey=`${digest.slice(0,8)}-${digest.slice(8,12)}-5${digest.slice(13,16)}-8${digest.slice(17,20)}-${digest.slice(20,32)}`;
+ await store.set(parentKey,{directoryVerification:{state:'VERIFIED',url:child.verifiedSourceUrl,evidenceRef:'e:1'},
+  directoryReservation:{policyId:recovery.policyId,policySha256:hash,queueId,identityKey}});
+ assert.equal((await handleContinuousDirectoryRequest(signed({identityKey:'event_suite_resources:other'}),options)).status,403);
+ assert.equal((await handleContinuousDirectoryRequest(signed({parentVerificationRequestId:'other'}),options)).status,403);
+ const response=await handleContinuousDirectoryRequest(signed(),options);
+ assert.equal(response.status,200,JSON.stringify(await response.clone().json()));assert.equal(calls,1);
+});

@@ -2,6 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {SupabaseContinuousDirectoryLedger,SupabaseDirectoryResultStore} from '../../../../../src/nexus/source-discovery/continuous-directory-store.ts';
 import {handleDirectoryVerificationRequest,validatedVerificationContinuation,type VerificationPolicy} from '../../../../../src/nexus/source-discovery/continuous-directory-verification.ts';
 import {policyHash} from '../../../../../src/nexus/source-discovery/continuous-directory-policy.ts';
+import {validatedVerificationRecovery} from '../../../../../src/nexus/source-discovery/continuous-directory-recovery.ts';
 export const runtime='nodejs';
 const ORIGINAL_POLICY_ID='resources-directory-uk-verify-canary-20261022';
 const CONTINUATION_POLICY_ID='resources-directory-uk-verify-continuation-20261024';
@@ -30,8 +31,21 @@ export async function POST(request:Request){
   }
  }
  const continuation=validatedVerificationContinuation(policy);
+ let recovery:ReturnType<typeof validatedVerificationRecovery>;
+ try{recovery=validatedVerificationRecovery(policy)}catch{return Response.json({code:'DIRECTORY_RECOVERY_SCOPE_INVALID'},{status:404})}
  return handleDirectoryVerificationRequest(request,{policy,approvedPolicyHash:selectedHash,secret,
   ledger:new SupabaseContinuousDirectoryLedger(client),store:new SupabaseDirectoryResultStore(client),
+  recoveryReady:recovery?async(entry,now)=>{
+   const {data:prior,error:priorError}=await client.from('nexus_directory_work_receipt')
+    .select('state,request_count,next_attempt_at,identity_key,host')
+    .eq('policy_id',entry.sourcePolicyId).eq('queue_id',entry.queueId)
+    .order('reserved_at',{ascending:false}).limit(1).maybeSingle();
+   if(priorError)return false;
+   if(entry.mode==='UNRESERVED')return prior===null;
+   return prior?.state==='RETRYABLE'&&prior.request_count===entry.priorRequestCount
+    &&prior.identity_key===entry.identityKey&&prior.host===entry.host
+    &&Boolean(prior.next_attempt_at)&&Date.parse(prior.next_attempt_at)<=Date.parse(now);
+  }:undefined,
   continuationReady:continuation?async(entry,now)=>{
    const {data:prior,error:priorError}=await client.from('nexus_directory_work_receipt')
     .select('state,request_count,next_attempt_at,identity_key,host')

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import {policyHash} from '../src/nexus/source-discovery/continuous-directory-policy.ts';
 import {InMemoryNexusResultStore} from '../src/nexus/executor.ts';
 import {nexusSignatureFor} from '../src/nexus/transport.ts';
+import {validatedVerificationRecovery} from '../src/nexus/source-discovery/continuous-directory-recovery.ts';
 
 const now=Date.parse('2026-10-21T06:15:00Z'),secret='fixture-only';
 const id='11111111-1111-4111-8111-111111111111';
@@ -78,9 +79,44 @@ test('a bounded continuation reuses only the original retryable request and caps
  assert.equal((await handleDirectoryVerificationRequest(requestAt(later),notReady)).status,409);
  assert.equal((await handleDirectoryVerificationRequest(requestAt(later),{...options,policy:{...continuation,maxRequestsPerDay:7},approvedPolicyHash:policyHash({...continuation,maxRequestsPerDay:7})})).status,404);
 });
+test('an exact signed recovery can run an unreserved old request once without rewriting its identity',async()=>{
+ const h=harness(),later=Date.parse('2026-10-30T06:10:00Z');
+ const sourcePolicyId='resources-directory-uk-verify-50-20261024';
+ const sourcePolicySha256='c49c05bfccd52774aad3e0231b6bc0de766cef51dd1dd175d69aba7fabae1923';
+ const candidateId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',identityKey=`event_suite_resources:${candidateId}`;
+ const oldPayload={...payload,subject:{...payload.subject,candidateReference:{sourceSystem:'event_suite_resources',sourceRecordId:candidateId}}};
+ const recovery={...policy,policyId:'verification-recovery-test',version:1,actions:['VERIFY_WEBSITE','ENRICH_VERIFIED_VENUE'],
+  validFrom:'2026-10-30T06:00:00Z',validUntil:'2026-10-30T06:30:00Z',countries:['GB'],maxVenuesPerDay:2,maxRequestsPerDay:12,
+  maxRequestsPerVenue:6,maxBatchVenues:1,minHostDelayMs:2000,maxAttempts:1,
+  recovery:{originalRequestBudget:6,additionalRequestBudget:3,entries:[{sourcePolicyId,sourcePolicySha256,
+   queueId:context.queueId,requestId:id,identityKey,host:'alpha.example',mode:'UNRESERVED' as const,priorRequestCount:0}]}};
+ assert.equal(validatedVerificationRecovery(recovery)?.entries.length,1);
+ let ready=false;
+ const options={...h.options,policy:recovery,approvedPolicyHash:policyHash(recovery),now:()=>later,recoveryReady:async()=>ready};
+ const oldRequest=(attempts=0)=>{const body=JSON.stringify({payload:oldPayload,directoryContext:{...context,identityKey,attempts,policyId:sourcePolicyId,policySha256:sourcePolicySha256}}),timestamp=String(later/1000);
+  return new Request('https://aire.example/api/integrations/nexus/directory-verify',{method:'POST',headers:{'x-nexus-timestamp':timestamp,'x-nexus-signature':nexusSignatureFor(timestamp,body,secret)},body});};
+ assert.equal((await handleDirectoryVerificationRequest(oldRequest(),options)).status,409);
+ ready=true;
+ const first=await handleDirectoryVerificationRequest(oldRequest(),options);
+ assert.equal(first.status,200,JSON.stringify(await first.clone().json()));
+ const counts=h.counts();assert(counts.requests>0);
+ assert.equal((await handleDirectoryVerificationRequest(oldRequest(),options)).status,200);
+ assert.deepEqual(h.counts(),counts);
+ assert.equal((await handleDirectoryVerificationRequest(oldRequest(1),options)).status,403);
+ assert.throws(()=>validatedVerificationRecovery({...recovery,maxRequestsPerDay:133}),/DIRECTORY_RECOVERY_SCOPE_INVALID/);
+});
 test('the recorded UK continuation policy is limited to two original requests and a thirty-minute window',()=>{
  const recorded=JSON.parse(fs.readFileSync(new URL('../ops/canaries/uk-resources-website-continuation-2026-10-24/policy.json',import.meta.url),'utf8'));
  assert.equal(policyHash(recorded),'6e46709713bbd8d3e835a8cfa7852a5ca827d7cb2555f3f64b80d636fd1bb46d');
  assert.equal(validatedVerificationContinuation(recorded)?.entries.length,2);
  assert.equal(recorded.continuation.sourcePolicySha256,'6d8346510acdbf4fb6e28fba5264b2270ef8914c8a8d64d57fcb3632717ded26');
+});
+test('the UK recovery policy binds exactly the eleven pending queue identities',()=>{
+ const recorded=JSON.parse(fs.readFileSync(new URL('../ops/canaries/uk-resources-website-recovery-2026-10-30/policy.json',import.meta.url),'utf8'));
+ const entries=validatedVerificationRecovery(recorded)?.entries??[];
+ assert.equal(entries.length,11);
+ assert.equal(entries.filter((entry:{mode:string})=>entry.mode==='UNRESERVED').length,8);
+ assert.equal(entries.filter((entry:{mode:string})=>entry.mode==='RETRYABLE').length,3);
+ assert.deepEqual([...new Set(entries.map((entry:{sourcePolicyId:string})=>entry.sourcePolicyId))].sort(),
+  ['resources-directory-uk-verify-50-20261024','resources-directory-uk-verify-canary-20261022'].sort());
 });
