@@ -38,6 +38,24 @@ test("classification facts reference evidence actually returned for Nexus stagin
   assert.ok(result.facts.length>1);
   assert.ok(result.facts.every(fact=>!fact.evidenceRef || result.evidence.some(evidence=>evidence.evidenceRef===fact.evidenceRef)),"Nexus cannot stage facts pointing to missing evidence rows");
 });
+test("classification crawl keeps venue role mailboxes with their first-party source URL", async () => {
+  const body = '<html><head><title>Alpha Hall</title></head><body><h1>Alpha Hall</h1><address>10 High Street, Bristol, BS1 1AA</address>' +
+    '<a href="mailto:eventhire@alphahall.co.uk">Event hire</a><a href="mailto:venuehire@alphahall.co.uk">Venue hire</a>' +
+    '<a href="mailto:conferences@alphahall.co.uk">Conferences</a><a href="mailto:hires@alphahall.co.uk">Hires</a>' +
+    '<a href="mailto:sales@operator.co.uk">Venue hire enquiries</a>' +
+    '<a href="mailto:privacy@alphahall.co.uk">Privacy</a><a href="mailto:venues@tagvenue.com">Directory</a></body></html>';
+  const provider = createPublicWebProvider({ fetchImpl: fetchSite(body), resolveHost: resolver });
+  const input = { ...request("SOURCE_ENTITY_CLASSIFICATION"), subject: { ...request().subject, entityType: "UNKNOWN" as const } };
+  const result = await provider({ request: input, context: { targetName: "Alpha Hall", targetWebsite: "https://alphahall.co.uk/", locality: "Bristol" } });
+  const contacts = (result.evidence.find(item => (item.payload as any)?.kind === "FIRST_PARTY_WEBSITE")?.payload as any)?.contacts ?? [];
+  assert.deepEqual(contacts.filter((item: any) => item.type === "EMAIL").map((item: any) => [item.value, item.sourceUrl, item.relationship]).sort(), [
+    ["conferences@alphahall.co.uk", "https://alphahall.co.uk/", "VERIFIED_SITE_DOMAIN"],
+    ["eventhire@alphahall.co.uk", "https://alphahall.co.uk/", "VERIFIED_SITE_DOMAIN"],
+    ["hires@alphahall.co.uk", "https://alphahall.co.uk/", "VERIFIED_SITE_DOMAIN"],
+    ["sales@operator.co.uk", "https://alphahall.co.uk/", "PUBLISHED_ON_VERIFIED_SITE"],
+    ["venuehire@alphahall.co.uk", "https://alphahall.co.uk/", "VERIFIED_SITE_DOMAIN"],
+  ]);
+});
 function fetchSite(body: string, options: { redirect?: ResponseInit } = {}) {
   return async (input: RequestInfo | URL) => String(input).endsWith("/robots.txt")
     ? new Response("User-agent: *\nAllow: /", { status: 200 })
@@ -45,9 +63,9 @@ function fetchSite(body: string, options: { redirect?: ResponseInit } = {}) {
 }
 
 test("PUBLIC_WEB accepts strong first-party identity evidence and extracts business contacts", async () => {
-  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address><a href="mailto:events@example.org">events@example.org</a><a href="tel:+441234567890">Call</a><form action="/contact"></form><form action="https://forms.third-party.test/submit"></form></body></html>';
+  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address><a href="mailto:events@venue.co.uk">events@venue.co.uk</a><a href="tel:+441234567890">Call</a><form action="/contact"></form><form action="https://forms.third-party.test/submit"></form></body></html>';
   const provider = createPublicWebProvider({ fetchImpl: fetchSite(body), resolveHost: resolver, now: () => "2026-09-21T00:00:00.000Z" });
-  const result = await provider({ request: request("PUBLIC_CONTACT"), context: { targetName: "Example Venue", targetWebsite: "https://example.test/", locality: "London", existingFacts: [{ fieldName: "placeId", value: "places/example" }] } });
+  const result = await provider({ request: request("PUBLIC_CONTACT"), context: { targetName: "Example Venue", targetWebsite: "https://venue.co.uk/", locality: "London", existingFacts: [{ fieldName: "placeId", value: "places/example" }] } });
   assert.equal(result.error, undefined);
   assert.deepEqual(result.facts.map((fact) => fact.fieldName), ["officialWebsite", "publicContactEmail", "publicContactPhone", "contactFormUrl"]);
   assert.equal(result.evidence[0]?.provider, "PUBLIC_WEB");
@@ -196,7 +214,7 @@ test("research context bridge rejects arbitrary unvalidated context", () => {
 });
 
 test("executor records a real PUBLIC_WEB execution with zero metered cost and preserves replay", async () => {
-  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address><a href="mailto:events@example.org">events@example.org</a></body></html>';
+  const body = '<html><head><title>Example Venue</title></head><body><h1>Example Venue</h1><address>1 High Street, London</address><a href="mailto:events@venue.co.uk">events@venue.co.uk</a></body></html>';
   let fetches = 0;
   const provider = createPublicWebProvider({
     fetchImpl: async (input: RequestInfo | URL) => { fetches += 1; return fetchSite(body)(input); },
@@ -205,7 +223,7 @@ test("executor records a real PUBLIC_WEB execution with zero metered cost and pr
   });
   const store = new InMemoryNexusResultStore();
   const input = request("PUBLIC_CONTACT");
-  const context = { targetName: "Example Venue", targetWebsite: "https://example.test/", locality: "London" };
+  const context = { targetName: "Example Venue", targetWebsite: "https://venue.co.uk/", locality: "London" };
   const first = await executeResearchRequest(input, context, { publicWeb: provider }, store) as any;
   const second = await executeResearchRequest(input, context, { publicWeb: async () => { throw new Error("replay must not fetch"); } }, store) as any;
   assert.equal(first.providerUsage[0]?.provider, "PUBLIC_WEB");
