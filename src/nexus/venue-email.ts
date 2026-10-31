@@ -117,7 +117,8 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   const siteDomain = registrableDomain(new URL(verifiedSiteUrl).hostname);
   const emailDomain = registrableDomain(shape.domain);
   const nearby = context.slice(-768);
-  if(/\b(?:press|media)\s+(?:only|enquir\w*|contacts?)|\b(?:recruitment|careers?|vacancies)\b/i.test(nearby))return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
+  const venueService=/\b(?:venue.?hire|private.?hire|weddings?|event.?book\w*|general enquir\w*|conference|functions?|reservations?|sales)\b/i.test(nearby);
+  if(!venueService&&/\b(?:press|media)\s+(?:only|enquir\w*|contacts?)|\b(?:recruitment|careers?|vacancies)\b/i.test(nearby))return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
   const parts = shape.mailbox.split(/[._+-]+/);
   if (/^(?:press|media|pr|recruitment|recruiting|careers?|jobs?|hr|vacancies)(?:[._+-]|$)/i.test(shape.mailbox)) return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
   const compactMailbox = shape.mailbox.replace(/[^a-z0-9]/g, '');

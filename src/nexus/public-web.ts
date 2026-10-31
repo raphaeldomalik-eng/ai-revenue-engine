@@ -163,7 +163,7 @@ export function withVerifiedNexusOrigin(request: ResearchRequest, context: Resea
       :subject.candidateReference&&a.candidateReference?.sourceSystem===subject.candidateReference.sourceSystem&&a.candidateReference?.sourceRecordId===subject.candidateReference.sourceRecordId;
     return bound&&typeof a.siteUrl==='string'&&withinAcceptedSite(context.targetWebsite??'',a.siteUrl);
   });
-  const facts=(context.existingFacts??[]).filter(f=>!['verifiedWebsiteOriginMatch','acceptedWebsiteScope'].includes(f.fieldName));
+  const facts=(context.existingFacts??[]).filter(f=>!['verifiedWebsiteOriginMatch','acceptedWebsiteScope'].includes(f.fieldName)&&(f.fieldName!=='acceptedWebsiteAssociation'||f===association));
   const ref=association?.evidenceRef??verifiedSource?.evidenceRef;
   if(ref)facts.push({fieldName:'verifiedWebsiteOriginMatch',value:true,evidenceRef:ref},{fieldName:'acceptedWebsiteScope',value:association?(association.value as Record<string,unknown>).siteUrl:context.targetWebsite,evidenceRef:ref});
   return {...context,existingFacts:facts};

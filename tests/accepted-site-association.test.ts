@@ -25,6 +25,7 @@ test('off-domain venue contacts pass while a media-only person and another progr
  assert.equal(acceptVenueEmail('sales@provider.org','https://venue.org/contact/','Alpha Hall','Venue hire enquiries sales@provider.org').accepted,true);
  assert.equal(acceptVenueEmail('kaue@cougarmania.co.uk','https://keighleycougars.uk/contacts','Cougar Park','MEDIA ENQUIRIES Chief Executive Officer: Kaue Garcia kaue@cougarmania.co.uk').accepted,false);
  assert.equal(acceptVenueEmail('info@playpiepint.com','https://oran-mor.co.uk/contact/','Oran Mor','A Play, A Pie and A Pint info@playpiepint.com').accepted,false);
+ assert.equal(acceptVenueEmail('info@venue.org','https://venue.org/contact/','Alpha Hall','General enquiries, venue hire and media enquiries info@venue.org').accepted,true);
 });
 test('a contradictory venue address stays held, while a sibling or authorised operator HQ address does not re-verify venue location',()=>{
  const address={fieldName:'address',value:'Bath BA1 1AA',sourceUrl:'https://operator.org/hotels/alpha'};
