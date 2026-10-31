@@ -67,3 +67,9 @@ test('recovery enriches only a child bound to its verified parent result',async(
  const response=await handleContinuousDirectoryRequest(signed(),options);
  assert.equal(response.status,200,JSON.stringify(await response.clone().json()));assert.equal(calls,1);
 });
+
+test('durable crawler backoff is exposed to Nexus through Retry-After',async()=>{
+ const next=new Date(now+48*3600000).toISOString();
+ const response=await handleContinuousDirectoryRequest(request(),{policy,approvedPolicyHash:policyHash(policy),now:()=>now,ledger:{reserve:async()=>false,nextEligibleAt:async()=>next,complete:async()=>{throw Error('NO_EXECUTION')}},executor:{secret,store:new InMemoryNexusResultStore()}});
+ assert.equal(response.status,409);assert.equal(response.headers.get('retry-after'),'172800');
+});

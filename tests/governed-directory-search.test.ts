@@ -60,3 +60,13 @@ test('Brave per-run cap uses independently reserved Serper credit without a Brav
  const result=await preferGovernedSearch(brave,serper)!.search(input);
  assert.equal(result.length,1);assert.equal(braveFetches,0);assert.equal(serperReservations,1);assert.equal(serperFetches,1);
 });
+
+test('a completed empty Serper result survives a guarded Brave fallback without duplicate spend',async()=>{
+ const serper={id:'serper-google-search',usage:{requests:1,cacheReused:0,reservedCreditMicroUsd:1000},costModel:{kind:'ZERO_INCREMENTAL' as const,currency:'USD',amountPerCall:0},search:async()=>[]};
+ for(const reason of ['IN_FLIGHT_OR_UNKNOWN','ALLOCATION_EXHAUSTED','RUN_PROVIDER_BUDGET']){
+  const brave={id:'brave-web-search',costModel:serper.costModel,search:async()=>{throw new DirectorySearchAllocationDeniedError(reason)}};
+  const p=preferGovernedSearch(brave,serper)!;assert.deepEqual(await p.search(input),[]);assert.equal(p.id,serper.id);assert.equal(p.usage?.requests,1);assert.equal(p.usage?.reservedCreditMicroUsd,1000);
+ }
+ const brave={id:'brave-web-search',costModel:serper.costModel,search:async()=>{throw Error('UNKNOWN_NETWORK_OUTCOME')}};
+ await assert.rejects(()=>preferGovernedSearch(brave,serper)!.search(input),/UNKNOWN_NETWORK_OUTCOME/);
+});

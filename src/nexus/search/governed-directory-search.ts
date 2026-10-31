@@ -43,9 +43,14 @@ export function preferGovernedSearch(brave:PublicWebSearchProvider|null,serper:P
  const primary=serper,alternative=brave;
  const usage={requests:0,cacheReused:0,reservedCreditMicroUsd:0,observedAt:undefined as string|undefined};
  const combined:PublicWebSearchProvider={id:primary.id,usage,costModel:{kind:'ZERO_INCREMENTAL',currency:'USD',amountPerCall:0},async search(input){
-  let results:PublicWebSearchResult[]=[];
-  try{results=await primary.search(input);}catch(error){if(!(error instanceof DirectorySearchAllocationDeniedError)||!['ALLOWANCE_INACTIVE','ALLOCATION_EXHAUSTED','RUN_PROVIDER_BUDGET','PROVIDER_BALANCE_LOW','ACCOUNT_BALANCE_LOW','MONTHLY_BUDGET','DAILY_PROVIDER_BUDGET','RATE_LIMIT','PROVIDER_PAUSED','MONTHLY_LIMIT_EXCEEDED','DAILY_LIMIT_EXCEEDED','PROVIDER_DAILY_BUDGET','PROVIDER_RATE_LIMIT','PROVIDER_ACCOUNT_RESERVE','PROVIDER_BALANCE_UNVERIFIED'].includes(error.reason))throw error;}
-  const chosen=results.length?primary:alternative;if(!results.length)results=await alternative.search(input);
+  let results:PublicWebSearchResult[]=[],primaryCompleted=false;
+  try{results=await primary.search(input);primaryCompleted=true;}catch(error){if(!(error instanceof DirectorySearchAllocationDeniedError)||!['ALLOWANCE_INACTIVE','ALLOCATION_EXHAUSTED','RUN_PROVIDER_BUDGET','PROVIDER_BALANCE_LOW','ACCOUNT_BALANCE_LOW','MONTHLY_BUDGET','DAILY_PROVIDER_BUDGET','RATE_LIMIT','PROVIDER_PAUSED','MONTHLY_LIMIT_EXCEEDED','DAILY_LIMIT_EXCEEDED','PROVIDER_DAILY_BUDGET','PROVIDER_RATE_LIMIT','PROVIDER_ACCOUNT_RESERVE','PROVIDER_BALANCE_UNVERIFIED'].includes(error.reason))throw error;}
+  let chosen=primary;
+  if(!results.length){try{results=await alternative.search(input);chosen=alternative;}catch(error){
+   // A completed primary observation remains valid when the alternative guard
+   // refuses a request. Unknown provider outcomes still fail closed.
+   if(!primaryCompleted||!(error instanceof DirectorySearchAllocationDeniedError))throw error;
+  }}
   combined.id=chosen.id;
   for(const key of ['requests','cacheReused','reservedCreditMicroUsd'] as const)usage[key]=(primary.usage?.[key]??0)+(alternative.usage?.[key]??0);
   usage.observedAt=chosen.usage?.observedAt;return results;

@@ -126,6 +126,6 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   },now);
   const returned=result as ReturnType<typeof validateResearchResult>|null;
   const contactOutcome=returned?.evidence.find(e=>(e.payload as Record<string,unknown>)?.kind==='FIRST_PARTY_WEBSITE')?.payload as Record<string,unknown>|undefined;
-  return Response.json({result,verification,receipt,contactOutcome:contactOutcome?.contactOutcome??'CRAWL_INCOMPLETE'},{status:receipt.stopped||receipt.actualRequestsUnknown||result&&retryableProviderFailure(result)?503:receipt.denied?409:result?200:202});
+  return Response.json({result,verification,receipt,contactOutcome:contactOutcome?.contactOutcome??'CRAWL_INCOMPLETE'},{headers:receipt.nextAttemptAt?{'Retry-After':String(Math.max(1,Math.ceil((Date.parse(receipt.nextAttemptAt)-nowMs)/1000)))}:undefined,status:receipt.stopped||receipt.actualRequestsUnknown||result&&retryableProviderFailure(result)?503:receipt.denied?409:result?200:202});
  }catch(error){return Response.json({code:error instanceof Error?error.message:'DIRECTORY_VERIFICATION_FAILED'},{status:400})}
 }
