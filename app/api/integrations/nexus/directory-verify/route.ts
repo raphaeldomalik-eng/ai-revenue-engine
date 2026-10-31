@@ -17,7 +17,7 @@ export async function POST(request:Request){
  let policy=data.policy as VerificationPolicy,selectedHash=approvedPolicyHash;
  // The one-off continuation has its own short window and budget. Requests
  // retain the original policy hash; no existing request or result is rewritten.
- if(policyId===ORIGINAL_POLICY_ID&&Date.now()>=Date.parse(policy.validUntil)){
+ if(policyId===ORIGINAL_POLICY_ID&&policy.validUntil!==null&&Date.now()>=Date.parse(policy.validUntil)){
   const {data:next,error:nextError}=await client.from('nexus_directory_standing_policy').select('policy,policy_sha256,enabled').eq('policy_id',CONTINUATION_POLICY_ID).single();
   if(!nextError&&next?.enabled){
    const candidate=next.policy as VerificationPolicy;

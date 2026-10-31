@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import pg from 'pg';
+import {fetchResourcesProviderBudgetStatus,type ResourcesProviderBudgetStatus} from './resources-provider-budget-view.ts';
 import {
   buildCatalogueQuery,
   buildCatalogueCountQuery,
@@ -595,6 +596,7 @@ export interface CatalogueBudgetSummary {
   pro: BudgetTierStatus;
   enterprise: BudgetTierStatus;
   atmosphere: BudgetTierStatus;
+  resourcesProviders?: ResourcesProviderBudgetStatus;
 }
 
 export interface CatalogueQueryResult {
@@ -639,6 +641,7 @@ export async function fetchCatalogueBudgets(pool?: any): Promise<CatalogueBudget
   `;
   const res = await p.query(query);
   const rows = res.rows;
+  const resourcesProviders = await fetchResourcesProviderBudgetStatus();
 
   const defaultPro: BudgetTierStatus = {
     billingTier: 'PRO',
@@ -681,6 +684,7 @@ export async function fetchCatalogueBudgets(pool?: any): Promise<CatalogueBudget
     pro: map['PRO'] || defaultPro,
     enterprise: map['ENTERPRISE'] || defaultEnt,
     atmosphere: map['ENTERPRISE_ATMOSPHERE'] || defaultAtmo,
+    resourcesProviders,
   };
 }
 

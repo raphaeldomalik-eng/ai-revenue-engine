@@ -35,21 +35,21 @@ test('denied or uncertain Serper reservations cannot spend or retry',async()=>{
  assert.equal(calls,1);assert.equal(failed,1);
 });
 
-test('Brave is preferred and Serper is used only for a denied allocation or empty result',async()=>{
+test('Serper is preferred and Brave is used only for an uncharged denial or empty result',async()=>{
  const calls:string[]=[];const p=(id:string,result:any)=>({id,costModel:{kind:'ZERO_INCREMENTAL' as const,currency:'USD',amountPerCall:0},async search(){calls.push(id);if(result instanceof Error)throw result;return result;}});
  const result=[{url:'https://alpha.example/'}];
- assert.deepEqual(await preferGovernedSearch(p('brave-web-search',result),p('serper-google-search',[]))!.search(input),result);
- assert.deepEqual(calls,['brave-web-search']);calls.length=0;
- await preferGovernedSearch(p('brave-web-search',new DirectorySearchAllocationDeniedError('ALLOCATION_EXHAUSTED')),p('serper-google-search',result))!.search(input);
- assert.deepEqual(calls,['brave-web-search','serper-google-search']);calls.length=0;
- await assert.rejects(()=>preferGovernedSearch(p('brave-web-search',Error('unknown outcome')),p('serper-google-search',result))!.search(input));
- assert.deepEqual(calls,['brave-web-search']);
+ assert.deepEqual(await preferGovernedSearch(p('brave-web-search',[]),p('serper-google-search',result))!.search(input),result);
+ assert.deepEqual(calls,['serper-google-search']);calls.length=0;
+ await preferGovernedSearch(p('brave-web-search',result),p('serper-google-search',new DirectorySearchAllocationDeniedError('ALLOCATION_EXHAUSTED')))!.search(input);
+ assert.deepEqual(calls,['serper-google-search','brave-web-search']);calls.length=0;
+ await assert.rejects(()=>preferGovernedSearch(p('brave-web-search',result),p('serper-google-search',Error('unknown outcome')))!.search(input));
+ assert.deepEqual(calls,['serper-google-search']);
 });
 
-test('an in-flight or unknown Brave receipt cannot cause a Serper purchase on redelivery',async()=>{
+test('an in-flight or unknown Serper receipt cannot cause a Brave purchase on redelivery',async()=>{
  let calls=0;
- const brave=createBravePublicWebSearchProvider({apiKey:'fixture',allowanceId:'brave',requestKey:'redelivery',reserve:async()=>({state:'DENIED',reason:'IN_FLIGHT_OR_UNKNOWN'}),fetchImpl:async()=>{throw Error('MUST_NOT_FETCH');}});
- const serper={id:'serper-google-search',costModel:{kind:'ZERO_INCREMENTAL' as const,currency:'USD',amountPerCall:0},search:async()=>{calls++;return [];}};
+ const serper=createGovernedSerperSearch({apiKey:'fixture',allowanceId:'serper',requestKey:'redelivery',reserve:async()=>({state:'DENIED',reason:'IN_FLIGHT_OR_UNKNOWN'}),complete:async()=>{},fail:async()=>{},fetchImpl:async()=>{throw Error('MUST_NOT_FETCH');}});
+ const brave={id:'brave-web-search',costModel:{kind:'ZERO_INCREMENTAL' as const,currency:'USD',amountPerCall:0},search:async()=>{calls++;return [];}};
  await assert.rejects(()=>preferGovernedSearch(brave,serper)!.search(input));assert.equal(calls,0);
 });
 
