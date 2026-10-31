@@ -250,8 +250,12 @@ function emailSurface(html: string): string {
 /** Cloudflare replaces a visible address with this attribute. It is a fixed XOR, not a script engine. */
 function cloudflareEmails(html: string): string[] {
   const found: string[] = [];
-  for (const match of html.matchAll(/\bdata-cfemail=["']([0-9a-f]{4,200})["']/gi)) {
-    const encoded = match[1]!;
+  const values=[...html.matchAll(/\bdata-cfemail=["']([0-9a-f]{4,200})["']/gi)].map(match=>match[1]!);
+  for(const anchor of hrefTags(html)){
+    const encoded=anchor.attrs.href?.match(/(?:^|\/)cdn-cgi\/l\/email-protection#([0-9a-f]{4,200})$/i)?.[1];
+    if(encoded)values.push(encoded);
+  }
+  for (const encoded of new Set(values)) {
     if (encoded.length % 2 !== 0) continue;
     const key = Number.parseInt(encoded.slice(0, 2), 16);
     let email = "";
