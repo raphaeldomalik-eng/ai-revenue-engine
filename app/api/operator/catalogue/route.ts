@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import {fetchResourcesProviderBudgetStatus} from "../../../../src/nexus/resources-provider-budget-view.ts";
 import { createServerSupabaseClient } from "../../../../src/lib/supabase-server";
 import {
   queryCataloguePage,
@@ -54,12 +55,7 @@ async function readOperatorAccess(client?: any) {
 }
 
 export async function GET(request: Request) {
-  if (!isDbConfigured()) {
-    return NextResponse.json(
-      { code: "DATABASE_UNCONFIGURED", message: "Production database is not configured. Failing closed." },
-      { status: 503 }
-    );
-  }
+
 
   let client: any = null;
   try {
@@ -71,6 +67,16 @@ export async function GET(request: Request) {
   if ("error" in access && access.error) return access.error;
 
   const url = new URL(request.url);
+  if (url.searchParams.get('view') === 'provider-budgets') {
+    return NextResponse.json({resourcesProviders:await fetchResourcesProviderBudgetStatus()});
+  }
+
+  if (!isDbConfigured()) {
+    return NextResponse.json(
+      { code: "DATABASE_UNCONFIGURED", message: "Production database is not configured. Failing closed." },
+      { status: 503 }
+    );
+  }
   const externalRef = url.searchParams.get("externalReferenceId") || url.searchParams.get("selected");
 
   // Single entity detail fetch
