@@ -60,7 +60,7 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
     const quarantined=()=>options.ledger.isQuarantined?.(options.policy.policyId,item.identityKey)??Promise.resolve(false);
     if(await quarantined())return Response.json({result,receipt:{cacheReused:1,executed:0,quarantined:1,actualHttpRequestsKnown:0,knownCostUsd:0}});
     const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async()=>({requestCount:0,costUsd:0,status:result.crawl.status,retryable:false}),now);
-    return Response.json({result,receipt:{...receipt,cacheReused:1}},{status:receipt.denied&&!await quarantined()?409:200});
+    return Response.json({result,receipt:{...receipt,cacheReused:1}},{headers:receipt.nextAttemptAt?{'Retry-After':String(Math.max(1,Math.ceil((Date.parse(receipt.nextAttemptAt)-nowMs)/1000)))}:undefined,status:receipt.denied&&!await quarantined()?409:200});
    }
    return Response.json({result,receipt:{cacheReused:1,executed:0,actualHttpRequestsKnown:0,knownCostUsd:0}});
   }
@@ -75,6 +75,6 @@ export async function handleContinuousDirectoryRequest(request:Request,options:C
    const result=validateSourceDiscoveryResult(await response.json());output=result as unknown as Record<string,unknown>;return {requestCount:result.crawl.requestCount,costUsd:0,status:result.crawl.status,retryable:result.crawl.retryable,resultRef:input.discoveryRequestId};
   },now);
   const crawl=(output as {crawl?:{status?:string;retryable?:boolean}}|null)?.crawl;
-  return Response.json({result:output,receipt},{status:receipt.stopped||receipt.actualRequestsUnknown||crawl?.retryable||crawl?.status==='FAILED'&&crawl?.retryable!==false?503:receipt.executed?200:receipt.denied?409:202});
+  return Response.json({result:output,receipt},{headers:receipt.nextAttemptAt?{'Retry-After':String(Math.max(1,Math.ceil((Date.parse(receipt.nextAttemptAt)-nowMs)/1000)))}:undefined,status:receipt.stopped||receipt.actualRequestsUnknown||crawl?.retryable||crawl?.status==='FAILED'&&crawl?.retryable!==false?503:receipt.executed?200:receipt.denied?409:202});
  }catch(error){return Response.json({code:error instanceof Error?error.message:'DIRECTORY_REQUEST_FAILED'},{status:400})}
 }

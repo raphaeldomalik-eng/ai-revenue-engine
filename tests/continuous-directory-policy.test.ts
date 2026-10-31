@@ -54,3 +54,11 @@ test('unverified or blocked websites do not stop unrelated eligible work in the 
  const result=await runContinuousDirectoryTick(rows,policy,policyHash(policy),{reserve:async()=>true,complete:async()=>{}},async work=>({requestCount:2,costUsd:0,status:work.queueId==='site6'?'COMPLETED':'BLOCKED',retryable:false}),now);
  assert.equal(result.executed,7);assert.equal(result.stopped,null);
 });
+
+test('retry timing is returned from actual completions and durable denied work without executing early',async()=>{
+ const next='2026-10-23T12:00:00.000Z';let calls=0;
+ const denied=await runContinuousDirectoryTick([item()],policy,policyHash(policy),{reserve:async()=>false,nextEligibleAt:async()=>next,complete:async()=>{throw Error('MUST_NOT_COMPLETE')}},async()=>{calls++;throw Error('MUST_NOT_EXECUTE')},now);
+ assert.equal(denied.nextAttemptAt,next);assert.equal(calls,0);
+ const failed=await runContinuousDirectoryTick([{...item(),attempts:1}],policy,policyHash(policy),{reserve:async()=>true,complete:async r=>assert.equal(r.nextAttemptAt,next)},async()=>({requestCount:2,costUsd:0,status:'FAILED',retryable:true}),now);
+ assert.equal(failed.nextAttemptAt,next);
+});
