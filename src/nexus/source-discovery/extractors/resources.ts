@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { SourceExtractor } from "../../contracts.ts";
 import { byTag, closestAncestor, elements, parseHtml, precedingHeading, textContent, type DomElement } from "../dom.ts";
-import { decodeHtml, hrefTags, selfClosingTags, tags, visibleText } from "../html.ts";
+import { attributes, decodeHtml, hrefTags, selfClosingTags, tags, visibleText } from "../html.ts";
 import { canonicalHttpsUrl } from "../network.ts";
 import { registrableDomain, wwwCounterpart } from "../site-identity.ts";
 import { recognisedEmailDomain } from "../../email-suffix.ts";
@@ -247,22 +247,21 @@ function emailSurface(html: string): string {
     .replace(/<\/?(?:span|b|strong|em|i|small|font|u|abbr|label|sup|sub|wbr|mark)\b[^>]*>/gi, "")
     .replace(/<\/?a\b[^>]*>/gi, " "));
 }
-/** Cloudflare replaces a visible address with this attribute. It is a fixed XOR, not a script engine. */
-function cloudflareEmails(html: string): string[] {
-  const found: string[] = [];
-  const values=[...html.matchAll(/\bdata-cfemail=["']([0-9a-f]{4,200})["']/gi)].map(match=>match[1]!);
-  for(const anchor of hrefTags(html)){
-    const encoded=anchor.attrs.href?.match(/(?:^|\/)cdn-cgi\/l\/email-protection#([0-9a-f]{4,200})$/i)?.[1];
-    if(encoded)values.push(encoded);
-  }
-  for (const encoded of new Set(values)) {
-    if (encoded.length % 2 !== 0) continue;
+/** Decode public display markup in place so each address keeps its actual contact context. */
+function cloudflareEmailHtml(html: string): string {
+  const decode = (encoded: string | undefined) => {
+    if (!encoded || !/^[0-9a-f]{4,200}$/i.test(encoded) || encoded.length % 2 !== 0) return null;
     const key = Number.parseInt(encoded.slice(0, 2), 16);
     let email = "";
     for (let index = 2; index < encoded.length; index += 2) email += String.fromCharCode(Number.parseInt(encoded.slice(index, index + 2), 16) ^ key);
-    if (/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(email)) found.push(email);
-  }
-  return found;
+    return /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(email) ? email : null;
+  };
+  return html.replace(/<a\b([^>]*)>[\s\S]*?<\/a>/gi, (tag: string, attrs: string) => {
+    const parsed = attributes(attrs);
+    const href = parsed.href;
+    const encoded = href?.match(/(?:^|\/)cdn-cgi\/l\/email-protection#([0-9a-f]{4,200})$/i)?.[1];
+    return decode(encoded ?? parsed['data-cfemail']) ?? tag;
+  }).replace(/<span\b([^>]*\bdata-cfemail\s*=[^>]*)>[\s\S]*?<\/span>/gi, (tag: string, attrs: string) => decode(attributes(attrs)['data-cfemail']) ?? tag);
 }
 function publishedDescriptions(html: string): string[] {
   const descriptions: string[] = [];
@@ -296,7 +295,7 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: stri
     /\b(?:ticketing[\s-]*provider|third[\s-]*party|website[\s-]*designer|external[\s-]*support)\b/i.test(`${attrs} ${visibleText(section).slice(0, 100)}`) ? " " : section)
     .replace(/<form\b[^>]*(?:newsletter|subscribe|mailchimp|login|signin)[^>]*>[\s\S]*?<\/form>/gi, " ");
   const primary = visibleText(body.replace(/<footer\b[\s\S]*?<\/footer>/gi, " "));
-  const emailText = [emailSurface(doc.body), ...publishedDescriptions(doc.body), ...cloudflareEmails(doc.body)].filter(Boolean).join("\n");
+  const emailText = [emailSurface(cloudflareEmailHtml(doc.body)), ...publishedDescriptions(doc.body)].filter(Boolean).join("\n");
   const addPublishedEmail = (email: string, confidence: number, context: string) => {
     const domain = email.split("@")[1] ?? "";
     if (!registrableDomain(domain)) return;
