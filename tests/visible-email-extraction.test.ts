@@ -15,6 +15,14 @@ function page(path: string, body: string): FetchedDocument {
 const emails = (body: string) => extractFromFetchedDocuments([page("/", body)], ["PUBLIC_CONTACT"]).publicContacts.filter((item) => item.type === "EMAIL");
 const usable = (body: string) => emails(body).filter((item) => !item.reviewRequired).map((item) => item.value);
 
+test("encoded first-party contact retains its paragraph rather than inheriting a designer footer", () => {
+  const body='<p>For further information about Camp and Furnace and hosting your event with us, please contact <a href="/cdn-cgi/l/email-protection#7710051203163714161a07161913110205191614125914181a"><span class="__cf_email__" data-cfemail="accbdec9d8cdeccfcdc1dccdc2c8cad9dec2cdcfc982cfc3c1">[email protected]</span></a> or call 0151 708 2890</p><footer>Website by Push 4 Marketing</footer>';
+  const doc={...page('/event-space-hire-liverpool/',body),url:'https://campandfurnace.com/event-space-hire-liverpool/'};
+  const found=extractFromFetchedDocuments([doc],['PUBLIC_CONTACT'],'Camp and Furnace').publicContacts;
+  assert.ok(found.some(item=>item.value==='greta@campandfurnace.com'&&!item.reviewRequired));
+  assert.ok(found.find(item=>item.value==='greta@campandfurnace.com')?.label?.includes('hosting your event'));
+});
+
 test("footer same-domain email is extracted", () => {
   assert.deepEqual(usable(`<footer><p>info@venue.org</p></footer>`), ["info@venue.org"]);
 });
