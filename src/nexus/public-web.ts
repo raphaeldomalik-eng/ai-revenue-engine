@@ -146,15 +146,34 @@ function bounded(value: unknown, max = 2048): unknown {
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).slice(0, 20).map(([key, item]) => [key, bounded(item, 512)]));
   return value;
 }
-function verifyIdentity(request: ResearchRequest, context: ResearchContext, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
-  return verifyFirstPartyIdentity(targetName(request, context), withVerifiedNexusOrigin(request, context), identityFacts);
+function verifyIdentity(request: ResearchRequest, context: ResearchContext, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>, finalUrl?:string) {
+  const accepted=withVerifiedNexusOrigin(request,context),scope=accepted.existingFacts?.find(f=>f.fieldName==='acceptedWebsiteScope')?.value;
+  if(typeof scope==='string'&&finalUrl&&!withinAcceptedSite(finalUrl,scope))return{verified:false,path:null,signals:[] as string[],nameSignal:false,locationSignal:false};
+  return verifyFirstPartyIdentity(targetName(request, context), accepted, identityFacts);
 }
 
 export function withVerifiedNexusOrigin(request: ResearchRequest, context: ResearchContext): ResearchContext {
   const targetHost = (() => { try { return new URL(context.targetWebsite ?? "").hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } })();
-  const verifiedSource = context.existingFacts?.some(f => f.fieldName === "verifiedWebsiteOrigin" && f.value === targetHost && Boolean(f.evidenceRef) && request.existingEvidenceRefs.includes(f.evidenceRef!));
-  const verifiedOriginFact = verifiedSource ? { fieldName: "verifiedWebsiteOriginMatch", value: true, evidenceRef: "nexus:verified-source-origin" } : null;
-  return verifiedOriginFact ? { ...context, existingFacts: [...(context.existingFacts ?? []), verifiedOriginFact] } : context;
+  const verifiedSource = context.existingFacts?.find(f => f.fieldName === "verifiedWebsiteOrigin" && f.value === targetHost && Boolean(f.evidenceRef) && request.existingEvidenceRefs.includes(f.evidenceRef!));
+  const association = context.existingFacts?.find(f => {
+    if(f.fieldName!=='acceptedWebsiteAssociation'||!f.evidenceRef||!request.existingEvidenceRefs.includes(f.evidenceRef))return false;
+    const a=f.value as Record<string,any>|null;if(!a||typeof a!=='object')return false;
+    const subject=request.subject;
+    const bound=subject.canonicalEntityId ? a.canonicalEntityId===subject.canonicalEntityId
+      :subject.candidateReference&&a.candidateReference?.sourceSystem===subject.candidateReference.sourceSystem&&a.candidateReference?.sourceRecordId===subject.candidateReference.sourceRecordId;
+    return bound&&typeof a.siteUrl==='string'&&withinAcceptedSite(context.targetWebsite??'',a.siteUrl);
+  });
+  const facts=(context.existingFacts??[]).filter(f=>!['verifiedWebsiteOriginMatch','acceptedWebsiteScope'].includes(f.fieldName)&&(f.fieldName!=='acceptedWebsiteAssociation'||f===association));
+  const ref=association?.evidenceRef??verifiedSource?.evidenceRef;
+  if(ref)facts.push({fieldName:'verifiedWebsiteOriginMatch',value:true,evidenceRef:ref},{fieldName:'acceptedWebsiteScope',value:association?(association.value as Record<string,unknown>).siteUrl:context.targetWebsite,evidenceRef:ref});
+  return {...context,existingFacts:facts};
+}
+
+/** An accepted branch association never authorises a sibling property page. */
+export function withinAcceptedSite(value:string,scope:string){
+  try{const a=new URL(value),b=new URL(scope);const host=(u:URL)=>u.hostname.toLowerCase().replace(/^www\./,'');const path=b.pathname.replace(/\/+$/,'');
+    return a.protocol==='https:'&&b.protocol==='https:'&&!a.username&&!a.password&&!a.port&&!b.port&&host(a)===host(b)&&(!path||a.pathname===path||a.pathname.startsWith(path+'/'));
+  }catch{return false;}
 }
 
 export function verifyFirstPartyIdentity(name: string | null, context: Pick<ResearchContext, "locality" | "existingFacts">, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
@@ -184,6 +203,7 @@ export function verifyFirstPartyIdentity(name: string | null, context: Pick<Rese
       && context.existingFacts?.some((known) => known.fieldName === "placeName" && known.evidenceRef === place.evidenceRef && nameMatches(name, text(known.value) ?? "", locTerms)),
   ));
   const existingVerifiedOrigin = Boolean(context.existingFacts?.some((item) => item.fieldName === "verifiedWebsiteOriginMatch" && item.value === true && item.evidenceRef));
+  if(existingVerifiedOrigin)return {verified:true,path:'DIRECT' as const,signals:['existing verified Nexus origin','accepted subject-to-site association'],nameSignal,locationSignal};
   if (nameSignal && (locationSignal || ((existingPlaceEvidence || existingVerifiedOrigin) && hasTitle) || (!locationRequired && hasTitle && hasHeading))) {
     return { verified: true, path: "DIRECT" as const, signals: ["direct venue name", ...(locationSignal ? ["location alignment"] : []), ...(existingPlaceEvidence ? ["known Place identity"] : []), ...(existingVerifiedOrigin ? ["existing verified Nexus origin"] : [])], nameSignal, locationSignal };
   }
@@ -312,7 +332,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       if (!crawl.documents.length) {
         return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: true } });
       }
-      const verification = seedCrawl?{...verifyIdentity(request,verificationContext,extracted.identityFacts),verified:true,path:"ORGANISATION_SOURCE_SEED"}:verifyIdentity(request, verificationContext, extracted.identityFacts);
+      const verification = seedCrawl?{...verifyIdentity(request,verificationContext,extracted.identityFacts,crawl.finalUrl),verified:true,path:"ORGANISATION_SOURCE_SEED"}:verifyIdentity(request, verificationContext, extracted.identityFacts,crawl.finalUrl);
       const neutralEvidence = request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION";
       if (!verification.verified && (!neutralEvidence || !suppliedWebsite)) {
         return unresolved(request, purpose, "The candidate site did not provide strong same-entity identity evidence.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage });

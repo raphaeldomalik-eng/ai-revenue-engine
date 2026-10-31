@@ -117,6 +117,8 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   const siteDomain = registrableDomain(new URL(verifiedSiteUrl).hostname);
   const emailDomain = registrableDomain(shape.domain);
   const nearby = context.slice(-768);
+  const venueService=/\b(?:venue.?hire|private.?hire|weddings?|event.?book\w*|general enquir\w*|conference|functions?|reservations?|sales)\b/i.test(nearby);
+  if(!venueService&&/\b(?:press|media)\s+(?:only|enquir\w*|contacts?)|\b(?:recruitment|careers?|vacancies)\b/i.test(nearby))return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
   const parts = shape.mailbox.split(/[._+-]+/);
   if (/^(?:press|media|pr|recruitment|recruiting|careers?|jobs?|hr|vacancies)(?:[._+-]|$)/i.test(shape.mailbox)) return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
   const compactMailbox = shape.mailbox.replace(/[^a-z0-9]/g, '');
@@ -156,8 +158,7 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   const namedFreeMail = FREE_MAIL_DOMAINS.has(shape.domain) && (VENUE_ROLE_MAILBOX.test(bare) || nameTokens.some((token) => compact.includes(token)));
   const namedVenueDomain = !FREE_MAIL_DOMAINS.has(shape.domain) && VENUE_ROLE_MAILBOX.test(bare) && nameTokens.some((token) => emailStem.includes(token));
   const explicitContact = EXPLICIT_VENUE_CONTACT.test(nearby);
-  const contactPageRole = /\/(?:contact|enquir|inquir|book|hire|get-in-touch)(?:[\/_.-]|$)/i.test(new URL(verifiedSiteUrl).pathname) && VENUE_ROLE_MAILBOX.test(bare);
-  if (namedFreeMail || namedVenueDomain || (FREE_MAIL_DOMAINS.has(shape.domain) && explicitContact) || explicitContact || contactPageRole) {
+  if (namedFreeMail || namedVenueDomain || (FREE_MAIL_DOMAINS.has(shape.domain) && explicitContact) || explicitContact) {
     return { accepted: true, email: shape.email, relationship: "PUBLISHED_ON_VERIFIED_SITE" };
   }
   if (FREE_MAIL_DOMAINS.has(shape.domain)) return { accepted: false, reason: "PERSONAL_FREE_MAIL_ADDRESS" };
