@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { getGooglePlaceDetails, type GooglePlacesDetailsInput } from "../ai-sales-team/google-places.ts";
 import { officialWebsiteDetailsAuthorization, validateResearchRequest, type ResearchRequest } from "./contracts.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type CrawlOutput,type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
+import type {CrawlInput} from './source-discovery/types.ts';
 import {discoverOrganisationSource,type OrganisationSeedOptions} from "./organisation-source-seed.ts";
 import type { ProviderResult, ResearchContext } from "./executor.ts";
 import { acceptVenueEmail, distinctiveNameTokens } from "./venue-email.ts";
@@ -12,6 +13,9 @@ export type PublicWebProviderOptions = {
   resolveHost?: ResolveHost;
   now?: () => string;
   budget?: Partial<CrawlBudget>;
+  emailGoal?: boolean;
+  renderAdapter?: CrawlInput['renderAdapter'];
+  renderPolicy?: CrawlInput['renderPolicy'];
   placeDetails?: typeof getGooglePlaceDetails;
   organisationSeed?:Pick<OrganisationSeedOptions,"searchProvider"|"reserveSearch">;
 };
@@ -297,9 +301,14 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
         budget: { ...DEFAULT_BUDGET, ...options.budget },
         fetchImpl: options.fetchImpl,
         resolveHost: options.resolveHost,
+        emailGoal: options.emailGoal === true,
+        renderAdapter: options.renderAdapter,
+        renderPolicy: options.renderPolicy,
+        venueName: targetName(request, context) ?? '',
+        seedUrls: (context.existingFacts ?? []).filter(f => f.fieldName === 'sourceSeedUrl' && typeof f.value === 'string' && f.evidenceRef && request.existingEvidenceRefs.includes(f.evidenceRef)).map(f => f.value as string),
       });
       await options.onCrawl?.(crawl);
-      const extracted = seedExtraction??extractFromFetchedDocuments(crawl.documents, [...extractors]);
+      const extracted = seedExtraction??extractFromFetchedDocuments(crawl.documents, [...extractors], targetName(request, context) ?? '');
       if (!crawl.documents.length) {
         return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: true } });
       }
@@ -319,7 +328,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
           return verdict.accepted ? [{ ...item, value: verdict.email, relationship: verdict.relationship }] : [];
         }
         if (item.type === "CONTACT_FORM") {
-          try { return new URL(item.value).origin === origin ? [item] : []; } catch { return []; }
+          try { return !item.reviewRequired && new URL(item.value).origin === origin ? [item] : []; } catch { return []; }
         }
         return item.type === "PHONE" ? [item] : [];
       });
@@ -339,7 +348,17 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
           finalUrl,
           identityFacts: extracted.identityFacts,
           contacts: contacts.map((item) => ({ type: item.type, value: item.value, sourceUrl: item.sourceUrl,
+            confidence: item.confidence, reviewRequired: item.reviewRequired, label: item.label, purpose: item.purpose,
+            evidenceRef: item.evidenceRef, sourceHash: crawl.documents.find(doc => doc.url === item.sourceUrl)?.sourceHash,
             ...(item.type === "EMAIL" && "relationship" in item ? { relationship: item.relationship } : {}) })),
+          contactOutcome: contacts.some(c => c.type === 'EMAIL') ? 'EMAIL_FOUND'
+            : crawl.stats.status !== 'COMPLETED' || crawl.observability?.renderNeededButUnavailable.length || crawl.observability?.contactPathsRemaining
+              || ['REQUEST_BUDGET','PAGE_BUDGET'].includes(crawl.observability?.stopReason ?? '') ? 'CRAWL_INCOMPLETE'
+            : contacts.some(c => c.type === 'CONTACT_FORM') ? 'FORM_ONLY'
+            : contacts.some(c => c.type === 'PHONE') ? 'PHONE_ONLY' : 'NO_PUBLIC_CONTACT_FOUND',
+          crawlStatus: crawl.stats.status,
+          crawlStopReason: crawl.observability?.stopReason,
+          grantedOrigins: crawl.observability?.grantedOrigins,
           verificationPath: verification.path,
           verificationSignals: verification.signals,
           sourceHashes: crawl.documents.map((item) => item.sourceHash),

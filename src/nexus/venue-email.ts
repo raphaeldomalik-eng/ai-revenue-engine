@@ -118,6 +118,7 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   const emailDomain = registrableDomain(shape.domain);
   const nearby = context.slice(-768);
   const parts = shape.mailbox.split(/[._+-]+/);
+  if (/^(?:press|media|pr|recruitment|recruiting|careers?|jobs?|hr|vacancies)(?:[._+-]|$)/i.test(shape.mailbox)) return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
   const compactMailbox = shape.mailbox.replace(/[^a-z0-9]/g, '');
   const venueTokens = distinctiveNameTokens(venueName).filter(token => token.length >= 4);
   const roleMailbox = VENUE_ROLE_MAILBOX.test(shape.mailbox) || parts.some(part => VENUE_ROLE_MAILBOX.test(part));
@@ -128,7 +129,8 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   if (DESIGNER_CONTEXT.test(nearby)) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
   const path=new URL(verifiedSiteUrl).pathname.toLowerCase();
   const sharedSite=/(?:theatres|hotels|venues|hospitality|university|council)/i.test(siteDomain);
-  const siblingProperty=sharedSite&&venueTokens.length>0&&/\b(?:theatre|hotel|venue)\b/i.test(path.replace(/[-_/]/g,' '))&&!venueTokens.some(token=>path.includes(token))&&!/\b(?:hire|contact|enquir|corporate|events|our spaces)\b/i.test(path.replace(/[-_/]/g,' '));
+  const genericGroupPath=/^\/(?:theatres?|hotels?|venues?)\/(?:contact|hire|enquir\w*|corporate|events?)\/?$/i.test(path);
+  const siblingProperty=sharedSite&&venueTokens.length>0&&/\b(?:theatre|hotel|venue)\b/i.test(path.replace(/[-_/]/g,' '))&&!venueTokens.some(token=>path.includes(token))&&!genericGroupPath;
   if(siblingProperty)return {accepted:false,reason:'SIBLING_PROPERTY_CONTACT'};
   if(emailDomain!==siteDomain&&/\b(?:nearby|local|recommended)\s+(?:hotels?|accommodation)|\baccommodation directory\b/i.test(nearby))return {accepted:false,reason:'UNRELATED_ACCOMMODATION_CONTACT'};
   if (emailDomain === siteDomain) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };

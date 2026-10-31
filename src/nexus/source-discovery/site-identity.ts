@@ -34,7 +34,7 @@ export function wwwCounterpart(host: string): string {
   return host.startsWith("www.") ? host.slice(4) : `www.${host}`;
 }
 
-export type OriginGrant = "VERIFIED" | "CANONICAL_REDIRECT" | "LINKED_FIRST_PARTY_SUBDOMAIN";
+export type OriginGrant = "VERIFIED" | "CANONICAL_REDIRECT" | "LINKED_FIRST_PARTY_SUBDOMAIN" | "EVIDENCED_FIRST_PARTY_HOST";
 export type RedirectHop = { from: string; to: string; status: number; decision: "FOLLOWED" | "REFUSED"; reason: string };
 
 export class SiteIdentity {
@@ -57,6 +57,18 @@ export class SiteIdentity {
 
   isAllowedOrigin(origin: string): boolean {
     return this.grants.has(origin);
+  }
+
+  /** Explicit first-party page evidence can corroborate an apex/sibling host; a redirect alone cannot. */
+  admitEvidencedUrl(value: string): boolean {
+    const safe = canonicalHttpsUrl(value);
+    if (!safe) return false;
+    const url = new URL(safe);
+    if (this.grants.has(url.origin)) return true;
+    if (!this.registrable || registrableDomain(url.hostname) !== this.registrable || url.port) return false;
+    if ([...this.grants.values()].filter(grant => grant === 'EVIDENCED_FIRST_PARTY_HOST' || grant === 'LINKED_FIRST_PARTY_SUBDOMAIN').length >= this.maxSubdomains) return false;
+    this.grants.set(url.origin, 'EVIDENCED_FIRST_PARTY_HOST');
+    return true;
   }
 
   private isWwwPair(a: string, b: string) {
@@ -112,7 +124,7 @@ export class SiteIdentity {
     if (!this.grants.has(new URL(linkedFrom).origin)) return false;
     const host = url.hostname.toLowerCase();
     if (!this.registrable || registrableDomain(host) !== this.registrable || url.port) return false;
-    if ([...this.grants.values()].filter((grant) => grant === "LINKED_FIRST_PARTY_SUBDOMAIN").length >= this.maxSubdomains) return false;
+    if ([...this.grants.values()].filter((grant) => grant === "LINKED_FIRST_PARTY_SUBDOMAIN" || grant === 'EVIDENCED_FIRST_PARTY_HOST').length >= this.maxSubdomains) return false;
     this.grants.set(url.origin, "LINKED_FIRST_PARTY_SUBDOMAIN");
     return true;
   }

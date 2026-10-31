@@ -11,7 +11,7 @@ const matches = (pattern: RegExp, url: string, label: string) => pattern.test(`$
 const count = (state: ProfileState, key: string) => Number(state[key] ?? 0);
 const bump = (state: ProfileState, key: string, by = 1) => { state[key] = count(state, key) + by; };
 
-const CONTACT_LINK = /\b(?:contact|enquir\w*|inquir\w*|bookings?|functions?|book[- ]?(?:now|a|the|your)|get[- ]in[- ]touch|find[- ]us|hire|private[- ](?:hire|events?|dining)|venue[- ]hire|sales)\b/i;
+const CONTACT_LINK = /\b(?:contact|enquir\w*|inquir\w*|bookings?|functions?|weddings?|book[- ]?(?:now|a|the|your)|get[- ]in[- ]touch|find[- ]us|hire|private[- ](?:hire|events?|dining)|venue[- ]hire|sales)\b/i;
 const CONTACT_PAGE = /\b(?:contact|enquir\w*|book\w*|hire|get-in-touch)\b/i;
 const DIRECT_PURPOSES = new Set(["SALES_HIRE", "BOOKINGS", "ENQUIRIES"]);
 

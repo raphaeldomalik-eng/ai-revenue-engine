@@ -28,6 +28,12 @@ test('verification requires explicit policy scope, signed authority, neutral sub
  const p={...policy,actions:['ENRICH_VERIFIED_VENUE']};assert.equal((await handleDirectoryVerificationRequest(request(),{...h.options,policy:p,approvedPolicyHash:policyHash(p)})).status,404);
  assert.equal(h.counts().requests,0);assert.equal(h.counts().reservations,0);
 });
+test('a deferred current-run venue remains CRAWL_INCOMPLETE and never becomes a no-public-email finding',async()=>{
+ const h=harness();const p={...policy,quotaMode:'PER_RUN' as const,maxVenuesPerRun:2,maxRequestsPerRun:12,braveMaxRequestsPerRun:0,serperMaxRequestsPerRun:0};
+ h.options.ledger.reserve=async()=>false;
+ const response=await handleDirectoryVerificationRequest(request(payload,{policySha256:policyHash(p),runId:id}),{...h.options,policy:p,approvedPolicyHash:policyHash(p)});
+ const body=await response.json() as any;assert.equal(response.status,409);assert.equal(body.contactOutcome,'CRAWL_INCOMPLETE');assert.equal(body.result,null);assert.equal(h.counts().requests,0);assert.equal(body.receipt.denied,1);
+});
 test('a cached result repairs a lost completion receipt without recrawling or reserving twice',async()=>{
  const h=harness();let lost=true;const complete=h.options.ledger.complete;h.options.ledger.complete=async r=>{if(lost){lost=false;throw Error('LOST_DATABASE_ACK')}await complete(r)};
  assert.notEqual((await handleDirectoryVerificationRequest(request(),h.options)).status,200);const first=h.counts();
