@@ -53,6 +53,11 @@ test("a Cloudflare-protected address is extracted", () => {
   const encoded = `42${[..."info@venue.org"].map((char) => (char.charCodeAt(0) ^ key).toString(16).padStart(2, "0")).join("")}`;
   assert.deepEqual(usable(`<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="${encoded}">[email protected]</a>`), ["info@venue.org"]);
 });
+test('a Cloudflare-protected mailto encoded only in its link fragment is extracted without executing scripts',()=>{
+ const key=0x42,encoded='42'+[...'greta@campandfurnace.com'].map(c=>(c.charCodeAt(0)^key).toString(16).padStart(2,'0')).join('');
+ const result=extractFromFetchedDocuments([{url:'https://campandfurnace.com/event-space-hire-liverpool/',body:`<p>For venue hire contact <a href="/cdn-cgi/l/email-protection#${encoded}">[email protected]</a></p>`,kind:'HTML',contentType:'text/html',bytes:200,sourceHash:'c'.repeat(64),observedAt:'2026-10-31T00:00:00Z'}],['PUBLIC_CONTACT'],'Camp and Furnace');
+ assert.ok(result.publicContacts.some(c=>c.value==='greta@campandfurnace.com'&&!c.reviewRequired));
+});
 
 test("an HTML-entity address is extracted", () => {
   assert.deepEqual(usable(`<p>hello&#64;venue.org</p>`), ["hello@venue.org"]);
