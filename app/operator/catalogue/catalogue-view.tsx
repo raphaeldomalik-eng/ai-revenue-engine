@@ -101,6 +101,8 @@ export function CatalogueView() {
   const loadCatalogue = useCallback(async () => {
     setLoading(true);
     setError(null);
+    // Read AIRE's own governed balances independently of the Nexus catalogue connection.
+    void fetch('/api/operator/catalogue?view=provider-budgets').then(async response=>{if(response.ok)setIndependentProviderBudgets((await response.json()).resourcesProviders??null);}).catch(()=>{});
     try {
       const q = new URLSearchParams();
       q.set("page", String(pageParam));
