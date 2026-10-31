@@ -102,7 +102,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[]}|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const observation:{crawl:CrawlOutput|null}={crawl:null};
-   const provider=createPublicWebProvider({fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
+   const provider=createPublicWebProvider({emailGoal:options.policy.quotaMode==='PER_RUN',fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
    const adapted=async(args:Parameters<typeof provider>[0]):Promise<ProviderResult>=>{
     const value=await provider(args),crawl=observation.crawl;
     if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
@@ -124,6 +124,8 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    const retryable=retryableProviderFailure(result);
    return {requestCount:crawl.stats.requestCount,costUsd:0,status:retryable?'FAILED':verification?.state==='VERIFIED'?'COMPLETED':'BLOCKED',retryable,resultRef:input.requestId};
   },now);
-  return Response.json({result,verification,receipt},{status:receipt.stopped||receipt.actualRequestsUnknown||result&&retryableProviderFailure(result)?503:receipt.denied?409:result?200:202});
+  const returned=result as ReturnType<typeof validateResearchResult>|null;
+  const contactOutcome=returned?.evidence.find(e=>(e.payload as Record<string,unknown>)?.kind==='FIRST_PARTY_WEBSITE')?.payload as Record<string,unknown>|undefined;
+  return Response.json({result,verification,receipt,contactOutcome:contactOutcome?.contactOutcome??'CRAWL_INCOMPLETE'},{status:receipt.stopped||receipt.actualRequestsUnknown||result&&retryableProviderFailure(result)?503:receipt.denied?409:result?200:202});
  }catch(error){return Response.json({code:error instanceof Error?error.message:'DIRECTORY_VERIFICATION_FAILED'},{status:400})}
 }

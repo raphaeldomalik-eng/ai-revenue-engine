@@ -470,7 +470,7 @@ async function completeStaticRetrieval(ctx: Ctx, document: FetchedDocument, rend
   if (!assessment.shell || hydrationAdequate) return enriched;
   const adapter = ctx.input.renderAdapter;
   const policy = ctx.input.renderPolicy ?? DEFAULT_RENDER_POLICY;
-  if (!adapter || renderedSoFar.count >= policy.maxRenderedPages) {
+  if (!adapter || renderedSoFar.count >= policy.maxRenderedPages || ctx.stats.requestCount >= ctx.budget.maxRequests) {
     ctx.obs.renderNeededButUnavailable.push(document.url);
     ctx.stats.warnings.push(adapter
       ? `Static retrieval of ${document.url} is a client-rendered shell (${assessment.signals.join(", ")}); the rendered-page bound was reached.`
@@ -479,12 +479,12 @@ async function completeStaticRetrieval(ctx: Ctx, document: FetchedDocument, rend
   }
   try {
     renderedSoFar.count += 1;
+    ctx.stats.requestCount += 1;
     const robotsText = ctx.robots.get(new URL(document.url).origin)?.text ?? "";
     const rendered = await guardedRender({
       adapter, url: document.url, policy, maxBytes: Math.min(ctx.budget.maxBytesPerResponse, TYPE_BYTE_LIMITS.HTML), userAgent: ctx.userAgent,
       resolveHost: ctx.resolveHost, isAllowedOrigin: (origin) => ctx.site.isAllowedOrigin(origin), robotsAllows: (url) => robotsAllows(robotsText, url, ctx.userAgent),
     });
-    ctx.stats.requestCount += 1;
     ctx.obs.renderedPages += 1;
     return { ...document, url: rendered.finalUrl, body: rendered.html, bytes: Buffer.byteLength(rendered.html, "utf8"), sourceHash: hashText(rendered.html), retrieval: "RENDERED", shellSignals: assessment.signals, derivedMarkup: derived || undefined };
   } catch (error) {
@@ -682,6 +682,12 @@ async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, 
   const fetchedKeys = new Set<string>();
   const targetListing = /^\/venues\/venue-[^/]+-\d+\/?$/i.test(new URL(verifiedUrl).pathname);
   planner.add({ url: verifiedUrl, kind: "PAGE", dims: set.requested, source: "ENTRY", discoveredFrom: null, label: "", strength: 100 });
+  for (const seed of (args.seedUrls ?? []).slice(0, 8)) {
+    const url = canonicalHttpsUrl(seed);
+    if (!url || !ctx.site.isAllowedOrigin(new URL(url).origin) || !planableUrl(url) || planner.has(url)) continue;
+    const dims = set.linkDimensions(url, 'evidenced contact page');
+    if (dims.length) planner.add({url, kind:'PAGE', dims, source:'LINK', discoveredFrom:null, label:'independently evidenced page', strength:3});
+  }
 
   const admit = (href: string, label: string, type: string, from: FetchedDocument) => {
     const url = ctx.site.canonicalize(href, from.url);
@@ -774,6 +780,16 @@ async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, 
       const message = error instanceof Error ? error.message : "unknown error";
       if (entry) {
         ctx.stats.warnings.push(`Required HTML source unavailable: ${candidate.url}: ${message}`);
+        // A byte ceiling is a page failure, not proof that every independently eligible page is unavailable.
+        // Keep the ceiling intact; use the existing robots/sitemap and request budgets for recovery.
+        if (/size limit|body exceeded its size limit/i.test(message) && args.requestedExtractors.includes('PUBLIC_CONTACT')) {
+          retryableCandidateFailure = true;
+          if (!planner.gapServingCount() && !sitemapTried) {
+            sitemapTried = true;
+            await consultSitemaps(ctx, planner, set, 'Oversized entry; independently eligible contact pages');
+          }
+          if (planner.gapServingCount()) continue;
+        }
         stop = "ENTRY_FAILED";
         break;
       }
@@ -798,6 +814,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
   const verifiedUrl = canonicalHttpsUrl(args.verifiedUrl);
   if (!verifiedUrl) throw new Error("Verified source URL must be public HTTPS.");
   const site = new SiteIdentity(verifiedUrl);
+  for (const url of (args.seedUrls ?? []).slice(0, 8)) site.admitEvidencedUrl(url);
   const profiles = args.profiles ?? profilesFor(args.requestedExtractors, site, { emailGoal: args.emailGoal === true, venueName: args.venueName ?? "" });
   const stats: CrawlStats = { requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 0, retries: 0, warnings: [], status: "COMPLETED" };
   const ctx: Ctx = {

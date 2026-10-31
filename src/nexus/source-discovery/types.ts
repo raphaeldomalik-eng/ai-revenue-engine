@@ -130,6 +130,8 @@ export type CrawlInput = {
   verifiedUrl: string;
   requestedExtractors: SourceExtractor[];
   budget: CrawlBudget;
+  /** Independently evidenced first-party pages supplied by the caller's existing evidence boundary. Never guessed paths. */
+  seedUrls?: string[];
   /** Recorded for telemetry only; the core never branches on subject type. */
   subjectType?: EntityType;
   /** Extractor profiles that prioritise pages and judge sufficiency; defaults to the registry for requestedExtractors. */
