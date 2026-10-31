@@ -11,6 +11,7 @@ import type {
   ResearchDisposition,
   PaidEligibility,
 } from "../../../src/nexus/catalogue.ts";
+import type {ResourcesProviderBudgetStatus} from "../../../src/nexus/resources-provider-budget-view.ts";
 import type { CatalogueBudgetSummary } from "../../../src/nexus/db.ts";
 import "./catalogue.css";
 
@@ -68,6 +69,7 @@ export function CatalogueView() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<CatalogueApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [independentProviderBudgets,setIndependentProviderBudgets] = useState<ResourcesProviderBudgetStatus|null>(null);
 
   // Selected item & drawer
   const [selectedItem, setSelectedItem] = useState<AireCatalogueItem | null>(null);
@@ -296,6 +298,7 @@ export function CatalogueView() {
 
   const totalCount = data?.total ?? 21468;
   const budgets = data?.budgets;
+  const resourcesProviderBudgets = independentProviderBudgets??budgets?.resourcesProviders;
 
   return (
     <div className="catalogue-container">
@@ -334,11 +337,11 @@ export function CatalogueView() {
 
       <section className="workbench-section" aria-label="Resources search provider budgets">
         <h2>Resources search allowances</h2>
-        {budgets?.resourcesProviders?.available ? <>
+        {resourcesProviderBudgets?.available ? <>
           <div style={{overflowX:'auto'}}>
             <table className="catalogue-table">
               <thead><tr><th>Provider / stage</th><th>Last verified account balance</th><th>Conservative ledger estimate</th><th>Governed allowance remaining</th><th>Consumption</th><th>24-hour burn</th></tr></thead>
-              <tbody>{budgets.resourcesProviders.providers.map(provider=><tr key={provider.providerId}>
+              <tbody>{resourcesProviderBudgets.providers.map(provider=><tr key={provider.providerId}>
                 <td><strong>{provider.name}</strong><br/>{budgetStage[provider.stage]??'Unavailable'}{provider.reason&&<><br/><small>{provider.reason.replaceAll('_',' ').toLowerCase()}</small></>}</td>
                 <td>{budgetUsd(provider.authoritativeBalanceUsd)}<br/><small>Observed: {provider.verifiedAt??'Unknown'}</small></td>
                 <td>Account projection: {budgetUsd(provider.projectedBalanceUsd)}<br/>Spendable within policy: <strong>{budgetUsd(provider.spendableUsd)}</strong></td>
@@ -349,7 +352,7 @@ export function CatalogueView() {
             </table>
           </div>
           <p>Account balances reflect their observation timestamps. Ledger projections estimate current availability; they are separate from the governed allowance. No purchase or top-up is authorised.</p>
-        </> : <p>{budgets?.resourcesProviders?.message??'Resources provider budget data is unavailable. The governed budget policy or migration may not yet be active.'}</p>}
+        </> : <p>{resourcesProviderBudgets?.message??'Resources provider budget data is unavailable. The governed budget policy or migration may not yet be active.'}</p>}
       </section>
 
       {/* 2. Saved Views Chips Bar */}
