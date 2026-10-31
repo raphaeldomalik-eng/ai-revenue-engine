@@ -23,7 +23,7 @@ const sources = new Map([
 export function validatedVerificationRecovery(policy: RecoveryPolicy) {
   const recovery = policy.recovery;
   if (!recovery) return null;
-  const window = Date.parse(policy.validUntil) - Date.parse(policy.validFrom);
+  const window = Date.parse(policy.validUntil??'') - Date.parse(policy.validFrom);
   const entries = recovery.entries;
   if (recovery.originalRequestBudget !== 6 || recovery.additionalRequestBudget !== 3
     || !Array.isArray(entries) || entries.length < 1 || entries.length > 11

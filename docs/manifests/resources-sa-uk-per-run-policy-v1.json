@@ -1,0 +1,56 @@
+{
+  "policyId": "resources-sa-uk-per-run-20261025",
+  "version": 4,
+  "enabled": true,
+  "standing": true,
+  "validFrom": "2026-10-31T00:00:00.000Z",
+  "validUntil": null,
+  "countries": [
+    "GB",
+    "ZA"
+  ],
+  "actions": [
+    "ENRICH_VERIFIED_VENUE",
+    "VERIFY_WEBSITE",
+    "DISCOVER_WEBSITE"
+  ],
+  "quotaMode": "PER_RUN",
+  "maxVenuesPerRun": 10,
+  "maxRequestsPerRun": 140,
+  "maxVenuesPerDay": 100,
+  "maxRequestsPerDay": 1400,
+  "braveMaxRequestsPerRun": 2,
+  "serperMaxRequestsPerRun": 8,
+  "maxRequestsPerVenue": 14,
+  "maxBatchVenues": 10,
+  "paidProviderBudgetUsd": 0.05,
+  "minHostDelayMs": 1500,
+  "freshnessHours": 24,
+  "maxAttempts": 3,
+  "retryBackoffHours": 24,
+  "stopAfterConsecutiveFailures": 5,
+  "publicationAllowed": false,
+  "productPublicationAllowed": false,
+  "outreachAllowed": false,
+  "providerLimits": {
+    "brave": {
+      "monthlyUsd": 10,
+      "dailyRequests": 50,
+      "reserveUsd": 0.5
+    },
+    "serper": {
+      "allocationUsd": 5,
+      "dailyRequests": 100
+    }
+  },
+  "google": {
+    "allowedSkus": [
+      "PLACE_DETAILS_ESSENTIALS_IDS_ONLY"
+    ],
+    "proAllowed": false,
+    "enterpriseAllowed": false,
+    "paidCallsAllowed": false
+  },
+  "alertRecipient": "raphael@allxsmedia.com",
+  "lthHandoffMaxPerCycle": 5
+}

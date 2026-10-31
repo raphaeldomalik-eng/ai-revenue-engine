@@ -41,6 +41,9 @@ const SAVED_VIEWS = [
 ] as const;
 
 type DrawerTab = "overview" | "evidence" | "classification" | "channels" | "research" | "listing" | "communications" | "activity";
+const budgetUsd = (value: number | null | undefined) => value == null ? 'Unknown' : value.toLocaleString('en-US', {style:'currency',currency:'USD',maximumFractionDigits:4});
+const budgetCount = (value: number | null | undefined) => value == null ? 'Unknown' : value.toLocaleString('en-GB');
+const budgetStage:Record<string,string> = {healthy:'Healthy','25_percent':'25% remaining','10_percent':'10% remaining',blocked:'Blocked',unknown:'Unavailable'};
 
 export function CatalogueView() {
   const router = useRouter();
@@ -328,6 +331,26 @@ export function CatalogueView() {
           </div>
         </div>
       </header>
+
+      <section className="workbench-section" aria-label="Resources search provider budgets">
+        <h2>Resources search allowances</h2>
+        {budgets?.resourcesProviders?.available ? <>
+          <div style={{overflowX:'auto'}}>
+            <table className="catalogue-table">
+              <thead><tr><th>Provider / stage</th><th>Last verified account balance</th><th>Conservative ledger estimate</th><th>Governed allowance remaining</th><th>Consumption</th><th>24-hour burn</th></tr></thead>
+              <tbody>{budgets.resourcesProviders.providers.map(provider=><tr key={provider.providerId}>
+                <td><strong>{provider.name}</strong><br/>{budgetStage[provider.stage]??'Unavailable'}{provider.reason&&<><br/><small>{provider.reason.replaceAll('_',' ').toLowerCase()}</small></>}</td>
+                <td>{budgetUsd(provider.authoritativeBalanceUsd)}<br/><small>Observed: {provider.verifiedAt??'Unknown'}</small></td>
+                <td>Account projection: {budgetUsd(provider.projectedBalanceUsd)}<br/>Spendable within policy: <strong>{budgetUsd(provider.spendableUsd)}</strong></td>
+                <td><strong>{budgetCount(provider.remainingRequests)} requests</strong><br/>{budgetUsd(provider.remainingAllowanceUsd)} · {provider.budgetPeriod.toLowerCase()} limit</td>
+                <td>This month: {budgetUsd(provider.monthlyConsumedUsd)}<br/>Lifetime: {budgetUsd(provider.lifetimeConsumedUsd)} · {budgetCount(provider.lifetimeRequests)} requests</td>
+                <td>{budgetUsd(provider.last24hBurnUsd)}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+          <p>Account balances reflect their observation timestamps. Ledger projections estimate current availability; they are separate from the governed allowance. No purchase or top-up is authorised.</p>
+        </> : <p>{budgets?.resourcesProviders?.message??'Resources provider budget data is unavailable. The governed budget policy or migration may not yet be active.'}</p>}
+      </section>
 
       {/* 2. Saved Views Chips Bar */}
       <nav aria-label="Saved Catalogue Views" className="catalogue-views-bar">

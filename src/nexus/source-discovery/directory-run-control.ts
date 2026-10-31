@@ -16,6 +16,14 @@ export async function handleDirectoryRunControl(request:Request,options:Options)
  name='open_nexus_directory_run';args={p_policy_id:input.policyId,p_hash:input.policySha256,p_worker:input.workerId,p_max_venues:input.maxVenues,p_max_requests:input.maxRequests};
  }else if(input.action==='FINISH'&&typeof input.runId==='string'&&/^[a-f0-9-]{36}$/i.test(input.runId)){
  name='finish_nexus_directory_run';args={p_run_id:input.runId,p_worker:input.workerId,p_receipt:input.receipt??{},p_policy_id:input.policyId,p_hash:input.policySha256};
+ }else if(input.action==='PROVIDER_STATUS'){
+ name='read_directory_provider_budget_status';args={p_policy_id:input.policyId,p_hash:input.policySha256};
+ }else if(input.action==='OBSERVE_PROVIDER_BALANCE'&&['brave-web-search','serper-google-search'].includes(input.providerId)&&input.observation&&typeof input.observation==='object'&&!Array.isArray(input.observation)){
+ name='observe_directory_provider_balance';args={p_policy_id:input.policyId,p_hash:input.policySha256,p_provider:input.providerId,p_observation:input.observation};
+ }else if(input.action==='CLAIM_PROVIDER_ALERT'&&input.providerId==='brave-web-search'&&['25_percent','10_percent','blocked'].includes(input.stage)&&/^\d{4}-\d{2}$/.test(input.period??'')){
+ name='claim_directory_provider_alert';args={p_policy_id:input.policyId,p_hash:input.policySha256,p_provider:input.providerId,p_stage:input.stage,p_period:input.period,p_alert:input.alert??{}};
+ }else if(input.action==='COMPLETE_PROVIDER_ALERT'&&input.providerId==='brave-web-search'&&['25_percent','10_percent','blocked'].includes(input.stage)&&/^\d{4}-\d{2}$/.test(input.period??'')&&(input.messageQueueId===null||/^[0-9a-f-]{36}$/i.test(input.messageQueueId??''))){
+ name='complete_directory_provider_alert';args={p_policy_id:input.policyId,p_hash:input.policySha256,p_provider:input.providerId,p_stage:input.stage,p_period:input.period,p_message_queue_id:input.messageQueueId};
  }else return Response.json({code:'RUN_ACTION'},{status:403});
  return Response.json(await options.invoke(name,args));
  }catch{return Response.json({code:'DIRECTORY_RUN_CONTROL_FAILED'},{status:503});}

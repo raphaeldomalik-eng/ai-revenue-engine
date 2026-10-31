@@ -15,7 +15,7 @@ export type VerificationPolicy=RecoveryPolicy&{continuation?:Continuation};
 type Options={policy:VerificationPolicy;approvedPolicyHash:string;secret:string;store:NexusResultStore;ledger:ContinuousLedger;now?:()=>number;fetchImpl?:FetchLike;resolveHost?:ResolveHost;continuationReady?:(entry:ContinuationEntry,now:string)=>Promise<boolean>;recoveryReady?:(entry:RecoveryEntry,now:string)=>Promise<boolean>};
 export function validatedVerificationContinuation(policy:VerificationPolicy):Continuation|null{
  const c=policy.continuation;if(!c)return null;
- const window=Date.parse(policy.validUntil)-Date.parse(policy.validFrom);
+ const window=Date.parse(policy.validUntil??'')-Date.parse(policy.validFrom);
  if(!c.sourcePolicyId||!/^[a-f0-9]{64}$/.test(c.sourcePolicySha256)||c.originalRequestBudget!==6||c.priorRequestCount!==3||c.additionalRequestBudget!==3
   ||c.entries?.length!==2||new Set(c.entries.map(e=>e.queueId)).size!==2||c.entries.some(e=>!/^[a-f0-9]{64}$/.test(e.queueId)||!e.requestId||!e.identityKey||!e.host)
   ||policy.actions?.length!==1||policy.actions[0]!=='VERIFY_WEBSITE'||policy.countries.length!==1||policy.countries[0]!=='GB'

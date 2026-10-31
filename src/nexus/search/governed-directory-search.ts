@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import type {PublicWebSearchProvider,PublicWebSearchResult} from '../official-website-discovery.ts';
 import type {BraveSearchOptions} from './brave-public-web-search.ts';
 import {DirectorySearchAllocationDeniedError} from './brave-public-web-search.ts';
-import {createSerperPublicWebSearchProvider,createPublicWebSearchBudget,PublicWebSearchBudgetExhaustedError,SERPER_RESOLVE_URL} from './serper-public-web-search.ts';
+import {createSerperPublicWebSearchProvider,createPublicWebSearchBudget,SERPER_RESOLVE_URL} from './serper-public-web-search.ts';
 
 /** Serper uses the same durable reservation/cache contract as Brave. The local
  * adapter budget is an additional single-call guard, never shared budget proof. */
@@ -16,7 +16,7 @@ export function createGovernedSerperSearch(options:BraveSearchOptions):PublicWeb
   const reservation={allowanceId:options.allowanceId,requestKey:options.requestKey,querySha256,parameters,...(options.runId?{runId:options.runId}:{})};
   const reserved=await options.reserve(reservation);
   if(typeof reserved==='object'&&reserved.state==='CACHED'&&Array.isArray(reserved.results)){usage.cacheReused++;usage.observedAt=reserved.observedAt;return reserved.results;}
-  if(reserved!==true&&(typeof reserved!=='object'||reserved.state!=='RESERVED'))throw new PublicWebSearchBudgetExhaustedError();
+  if(reserved!==true&&(typeof reserved!=='object'||reserved.state!=='RESERVED'))throw new DirectorySearchAllocationDeniedError(typeof reserved==='object'&&'reason' in reserved?String(reserved.reason):'ALLOCATION_DENIED');
   usage.requests++;usage.reservedCreditMicroUsd+=typeof reserved==='object'?Number(reserved.reservedMicroUsd??0):0;
   try{
    let responsePayload:unknown;
@@ -40,13 +40,14 @@ export function createGovernedSerperSearch(options:BraveSearchOptions):PublicWeb
  * exhausted/inactive allocation may use the independently governed alternative. */
 export function preferGovernedSearch(brave:PublicWebSearchProvider|null,serper:PublicWebSearchProvider|null):PublicWebSearchProvider|null {
  if(!brave)return serper;if(!serper)return brave;
+ const primary=serper,alternative=brave;
  const usage={requests:0,cacheReused:0,reservedCreditMicroUsd:0,observedAt:undefined as string|undefined};
- const combined:PublicWebSearchProvider={id:brave.id,usage,costModel:{kind:'ZERO_INCREMENTAL',currency:'USD',amountPerCall:0},async search(input){
+ const combined:PublicWebSearchProvider={id:primary.id,usage,costModel:{kind:'ZERO_INCREMENTAL',currency:'USD',amountPerCall:0},async search(input){
   let results:PublicWebSearchResult[]=[];
-  try{results=await brave.search(input);}catch(error){if(!(error instanceof DirectorySearchAllocationDeniedError)||!['ALLOWANCE_INACTIVE','ALLOCATION_EXHAUSTED','RUN_PROVIDER_BUDGET'].includes(error.reason))throw error;}
-  const chosen=results.length?brave:serper;if(!results.length)results=await serper.search(input);
+  try{results=await primary.search(input);}catch(error){if(!(error instanceof DirectorySearchAllocationDeniedError)||!['ALLOWANCE_INACTIVE','ALLOCATION_EXHAUSTED','RUN_PROVIDER_BUDGET','PROVIDER_BALANCE_LOW','ACCOUNT_BALANCE_LOW','MONTHLY_BUDGET','DAILY_PROVIDER_BUDGET','RATE_LIMIT','PROVIDER_PAUSED','MONTHLY_LIMIT_EXCEEDED','DAILY_LIMIT_EXCEEDED','PROVIDER_DAILY_BUDGET','PROVIDER_RATE_LIMIT','PROVIDER_ACCOUNT_RESERVE','PROVIDER_BALANCE_UNVERIFIED'].includes(error.reason))throw error;}
+  const chosen=results.length?primary:alternative;if(!results.length)results=await alternative.search(input);
   combined.id=chosen.id;
-  for(const key of ['requests','cacheReused','reservedCreditMicroUsd'] as const)usage[key]=(brave.usage?.[key]??0)+(serper.usage?.[key]??0);
+  for(const key of ['requests','cacheReused','reservedCreditMicroUsd'] as const)usage[key]=(primary.usage?.[key]??0)+(alternative.usage?.[key]??0);
   usage.observedAt=chosen.usage?.observedAt;return results;
  }};return combined;
 }
