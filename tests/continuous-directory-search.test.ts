@@ -1,3 +1,4 @@
+import {DirectorySearchAllocationDeniedError} from '../src/nexus/search/brave-public-web-search.ts';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {handleDirectorySearchRequest} from '../src/nexus/search/continuous-directory-search.ts';
 import {policyHash} from '../src/nexus/source-discovery/continuous-directory-policy.ts';
@@ -28,4 +29,17 @@ test('geographic discovery keeps proposed names evidence-bound and excludes plat
 test('a live NAME response observed after request start remains usable without another search',async()=>{
  const response=await handleDirectorySearchRequest(request(),{policy,approvedPolicyHash:policyHash(policy),secret,now:()=>now,searchProvider:{id:'brave-web-search',usage:{requests:1,cacheReused:0,reservedCreditMicroUsd:5000,observedAt:new Date(now+50).toISOString()},costModel:{kind:'ZERO_INCREMENTAL',currency:'USD',amountPerCall:0},search:async()=>[{url:'https://alphahall.example/',title:'Alpha Hall Bristol'}]}});
  assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
+});
+
+
+test('daily provider guard defers without consuming a website or provider request',async()=>{
+ const response=await handleDirectorySearchRequest(request(),{policy,approvedPolicyHash:policyHash(policy),secret,now:()=>now,searchProvider:{id:'governed-search',costModel:{kind:'ZERO_INCREMENTAL',currency:'USD',amountPerCall:0},search:async()=>{throw new DirectorySearchAllocationDeniedError('PROVIDER_DAILY_BUDGET')}}});
+ assert.equal(response.status,409);assert.equal(response.headers.get('retry-after'),'43200');
+ const data=await response.json();assert.equal(data.result,null);assert.equal(data.receipt.denied,1);assert.equal(data.receipt.actualHttpRequestsKnown,0);assert.deepEqual(data.receipt.denialReasons,['PROVIDER_DAILY_BUDGET']);
+});
+
+test('allocation exhaustion defers using the existing retry backoff while real provider failures remain failures',async()=>{
+ const options={policy,approvedPolicyHash:policyHash(policy),secret,now:()=>now,searchProvider:{id:'governed-search',costModel:{kind:'ZERO_INCREMENTAL' as const,currency:'USD',amountPerCall:0},search:async()=>{throw new DirectorySearchAllocationDeniedError('ALLOCATION_EXHAUSTED')}}};
+ const denied=await handleDirectorySearchRequest(request(),options);assert.equal(denied.status,409);assert.equal(denied.headers.get('retry-after'),'86400');
+ const failure=await handleDirectorySearchRequest(request(),{...options,searchProvider:{...options.searchProvider,search:async()=>{throw Error('SERPER_PROVIDER_FAILURE')}}});assert.equal(failure.status,503);assert.equal(failure.headers.get('retry-after'),null);
 });
