@@ -1,3 +1,4 @@
+import {DirectorySearchAllocationDeniedError} from './brave-public-web-search.ts';
 import {validateResearchRequest,validateResearchResult} from '../contracts.ts';
 import {candidateRejection,type PublicWebSearchProvider,type PublicWebSearchResult} from '../official-website-discovery.ts';
 import {parseNexusEnvelope,verifyNexusSignature,NEXUS_MAX_BODY_BYTES} from '../transport.ts';
@@ -53,5 +54,15 @@ export async function handleDirectorySearchRequest(request:Request,options:Optio
   const usage=provider.usage??{requests:1,cacheReused:0,reservedCreditMicroUsd:null};
   const result=validateResearchResult({contractVersion:'nexus.research-result.v1',requestId:input.requestId,idempotencyKey:input.idempotencyKey,status:'COMPLETED',facts:[],evidence:[{evidenceRef:ref,provider:'PUBLIC_WEB',externalRecordId:ref,sourceUrl:null,observedAt,dataClassification:'PUBLIC',licenceType:'PUBLIC_SOURCE',payload:{kind:'UNVERIFIED_SEARCH_CANDIDATES',directorySearch:{mode:scope.mode,query:scope.query,category:scope.category,provider:provider.id,results,candidates,sourceLineage:context.sourceLineage??[],canonicalIdentityEstablished:false,usage}}}],unknowns:[],conflicts:[],providerUsage:[{provider:'PUBLIC_WEB',callCount:usage.requests,purpose:'DIRECTORY_WEB_SEARCH',cost:{currency:'USD',amount:0}}],costSummary:{currency:'USD',amount:0},researchErrors:[],observedAt});
   return Response.json({result,receipt:{...usage,websiteRequests:0,publicationWrites:0,outreachEmails:0}});
- }catch(error){return Response.json({code:error instanceof Error&&/^[A-Z0-9_]+$/.test(error.message)?error.message:'DIRECTORY_SEARCH_FAILED'},{status:503});}
+ }catch(error){
+  if(error instanceof DirectorySearchAllocationDeniedError){
+   const reason=/^[A-Z0-9_]+$/.test(error.reason)?error.reason:'ALLOCATION_DENIED';
+   const current=options.now?.()??Date.now(),date=new Date(current);
+   const nextDaily=Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate()+1);
+   const daily=['DAILY_PROVIDER_BUDGET','PROVIDER_DAILY_BUDGET','DAILY_LIMIT_EXCEEDED'].includes(reason);
+   const seconds=daily?Math.max(1,Math.ceil((nextDaily-current)/1000)):Math.max(1,Math.ceil(options.policy.retryBackoffHours*3600));
+   return Response.json({result:null,receipt:{denied:1,denialReasons:[reason],actualHttpRequestsKnown:0,providerRequests:0,websiteRequests:0,publicationWrites:0,outreachEmails:0,nextEligibleAt:new Date(current+seconds*1000).toISOString()}},{status:409,headers:{'Retry-After':String(seconds)}});
+  }
+  return Response.json({code:error instanceof Error&&/^[A-Z0-9_]+$/.test(error.message)?error.message:'DIRECTORY_SEARCH_FAILED'},{status:503});
+ }
 }
