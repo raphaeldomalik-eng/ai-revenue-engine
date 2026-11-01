@@ -6,7 +6,7 @@ import {DirectorySearchAllocationDeniedError} from '../src/nexus/search/brave-pu
 const policy={policyId:'resources-sa-uk-per-run-20261025',version:4,enabled:true,standing:true,validFrom:'2026-10-31T00:00:00Z',validUntil:null,countries:['GB','ZA'],actions:['VERIFY_WEBSITE','ENRICH_VERIFIED_VENUE','DISCOVER_WEBSITE'],quotaMode:'PER_RUN',maxVenuesPerRun:10,maxRequestsPerRun:140,maxVenuesPerDay:100,maxRequestsPerDay:1400,braveMaxRequestsPerRun:2,serperMaxRequestsPerRun:8,maxRequestsPerVenue:14,maxBatchVenues:10,paidProviderBudgetUsd:.05,minHostDelayMs:1500,freshnessHours:24,maxAttempts:3,retryBackoffHours:24,stopAfterConsecutiveFailures:5,publicationAllowed:false,outreachAllowed:false,productPublicationAllowed:false,providerLimits:{brave:{monthlyUsd:10,dailyRequests:50,reserveUsd:.5},serper:{allocationUsd:5,dailyRequests:100}}};
 test('owner-approved standing recovery remains bounded after the old short window',()=>{
  assert.equal(validateStandingPolicy(policy as never,policyHash(policy),'2026-12-01T00:00:00Z').enabled,true);
- for(const change of [{standing:false},{paidProviderBudgetUsd:11},{productPublicationAllowed:true},{providerLimits:{brave:{monthlyUsd:20,dailyRequests:50,reserveUsd:.5},serper:{allocationUsd:5,dailyRequests:100}}}]){
+ for(const change of [{standing:false},{paidProviderBudgetUsd:11},{publicationAllowed:true},{providerLimits:{brave:{monthlyUsd:20,dailyRequests:50,reserveUsd:.5},serper:{allocationUsd:5,dailyRequests:100}}}]){
   const altered={...policy,...change};assert.throws(()=>validateStandingPolicy(altered as never,policyHash(altered),'2026-12-01T00:00:00Z'));
  }
 });

@@ -13,7 +13,7 @@ export async function handleDirectoryRunControl(request:Request,options:Options)
  let name:string,args:Record<string,unknown>;
  if(input.action==='OPEN'){
  if(!Number.isSafeInteger(input.maxVenues)||input.maxVenues<1||input.maxVenues>500||!Number.isSafeInteger(input.maxRequests)||input.maxRequests<1||input.maxRequests>2500)return Response.json({code:'RUN_BUDGET'},{status:403});
- name='open_nexus_directory_run';args={p_policy_id:input.policyId,p_hash:input.policySha256,p_worker:input.workerId,p_max_venues:input.maxVenues,p_max_requests:input.maxRequests};
+ name='open_nexus_directory_run';args={p_policy_id:input.policyId,p_hash:input.policySha256,p_worker:input.workerId,p_max_venues:input.maxVenues,p_max_requests:input.maxRequests,...(input.inventory?{p_inventory:input.inventory}:{})};
  }else if(input.action==='FINISH'&&typeof input.runId==='string'&&/^[a-f0-9-]{36}$/i.test(input.runId)){
  name='finish_nexus_directory_run';args={p_run_id:input.runId,p_worker:input.workerId,p_receipt:input.receipt??{},p_policy_id:input.policyId,p_hash:input.policySha256};
  }else if(input.action==='PROVIDER_STATUS'){
