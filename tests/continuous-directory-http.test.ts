@@ -73,3 +73,20 @@ test('durable crawler backoff is exposed to Nexus through Retry-After',async()=>
  const response=await handleContinuousDirectoryRequest(request(),{policy,approvedPolicyHash:policyHash(policy),now:()=>now,ledger:{reserve:async()=>false,nextEligibleAt:async()=>next,complete:async()=>{throw Error('NO_EXECUTION')}},executor:{secret,store:new InMemoryNexusResultStore()}});
  assert.equal(response.status,409);assert.equal(response.headers.get('retry-after'),'172800');
 });
+
+
+test('standing Production execution follows its existing www/apex canonical redirects but refuses other hosts',async()=>{
+ const previous=process.env.VERCEL_ENV;process.env.VERCEL_ENV='production';
+ try{for(const [from,to,accepted] of [['www.venue.example','venue.example',true],['venue.example','www.venue.example',true],['www.venue.example','other.example',false]]){
+  const calls:string[]=[],input={...payload,verifiedSourceUrl:`https://${from}/`},body=JSON.stringify({payload:input,directoryContext:context}),timestamp=String(now/1000);
+  const req=new Request('https://aire.example/api/integrations/nexus/directory-execute',{method:'POST',headers:{'x-nexus-timestamp':timestamp,'x-nexus-signature':nexusSignatureFor(timestamp,body,secret)},body});
+  const response=await handleContinuousDirectoryRequest(req,{policy,approvedPolicyHash:policyHash(policy),now:()=>now,ledger:{reserve:async()=>true,complete:async()=>{}},executor:{secret,store:new InMemoryNexusResultStore(),sourceDiscoveryOptions:{resolveHost:async()=>[{address:'93.184.216.34',family:4}],sleep:async()=>{},fetchImpl:async value=>{
+   const url=new URL(String(value));calls.push(url.toString());if(url.pathname==='/robots.txt')return new Response('',{status:404});
+   if(url.hostname===from)return new Response(null,{status:301,headers:{location:`https://${to}/contact/`}});
+   return new Response('<h1>Test Venue</h1><p>Private venue hire enquiries</p><a href="mailto:venue.bookings@gmail.com">Venue bookings</a>',{headers:{'content-type':'text/html'}});
+  }}}});
+  const output=await response.json() as any;assert.equal(response.status,200,JSON.stringify(output));assert.ok(output.result.crawl.requestCount<=payload.crawlBudget.maxRequests);
+  if(accepted){assert.ok(output.result.publicContacts.some((c:{value:string;sourceUrl:string})=>c.value==='venue.bookings@gmail.com'&&c.sourceUrl===`https://${to}/contact/`),JSON.stringify(output));assert.ok(calls.includes(`https://${to}/robots.txt`));}
+  else{assert.equal(output.result.publicContacts.length,0);assert.ok(!calls.some(value=>new URL(value).hostname===to));}
+ }}finally{if(previous===undefined)delete process.env.VERCEL_ENV;else process.env.VERCEL_ENV=previous;}
+});

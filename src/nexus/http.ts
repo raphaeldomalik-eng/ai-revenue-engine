@@ -1,3 +1,4 @@
+import { wwwCounterpart } from "./source-discovery/site-identity.ts";
 import { createHash } from "node:crypto";
 import { CONTENT_CONTRACTS, validateContentInterpretationResult, validateContentInterpretationRequest } from "./content-interpretation-contracts.mjs";
 import { executeContentInterpretation, type ContentExecutionOptions } from "./content-interpretation.ts";
@@ -234,7 +235,7 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
         if (!reserved) return json(409, { code: "BATCH_SCOPE_BUDGET_OR_REPLAY_DENIED" });
         const observation: { current: import("./source-discovery/types.ts").CrawlObservability | null } = { current: null };
         const execute = options.executeSourceDiscovery ?? (async (input, context) => executeSourceDiscoveryRequest(input,
-          { ...options.sourceDiscoveryOptions, allowedHosts: [binding.host], onCrawlObservability: async value => {
+          { ...options.sourceDiscoveryOptions, allowedHosts: [binding.host, wwwCounterpart(binding.host)], onCrawlObservability: async value => {
             observation.current = value;
             await options.sourceDiscoveryOptions?.onCrawlObservability?.(value);
           } }, context.store));
