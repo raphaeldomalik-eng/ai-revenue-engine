@@ -11,7 +11,7 @@ const policy={enabled:true,standing:true,validFrom:'2020-01-01',validUntil:null,
 async function setup({combinedConstraints=false}={}){
  const db=new PGlite();
  await db.exec("create role anon;create role authenticated;create role service_role;create schema auth;create function auth.role() returns text language sql as $$select current_setting('request.jwt.claim.role',true)$$;select set_config('request.jwt.claim.role','service_role',false)");
- const suffixes=['_resources_directory_standing_policy.sql','_resources_directory_search_allowance.sql','_resources_directory_transient_search_cache.sql','_resources_provider_and_run_budgets.sql','_resources_directory_store_result_v2_and_run_queue_isolation.sql','_resources_brave_monthly_budget_ceiling.sql','_resources_standing_governance.sql'];
+ const suffixes=['_resources_directory_standing_policy.sql','_resources_directory_search_allowance.sql','_resources_directory_transient_search_cache.sql','_resources_provider_and_run_budgets.sql','_resources_directory_store_result_v2_and_run_queue_isolation.sql','_resources_brave_monthly_budget_ceiling.sql','_resources_standing_governance.sql','_resources_expired_grant_accounting.sql'];
  for(const suffix of suffixes){const file=fs.readdirSync('supabase/migrations').find(n=>n.endsWith(suffix));assert(file);const sql=fs.readFileSync('supabase/migrations/'+file,'utf8');if(combinedConstraints&&suffix==='_resources_standing_governance.sql')await db.exec('alter table public.nexus_directory_search_allowance drop constraint nexus_directory_search_allowance_check1,drop constraint nexus_directory_search_allowance_check2,drop constraint nexus_directory_search_allowance_reserved_micro_usd_check,drop constraint nexus_directory_search_allowance_request_count_check,add constraint old_combined_credit check(reserved_micro_usd>=0 and reserved_micro_usd<=allocated_micro_usd),add constraint old_combined_count check(request_count>=0 and request_count<=max_requests)');try{await db.exec(sql);}catch(error){const e=error as {message:string;position?:string};const pos=Number(e.position);throw Error(file+': '+e.message+' near '+sql.slice(pos-100,pos+100));}}
  await db.query('insert into public.nexus_directory_standing_policy(policy_id,policy_sha256,policy,enabled) values($1,$2,$3,true)',['p',hash,policy]);
  await db.exec("insert into public.nexus_directory_search_allowance(allowance_id,provider_id,policy_id,requires_run,allocated_micro_usd,price_per_request_micro_usd,max_requests,reserved_micro_usd,request_count,verified_at,expires_at,verification_ref,enabled) values('brave','brave-web-search','p',true,10000000,5000,2000,4050000,810,now()-interval '1 hour',now()+interval '1 year','verified dashboard',true),('serper','serper-google-search','p',true,5000000,1000,5000,1342000,1342,now()-interval '1 hour',now()+interval '1 year','verified dashboard',true)");
@@ -151,5 +151,29 @@ test('Brave alerts claim once per stage/period, retry with original ID and keep 
   await f.db.query('select public.complete_directory_provider_alert($1,$2,$3,$4,$5,$6)',['p',hash,'brave-web-search','25_percent',f.month,null]);const retry=await claim();assert.equal(retry.idempotencyKey,a.idempotencyKey);
   const queue='11111111-1111-4111-8111-111111111111';await f.db.query('select public.complete_directory_provider_alert($1,$2,$3,$4,$5,$6)',['p',hash,'brave-web-search','25_percent',f.month,queue]);assert.equal((await claim()).state,'REUSED');assert.equal((await claim('serper-google-search')).reason,'PROVIDER_NOT_ALERTABLE');
   await f.db.exec("select set_config('request.jwt.claim.role','authenticated',false)");await assert.rejects(f.status(),/SERVICE_ROLE_REQUIRED/);
+ }finally{await f.db.close();}
+});
+
+test('post-expiry searches spend purchased credit and cannot shrink the already expired grant',async()=>{
+ const f=await setup();try{
+  const base=Date.parse(f.now),expiry=new Date(base+60000).toISOString();
+  await f.observe('brave-web-search',{grantRemainingMicroUsd:920000,grantExpiresAt:expiry});
+  await f.db.query("insert into public.nexus_directory_search_receipt(query_sha256,allowance_id,request_key,parameters,reserved_micro_usd,state,reserved_at) values($1,'brave','before','{}',5000,'COMPLETED',$2),($3,'brave','after','{}',5000,'COMPLETED',$4)",['a'.repeat(64),new Date(base+30000).toISOString(),'b'.repeat(64),new Date(base+90000).toISOString()]);
+  await f.db.exec("update public.nexus_directory_search_allowance set request_count=request_count+2,reserved_micro_usd=reserved_micro_usd+10000 where allowance_id='brave'");
+  const read=async(at:number)=>(await f.db.query('select public.directory_provider_budget_state($1,$2) r',['brave',new Date(at).toISOString()])).rows[0].r;
+  const first=await read(base+120000);assert.equal(first.expiredGrantMicroUsd,915000);assert.equal(first.projectedBalanceMicroUsd,4995000);
+  await f.db.query("insert into public.nexus_directory_search_receipt(query_sha256,allowance_id,request_key,parameters,reserved_micro_usd,state,reserved_at) values($1,'brave','after-again','{}',5000,'FAILED',$2)",['c'.repeat(64),new Date(base+150000).toISOString()]);
+  await f.db.exec("update public.nexus_directory_search_allowance set request_count=request_count+1,reserved_micro_usd=reserved_micro_usd+5000 where allowance_id='brave'");
+  const second=await read(base+180000);assert.equal(second.expiredGrantMicroUsd,915000);assert.equal(second.projectedBalanceMicroUsd,4990000);assert.equal(second.lifetimeRequestCount,813);assert.equal(second.lifetimeReservedMicroUsd,4065000);
+  assert.equal((await f.db.query('select count(*)::int n from public.nexus_directory_search_receipt')).rows[0].n,3);
+ }finally{await f.db.close();}
+});
+test('expired-grant projection retains the hard reserve and does not forgive unjournalled debt',async()=>{
+ const f=await setup();try{
+  const expiry=new Date(Date.parse(f.now)+60000).toISOString(),after=new Date(Date.parse(f.now)+120000).toISOString();
+  await f.observe('brave-web-search',{availableMicroUsd:1010000,grantRemainingMicroUsd:500000,grantExpiresAt:expiry});
+  await f.db.exec("update public.nexus_directory_search_allowance set request_count=request_count+3,reserved_micro_usd=reserved_micro_usd+15000 where allowance_id='brave'");
+  const state=(await f.db.query('select public.directory_provider_budget_state($1,$2) r',['brave',after])).rows[0].r;
+  assert.equal(state.projectedBalanceMicroUsd,495000);assert.equal(state.expiredGrantMicroUsd,500000);assert.equal(state.reason,'PROVIDER_ACCOUNT_RESERVE');assert.equal(state.remainingRequests,0);
  }finally{await f.db.close();}
 });
