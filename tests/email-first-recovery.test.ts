@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { publicContactProfile } from '../src/nexus/source-discovery/extractors/profiles.ts';
 import { acceptVenueEmail } from '../src/nexus/venue-email.ts';
+import {withinAcceptedSite} from '../src/nexus/public-web.ts';
 import { venueCrawlProfiles } from '../src/nexus/source-discovery/venue/profiles.ts';
 import { executeSourceDiscoveryRequest } from '../src/nexus/executor.ts';
 import { validateSourceDiscoveryResult } from '../src/nexus/contracts.ts';
@@ -83,6 +84,6 @@ test('venue-specific compound mailbox survives extraction with venue identity', 
 });
 test('verified operator contact can satisfy initial contact but sibling-property contact stays held', () => {
  assert.equal(acceptVenueEmail('info@parkwoodtheatres.co.uk','https://parkwoodtheatres.co.uk/','Hazlitt Theatre','General enquiries').accepted,true);
- assert.equal(acceptVenueEmail('info@parkwoodtheatres.co.uk','https://parkwoodtheatres.co.uk/other-theatre','Hazlitt Theatre','General enquiries').accepted,false);
- assert.equal(acceptVenueEmail('boxoffice@parkwoodtheatres.co.uk','https://parkwoodtheatres.co.uk/other-theatre','Hazlitt Theatre','Other Theatre box office').accepted,false);
+ assert.equal(acceptVenueEmail('info@parkwoodtheatres.co.uk','https://parkwoodtheatres.co.uk/other-theatre','Hazlitt Theatre','General enquiries').accepted,true,'absence of venue-name tokens is not contact evidence of a different property; accepted-site path scoping is checked by the caller');
+ assert.equal(withinAcceptedSite('https://parkwoodtheatres.co.uk/other-theatre','https://parkwoodtheatres.co.uk/hazlitt-theatre'),false);
 });

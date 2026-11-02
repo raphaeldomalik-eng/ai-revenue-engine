@@ -341,8 +341,10 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       const observedAt = nowOf(options);
       const finalUrl = crawl.finalUrl;
       const origin = new URL(finalUrl).origin;
+      const acceptedContactScope=withVerifiedNexusOrigin(request,verificationContext).existingFacts?.find(f=>f.fieldName==='acceptedWebsiteScope')?.value;
       const contacts = extracted.publicContacts.flatMap((item) => {
         if (new URL(item.sourceUrl).origin !== origin) return [];
+        if (typeof acceptedContactScope==='string'&&!withinAcceptedSite(item.sourceUrl,acceptedContactScope)) return [];
         if (item.type === "EMAIL") {
           const verdict = acceptVenueEmail(item.value, item.sourceUrl, targetName(request, context) ?? "", item.label ?? "");
           return verdict.accepted ? [{ ...item, value: verdict.email, relationship: verdict.relationship }] : [];
