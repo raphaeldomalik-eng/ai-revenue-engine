@@ -199,6 +199,27 @@ async function httpAccountingFixture(){
  return {...f,day,open,reserveWork:async(runId:string,key:string,budget=14)=>(await f.db.query('select public.reserve_nexus_directory_run_work($1) r',[{policyId:'p',policySha256:hash,runId,day,host:key+'.example',identityKey:key,queueId:key,reservationKey:key.repeat(64),country:'ZA',action:'ENRICH_VERIFIED_VENUE',requestBudget:budget}])).rows[0].r};
 }
 
+test('owner one-time HTTP allowance expires at UTC midnight, keeps counters and provider budgets, and preserves reservation guards',async()=>{
+ const f=await httpAccountingFixture();try{
+ const migration=fs.readFileSync('supabase/migrations/20261102160000_resources_one_time_http_allowance.sql','utf8');
+ const limit= migration.match(/new_limit:='([^\n]+)';/)![1].replaceAll("''", "'");
+ assert(limit.includes("d=date '2026-11-02' and p.policy_id='resources-sa-uk-per-run-20261025'"));
+ for(const [day,id,expected] of [['2026-11-02','resources-sa-uk-per-run-20261025',2800],['2026-11-03','resources-sa-uk-per-run-20261025',1400],['2026-11-01','resources-sa-uk-per-run-20261025',1400],['2026-11-02','other',1400]] as const){
+ const sql=`with p as(select $1::text policy_id,'{"maxRequestsPerDay":1400}'::jsonb policy), scope as(select $2::date d) select ${limit} ceiling from p,scope`;
+ assert.equal((await f.db.query(sql,[id,day])).rows[0].ceiling,expected);
+ }
+ const applied=migration.replaceAll("resources-sa-uk-per-run-20261025","p").replaceAll("2026-11-02",f.day);await f.db.exec(applied);await f.db.exec(applied);
+ await f.db.exec('update public.nexus_directory_work_receipt set request_count=reserved_requests');
+ const before=(await f.db.query('select reserved_requests from public.nexus_directory_daily_budget')).rows[0].reserved_requests;
+ const finance=await f.status();const run=await f.open();assert.equal(run.websiteCapacity.available,true);
+ assert.equal((await f.reserveWork(run.runId,'b')).state,'RESERVED');assert.equal((await f.reserveWork(run.runId,'b')).reason,'REPLAY');
+ assert.equal((await f.db.query('select reserved_requests from public.nexus_directory_daily_budget')).rows[0].reserved_requests,before+14);
+ assert.deepEqual((await f.status()).providers,finance.providers);
+ await f.db.exec('update public.nexus_directory_daily_budget set reserved_requests=2800');assert.equal((await f.reserveWork(run.runId,'c')).reason,'DAILY_REQUEST_BUDGET');
+ assert.equal((await f.db.query("select has_function_privilege('anon','public.reserve_nexus_directory_run_work(jsonb)','execute') allowed")).rows[0].allowed,false);
+ }finally{await f.db.close();}
+});
+
 test('confirmed unused HTTP reservations stop consuming the daily ceiling without resetting gross history',async()=>{
  const f=await httpAccountingFixture();try{const run=await f.open();assert.equal(run.websiteCapacity.available,true);assert.equal((await f.reserveWork(run.runId,'b')).state,'RESERVED');
  assert.equal((await f.db.query('select reserved_requests from public.nexus_directory_daily_budget')).rows[0].reserved_requests,1412,'gross historical reservations remain monotonic');assert.equal((await f.db.query('select sum(request_count)::int n from public.nexus_directory_work_receipt')).rows[0].n,200);assert.equal((await f.db.query('select count(*)::int n from public.nexus_directory_work_receipt')).rows[0].n,101);
