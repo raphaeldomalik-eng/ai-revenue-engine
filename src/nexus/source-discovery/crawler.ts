@@ -4,7 +4,7 @@ import { classifyContent, decodeText, inflateBoundedDocument, refuseByHeaders, T
 import { extractEventsFromDocuments } from "./extractors/events.ts";
 import { createObservation, profilesFor } from "./extractors/profiles.ts";
 import { extractResourcesFromDocuments } from "./extractors/resources.ts";
-import { hrefTags, tags, visibleText } from "./html.ts";
+import { documentNavigationHtml, hrefTags, selfClosingTags, tags, visibleText } from "./html.ts";
 import { calendarFallbackUrl, discoverCalendarUrls, discoverLikelyEventDetailUrls, discoverUsefulSourceUrls } from "./links.ts";
 import { assertPublicNetworkTarget, canonicalHttpsUrl, classifyTransportFailure, defaultResolveHost, DiscoveryTimeout, fetchPinned, NetworkRefusal, UnsupportedContent } from "./network.ts";
 import { extractPdfText } from "./pdf.ts";
@@ -328,6 +328,19 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
   let redirects = 0;
   const accept = mode.expected === "CALENDAR" ? CALENDAR_ACCEPT : mode.expected === "PDF" ? PDF_ACCEPT : mode.expected === "SITEMAP" ? SITEMAP_ACCEPT : PAGE_ACCEPT;
   const cache = mode.expected === "SITEMAP" ? undefined : ctx.input.documentCache;
+  const followRedirect = (location: string | null, status: number) => {
+    const decision = ctx.site.decideRedirect(current, location, status, mode.entry && redirects < ctx.budget.maxRedirects ? "ENTRY" : "PAGE");
+    if (!decision.next) {
+      ctx.stats.blockedCount += 1;
+      ctx.stats.failureClass = "TERMINAL";
+      ctx.obs.blockedPages.push({ url: current, reason: `REDIRECT_${decision.reason}` });
+      throw redirectRefusal(current, location, decision.reason);
+    }
+    if (redirects >= ctx.budget.maxRedirects) throw new CrawlRefusal("Redirect budget exhausted.", "TERMINAL");
+    current = decision.next;
+    redirects += 1;
+    ctx.stats.redirects += 1;
+  };
   for (let attempt = 0; attempt <= ctx.budget.maxRetries; attempt += 1) {
     const robotsText = await robotsFor(ctx, current);
     if (!robotsAllows(robotsText, current, ctx.userAgent)) {
@@ -359,18 +372,7 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
       return { url: current, snapshot, kind: cached.kind ?? "HTML", cached, notModified: true };
     }
     if (REDIRECT_STATUSES.has(snapshot.status)) {
-      const location = snapshot.headers.get("location");
-      const decision = ctx.site.decideRedirect(current, location, snapshot.status, mode.entry && redirects < ctx.budget.maxRedirects ? "ENTRY" : "PAGE");
-      if (!decision.next) {
-        ctx.stats.blockedCount += 1;
-        ctx.stats.failureClass = "TERMINAL";
-        ctx.obs.blockedPages.push({ url: current, reason: `REDIRECT_${decision.reason}` });
-        throw redirectRefusal(current, location, decision.reason);
-      }
-      if (redirects >= ctx.budget.maxRedirects) throw new CrawlRefusal("Redirect budget exhausted.", "TERMINAL");
-      current = decision.next;
-      redirects += 1;
-      ctx.stats.redirects += 1;
+      followRedirect(snapshot.headers.get("location"), snapshot.status);
       attempt -= 1;
       continue;
     }
@@ -393,6 +395,19 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
     const decision = classifyContent(decoded.headers.get("content-type"), decoded.bytes, current, mode.expected);
     if (!decision.kind) throw new ContentSkipped(decision.reason);
     if (decoded.bytes.length > ceiling) throw new ContentSkipped(`${decision.kind} body exceeded its size limit.`);
+    if (decision.kind === "HTML") {
+      // A refresh stub is navigation, not evidence that the venue has no email.
+      // Use exactly the HTTP redirect path; every next request still checks
+      // robots, pinned public DNS, batch hosts, delays and the HTTP ceiling.
+      const head = tags(documentNavigationHtml(decodeText(decoded.bytes, decoded.headers.get("content-type"))), "head")[0]?.inner ?? "";
+      const refresh = selfClosingTags(head, "meta").find(tag => tag.attrs["http-equiv"]?.trim().toLowerCase() === "refresh");
+      const target = refresh?.attrs.content?.match(/^\s*\d+(?:\.\d+)?\s*;\s*url\s*=\s*(.*?)\s*$/i)?.[1]?.replace(/^(['"])(.*)\1$/, "$2");
+      if (target) {
+        followRedirect(target, snapshot.status);
+        attempt -= 1;
+        continue;
+      }
+    }
     return { url: current, snapshot: decoded, kind: decision.kind };
   }
   throw new CrawlRefusal(`Retries exhausted for ${current}`, "RETRYABLE");
