@@ -1,3 +1,4 @@
+import {storedDirectoryVerifierAcquisition} from './stored-directory-verifier.ts';
 import {createHash} from 'node:crypto';
 import {validateResearchRequest,validateResearchResult} from '../contracts.ts';
 import {executeResearchRequest,InMemoryNexusResultStore,retryableProviderFailure,type NexusResultStore,type ProviderResult} from '../executor.ts';
@@ -66,6 +67,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   if(!seed||!research?.targetName||!research.locality||candidateRejection(seed)||!context.queueId||!Number.isSafeInteger(context.attempts)||context.attempts<0||!Number.isSafeInteger(context.requestBudget)||context.requestBudget<1||context.requestBudget>(continuation?.originalRequestBudget??recovery?.originalRequestBudget??options.policy.maxRequestsPerVenue)||!Array.isArray(context.gaps)||!context.gaps.length)return Response.json({code:'DIRECTORY_VERIFICATION_CONTEXT_REQUIRED'},{status:400});
   const fingerprint=policyHash({subject:input.subject,purpose:input.researchPurpose,facts:input.requestedFactTypes,context:research,evidenceRefs:input.existingEvidenceRefs,freshness:input.freshnessRequirements,policy:continuation?.sourcePolicySha256??recoveryEntry?.sourcePolicySha256??options.approvedPolicyHash,queue:context.queueId,budget:context.requestBudget,gaps:context.gaps});
   const key=uuid('directory-verification-v1:'+input.idempotencyKey),cached=await options.store.get(key);
+  if(request.headers.get('x-nexus-cache-only')==='true'&&(!cached||retryableProviderFailure(cached)))return Response.json({code:'DIRECTORY_CACHED_RESULT_REQUIRED'},{status:409});
   if(cached&&cached.directoryRequestSha256!==fingerprint)return Response.json({code:'DIRECTORY_REPLAY_SUBJECT_MISMATCH'},{status:409});
   if(continuation){
    if(!entry||!cached)return Response.json({code:'DIRECTORY_CONTINUATION_ORIGINAL_REQUIRED'},{status:409});
@@ -94,8 +96,8 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   if(cached&&!retryableProviderFailure(cached)){
    const reservation=cached.directoryReservation as Parameters<ContinuousLedger['complete']>[0]|undefined;
    if(!reservation||reservation.policyId!==options.policy.policyId||reservation.policySha256!==options.approvedPolicyHash||reservation.identityKey!==identity||reservation.queueId!==context.queueId)return Response.json({code:'DIRECTORY_CACHED_RESERVATION_SCOPE'},{status:409});
-   await options.ledger.complete({...reservation,state:(cached.directoryVerification as {state:string}).state==='VERIFIED'?'COMPLETED':'QUARANTINED',requestCount:Number(cached.directoryRequestCount),costUsd:0,nextAttemptAt:null,resultRef:input.requestId});
-   return Response.json({result:validateResearchResult(cached),verification:cached.directoryVerification,receipt:cacheReceipt});
+   if(request.headers.get('x-nexus-cache-only')!=='true')await options.ledger.complete({...reservation,state:(cached.directoryVerification as {state:string}).state==='VERIFIED'?'COMPLETED':'QUARANTINED',requestCount:Number(cached.directoryRequestCount),costUsd:0,nextAttemptAt:null,resultRef:input.requestId});
+   return Response.json({result:validateResearchResult(storedDirectoryVerifierAcquisition(cached,input)),verification:cached.directoryVerification,receipt:cacheReceipt});
   }
   const executionBudget=continuation?.additionalRequestBudget??(recoveryEntry?.mode==='RETRYABLE'?recovery?.additionalRequestBudget:undefined)??context.requestBudget;
   const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:continuation||recoveryEntry?0:context.attempts,requestBudget:executionBudget,runId:context.runId,action:'VERIFY_WEBSITE'} as DirectoryWork;
