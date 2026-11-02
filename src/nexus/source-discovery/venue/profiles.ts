@@ -1,5 +1,5 @@
 import type { SourceExtractor } from "../../contracts.ts";
-import { profilesFor } from "../extractors/profiles.ts";
+import { profilesFor, propertyLinkStrength } from "../extractors/profiles.ts";
 import type { ExtractorProfile } from "../planner.ts";
 import { isPdfUrl } from "../planner.ts";
 import type { SiteIdentity } from "../site-identity.ts";
@@ -25,10 +25,11 @@ export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: b
       dimensions,
       priorityDimensions: dimensions,
       linkDimensions(url, label) {
+        if (propertyLinkStrength(options.venueName,url,label)) return dimensions;
         if (profile.extractor === 'PUBLIC_CONTACT') return profile.linkDimensions(url, label);
         return venueLinkDimensions(url, label).filter((dim) => dimensions.includes(dim));
       },
-      linkStrength: venueLinkStrength,
+      linkStrength: (url,label) => Math.max(propertyLinkStrength(options.venueName,url,label),profile.extractor === 'PUBLIC_CONTACT' ? profile.linkStrength?.(url,label) ?? 1 : venueLinkStrength(url,label)),
       pdfDimensions(url, label) {
         if (profile.extractor === 'PUBLIC_CONTACT') return profile.pdfDimensions(url, label);
         if (profile.extractor !== "VENUE_FACTS" || !isPdfUrl(url)) return null;

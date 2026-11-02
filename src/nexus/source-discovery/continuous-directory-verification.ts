@@ -126,7 +126,19 @@ export async function handleDirectoryVerificationRequest(request:Request,options
     const retryable=!assessment.verified&&['FAILED','PARTIAL'].includes(crawl.stats.status)&&crawl.stats.failureClass!=='TERMINAL';
     const observedFacts=assessment.verified?value.facts.map(f=>f.fieldName==='officialWebsite'?{...f,confidence:0.95}:f):[];
     if(assessment.verified&&siteEvidence)observedFacts.push({subjectEntityType:'UNKNOWN',canonicalEntityId:input.subject.canonicalEntityId,fieldName:'sourceTextExcerpt',value:crawl.documents.map(d=>visibleText(d.body)).join('\n').slice(0,6000),evidenceRef:siteEvidence.evidenceRef,confidence:1,observedAt:now});
-    return {...value,facts:observedFacts,evidence:value.evidence.map(e=>({...e,payload:{...(e.payload as Record<string,unknown>),directoryVerification:{...verification,sourceEvidenceRefs:input.existingEvidenceRefs,canonicalIdentityEstablished:false}}})),unknowns:assessment.verified?value.unknowns:[...value.unknowns,'Website identity is unresolved; no candidate facts were approved.'],...(retryable?{error:{code:'DIRECTORY_VERIFICATION_INCOMPLETE',message:('Incomplete retrieval did not establish website identity; retry is required. '+(value.error?.message??crawl.stats.warnings.join(' '))).slice(0,2000),retryable:true}}:value.error?{error:{...value.error,retryable:false}}:{})};
+    // Preserve structured observations from THIS crawl for Nexus's existing
+    // classified acquisition consumer. Verification does not grant publication
+    // or canonical authority, and an unverified site exports no such handoff.
+    const extracted=assessment.verified?extractFromFetchedDocuments(crawl.documents,['IDENTITY','PUBLIC_CONTACT','VENUE_FACTS'],research.targetName!):null;
+    const acquisition=extracted&&siteEvidence&&['COMPLETED','PARTIAL'].includes(crawl.stats.status)?{
+      version:1,requestId:input.requestId,
+      source:{verifiedUrl:seed,finalUrl:crawl.finalUrl,observedAt:now,sourceHash:createHash('sha256').update(crawl.documents.map(d=>`${d.url}:${d.sourceHash}`).join('\n')).digest('hex')},
+      crawl:{...crawl.stats,retryable:false,evidenceManifest:crawl.evidenceManifest?{...crawl.evidenceManifest,pages:crawl.evidenceManifest.pages.map(p=>({...p,evidenceRefs:[...new Set([...extracted.identityFacts,...extracted.publicContacts,...extracted.venueFacts].filter(f=>f.sourceUrl===p.url).map(f=>f.evidenceRef))]}))}:null},
+      identityFacts:extracted.identityFacts.slice(0,100).map(f=>({...f,subjectEntityType:'UNKNOWN',canonicalEntityId:input.subject.canonicalEntityId,confidence:0.8,observedAt:now})),
+      publicContacts:extracted.publicContacts.slice(0,100).map(c=>{const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,research.targetName!,c.label??''):null;return {...c,observedAt:now,reviewRequired:c.reviewRequired||!accepted.some(a=>a.type===c.type&&a.value.toLowerCase()===c.value.toLowerCase()&&a.sourceUrl===c.sourceUrl),...(verdict&&!verdict.accepted?{reviewReason:verdict.reason}:{})};}),
+      venueFacts:extracted.venueFacts.slice(0,100).map(f=>({...f,observedAt:now})),evidenceRefs:extracted.evidenceRefs.slice(0,1000),
+    }:null;
+    return {...value,facts:observedFacts,evidence:value.evidence.map(e=>({...e,payload:{...(e.payload as Record<string,unknown>),...(e===siteEvidence&&acquisition?{firstPassAcquisition:acquisition}:{}),directoryVerification:{...verification,sourceEvidenceRefs:input.existingEvidenceRefs,canonicalIdentityEstablished:false}}})),unknowns:assessment.verified?value.unknowns:[...value.unknowns,'Website identity is unresolved; no candidate facts were approved.'],...(retryable?{error:{code:'DIRECTORY_VERIFICATION_INCOMPLETE',message:('Incomplete retrieval did not establish website identity; retry is required. '+(value.error?.message??crawl.stats.warnings.join(' '))).slice(0,2000),retryable:true}}:value.error?{error:{...value.error,retryable:false}}:{})};
    };
    result=validateResearchResult(await executeResearchRequest(input,research,{publicWeb:adapted,now:()=>now},new InMemoryNexusResultStore()));
    const crawl=observation.crawl as CrawlOutput|null;

@@ -28,6 +28,20 @@ test('first-pass verification retains actual HTTP/page and contact observations 
  assert(saved.directoryCrawlReceipt.evidenceManifest.pages.length>0);assert(Array.isArray(saved.directoryCrawlReceipt.contactObservations));
  const before=h.counts().requests;await handleDirectoryVerificationRequest(request(),h.options);assert.equal(h.counts().requests,before);
 });
+
+test('verified first-pass contacts remain structured AIRE observations for the existing classified consumer, with replay costing no requests',async()=>{
+ const h=harness(),fetch=h.options.fetchImpl;
+ h.options.fetchImpl=async(input)=>{const response=await fetch(input);if(String(input).endsWith('/robots.txt'))return response;return new Response((await response.text()).replace('</body>','<a href="mailto:bookings@operator.co.uk">Venue event bookings</a></body>'),{headers:{'content-type':'text/html'}});};
+ const response=await handleDirectoryVerificationRequest(request(),h.options),body=await response.json() as any;
+ assert.equal(body.verification.state,'VERIFIED');
+ const a=body.result.evidence.find((e:any)=>e.payload.firstPassAcquisition)?.payload.firstPassAcquisition;
+ assert(a);assert.equal(a.requestId,id);assert(a.crawl.evidenceManifest.pages.length);
+ assert(a.publicContacts.some((c:any)=>c.value==='bookings@operator.co.uk'&&c.reviewRequired===false),JSON.stringify(a.publicContacts));
+ assert(a.identityFacts.every((f:any)=>f.subjectEntityType==='UNKNOWN'&&f.canonicalEntityId===null));
+ const before=h.counts().requests;await handleDirectoryVerificationRequest(request(),h.options);assert.equal(h.counts().requests,before);
+ const wrong=harness('York');const rejected=await (await handleDirectoryVerificationRequest(request(),wrong.options)).json() as any;
+ assert(rejected.result.evidence.every((e:any)=>!e.payload.firstPassAcquisition));
+});
 test('verification requires explicit policy scope, signed authority, neutral subject and zero-paid providers',async()=>{
  const h=harness();
  assert.equal((await handleDirectoryVerificationRequest(request(payload,{},false),h.options)).status,401);
