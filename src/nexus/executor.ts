@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { canonicalHttpsUrl } from "./source-discovery/network.ts";
 import { searchCompaniesHouse, type CompaniesHouseSearchResult } from "../ai-sales-team/companies-house.ts";
 import { getGooglePlaceDetails, searchGooglePlaces, type GooglePlacesDetailsInput, type GooglePlacesEvidence, type GooglePlacesSearchInput } from "../ai-sales-team/google-places.ts";
 import { createInMemoryGooglePlacesEvidenceStore, type GooglePlacesCallTelemetry, type GooglePlacesEvidenceStore } from "../ai-sales-team/google-places-evidence.ts";
@@ -162,7 +163,7 @@ export async function executeResearchRequest(input: unknown, suppliedContext: Re
   const uniqueUnknowns = [...new Set(unknowns)]; const status = facts.length && !uniqueUnknowns.length ? "COMPLETED" : facts.length ? "PARTIAL" : errors.some((error) => !error.retryable) ? "UNRESOLVED" : "UNRESOLVED"; const result = validateResearchResult({ contractVersion: CONTRACTS.RESEARCH_RESULT, requestId: request.requestId, idempotencyKey: request.idempotencyKey, status, facts, evidence, unknowns: uniqueUnknowns, conflicts, providerUsage: usage.map((item) => ({ ...item, cost: item.cost ? { currency: item.cost.currency, amount: item.cost.amount } : null })), costSummary: { currency: request.costCeiling.currency, amount: spent }, observedAt: now, researchErrors: errors, recommendation: { advisory: status === "COMPLETED" ? "Proposed facts are ready for Nexus review." : "Keep the subject unresolved until additional allowed evidence is available.", unreportedProviderCosts: usage.filter((item) => !item.cost).map((item) => item.provider) } }); await store.set(request.idempotencyKey, result); return result;
 }
 
-function sourceFact(request: SourceDiscoveryRequest, fieldName: string, value: unknown, sourceUrl: string, evidenceRef: string, observedAt: string) { return { subjectEntityType: request.subjectReference.entityType, canonicalEntityId: request.subjectReference.canonicalEntityId, fieldName, value, evidenceRef, confidence: 0.8, observedAt }; }
+function sourceFact(request: SourceDiscoveryRequest, fieldName: string, value: unknown, sourceUrl: string, evidenceRef: string, observedAt: string, confidence: number | null = 0.8) { return { subjectEntityType: request.subjectReference.entityType, canonicalEntityId: request.subjectReference.canonicalEntityId, fieldName, value, evidenceRef, confidence, observedAt }; }
 
 /** Contract warnings are limited to 256 characters. A longer crawler note must not reject an otherwise valid result. */
 export function boundCrawlWarnings(warnings: string[]) {
@@ -222,6 +223,17 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   const extracted = extractFromFetchedDocuments(crawl.documents, requestedExtractors, venueName);
   const sourceHash = createHash("sha256").update(crawl.documents.map((document) => `${document.url}:${document.sourceHash}`).join("\n")).digest("hex");
   const identityFacts = extracted.identityFacts.map((item) => sourceFact(request, item.fieldName, item.value, item.sourceUrl, item.evidenceRef, now));
+  // Retain observed migrations for Nexus's existing website-verification lane.
+  // A refused destination is a candidate, never accepted site/identity evidence.
+  for (const hop of crawl.observability?.redirectChain ?? []) {
+    if (hop.decision !== "REFUSED" || !["CROSS_SITE", "UNEVIDENCED_SUBDOMAIN"].includes(hop.reason)) continue;
+    const url = canonicalHttpsUrl(hop.to);
+    if (!url) continue;
+    const value = { from: hop.from, url, status: hop.status, reason: hop.reason };
+    const evidenceRef = `redirect:${createHash("sha256").update(JSON.stringify(value)).digest("hex")}`;
+    identityFacts.push(sourceFact(request, "websiteRedirectCandidate", value, hop.from, evidenceRef, now, null));
+    extracted.evidenceRefs.push(evidenceRef);
+  }
   const publicContacts = extracted.publicContacts.map((item) => {
     const verdict = item.type === "EMAIL" ? acceptVenueEmail(item.value, item.sourceUrl, venueName, item.label ?? "") : null;
     return { type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.type === "EMAIL" ? item.reviewRequired || !verdict!.accepted : item.reviewRequired, ...(item.label ? { label: item.label } : {}), purpose: item.purpose, ...(item.type === "EMAIL" ? { sourceVerification: "PUBLISHED_ON_SOURCE" as const, deliveryVerified: false } : {}) };
