@@ -157,3 +157,19 @@ test('the ten-venue canary policy is signed to exactly ten existing candidate id
   {...h.options,policy:scoped,approvedPolicyHash:policyHash(scoped)})).status,403);
  assert.equal(h.counts().requests,0);
 });
+
+
+test('cache-only recovery derives the accepted historical contact handoff without replacing the original or researching again',async()=>{
+ const h=harness(),fetch=h.options.fetchImpl;let saved:any;
+ const set=h.options.store.set.bind(h.options.store);h.options.store.set=async(k,v)=>{saved=v;await set(k,v)};
+ h.options.fetchImpl=async(input)=>{const r=await fetch(input);return String(input).endsWith('/robots.txt')?r:new Response((await r.text()).replace('</body>','<a href="mailto:events@operator.co.uk">Venue hire enquiries</a></body>'),{headers:{'content-type':'text/html'}});};
+ await handleDirectoryVerificationRequest(request(),h.options);
+ const legacy=structuredClone(saved);for(const e of legacy.evidence)delete e.payload.firstPassAcquisition;const original=JSON.stringify(legacy);h.options.store.get=async()=>legacy;
+ const before=h.counts();h.options.ledger.complete=async()=>{throw Error('HISTORICAL_LEDGER_IMMUTABLE')};h.options.fetchImpl=async()=>{throw Error('EXTERNAL_FETCH_FORBIDDEN')};const input=request();input.headers.set('x-nexus-cache-only','true');
+ const response=await handleDirectoryVerificationRequest(input,h.options),body=await response.json() as any;
+ assert.equal(response.status,200);const a=body.result.evidence.find((e:any)=>e.payload.firstPassAcquisition)?.payload.firstPassAcquisition;
+ assert(a,JSON.stringify({verification:legacy.directoryVerification,status:legacy.status,crawl:legacy.directoryCrawlReceipt,website:legacy.facts.find((f:any)=>f.fieldName==='officialWebsite')}));assert.equal(a.source.observedAt,legacy.observedAt);assert(a.publicContacts.some((c:any)=>c.value==='events@operator.co.uk'&&!c.reviewRequired));assert.equal(JSON.stringify(legacy),original);assert.deepEqual(h.counts(),before);assert.equal(body.receipt.executed,0);
+});
+test('cache-only recovery cannot fall through to website research when the cache is absent',async()=>{
+ const h=harness(),input=request();input.headers.set('x-nexus-cache-only','true');const r=await handleDirectoryVerificationRequest(input,h.options);assert.equal(r.status,409);assert.equal(h.counts().requests,0);assert.equal(h.counts().reservations,0);
+});
