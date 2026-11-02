@@ -20,6 +20,14 @@ function harness(city='Bristol'){
  const options={policy,approvedPolicyHash:policyHash(policy),secret,store,now:()=>now,fetchImpl,resolveHost:async()=>[{address:'1.1.1.1',family:4}],ledger:{reserve:async()=>{reservations++;return true},complete:async(r:{state:string})=>{if(!states.includes(r.state))states.push(r.state)},isQuarantined:async()=>states.includes('QUARANTINED')}};
  return {options,counts:()=>({requests,reservations,states})};
 }
+
+test('first-pass verification retains actual HTTP/page and contact observations for review without another website request',async()=>{
+ const h=harness();let saved:any;const set=h.options.store.set.bind(h.options.store);h.options.store.set=async(k,v)=>{saved=v;await set(k,v)};
+ await handleDirectoryVerificationRequest(request(),h.options);
+ assert(saved.directoryCrawlReceipt);assert(saved.directoryCrawlReceipt.evidenceManifest.requests.some((r:any)=>r.status===200));
+ assert(saved.directoryCrawlReceipt.evidenceManifest.pages.length>0);assert(Array.isArray(saved.directoryCrawlReceipt.contactObservations));
+ const before=h.counts().requests;await handleDirectoryVerificationRequest(request(),h.options);assert.equal(h.counts().requests,before);
+});
 test('verification requires explicit policy scope, signed authority, neutral subject and zero-paid providers',async()=>{
  const h=harness();
  assert.equal((await handleDirectoryVerificationRequest(request(payload,{},false),h.options)).status,401);
