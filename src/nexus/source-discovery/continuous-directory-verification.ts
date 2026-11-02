@@ -4,6 +4,7 @@ import {executeResearchRequest,InMemoryNexusResultStore,retryableProviderFailure
 import {createPublicWebProvider,withVerifiedNexusOrigin} from '../public-web.ts';
 import {assessWebsiteIdentity,candidateRejection} from '../official-website-discovery.ts';
 import {visibleText} from './html.ts';
+import {acceptVenueEmail} from '../venue-email.ts';
 import {parseNexusEnvelope,verifyNexusSignature,NEXUS_MAX_BODY_BYTES} from '../transport.ts';
 import {extractFromFetchedDocuments,type CrawlOutput,type FetchLike,type ResolveHost} from './crawler.ts';
 import {policyHash,validateStandingPolicy,standingPolicyAllows,runContinuousDirectoryTick,type ContinuousLedger,type DirectoryWork} from './continuous-directory-policy.ts';
@@ -100,6 +101,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:continuation||recoveryEntry?0:context.attempts,requestBudget:executionBudget,runId:context.runId,action:'VERIFY_WEBSITE'} as DirectoryWork;
   let result:ReturnType<typeof validateResearchResult>|null=null;
   let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[]}|null=null;
+  let crawlReceipt:Record<string,unknown>|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const observation:{crawl:CrawlOutput|null}={crawl:null};
    const provider=createPublicWebProvider({emailGoal:options.policy.quotaMode==='PER_RUN',fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
@@ -112,6 +114,15 @@ export async function handleDirectoryVerificationRequest(request:Request,options
     const siteEvidence=value.evidence.find(e=>(e.payload as {kind?:string})?.kind==='FIRST_PARTY_WEBSITE');
     const state=crawl.stats.status==='BLOCKED'?'BLOCKED':assessment.verified?'VERIFIED':'UNVERIFIED';
     verification={state,url:assessment.verified?crawl.finalUrl:null,evidenceRef:siteEvidence?.evidenceRef??null,signals:assessment.signals};
+    // Review telemetry from this exact existing crawl, never another fetch or
+    // additional contact acceptance policy. Rejected observations stay evidence.
+    const observed=extractFromFetchedDocuments(crawl.documents,['PUBLIC_CONTACT']).publicContacts;
+    const accepted=(siteEvidence?.payload as {contacts?:Array<{type:string;value:string;sourceUrl:string}>})?.contacts??[];
+    crawlReceipt={...crawl.stats,finalUrl:crawl.finalUrl,evidenceManifest:crawl.evidenceManifest,
+      contactObservations:observed.slice(0,100).map(c=>{const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,research.targetName!,c.label??''):null;
+       const supported=assessment.verified&&accepted.some(a=>a.type===c.type&&a.value.toLowerCase()===c.value.toLowerCase()&&a.sourceUrl===c.sourceUrl);
+       return {...c,accepted:supported,rejectionReason:supported?null:verdict&&!verdict.accepted?verdict.reason:!assessment.verified?'WEBSITE_IDENTITY_UNRESOLVED':'NOT_ACCEPTED_BY_EXISTING_SOURCE_SCOPE',...(c.type==='CONTACT_FORM'?{usability:'OBSERVED_NOT_USABILITY_CONFIRMED'}:{})};}),
+      contactObservationsOmitted:Math.max(0,observed.length-100)};
     const retryable=!assessment.verified&&['FAILED','PARTIAL'].includes(crawl.stats.status)&&crawl.stats.failureClass!=='TERMINAL';
     const observedFacts=assessment.verified?value.facts.map(f=>f.fieldName==='officialWebsite'?{...f,confidence:0.95}:f):[];
     if(assessment.verified&&siteEvidence)observedFacts.push({subjectEntityType:'UNKNOWN',canonicalEntityId:input.subject.canonicalEntityId,fieldName:'sourceTextExcerpt',value:crawl.documents.map(d=>visibleText(d.body)).join('\n').slice(0,6000),evidenceRef:siteEvidence.evidenceRef,confidence:1,observedAt:now});
@@ -120,7 +131,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    result=validateResearchResult(await executeResearchRequest(input,research,{publicWeb:adapted,now:()=>now},new InMemoryNexusResultStore()));
    const crawl=observation.crawl as CrawlOutput|null;
    if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
-   await options.store.set(key,{...result,directoryRequestSha256:fingerprint,directoryVerification:verification,directoryReservation:reservation,directoryRequestCount:crawl.stats.requestCount});
+   await options.store.set(key,{...result,directoryRequestSha256:fingerprint,directoryVerification:verification,directoryReservation:reservation,directoryRequestCount:crawl.stats.requestCount,directoryCrawlReceipt:crawlReceipt});
    const retryable=retryableProviderFailure(result);
    return {requestCount:crawl.stats.requestCount,costUsd:0,status:retryable?'FAILED':verification?.state==='VERIFIED'?'COMPLETED':'BLOCKED',retryable,resultRef:input.requestId};
   },now);
