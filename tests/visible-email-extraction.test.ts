@@ -41,7 +41,7 @@ test("a footer designer address does not discard the venue address", () => {
 test("an explicitly published off-domain bookings address stays usable", () => {
   const found = emails(`<main><h1>Contact</h1><p>Bookings: reservations@operator.org</p></main>`);
   assert.deepEqual(found.filter((item) => !item.reviewRequired).map((item) => item.value), ["reservations@operator.org"]);
-  assert.deepEqual(acceptVenueEmail("hello@webdesignstudio.co.uk", origin, "Example Venue"), { accepted: false, reason: "OFF_DOMAIN_WITHOUT_VENUE_RELATIONSHIP" });
+  assert.deepEqual(acceptVenueEmail("hello@webdesignstudio.co.uk", origin, "Example Venue", "Website designed by Studio"), { accepted: false, reason: "DESIGNER_OR_VENDOR" });
   assert.equal(acceptVenueEmail("reservations@operator.org", origin, "Example Venue", "Bookings: reservations@operator.org").accepted, true);
 });
 

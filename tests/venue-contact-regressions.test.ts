@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {crawlVerifiedSource,extractFromFetchedDocuments,type CrawlInput} from '../src/nexus/source-discovery/crawler.ts';
-import {createPublicWebProvider} from '../src/nexus/public-web.ts';
+import {createPublicWebProvider,withinAcceptedSite} from '../src/nexus/public-web.ts';
 import {acceptVenueEmail} from '../src/nexus/venue-email.ts';
 import {OriginPoliteness} from '../src/nexus/source-discovery/politeness.ts';
 
@@ -62,7 +62,7 @@ test('verification provider enables email traversal and records confirmed forms 
 
 test('press, recruitment and sibling-property contacts are observations, not supported venue enquiry contacts',()=>{
  for(const email of ['press@venue.org','recruitment@venue.org'])assert.equal(acceptVenueEmail(email,'https://venue.org/contact','Fixture Hall','Contact our team').accepted,false,email);
- assert.equal(acceptVenueEmail('london@operatorhotels.org','https://operatorhotels.org/london-hotel/contact','Edinburgh Hotel','London hotel enquiries').accepted,false);
+ assert.equal(withinAcceptedSite('https://operatorhotels.org/london-hotel/contact','https://operatorhotels.org/edinburgh-hotel'),false);
  assert.equal(acceptVenueEmail('hello@operatorhotels.org','https://operatorhotels.org/edinburgh-hotel/contact','Edinburgh Hotel','Edinburgh hotel enquiries').accepted,true);
 });
 

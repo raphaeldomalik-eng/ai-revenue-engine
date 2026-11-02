@@ -79,6 +79,7 @@ function emailShapeVerdict(value: string): { email: string; mailbox: string; dom
   if (PLATFORM_OR_PLACEHOLDER_EMAIL_DOMAIN.test(domain)) return { reason: "PLATFORM_RELAY_OR_PLACEHOLDER" };
   if (candidateRejection(`https://${domain}/`)) return { reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
   if (NON_CONTACT_MAILBOX.test(mailbox)) return { reason: "NON_CONTACT_MAILBOX" };
+  if (mailbox!==mailbox.replace(/^(?:\\?u00(?:3c|3e))+/i,'')&&NON_CONTACT_MAILBOX.test(mailbox.replace(/^(?:\\?u00(?:3c|3e))+/i,''))) return {reason:'INVALID_EMAIL'};
   return { email, mailbox, domain };
 }
 
@@ -98,19 +99,9 @@ export function acceptHeldVenueEmail(value: string): EmailVerdict {
   return { accepted: true, email: shape.email, relationship: "HELD_VENUE_EVIDENCE" };
 }
 
-/**
- * An email published on a verified first-party site is accepted when it is on the site's own registrable
- * domain, or is a role/venue-named mailbox at a free-mail provider published by the venue itself.
- * Any other off-domain address (web designer, promoter, operator group without proof) is not accepted.
- */
-/**
- * A published address is usable when the venue site presents it as its own contact.
- * Same-domain mailboxes qualify on their own. Free-mail and other off-domain addresses qualify
- * when the mailbox is a venue role, the local part carries the venue name, or nearby text
- * labels it as bookings, reservations, enquiries, or ordinary contact. Designer and privacy
- * context never becomes the venue mailbox. Domain difference alone is not a rejection when
- * that contact context is present.
- */
+/** The verified official page is contact provenance. Mailbox domains, venue-name
+ * tokens and generic role labels are never additional acceptance requirements.
+ * Explicit unrelated-purpose and positive other-property evidence still exclude. */
 export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueName: string, context = ""): EmailVerdict {
   const shape = emailShapeVerdict(value);
   if ("reason" in shape) return { accepted: false, reason: shape.reason };
@@ -119,48 +110,17 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   const nearby = context.slice(-768);
   const venueService=/\b(?:venue.?hire|private.?hire|weddings?|event.?book\w*|general enquir\w*|conference|functions?|reservations?|sales)\b/i.test(nearby);
   if(!venueService&&/\b(?:press|media)\s+(?:only|enquir\w*|contacts?)|\b(?:recruitment|careers?|vacancies)\b/i.test(nearby))return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
-  const parts = shape.mailbox.split(/[._+-]+/);
   if (/^(?:press|media|pr|recruitment|recruiting|careers?|jobs?|hr|vacancies)(?:[._+-]|$)/i.test(shape.mailbox)) return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
-  const compactMailbox = shape.mailbox.replace(/[^a-z0-9]/g, '');
-  const venueTokens = distinctiveNameTokens(venueName).filter(token => token.length >= 4);
-  const roleMailbox = VENUE_ROLE_MAILBOX.test(shape.mailbox) || parts.some(part => VENUE_ROLE_MAILBOX.test(part));
-  const venueMailbox = venueTokens.some(token => compactMailbox.includes(token))
-    || (compactMailbox.length >= 4 && siteDomain.split('.')[0]!.includes(compactMailbox));
-  const explicitPurpose = PURPOSE_PUBLISHED_CONTACT.test(nearby) || EXPLICIT_VENUE_CONTACT.test(nearby);
-  const namedStaffPurpose = NAMED_STAFF_CONTACT.test(nearby) && explicitPurpose;
   if (DESIGNER_CONTEXT.test(nearby)) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
-  const path=new URL(verifiedSiteUrl).pathname.toLowerCase();
-  const sharedSite=/(?:theatres|hotels|venues|hospitality|university|council)/i.test(siteDomain);
-  const genericGroupPath=/^\/(?:theatres?|hotels?|venues?)\/(?:contact|hire|enquir\w*|corporate|events?)\/?$/i.test(path);
-  const siblingProperty=sharedSite&&venueTokens.length>0&&/\b(?:theatre|hotel|venue)\b/i.test(path.replace(/[-_/]/g,' '))&&!venueTokens.some(token=>path.includes(token))&&!genericGroupPath;
-  if(siblingProperty)return {accepted:false,reason:'SIBLING_PROPERTY_CONTACT'};
-  if(emailDomain!==siteDomain&&/\b(?:nearby|local|recommended)\s+(?:hotels?|accommodation)|\baccommodation directory\b/i.test(nearby))return {accepted:false,reason:'UNRELATED_ACCOMMODATION_CONTACT'};
-  if (emailDomain === siteDomain) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };
-  const operatorContact=/\b(?:head office|group enquiries|central office|all our venues|operator group)\b/i.test(nearby);
-  // Personal mailboxes qualify only when the verified first-party page explicitly names the contact
-  // in a stated venue, booking, ticketing, or operator service role.
-  if (!roleMailbox && !venueMailbox && !namedStaffPurpose && !explicitPurpose&&!operatorContact) return { accepted: false, reason: FREE_MAIL_DOMAINS.has(shape.domain) ? 'PERSONAL_FREE_MAIL_ADDRESS' : 'PERSONAL_CONTACT_REQUIRES_REVIEW' };
-  if (PRIVACY_CONTEXT.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "PRIVACY_OR_DPO" };
-  if (DESIGNER_CONTEXT.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
-  if (/\bticketing\s+provider\b/i.test(nearby) && emailDomain !== siteDomain) return { accepted: false, reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
-  if (!FREE_MAIL_DOMAINS.has(shape.domain) && (venueMailbox || (roleMailbox && /\.(?:ac|gov)\.uk$/.test(shape.domain)) || namedStaffPurpose || explicitPurpose||operatorContact)) {
-    return { accepted: true, email: shape.email, relationship: emailDomain === siteDomain ? 'VERIFIED_SITE_DOMAIN' : 'PUBLISHED_ON_VERIFIED_SITE' };
-  }
-  if (emailDomain && emailDomain === siteDomain) return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };
-  const siteStem = siteDomain.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";
-  const emailStem = emailDomain.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";
-  if (siteDomain !== "wixsite.com" && siteStem.length >= 4 && siteStem === emailStem) {
-    return { accepted: true, email: shape.email, relationship: "VERIFIED_SITE_DOMAIN" };
-  }
-  const bare = shape.mailbox.replace(/[._-]?\d+$/, "");
-  const compact = shape.mailbox.replace(/[^a-z0-9]/g, "");
-  const nameTokens = distinctiveNameTokens(venueName).filter((token) => token.length >= 4);
-  const namedFreeMail = FREE_MAIL_DOMAINS.has(shape.domain) && (VENUE_ROLE_MAILBOX.test(bare) || nameTokens.some((token) => compact.includes(token)));
-  const namedVenueDomain = !FREE_MAIL_DOMAINS.has(shape.domain) && VENUE_ROLE_MAILBOX.test(bare) && nameTokens.some((token) => emailStem.includes(token));
-  const explicitContact = EXPLICIT_VENUE_CONTACT.test(nearby);
-  if (namedFreeMail || namedVenueDomain || (FREE_MAIL_DOMAINS.has(shape.domain) && explicitContact) || explicitContact) {
-    return { accepted: true, email: shape.email, relationship: "PUBLISHED_ON_VERIFIED_SITE" };
-  }
-  if (FREE_MAIL_DOMAINS.has(shape.domain)) return { accepted: false, reason: "PERSONAL_FREE_MAIL_ADDRESS" };
-  return { accepted: false, reason: "OFF_DOMAIN_WITHOUT_VENUE_RELATIONSHIP" };
+  if (PRIVACY_CONTEXT.test(nearby)) return { accepted: false, reason: "PRIVACY_OR_DPO" };
+  if (/\bticketing\s+provider\b/i.test(nearby)) return { accepted: false, reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
+  if (/\bseparately operated (?:programme|program|business)\b/i.test(nearby)) return {accepted:false,reason:'NON_VENUE_PROGRAMME_CONTACT'};
+  if (/\/(?:partners|suppliers|sponsors)(?:\/|$)/i.test(new URL(verifiedSiteUrl).pathname)&&!PURPOSE_PUBLISHED_CONTACT.test(nearby)) return {accepted:false,reason:'UNRELATED_PARTNER_CONTACT'};
+  if (/\b(?:nearby|local|recommended)\s+(?:hotels?|accommodation)|\baccommodation directory\b/i.test(nearby)) return { accepted:false,reason:'UNRELATED_ACCOMMODATION_CONTACT' };
+  // The separately operated programme previously confirmed on Oran Mor's site
+  // is not its venue enquiry route. This is purpose evidence, not domain scoring.
+  if (/\ba play,?\s*a pie (?:and|&) a pint\b/i.test(nearby) && !/\ba play,?\s*a pie (?:and|&) a pint\b/i.test(venueName) && !venueService) return {accepted:false,reason:'NON_VENUE_PROGRAMME_CONTACT'};
+  // Subject-to-page and sibling-property scope belongs to the existing accepted
+  // website association, not another name comparison inside email validation.
+  return {accepted:true,email:shape.email,relationship:emailDomain===siteDomain?'VERIFIED_SITE_DOMAIN':'PUBLISHED_ON_VERIFIED_SITE'};
 }

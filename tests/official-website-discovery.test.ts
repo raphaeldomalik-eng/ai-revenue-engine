@@ -429,8 +429,6 @@ test("email acceptance retains genuine named and purpose-labelled contacts and e
   assert.deepEqual(acceptVenueEmail("jo.smith@events.cornexhall.co.uk", site, "Cornex Hall"), { accepted: true,email:'jo.smith@events.cornexhall.co.uk',relationship:'VERIFIED_SITE_DOMAIN' });
   assert.equal((acceptVenueEmail("cornexhall.bookings@gmail.com", site, "Cornex Hall") as any).relationship, "PUBLISHED_ON_VERIFIED_SITE");
   for (const [email, reason] of [
-    ["jane.doe1984@gmail.com", "PERSONAL_FREE_MAIL_ADDRESS"],
-    ["hello@webdesignstudio.co.uk", "OFF_DOMAIN_WITHOUT_VENUE_RELATIONSHIP"],
     ["support@eventbrite.co.uk", "THIRD_PARTY_PLATFORM_DOMAIN"],
     ["listings@yell.com", "THIRD_PARTY_PLATFORM_DOMAIN"],
     ["venue-1@relay.eventsuite.pro", "PLATFORM_RELAY_OR_PLACEHOLDER"],
@@ -438,6 +436,8 @@ test("email acceptance retains genuine named and purpose-labelled contacts and e
     ["name@example.com", "PLATFORM_RELAY_OR_PLACEHOLDER"],
     ["logo@2x.png", "INVALID_EMAIL"],
   ] as const) assert.deepEqual(acceptVenueEmail(email, site, "Cornex Hall"), { accepted: false, reason }, email);
+  assert.equal(acceptVenueEmail('jane.doe1984@gmail.com',site,'Cornex Hall').accepted,true,'the verified official page is provenance, even without role/name tokens');
+  assert.deepEqual(acceptVenueEmail('hello@webdesignstudio.co.uk',site,'Cornex Hall','Website designed by Studio'),{accepted:false,reason:'DESIGNER_OR_VENDOR'});
   assert.equal(acceptHeldVenueEmail("venue-1@relay.eventsuite.pro").accepted, false);
   assert.equal(isLabelSplitFragment("s@cornexhall.co.uk", ["bookings@cornexhall.co.uk", "s@cornexhall.co.uk"]), true);
   assert.equal(isLabelSplitFragment("team@cornexhall.co.uk", ["bookingsteam@cornexhall.co.uk"]), true);
