@@ -187,3 +187,32 @@ test('initial inventory bypasses only the business venue cap, transitions once, 
 });
 
 test('ongoing phase admits one hundred recurring venues, stops the next, and preserves opening inventory receipts',async()=>{const f=await setup();try{const file=fs.readdirSync('supabase/migrations').find(n=>n.endsWith('_resources_initial_inventory_phase.sql'))!;await f.db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));await f.db.query('update public.nexus_directory_standing_policy set policy=$1 where policy_id=$2',[{...policy,productPublicationAllowed:true},'p']);const inventory={snapshotSha256:'e'.repeat(64),total:100,remaining:0,byCountry:{GB:0,ZA:0}},day=new Date().toISOString().slice(0,10);let run:any;for(let n=0;n<101;n++){if(n%10===0){if(run){await f.db.query("update public.nexus_directory_work_receipt set state='COMPLETED' where run_id=$1",[run.runId]);const closed=(await f.db.query('select public.finish_nexus_directory_run($1,$2,$3,$4,$5) r',[run.runId,'worker',{productiveJobs:10},'p',hash])).rows[0].r;assert.equal(closed.state,'COMPLETED');const saved=(await f.db.query('select receipt from public.nexus_directory_run where run_id=$1',[run.runId])).rows[0].receipt;assert.equal(saved.initialInventory.snapshotSha256,inventory.snapshotSha256);}run=(await f.db.query('select public.open_nexus_directory_run($1,$2,$3,10,140,$4) r',['p',hash,'worker',inventory])).rows[0].r;}const result=(await f.db.query('select public.reserve_nexus_directory_run_work($1) r',[{policyId:'p',policySha256:hash,runId:run.runId,day,host:'v'+n+'.example',identityKey:'v'+n,queueId:'q'+n,reservationKey:n.toString(16).padStart(64,'0'),country:n%2?'GB':'ZA',action:'VERIFY_WEBSITE',requestBudget:1}])).rows[0].r;assert.equal(result.state,n<100?'RESERVED':'DENIED');if(n===100)assert.equal(result.reason,'DAILY_VENUE_BUDGET');}assert.equal((await f.db.query('select count(*)::int n from public.nexus_directory_work_receipt')).rows[0].n,100);assert.equal((await f.db.query('select reserved_requests from public.nexus_directory_daily_budget')).rows[0].reserved_requests,100);assert.equal((await f.status()).providers.length,2);}finally{await f.db.close();}});
+
+async function httpAccountingFixture(){
+ const f=await setup(),files=fs.readdirSync('supabase/migrations');
+ await f.db.exec(fs.readFileSync('supabase/migrations/'+files.find(n=>n.endsWith('_resources_initial_inventory_phase.sql'))!,'utf8'));
+ const migration=fs.readFileSync('supabase/migrations/'+files.find(n=>n.endsWith('_resources_confirmed_http_accounting.sql'))!,'utf8');await f.db.exec(migration);await f.db.exec(migration);
+ const day=new Date().toISOString().slice(0,10),inventory={snapshotSha256:'f'.repeat(64),total:1000,remaining:500,byCountry:{GB:250,ZA:250}};
+ await f.db.query('insert into public.nexus_directory_daily_budget values($1,$2,100,1398)',['p',day]);
+ await f.db.query("insert into public.nexus_directory_work_receipt(reservation_key,policy_id,day,queue_id,identity_key,host,country,reserved_requests,state,request_count,cost_usd,completed_at) select lpad(n::text,64,'0'),'p',$1,'old-q'||n,'old-v'||n,'old'||n||'.example','GB',case when n=100 then 12 else 14 end,'COMPLETED',2,0,now()-interval '1 hour' from generate_series(1,100)n",[day]);
+ const open=async()=>(await f.db.query('select public.open_nexus_directory_run($1,$2,$3,10,140,$4) r',['p',hash,'worker',inventory])).rows[0].r;
+ return {...f,day,open,reserveWork:async(runId:string,key:string,budget=14)=>(await f.db.query('select public.reserve_nexus_directory_run_work($1) r',[{policyId:'p',policySha256:hash,runId,day,host:key+'.example',identityKey:key,queueId:key,reservationKey:key.repeat(64),country:'ZA',action:'ENRICH_VERIFIED_VENUE',requestBudget:budget}])).rows[0].r};
+}
+
+test('confirmed unused HTTP reservations stop consuming the daily ceiling without resetting gross history',async()=>{
+ const f=await httpAccountingFixture();try{const run=await f.open();assert.equal(run.websiteCapacity.available,true);assert.equal((await f.reserveWork(run.runId,'b')).state,'RESERVED');
+ assert.equal((await f.db.query('select reserved_requests from public.nexus_directory_daily_budget')).rows[0].reserved_requests,1412,'gross historical reservations remain monotonic');assert.equal((await f.db.query('select sum(request_count)::int n from public.nexus_directory_work_receipt')).rows[0].n,200);assert.equal((await f.db.query('select count(*)::int n from public.nexus_directory_work_receipt')).rows[0].n,101);
+ assert.equal((await f.status()).providers[0].lifetimeRequestCount,810,'search budgets are not refunded');
+ }finally{await f.db.close();}
+});
+
+test('actual HTTP plus active or uncertain reservations and unjournalled debt still enforce 1400',async()=>{
+ for(const mode of ['actual','unknown','active','debt']){const f=await httpAccountingFixture();try{
+ if(mode==='actual')await f.db.exec("update public.nexus_directory_work_receipt set request_count=case when reserved_requests=12 then 4 else 14 end");
+ if(mode==='unknown')await f.db.exec("update public.nexus_directory_work_receipt set state='RETRYABLE',request_count=null,cost_usd=null,completed_at=null");
+ if(mode==='active')await f.db.exec("update public.nexus_directory_work_receipt set state='RESERVED',request_count=null,cost_usd=null,completed_at=null,lease_until=now()+interval '1 hour'");
+ if(mode==='debt')await f.db.exec('update public.nexus_directory_daily_budget set reserved_requests=2600');
+ const run=await f.open();assert.equal(run.websiteCapacity.available,false,mode);assert.equal((await f.reserveWork(run.runId,'c')).reason,'DAILY_REQUEST_BUDGET',mode);
+ assert.equal((await f.db.query('select count(*)::int n from public.nexus_directory_work_receipt')).rows[0].n,100);assert.equal((await f.db.query("select has_function_privilege('anon','public.reserve_nexus_directory_run_work(jsonb)','execute') allowed")).rows[0].allowed,false);
+ }finally{await f.db.close();}}
+});
