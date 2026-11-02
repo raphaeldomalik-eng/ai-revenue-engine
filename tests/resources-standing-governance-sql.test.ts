@@ -199,6 +199,32 @@ async function httpAccountingFixture(){
  return {...f,day,open,reserveWork:async(runId:string,key:string,budget=14)=>(await f.db.query('select public.reserve_nexus_directory_run_work($1) r',[{policyId:'p',policySha256:hash,runId,day,host:key+'.example',identityKey:key,queueId:key,reservationKey:key.repeat(64),country:'ZA',action:'ENRICH_VERIFIED_VENUE',requestBudget:budget}])).rows[0].r};
 }
 
+test('initial clearance ignores only daily business HTTP volume; recurring, per-run, host and provider guards remain',async()=>{
+ const f=await httpAccountingFixture();try{
+ const beforeFinance=(await f.status()).providers;
+ await f.db.exec('update public.nexus_directory_daily_budget set reserved_requests=5000');
+ const before=(await f.open());assert.equal(before.websiteCapacity.available,false);await f.db.exec("update public.nexus_directory_run set state='COMPLETED'");
+ // Apply the already released dated exception first, then its phase correction.
+ await f.db.exec(fs.readFileSync('supabase/migrations/20261102160000_resources_one_time_http_allowance.sql','utf8'));
+ const migration=fs.readFileSync('supabase/migrations/20261102162000_resources_initial_http_clearance.sql','utf8');await f.db.exec(migration);await f.db.exec(migration);
+ const run=await f.open();assert.equal(run.executionPhase,'INITIAL_INVENTORY');assert.equal(run.websiteCapacity.available,true);
+ assert.equal((await f.open()).reason,'RUN_ACTIVE');
+ assert.equal((await f.reserveWork(run.runId,'a',15)).reason,'RESERVATION_SCOPE');
+ assert.equal((await f.reserveWork(run.runId,'b')).state,'RESERVED');assert.equal((await f.reserveWork(run.runId,'b')).reason,'REPLAY');
+ const sameHost=(await f.db.query('select public.reserve_nexus_directory_run_work($1) r',[{policyId:'p',policySha256:hash,runId:run.runId,day:f.day,host:'b.example',identityKey:'different',queueId:'different',reservationKey:'c'.repeat(64),country:'GB',action:'VERIFY_WEBSITE',requestBudget:14}])).rows[0].r;
+ assert.equal(sameHost.reason,'HOST_ACTIVE_OR_COOLDOWN');
+ await f.db.query('update public.nexus_directory_run set reserved_requests=max_requests where run_id=$1',[run.runId]);assert.equal((await f.reserveWork(run.runId,'c')).reason,'RUN_BUDGET');
+ assert.equal((await f.db.query('select reserved_requests from public.nexus_directory_daily_budget')).rows[0].reserved_requests,5014,'retain all gross debt and usage');
+ assert.deepEqual((await f.status()).providers,beforeFinance);
+ await f.db.exec("update public.nexus_directory_work_receipt set state='COMPLETED' where state='RESERVED';update public.nexus_directory_run set state='COMPLETED'");
+ const inventory={snapshotSha256:'f'.repeat(64),total:1000,remaining:0,byCountry:{GB:0,ZA:0}};
+ const recurring=(await f.db.query('select public.open_nexus_directory_run($1,$2,$3,10,140,$4) r',['p',hash,'worker',inventory])).rows[0].r;
+ assert.equal(recurring.executionPhase,'ONGOING_ENRICHMENT');assert.equal(recurring.websiteCapacity.reason,'DAILY_REQUEST_BUDGET');assert.equal((await f.reserveWork(recurring.runId,'d')).reason,'DAILY_REQUEST_BUDGET');
+ assert.equal((await f.db.query("select has_function_privilege('anon','public.reserve_nexus_directory_run_work(jsonb)','execute') allowed")).rows[0].allowed,false);
+ await f.db.exec("select set_config('request.jwt.claim.role','anon',false)");await assert.rejects(()=>f.reserveWork(recurring.runId,'e'),/DIRECTORY_SERVICE_ROLE_REQUIRED/);
+ }finally{await f.db.close();}
+});
+
 test('owner one-time HTTP allowance expires at UTC midnight, keeps counters and provider budgets, and preserves reservation guards',async()=>{
  const f=await httpAccountingFixture();try{
  const migration=fs.readFileSync('supabase/migrations/20261102160000_resources_one_time_http_allowance.sql','utf8');
