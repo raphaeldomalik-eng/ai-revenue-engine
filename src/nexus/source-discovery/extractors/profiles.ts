@@ -6,6 +6,7 @@ import type { SiteIdentity } from "../site-identity.ts";
 import type { FetchedDocument } from "../types.ts";
 import { extractEventsFromDocuments } from "./events.ts";
 import { extractResourcesFromDocuments, type ResourceExtraction } from "./resources.ts";
+import { hrefTags, visibleText } from "../html.ts";
 
 const matches = (pattern: RegExp, url: string, label: string) => pattern.test(`${pathWords(url)} ${label}`);
 const count = (state: ProfileState, key: string) => Number(state[key] ?? 0);
@@ -14,6 +15,21 @@ const bump = (state: ProfileState, key: string, by = 1) => { state[key] = count(
 const CONTACT_LINK = /\b(?:contact|enquir\w*|inquir\w*|bookings?|functions?|weddings?|book[- ]?(?:now|a|the|your)|get[- ]in[- ]touch|find[- ]us|hire|private[- ](?:hire|events?|dining)|venue[- ]hire|sales)\b/i;
 const CONTACT_PAGE = /\b(?:contact|enquir\w*|book\w*|hire|get-in-touch)\b/i;
 const DIRECT_PURPOSES = new Set(["SALES_HIRE", "BOOKINGS", "ENQUIRIES"]);
+
+const navigationWords = new Set('the and at one hotel hotels bar bars venue venues restaurant restaurants royal our locations location contact events hire bookings nav'.split(' '));
+const words = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().match(/[a-z0-9]+/g) ?? [];
+/** Discovery ranking only. A matching link is not identity or contact authority. */
+export function propertyLinkStrength(venueName: string | undefined, url: string, label = ''): number {
+  if (!venueName) return 0;
+  const parsed = new URL(url), host = parsed.hostname.replace(/^www\./,'').replace(/[^a-z0-9]/g,'');
+  if (/\/(?:blogs?|news|press|offers?|products?|collections|shop)(?:\/|$)/i.test(parsed.pathname)) return 0;
+  const target = [...new Set(words(venueName).filter(w => (w.length >= 3 || /\d/.test(w)) && !navigationWords.has(w) && !host.includes(w)))];
+  const found = words(`${pathWords(url)} ${label}`).join(' '), compact = found.replace(/ /g,'');
+  const matches = target.filter(w => found.split(' ').includes(w) || (/\d/.test(w) && compact.includes(w)));
+  return matches.length ? 6 + matches.length : 0;
+}
+const PROPERTY_DIRECTORY = /^(?:\/(?:pages\/)?(?:bars|bar-locator(?:-\d+)?|hotels|locations|venues|our-bars|our-hotels|our-locations|our-venues))\/?$/i;
+const directoryLink = (url: string) => PROPERTY_DIRECTORY.test(new URL(url).pathname);
 
 /** DIRECT stays satisfied by phone or a contact-page form. EMAIL is a separate sufficiency goal. */
 export function publicContactProfile(options: { emailGoal?: boolean; venueName?: string } = {}): ExtractorProfile {
@@ -24,10 +40,22 @@ export function publicContactProfile(options: { emailGoal?: boolean; venueName?:
     dimensions,
     priorityDimensions: emailGoal ? ["PUBLIC_CONTACT:EMAIL"] : ["PUBLIC_CONTACT:DIRECT"],
     strategy: emailGoal ? "GAP_PLANNED" : "LINK_FOLLOWING",
-    linkDimensions: (url, label) => (matches(CONTACT_LINK, url, label) ? dimensions : []),
-    linkStrength: (url) => (/contact|hire/i.test(new URL(url).pathname) ? 2 : 1),
+    linkDimensions: (url, label) => (propertyLinkStrength(options.venueName,url,label) || options.venueName && directoryLink(url) || matches(CONTACT_LINK, url, label) ? dimensions : []),
+    linkStrength: (url,label) => propertyLinkStrength(options.venueName,url,label) || (options.venueName && directoryLink(url) ? 3 : /contact|hire/i.test(new URL(url).pathname) ? 2 : 1),
     pdfDimensions: (url, label) => emailGoal && matches(CONTACT_LINK, url, label) ? ['PUBLIC_CONTACT:EMAIL'] : null,
     observe(document, observation, state) {
+      // A group homepage's generic email must not stop traversal before an
+      // explicitly linked property page. Extraction/acceptance is unchanged.
+      if (propertyLinkStrength(options.venueName,document.url)) state.propertyVisited = true;
+      if (directoryLink(document.url)) state.directoryVisited = true;
+      if (!state.propertyVisited && options.venueName) {
+        for (const link of hrefTags(document.body + (document.derivedMarkup ?? ''))) {
+          let url: URL; try { url = new URL(link.attrs.href ?? '',document.url); } catch { continue; }
+          if (url.protocol !== 'https:' || url.origin !== new URL(document.url).origin) continue;
+          if (propertyLinkStrength(options.venueName,url.href,visibleText(link.inner))) state.propertyPending = true;
+          if (directoryLink(url.href) && !state.directoryVisited) state.directoryPending = true;
+        }
+      }
       const contactPage = CONTACT_PAGE.test(new URL(document.url).pathname);
       for (const contact of observation.resources().publicContacts) {
         if (contact.type === "EMAIL") {
@@ -40,7 +68,7 @@ export function publicContactProfile(options: { emailGoal?: boolean; venueName?:
     },
     satisfied: (state) => [
       ...(state.direct ? ["PUBLIC_CONTACT:DIRECT"] : []),
-      ...(state.email ? ["PUBLIC_CONTACT:EMAIL"] : []),
+      ...(state.email && (!state.propertyPending || state.propertyVisited) && (!state.directoryPending || state.directoryVisited || state.propertyVisited) ? ["PUBLIC_CONTACT:EMAIL"] : []),
     ],
   };
 }
@@ -165,7 +193,11 @@ export const sourceClassificationProfile: ExtractorProfile = {
 /** Registry order is also the round-robin order in which open dimensions share the budget. */
 export function profilesFor(extractors: SourceExtractor[], site?: SiteIdentity, options: { emailGoal?: boolean; venueName?: string } = {}): ExtractorProfile[] {
   const registry: ExtractorProfile[] = [publicContactProfile(options), eventsProfile(site), venueFactsProfile, imageCandidatesProfile, identityProfile, sourceClassificationProfile];
-  return registry.filter((profile) => extractors.includes(profile.extractor));
+  return registry.filter((profile) => extractors.includes(profile.extractor)).map(profile => profile.extractor !== 'IDENTITY' ? profile : {
+    ...profile,
+    linkDimensions: (url,label) => propertyLinkStrength(options.venueName,url,label) ? profile.dimensions : profile.linkDimensions(url,label),
+    linkStrength: (url,label) => propertyLinkStrength(options.venueName,url,label) || 1,
+  });
 }
 
 export function createObservation(document: FetchedDocument, extractors: SourceExtractor[], venueName = ""): DocumentObservation {
