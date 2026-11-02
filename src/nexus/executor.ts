@@ -7,7 +7,7 @@ import { researchCompany } from "../ai-sales-team/research.ts";
 import { CONTRACTS, officialWebsiteDetailsAuthorization, type ProviderAllowance, type ResearchContext as ContractResearchContext, type ResearchRequest, type SourceDiscoveryRequest, type SourceExtractor, validateResearchRequest, validateResearchResult, validateSourceDiscoveryRequest, validateSourceDiscoveryResult } from "./contracts.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, type CrawlObservability, type FetchLike, type ResolveHost } from "./source-discovery/crawler.ts";
 import { deriveEmailAcquisitionOutcome } from "./source-discovery/email-outcome.ts";
-import { acceptVenueEmail } from "./venue-email.ts";
+import { acceptVenueEmail, candidateRejection } from "./venue-email.ts";
 import { crawlLogLine, extractorYields } from "./source-discovery/observability.ts";
 import type { CrawlInput, DocumentCache } from "./source-discovery/types.ts";
 import { storeWithWebsiteOpportunity } from "./source-discovery/website-opportunity.ts";
@@ -236,7 +236,11 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   }
   const publicContacts = extracted.publicContacts.map((item) => {
     const verdict = item.type === "EMAIL" ? acceptVenueEmail(item.value, item.sourceUrl, venueName, item.label ?? "") : null;
-    return { type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.type === "EMAIL" ? item.reviewRequired || !verdict!.accepted : item.reviewRequired, ...(item.label ? { label: item.label } : {}), purpose: item.purpose, ...(item.type === "EMAIL" ? { sourceVerification: "PUBLISHED_ON_SOURCE" as const, deliveryVerified: false } : {}) };
+    let reviewReason = verdict && !verdict.accepted ? verdict.reason : item.type === "EMAIL" && item.reviewRequired && item.label === "Third-party platform publisher contact; target venue association unresolved" ? "THIRD_PARTY_PLATFORM_PUBLISHER" : null;
+    // A mailbox domain alone is not a current source/attribution contradiction.
+    // Keep that historical boolean-only observation eligible for official-page requalification.
+    if (reviewReason === "THIRD_PARTY_PLATFORM_DOMAIN" && !candidateRejection(item.sourceUrl) && !/\bticketing\s+provider\b/i.test(item.label ?? "")) reviewReason = null;
+    return { type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.type === "EMAIL" ? item.reviewRequired || !verdict!.accepted : item.reviewRequired, ...(reviewReason ? { reviewReason } : {}), ...(item.label ? { label: item.label } : {}), purpose: item.purpose, ...(item.type === "EMAIL" ? { sourceVerification: "PUBLISHED_ON_SOURCE" as const, deliveryVerified: false } : {}) };
   });
   const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
   const warnings = boundCrawlWarnings([...crawl.stats.warnings, ...extracted.warnings]);

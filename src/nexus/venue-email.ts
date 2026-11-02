@@ -26,7 +26,7 @@ const FREE_MAIL_DOMAINS = new Set(["gmail.com", "googlemail.com", "outlook.com",
 const PLATFORM_OR_PLACEHOLDER_EMAIL_DOMAIN = /(?:^|\.)(?:eventsuite\.[a-z.]+|prestigeid\.[a-z.]+|prestige-id\.[a-z.]+|example\.(?:com|org|net)|sentry\.io|wixpress\.com|domain\.com|email\.com|yourdomain\.[a-z.]+|yoursite\.[a-z.]+|mysite\.com|website\.com|company\.com)$/;
 const NON_CONTACT_MAILBOX = /^(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|abuse|webmaster|hostmaster|privacy|dpo|gdpr|dataprotection|unsubscribe|bounce[s]?)$/;
 const DESIGNER_CONTEXT = /\b(?:designed|developed|built|created)\s+by\b|\b(?:website|site|web)\s+(?:by|design(?:ed)?(?:\s+by)?)\b|\bpowered by\b|\bweb\s?design\b|\b(?:web\s*)?(?:designer|developer)\b/i;
-const PRIVACY_CONTEXT = /\b(?:privacy(?:\s+(?:officer|policy|notice))?|data[- ]protection|dpo|gdpr)\b/i;
+const PRIVACY_CONTEXT = /\b(?:privacy\s+(?:officer|policy|notice|team|contact|e-?mail|enquir\w*|requests?)|data[- ]protection|dpo|gdpr)\b|\bprivacy\s*[:=]/i;
 const EXPLICIT_VENUE_CONTACT = /(?:^|[^a-z])(?:e-?mails?|enquir(?:y|ies)|inquir(?:y|ies)|bookings?|reservations?|venue[- ]hire|contact(?:\s+us)?|functions?)\s*[:\-]/i;
 const PURPOSE_PUBLISHED_CONTACT = /\b(?:venue[- ]hire|private[- ](?:hire|events?|dining)|hire|functions?|sales|conference|corporate support|corporate|weddings?|meetings?|events? enquiries|all other enquiries|general enquiries|box[- ]office|ticket(?:ing| sales)?|bookings?|reservations?|enquir(?:y|ies)|inquir(?:y|ies)|special requests|larger groups|contact form|please (?:email|contact)|email (?:[A-Z][\p{L}'-]+|us)|contact (?:[A-Z][\p{L}'-]+|us)|drop us a note)\b/iu;
 const NAMED_STAFF_CONTACT = /\b(?:please )?(?:email|contact)\s+[A-Z][\p{L}'-]+(?:\s+[A-Z][\p{L}'-]+){0,2}\b/iu;
