@@ -26,7 +26,10 @@ const FREE_MAIL_DOMAINS = new Set(["gmail.com", "googlemail.com", "outlook.com",
 const PLATFORM_OR_PLACEHOLDER_EMAIL_DOMAIN = /(?:^|\.)(?:eventsuite\.[a-z.]+|prestigeid\.[a-z.]+|prestige-id\.[a-z.]+|example\.(?:com|org|net)|sentry\.io|wixpress\.com|domain\.com|email\.com|yourdomain\.[a-z.]+|yoursite\.[a-z.]+|mysite\.com|website\.com|company\.com)$/;
 const NON_CONTACT_MAILBOX = /^(?:no-?reply|do-?not-?reply|donotreply|mailer-daemon|postmaster|abuse|webmaster|hostmaster|privacy|dpo|gdpr|dataprotection|unsubscribe|bounce[s]?)$/;
 const DESIGNER_CONTEXT = /\b(?:designed|developed|built|created)\s+by\b|\b(?:website|site|web)\s+(?:by|design(?:ed)?(?:\s+by)?)\b|\bpowered by\b|\bweb\s?design\b|\b(?:web\s*)?(?:designer|developer)\b/i;
-const PRIVACY_CONTEXT = /\b(?:privacy\s+(?:officer|policy|notice|team|contact|e-?mail|enquir\w*|requests?)|data[- ]protection|dpo|gdpr)\b|\bprivacy\s*[:=]/i;
+const PRIVACY_CONTEXT = /\b(?:privacy\s+(?:officer|team|contact|e-?mail|enquir\w*|requests?)|data[- ]protection|dpo|gdpr)\b|\bprivacy\s*[:=]/i;
+// A newsletter's standalone policy link is not a contact role. Explicit
+// questions about a policy/notice still identify a privacy-only destination.
+const PRIVACY_POLICY_ENQUIRY = /\b(?:questions?|queries|enquir\w*|inquir\w*|requests?|concerns?|information|contact(?:\s+us)?)\s+(?:about|regarding|concerning|on)\s+(?:(?:this|our|the)\s+)?privacy(?:\s+(?:policy|notice))?\b|\bprivacy\s+(?:policy|notice)\s*[:;,\-]?\s*(?:(?:for|if you have)\s+(?:any\s+)?)?(?:questions?|queries|enquir\w*|inquir\w*|requests?|concerns?)\b/i;
 const EXPLICIT_VENUE_CONTACT = /(?:^|[^a-z])(?:e-?mails?|enquir(?:y|ies)|inquir(?:y|ies)|bookings?|reservations?|venue[- ]hire|contact(?:\s+us)?|functions?)\s*[:\-]/i;
 const PURPOSE_PUBLISHED_CONTACT = /\b(?:venue[- ]hire|private[- ](?:hire|events?|dining)|hire|functions?|sales|conference|corporate support|corporate|weddings?|meetings?|events? enquiries|all other enquiries|general enquiries|box[- ]office|ticket(?:ing| sales)?|bookings?|reservations?|enquir(?:y|ies)|inquir(?:y|ies)|special requests|larger groups|contact form|please (?:email|contact)|email (?:[A-Z][\p{L}'-]+|us)|contact (?:[A-Z][\p{L}'-]+|us)|drop us a note)\b/iu;
 const NAMED_STAFF_CONTACT = /\b(?:please )?(?:email|contact)\s+[A-Z][\p{L}'-]+(?:\s+[A-Z][\p{L}'-]+){0,2}\b/iu;
@@ -112,7 +115,8 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   if(!venueService&&/\b(?:press|media)\s+(?:only|enquir\w*|contacts?)|\b(?:recruitment|careers?|vacancies)\b/i.test(nearby))return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
   if (/^(?:press|media|pr|recruitment|recruiting|careers?|jobs?|hr|vacancies)(?:[._+-]|$)/i.test(shape.mailbox)) return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
   if (DESIGNER_CONTEXT.test(nearby)) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
-  if (PRIVACY_CONTEXT.test(nearby)) return { accepted: false, reason: "PRIVACY_OR_DPO" };
+  if (PRIVACY_CONTEXT.test(nearby) || PRIVACY_POLICY_ENQUIRY.test(nearby)) return { accepted: false, reason: "PRIVACY_OR_DPO" };
+  if (/\bfinance\s*(?:&|and)\s*personnel\b/i.test(nearby)) return {accepted:false,reason:'NON_ENQUIRY_DEPARTMENT'};
   if (/\b(?:copyright infringement|infringes your copyright|intellectual property|designated agent|legal[- ]only|legal enquiries)\b/i.test(nearby)) return {accepted:false,reason:'LEGAL_ONLY_CONTACT'};
   if (/\b(?:travel (?:insurance|protection) plan|insurance benefits|insurance (?:provider|claims)|Allianz Partners)\b/i.test(nearby)) return {accepted:false,reason:'INSURANCE_PROVIDER_CONTACT'};
   if (/\bticketing\s+provider\b/i.test(nearby)) return { accepted: false, reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
