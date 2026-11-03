@@ -102,7 +102,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   const executionBudget=continuation?.additionalRequestBudget??(recoveryEntry?.mode==='RETRYABLE'?recovery?.additionalRequestBudget:undefined)??context.requestBudget;
   const item={queueId:context.queueId,identityKey:identity,country:context.country,verifiedSourceUrl:seed,verifiedAt:null,evidenceRef:context.evidenceRef,entityType:'UNKNOWN',gaps:context.gaps,ownership:'INTERNAL',status:'PENDING',attempts:continuation||recoveryEntry?0:context.attempts,requestBudget:executionBudget,runId:context.runId,action:'VERIFY_WEBSITE'} as DirectoryWork;
   let result:ReturnType<typeof validateResearchResult>|null=null;
-  let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[]}|null=null;
+  let verification:{state:string;url:string|null;evidenceRef:string|null;signals:string[];reason:string}|null=null;
   let crawlReceipt:Record<string,unknown>|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const observation:{crawl:CrawlOutput|null}={crawl:null};
@@ -115,7 +115,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
     const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts});
     const siteEvidence=value.evidence.find(e=>(e.payload as {kind?:string})?.kind==='FIRST_PARTY_WEBSITE');
     const state=crawl.stats.status==='BLOCKED'?'BLOCKED':assessment.verified?'VERIFIED':'UNVERIFIED';
-    verification={state,url:assessment.verified?crawl.finalUrl:null,evidenceRef:siteEvidence?.evidenceRef??null,signals:assessment.signals};
+    verification={state,url:assessment.verified?crawl.finalUrl:null,evidenceRef:siteEvidence?.evidenceRef??null,signals:assessment.signals,reason:assessment.reason};
     // Review telemetry from this exact existing crawl, never another fetch or
     // additional contact acceptance policy. Rejected observations stay evidence.
     const observed=extractFromFetchedDocuments(crawl.documents,['PUBLIC_CONTACT']).publicContacts;
@@ -140,7 +140,9 @@ export async function handleDirectoryVerificationRequest(request:Request,options
       publicContacts:extracted.publicContacts.slice(0,100).map(c=>{const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,research.targetName!,c.label??''):null;return {...c,observedAt:now,reviewRequired:c.reviewRequired||!accepted.some(a=>a.type===c.type&&a.value.toLowerCase()===c.value.toLowerCase()&&a.sourceUrl===c.sourceUrl),...(verdict&&!verdict.accepted?{reviewReason:verdict.reason}:{})};}),
       venueFacts:extracted.venueFacts.slice(0,100).map(f=>({...f,observedAt:now})),evidenceRefs:extracted.evidenceRefs.slice(0,1000),
     }:null;
-    return {...value,facts:observedFacts,evidence:value.evidence.map(e=>({...e,payload:{...(e.payload as Record<string,unknown>),...(e===siteEvidence&&acquisition?{firstPassAcquisition:acquisition}:{}),directoryVerification:{...verification,sourceEvidenceRefs:input.existingEvidenceRefs,canonicalIdentityEstablished:false}}})),unknowns:assessment.verified?value.unknowns:[...value.unknowns,'Website identity is unresolved; no candidate facts were approved.'],...(retryable?{error:{code:'DIRECTORY_VERIFICATION_INCOMPLETE',message:('Incomplete retrieval did not establish website identity; retry is required. '+(value.error?.message??crawl.stats.warnings.join(' '))).slice(0,2000),retryable:true}}:value.error?{error:{...value.error,retryable:false}}:{})};
+    const executionEvidence={evidenceRef:`research:${input.requestId}:public_web:directory-execution`,externalRecordId:`directory-execution:${input.requestId}`,provider:'PUBLIC_WEB' as const,sourceUrl:seed,observedAt:now,dataClassification:'PUBLIC' as const,licenceType:'PUBLIC_SOURCE',
+      payload:{kind:'DIRECTORY_WEBSITE_EXECUTION',version:1,requestId:input.requestId,identityKey:context.identityKey,originalUrl:seed,verification,crawl:crawlReceipt}};
+    return {...value,facts:observedFacts,evidence:[...value.evidence.map(e=>({...e,payload:{...(e.payload as Record<string,unknown>),...(e===siteEvidence&&acquisition?{firstPassAcquisition:acquisition}:{}),directoryVerification:{...verification,sourceEvidenceRefs:input.existingEvidenceRefs,canonicalIdentityEstablished:false}}})),executionEvidence],unknowns:assessment.verified?value.unknowns:[...value.unknowns,'Website identity is unresolved; no candidate facts were approved.'],...(retryable?{error:{code:'DIRECTORY_VERIFICATION_INCOMPLETE',message:('Incomplete retrieval did not establish website identity; retry is required. '+(value.error?.message??crawl.stats.warnings.join(' '))).slice(0,2000),retryable:true}}:value.error?{error:{...value.error,retryable:false}}:{})};
    };
    result=validateResearchResult(await executeResearchRequest(input,research,{publicWeb:adapted,now:()=>now},new InMemoryNexusResultStore()));
    const crawl=observation.crawl as CrawlOutput|null;
