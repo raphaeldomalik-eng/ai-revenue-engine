@@ -1,0 +1,1455 @@
+[
+  {
+    "venue": "Boom Battle Bar O2",
+    "originalUrl": "https://boombattlebar.com/uk/",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "5ab21217-3df0-4576-ba2c-c49c28051d53"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "9085b2df-7c04-5c7b-a2a4-b137b09eb9d1",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "9085b2df-7c04-5c7b-a2a4-b137b09eb9d1",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "London",
+        "territory": "GB",
+        "targetName": "Boom Battle Bar O2",
+        "existingFacts": [
+          {
+            "value": "https://boombattlebar.com/uk/",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:5ab21217-3df0-4576-ba2c-c49c28051d53:stored_source"
+          },
+          {
+            "value": "23 Entertainment Avenue, Greenwich, London, SE10 0DY",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:5ab21217-3df0-4576-ba2c-c49c28051d53:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "5ab21217-3df0-4576-ba2c-c49c28051d53",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:5ab21217-3df0-4576-ba2c-c49c28051d53:stored_source"
+          }
+        ],
+        "targetWebsite": "https://boombattlebar.com/uk/"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "d97a14db872a2a4cdd0f5d7542b4db6cb09a5b531510c75b3bffa5b4e3fd0466",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:5ab21217-3df0-4576-ba2c-c49c28051d53:stored_source",
+        "identityKey": "event_suite_resources:5ab21217-3df0-4576-ba2c-c49c28051d53",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "5ab21217-3df0-4576-ba2c-c49c28051d53",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:5ab21217-3df0-4576-ba2c-c49c28051d53:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:5ab21217-3df0-4576-ba2c-c49c28051d53:stored_source",
+        "listing:5ab21217-3df0-4576-ba2c-c49c28051d53:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "ENTER THE BATTLEGROUND | BOOM BATTLE BAR UK",
+        "fieldName": "siteName",
+        "sourceUrl": "https://boombattlebar.com/uk/",
+        "evidenceRef": "source:4b5c0f002ba3c5c2742c789564d62b54f19258b4bb4de9ada8fa7ce79514f9ae:identity:367e3fe2516e117a"
+      },
+      {
+        "value": "ENTER THE BATTLEGROUND THE WORLD'S ONLY BATTLE BAR ®",
+        "fieldName": "explicitVenueName",
+        "sourceUrl": "https://boombattlebar.com/uk/",
+        "evidenceRef": "source:4b5c0f002ba3c5c2742c789564d62b54f19258b4bb4de9ada8fa7ce79514f9ae:identity:0e22bc9b2b6e19a8"
+      },
+      {
+        "value": "88 Oxford Street, London, W1D 1BS",
+        "fieldName": "address",
+        "sourceUrl": "https://boombattlebar.com/uk/",
+        "evidenceRef": "source:4b5c0f002ba3c5c2742c789564d62b54f19258b4bb4de9ada8fa7ce79514f9ae:identity:d66df1419f68b61f"
+      },
+      {
+        "value": "Find your nearest UK BOOM BATTLE BAR below. If there isn’t one near you, chances are there will be soon.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://boombattlebar.com/uk/",
+        "evidenceRef": "source:4b5c0f002ba3c5c2742c789564d62b54f19258b4bb4de9ada8fa7ce79514f9ae:identity:a206afa5a5c87778"
+      },
+      {
+        "value": "ENTER THE BATTLEGROUND | BOOM BATTLE BAR UK",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://boombattlebar.com/uk/",
+        "evidenceRef": "source:4b5c0f002ba3c5c2742c789564d62b54f19258b4bb4de9ada8fa7ce79514f9ae:identity:7630e8d2078076f6"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "guestservices@boombattlebar.com",
+        "sourceUrl": "https://boombattlebar.com/uk/",
+        "evidenceRef": "source:4b5c0f002ba3c5c2742c789564d62b54f19258b4bb4de9ada8fa7ce79514f9ae:contact:39272e68ea2c79a5",
+        "purpose": "BOOKINGS",
+        "label": "-ins are welcome! If you would like to play games though we do recommend pre-booking as we can’t guarantee slots will be available on the day. Oh and yes, you can just come for food and drinks if you want to. I need to cancel my booking. Can I get a refund? Our bookings are non-refundable, but we get that life happens. If you’ve had an emergency and can’t make your original slot, just email us at guestservices@boombattlebar.com"
+      }
+    ]
+  },
+  {
+    "venue": "Mr Fogg's Pawnbrokers",
+    "originalUrl": "https://www.mr-foggs.com/",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "5f2314d8-270e-44ff-876d-be8b503df5b1"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "541b12fd-6548-5f65-a4eb-417c62fe03b0",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "541b12fd-6548-5f65-a4eb-417c62fe03b0",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "London",
+        "territory": "GB",
+        "targetName": "Mr Fogg's Pawnbrokers",
+        "existingFacts": [
+          {
+            "value": "https://www.mr-foggs.com/",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:5f2314d8-270e-44ff-876d-be8b503df5b1:stored_source"
+          },
+          {
+            "value": "Soho, London, W1D 5BQ",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:5f2314d8-270e-44ff-876d-be8b503df5b1:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "5f2314d8-270e-44ff-876d-be8b503df5b1",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:5f2314d8-270e-44ff-876d-be8b503df5b1:stored_source"
+          }
+        ],
+        "targetWebsite": "https://www.mr-foggs.com/"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "dad8cd8d6e6af65d85f62ca7bea67cb9cd145b85bd2630c76c98ff4e4f99d531",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:5f2314d8-270e-44ff-876d-be8b503df5b1:stored_source",
+        "identityKey": "event_suite_resources:5f2314d8-270e-44ff-876d-be8b503df5b1",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "5f2314d8-270e-44ff-876d-be8b503df5b1",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:5f2314d8-270e-44ff-876d-be8b503df5b1:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:5f2314d8-270e-44ff-876d-be8b503df5b1:stored_source",
+        "listing:5f2314d8-270e-44ff-876d-be8b503df5b1:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "Mr Fogg's | A Collection of Adventurous London Cocktail Bars & Pubs",
+        "fieldName": "siteName",
+        "sourceUrl": "https://www.mr-foggs.com/",
+        "evidenceRef": "source:26312bfa7affcef44806270b648383ed56c1de0d3e3afbe7b532b9e9111a23b8:identity:603a63e07a383748"
+      },
+      {
+        "value": "An Adventure in London Cocktail Bars & Pubs",
+        "fieldName": "explicitVenueName",
+        "sourceUrl": "https://www.mr-foggs.com/",
+        "evidenceRef": "source:26312bfa7affcef44806270b648383ed56c1de0d3e3afbe7b532b9e9111a23b8:identity:b62f79828dd7b153"
+      },
+      {
+        "value": "Step into Mr Fogg’s world of quirky London cocktail bars & pubs. Discover hidden speakeasies, late-night bars & immersive Victorian adventures!",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.mr-foggs.com/",
+        "evidenceRef": "source:26312bfa7affcef44806270b648383ed56c1de0d3e3afbe7b532b9e9111a23b8:identity:9944cb92ee911085"
+      },
+      {
+        "value": "Mr Fogg's | A Collection of Adventurous London Cocktail Bars & Pubs",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.mr-foggs.com/",
+        "evidenceRef": "source:26312bfa7affcef44806270b648383ed56c1de0d3e3afbe7b532b9e9111a23b8:identity:90753363a49a512c"
+      },
+      {
+        "value": "Host private parties at Mr Fogg’s in London. Hire a characterful collection of cocktail bars/taverns in an immersive Victorian setting for 15-450. Enquire!",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.mr-foggs.com/venue-hire/",
+        "evidenceRef": "source:6f577f75633f8d2d2734c984e4da0ef50a2b048613654131f5796581bfbed70d:identity:44e5021f00d1e07b"
+      },
+      {
+        "value": "Cocktail Bar Venue Hire in London | Mr Fogg’s",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.mr-foggs.com/venue-hire/",
+        "evidenceRef": "source:6f577f75633f8d2d2734c984e4da0ef50a2b048613654131f5796581bfbed70d:identity:7b2384f14d9ebcb4"
+      },
+      {
+        "value": "Discover unique Christmas party venues in London with Mr Fogg’s. From intimate gatherings to private Christmas parties for 15-450 guests, explore our venues.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.mr-foggs.com/christmas-venue-hire/",
+        "evidenceRef": "source:a0e0b0d8b91c92866db300bd9ccaf08ee5192161bc30e557ed1a3a3bb6e9169a:identity:a9fab95a859415e1"
+      },
+      {
+        "value": "Christmas Party Venues in London | Private Hire | Mr Fogg’s",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.mr-foggs.com/christmas-venue-hire/",
+        "evidenceRef": "source:a0e0b0d8b91c92866db300bd9ccaf08ee5192161bc30e557ed1a3a3bb6e9169a:identity:b5331229f2f5d425"
+      },
+      {
+        "value": "27 The Market, London WC2E 8RD",
+        "fieldName": "address",
+        "sourceUrl": "https://www.mr-foggs.com/venue-hire/mr-foggs-market-tavern-venue-hire/",
+        "evidenceRef": "source:d3206478a59b5b29b6cc1f8c709372415ed470429279014a7a98f62665bc5011:identity:ce8cf047f8ebc5e2"
+      },
+      {
+        "value": "Host unforgettable events at Mr Fogg's Market Tavern in Covent Garden. Flexible private hire spaces, British pub dining, cocktails and more.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.mr-foggs.com/venue-hire/mr-foggs-market-tavern-venue-hire/",
+        "evidenceRef": "source:d3206478a59b5b29b6cc1f8c709372415ed470429279014a7a98f62665bc5011:identity:9154e77602c93fec"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "markettavern@mr-foggs.com",
+        "sourceUrl": "https://www.mr-foggs.com/venue-hire/mr-foggs-market-tavern-venue-hire/",
+        "evidenceRef": "source:d3206478a59b5b29b6cc1f8c709372415ed470429279014a7a98f62665bc5011:contact:1c5dfd9103ef3b18",
+        "purpose": "SALES_HIRE",
+        "label": "markettavern@mr-foggs.com Fitzrovia Pawnbrokers Soho Hat Tavern Soho City Tavern The City Market Tavern Covent Garden Market, London background-logo-svg Book Reservation What’s on Venue hire Can’t find a table reservation? Not to worry – we always keep a few tables aside for walk-ins. The Courtyard Terrace is available for walk-ins until 8pm daily, with table reservations available thereafter. call 020 7095 0361 or email markettavern@mr-foggs.com"
+      },
+      {
+        "value": "markettavern-events@mr-foggs.com",
+        "sourceUrl": "https://www.mr-foggs.com/venue-hire/mr-foggs-market-tavern-venue-hire/",
+        "evidenceRef": "source:d3206478a59b5b29b6cc1f8c709372415ed470429279014a7a98f62665bc5011:contact:31f150925deae0fd",
+        "purpose": "SALES_HIRE",
+        "label": "markettavern-events@mr-foggs.com st Toast of the Year: New Year’s Eve Thursday 31st December | 10:30pm - 3am Market Tavern Covent Garden Market, London Host your private party in a unique space. Begin your enquiry here… Venue hire Mr Fogg’s Market Tavern Venue Hire Covent Garden, London From 20 to 250 guests Covent Garden (2-3 min walk), Leicester Square (7-8 min walk), Charing Cross (9-10 min walk) Make an Enquiry 020 7095 0361 markettavern-events@mr-foggs.com"
+      }
+    ]
+  },
+  {
+    "venue": "Amazing Grace London Bridge",
+    "originalUrl": "https://amazinggraceldn.com/?utm_source=google&utm_medium=organic&utm_campaign=gbp&utm_content=listing",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "1fa547e5-da09-4cb3-8bfc-83c77118c85c"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "aed76279-19f1-551d-a67d-11e4cd44db36",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "aed76279-19f1-551d-a67d-11e4cd44db36",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "London",
+        "territory": "GB",
+        "targetName": "Amazing Grace London Bridge",
+        "existingFacts": [
+          {
+            "value": "https://amazinggraceldn.com/?utm_source=google&utm_medium=organic&utm_campaign=gbp&utm_content=listing",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:1fa547e5-da09-4cb3-8bfc-83c77118c85c:stored_source"
+          },
+          {
+            "value": "SE1 9RY",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:1fa547e5-da09-4cb3-8bfc-83c77118c85c:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "1fa547e5-da09-4cb3-8bfc-83c77118c85c",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:1fa547e5-da09-4cb3-8bfc-83c77118c85c:stored_source"
+          }
+        ],
+        "targetWebsite": "https://amazinggraceldn.com/?utm_source=google&utm_medium=organic&utm_campaign=gbp&utm_content=listing"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "3e226ab77a6301ee895af82b77a9bcfbbdffda3972157a80546e0e57ce0c9a35",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:1fa547e5-da09-4cb3-8bfc-83c77118c85c:stored_source",
+        "identityKey": "event_suite_resources:1fa547e5-da09-4cb3-8bfc-83c77118c85c",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "1fa547e5-da09-4cb3-8bfc-83c77118c85c",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:1fa547e5-da09-4cb3-8bfc-83c77118c85c:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:1fa547e5-da09-4cb3-8bfc-83c77118c85c:stored_source",
+        "listing:1fa547e5-da09-4cb3-8bfc-83c77118c85c:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "Amazing Grace",
+        "fieldName": "siteName",
+        "sourceUrl": "https://amazinggraceldn.com/?utm_source=google&utm_medium=organic&utm_campaign=gbp&utm_content=listing",
+        "evidenceRef": "source:9c765ce7c4cdc1f9649eb8a9fac72911188acce9108197f934b8552859fdde48:identity:e38c2e34d7bbdbda"
+      },
+      {
+        "value": "Amazing Grace",
+        "fieldName": "explicitVenueName",
+        "sourceUrl": "https://amazinggraceldn.com/?utm_source=google&utm_medium=organic&utm_campaign=gbp&utm_content=listing",
+        "evidenceRef": "source:9c765ce7c4cdc1f9649eb8a9fac72911188acce9108197f934b8552859fdde48:identity:a457e32540f6ac3f"
+      },
+      {
+        "value": "Visit Amazing Grace in London - live music bars and restaurants in London Bridge & Canary Wharf. Signature cocktails, Asian-inspired dining, every night.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://amazinggraceldn.com/?utm_source=google&utm_medium=organic&utm_campaign=gbp&utm_content=listing",
+        "evidenceRef": "source:9c765ce7c4cdc1f9649eb8a9fac72911188acce9108197f934b8552859fdde48:identity:4cbd423568cfb111"
+      },
+      {
+        "value": "Amazing Grace London | Live Music Bar & Restaurant",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://amazinggraceldn.com/?utm_source=google&utm_medium=organic&utm_campaign=gbp&utm_content=listing",
+        "evidenceRef": "source:9c765ce7c4cdc1f9649eb8a9fac72911188acce9108197f934b8552859fdde48:identity:81be266b22f1514e"
+      },
+      {
+        "value": "Amazing Grace",
+        "fieldName": "siteName",
+        "sourceUrl": "https://amazinggraceldn.com/contact-london-bridge/",
+        "evidenceRef": "source:ba17af88ce998863949e10e4be1ea89673b2dc1e07f4397a779502fc0174d386:identity:e38c2e34d7bbdbda"
+      },
+      {
+        "value": "9A St. Thomas Street, London SE1 9RY",
+        "fieldName": "address",
+        "sourceUrl": "https://amazinggraceldn.com/contact-london-bridge/",
+        "evidenceRef": "source:ba17af88ce998863949e10e4be1ea89673b2dc1e07f4397a779502fc0174d386:identity:cba3515ef29aa9e6"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "booking.londonbridge@amazinggraceldn.com",
+        "sourceUrl": "https://amazinggraceldn.com/contact-london-bridge/",
+        "evidenceRef": "source:ba17af88ce998863949e10e4be1ea89673b2dc1e07f4397a779502fc0174d386:contact:29c266e129883f5a",
+        "purpose": "BOOKINGS",
+        "label": "hin the Grade II* listed St. Thomas Church, originally erected on this site in 1192 and rebuilt in 1702. OPENING HOURS Sunday Closed Monday - Tuesday 4 PM – 11 PM Wednesday 4 PM – 12 AM Thursday 4 PM – 12 AM Friday 12 PM – 2 AM Saturday 12 PM – 2 AM We kindly ask that guests under the age of 18 leave the venue by 8 PM. AMAZING GRACE LONDON BRIDGE 9A St. Thomas Street, London SE1 9RY 020 4542 5670 booking.londonbridge@amazinggraceldn.com"
+      }
+    ]
+  },
+  {
+    "venue": "LONDON MARRIOTT HOTEL",
+    "originalUrl": "https://www.marriott.com/en-gb/default.mi",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "6540bb76-c238-4474-ac70-b5c4b3a0d417"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "4520bb09-a29f-5047-a3bb-363b2601e2d5",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "4520bb09-a29f-5047-a3bb-363b2601e2d5",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "United Kingdom",
+        "territory": "GB",
+        "targetName": "LONDON MARRIOTT HOTEL",
+        "existingFacts": [
+          {
+            "value": "https://www.marriott.com/en-gb/default.mi",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:6540bb76-c238-4474-ac70-b5c4b3a0d417:stored_source"
+          },
+          {
+            "value": "84-86 DUKE STREET, LONDON, W1K 6JP, 134 GEORGE STREET, LONDON, W1H 5DN",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:6540bb76-c238-4474-ac70-b5c4b3a0d417:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "6540bb76-c238-4474-ac70-b5c4b3a0d417",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:6540bb76-c238-4474-ac70-b5c4b3a0d417:stored_source"
+          }
+        ],
+        "targetWebsite": "https://www.marriott.com/en-gb/default.mi"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "40cc4fc97a9e56640195fef03f1d44b1e950ce12c743e66223a1baf09e8639ba",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:6540bb76-c238-4474-ac70-b5c4b3a0d417:stored_source",
+        "identityKey": "event_suite_resources:6540bb76-c238-4474-ac70-b5c4b3a0d417",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "6540bb76-c238-4474-ac70-b5c4b3a0d417",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:6540bb76-c238-4474-ac70-b5c4b3a0d417:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:6540bb76-c238-4474-ac70-b5c4b3a0d417:stored_source",
+        "listing:6540bb76-c238-4474-ac70-b5c4b3a0d417:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "2x Travel, Building Exterior, Dusk, Manchester - England",
+        "fieldName": "address",
+        "sourceUrl": "https://www.marriott.com/en-gb/default.mi",
+        "evidenceRef": "source:537d45fb3bc06ce70ea017544e25bbff95bd25503694c3814421274009ff590d:identity:901e4454058314d4"
+      },
+      {
+        "value": "Book Directly & Save at any of our 9000+ Marriott Bonvoy Hotels. Choose from Luxury Hotels, Resorts, Extended Stay Hotels, Pet-Friendly Hotels & More.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.marriott.com/en-gb/default.mi",
+        "evidenceRef": "source:537d45fb3bc06ce70ea017544e25bbff95bd25503694c3814421274009ff590d:identity:950f96aeaed9d612"
+      },
+      {
+        "value": "Marriott Bonvoy Hotels | Book Directly & Get Exclusive Rates",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.marriott.com/en-gb/default.mi",
+        "evidenceRef": "source:537d45fb3bc06ce70ea017544e25bbff95bd25503694c3814421274009ff590d:identity:cabb38ffc3c0392b"
+      },
+      {
+        "value": "Always get the best rate available when you book directly with Marriott",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.marriott.com/en-gb/online-hotel-booking.mi",
+        "evidenceRef": "source:27381c0922bf7857d8a805fc3538307d7d3a43e9a25ac686e59e5ae8584a27bd:identity:a11dbd7a07c7a8f0"
+      },
+      {
+        "value": "Marriott | OUR BEST RATE. GUARANTEED",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.marriott.com/en-gb/online-hotel-booking.mi",
+        "evidenceRef": "source:27381c0922bf7857d8a805fc3538307d7d3a43e9a25ac686e59e5ae8584a27bd:identity:07c7c6b36c14c7b1"
+      },
+      {
+        "value": "Offering the most powerful portfolio in the industry, our more than 30 leading brands and over 10,000 properties in 148 countries and territories give people more ways to connect, experience and expand their world.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.marriott.com/en-gb/marriott/aboutmarriott.mi",
+        "evidenceRef": "source:e6f1f0a229cc65c0525fe5a1d025cb8c9446eb2e9056d7797440d1f742d2f2a1:identity:a76917d43b29f3f8"
+      },
+      {
+        "value": "About Marriott International | Corporate Information",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.marriott.com/en-gb/marriott/aboutmarriott.mi",
+        "evidenceRef": "source:e6f1f0a229cc65c0525fe5a1d025cb8c9446eb2e9056d7797440d1f742d2f2a1:identity:1ca682ccdc4f24cb"
+      },
+      {
+        "value": "above. Your counter-notification must include: Your name, postal address,",
+        "fieldName": "address",
+        "sourceUrl": "https://www.marriott.com/en-gb/about/terms-of-use.mi",
+        "evidenceRef": "source:0aab57b8f2b876aa4da27acd6f5b6aeceba3034938ae58881c1868cdcd2addb7:identity:f865e7df0780feae"
+      },
+      {
+        "value": "These Terms explain your rights and responsibilities when you use websites, apps, social media pages, and related functionality and features that (i) we own or control and (ii) from which these Terms are accessible (together, the \"Services\"). If you use the Services, you agree to these Terms. If you do not agree, please do not use the Services.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.marriott.com/en-gb/about/terms-of-use.mi",
+        "evidenceRef": "source:0aab57b8f2b876aa4da27acd6f5b6aeceba3034938ae58881c1868cdcd2addb7:identity:ba353cd0e54d9b8d"
+      },
+      {
+        "value": "Marriott.com | Terms of Use",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.marriott.com/en-gb/about/terms-of-use.mi",
+        "evidenceRef": "source:0aab57b8f2b876aa4da27acd6f5b6aeceba3034938ae58881c1868cdcd2addb7:identity:8e021839a569d8b3"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "BestRateGuarantee@marriott.com",
+        "sourceUrl": "https://www.marriott.com/en-gb/online-hotel-booking.mi",
+        "evidenceRef": "source:27381c0922bf7857d8a805fc3538307d7d3a43e9a25ac686e59e5ae8584a27bd:contact:90ccf93aadd0b54b",
+        "purpose": "BOOKINGS",
+        "label": "BestRateGuarantee@marriott.com onvoy Members. If chosen, Points applicable to the claim will be awarded 7-10 business days after guest checkout on the approved reservation. All approved claim rewards (either points or discount) will only be available for up to three guest rooms. Use your Marriott reservation number to view your claim status on the BRG claim site within 24 hours of filing your claim. You may contact Marriott at BestRateGuarantee@marriott.com"
+      },
+      {
+        "value": "IPLaw@marriott.com",
+        "sourceUrl": "https://www.marriott.com/en-gb/about/terms-of-use.mi",
+        "evidenceRef": "source:0aab57b8f2b876aa4da27acd6f5b6aeceba3034938ae58881c1868cdcd2addb7:contact:01efb145e672e3db",
+        "purpose": "GENERAL",
+        "label": "IPLaw@marriott.com nts of the United States Digital Millennium Copyright Act. If you believe that anything on the Services infringes your copyright, you may file a notification of such infringement with our Designated Agent as set forth below. Marriott International, Inc. Attention: Senior Counsel, Intellectual Property 7750 Wisconsin Ave, Dept 52/923 (Law-IP) Bethesda, MD 20814 USA Telephone: (301) 380-3000 Email: IPLaw@marriott.com"
+      },
+      {
+        "value": "customerservice@allianzassistance.com",
+        "sourceUrl": "https://www.marriott.com/en-gb/about/terms-of-use.mi",
+        "evidenceRef": "source:0aab57b8f2b876aa4da27acd6f5b6aeceba3034938ae58881c1868cdcd2addb7:contact:ca3118da484358d9",
+        "purpose": "GENERAL",
+        "label": "customerservice@allianzassistance.com ou meet the requirements listed in your plan; otherwise, the exclusion for pre-existing medical conditions will apply. All other terms, conditions, and exclusions apply. Travel protection plan charge includes the cost of insurance benefits and assistance services. For more information, see your plan details, or contact Allianz Partners at 800-284-8300 or 9950 Mayland Drive, Richmond, VA 23233 or customerservice@allianzassistance.com"
+      }
+    ]
+  },
+  {
+    "venue": "Clapham Grand",
+    "originalUrl": "https://claphamgrand.com/",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "6fb212c9-16fa-4883-91e9-03629c6feb6b"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "56f21025-1891-5804-ac25-d96f9823d381",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "56f21025-1891-5804-ac25-d96f9823d381",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "London",
+        "territory": "GB",
+        "targetName": "Clapham Grand",
+        "existingFacts": [
+          {
+            "value": "https://claphamgrand.com/",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:6fb212c9-16fa-4883-91e9-03629c6feb6b:stored_source"
+          },
+          {
+            "value": "Clapham Junction, Battersea, SW11 1TT",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:6fb212c9-16fa-4883-91e9-03629c6feb6b:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "6fb212c9-16fa-4883-91e9-03629c6feb6b",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:6fb212c9-16fa-4883-91e9-03629c6feb6b:stored_source"
+          }
+        ],
+        "targetWebsite": "https://claphamgrand.com/"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "53e317b7d78619a0e96fa696b5fa1176c7453a1c53181cd3b401b6344bb5f808",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:6fb212c9-16fa-4883-91e9-03629c6feb6b:stored_source",
+        "identityKey": "event_suite_resources:6fb212c9-16fa-4883-91e9-03629c6feb6b",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "6fb212c9-16fa-4883-91e9-03629c6feb6b",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:6fb212c9-16fa-4883-91e9-03629c6feb6b:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:6fb212c9-16fa-4883-91e9-03629c6feb6b:stored_source",
+        "listing:6fb212c9-16fa-4883-91e9-03629c6feb6b:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "The Grand – What’s on at London’s Palace of Modern Variety",
+        "fieldName": "siteName",
+        "sourceUrl": "https://claphamgrand.com/",
+        "evidenceRef": "source:aae7c267f65890843dcd6e885bbadacc7ad7dee9890fac54902b0eb496e3033c:identity:d707bdd5dc0ca9b5"
+      },
+      {
+        "value": "LONDON'S PALACE OF VARIETY SINCE 1900",
+        "fieldName": "explicitVenueName",
+        "sourceUrl": "https://claphamgrand.com/",
+        "evidenceRef": "source:aae7c267f65890843dcd6e885bbadacc7ad7dee9890fac54902b0eb496e3033c:identity:dffda48e72184d74"
+      },
+      {
+        "value": "25 ST JOHN’S HILL BATTERSEA, LONDON SW11 1TT",
+        "fieldName": "address",
+        "sourceUrl": "https://claphamgrand.com/",
+        "evidenceRef": "source:aae7c267f65890843dcd6e885bbadacc7ad7dee9890fac54902b0eb496e3033c:identity:039a38e678e21a1d"
+      },
+      {
+        "value": "London's iconic, palace of modern variety since 1900. SHOWS! COMEDY! MOVIE NIGHTS! LIVE MUSIC! DRAG! SPORT! BRUNCH!",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://claphamgrand.com/",
+        "evidenceRef": "source:aae7c267f65890843dcd6e885bbadacc7ad7dee9890fac54902b0eb496e3033c:identity:80bb4f4d6e53ab86"
+      },
+      {
+        "value": "The Grand – What’s on at London’s Palace of Modern Variety",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://claphamgrand.com/",
+        "evidenceRef": "source:aae7c267f65890843dcd6e885bbadacc7ad7dee9890fac54902b0eb496e3033c:identity:840adcb2c6dc8982"
+      },
+      {
+        "value": "25 ST JOHN’S HILL BATTERSEA, LONDON SW11 1TT",
+        "fieldName": "address",
+        "sourceUrl": "https://claphamgrand.com/private-hire/",
+        "evidenceRef": "source:623c608eb9dd11dee1866fe61be07487d85d386e504d4c749cc24503cc029e9b:identity:039a38e678e21a1d"
+      },
+      {
+        "value": "View all you need to know about hiring The Clapham Grand in London for your shows, private events and more. Find the full information on their website!",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://claphamgrand.com/private-hire/",
+        "evidenceRef": "source:623c608eb9dd11dee1866fe61be07487d85d386e504d4c749cc24503cc029e9b:identity:bbac4a52624e0e04"
+      },
+      {
+        "value": "The Clapham Grand – Private Hire | Clapham Grand",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://claphamgrand.com/private-hire/",
+        "evidenceRef": "source:623c608eb9dd11dee1866fe61be07487d85d386e504d4c749cc24503cc029e9b:identity:330c0d04558fa7e5"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "info@claphamgrand.com",
+        "sourceUrl": "https://claphamgrand.com/private-hire/",
+        "evidenceRef": "source:623c608eb9dd11dee1866fe61be07487d85d386e504d4c749cc24503cc029e9b:contact:9743a9765d799668",
+        "purpose": "SALES_HIRE",
+        "label": "info@claphamgrand.com round awards tables, cabaret tables, trestle tables, theatre style seating, fully standing, a combination of the above or something completely new! We are continently located opposite Clapham Junction station making us easy to get to from both inside and outside London. Some of our previous clients include ITV, Netflix, BBC, Spotify, Marie Claire, All4, Cafe Nero & Nandos. To enquire please email info@claphamgrand.com"
+      }
+    ]
+  },
+  {
+    "venue": "The Live Room",
+    "originalUrl": "https://thewaitingroomn16.com/",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "7fe3936f-5b3b-46c0-8adc-3293bd718835"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "35770177-aec7-5694-ad9e-2156cf8c1c12",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "35770177-aec7-5694-ad9e-2156cf8c1c12",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "London",
+        "territory": "GB",
+        "targetName": "The Live Room",
+        "existingFacts": [
+          {
+            "value": "https://thewaitingroomn16.com/",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:7fe3936f-5b3b-46c0-8adc-3293bd718835:stored_source"
+          },
+          {
+            "value": "Saltaire, N16 0PE",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:7fe3936f-5b3b-46c0-8adc-3293bd718835:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "7fe3936f-5b3b-46c0-8adc-3293bd718835",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:7fe3936f-5b3b-46c0-8adc-3293bd718835:stored_source"
+          }
+        ],
+        "targetWebsite": "https://thewaitingroomn16.com/"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "256f819d60bd528903ba0262d60a320fbf866f02816fcd24c8231e735816b6bb",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:7fe3936f-5b3b-46c0-8adc-3293bd718835:stored_source",
+        "identityKey": "event_suite_resources:7fe3936f-5b3b-46c0-8adc-3293bd718835",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "7fe3936f-5b3b-46c0-8adc-3293bd718835",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:7fe3936f-5b3b-46c0-8adc-3293bd718835:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:7fe3936f-5b3b-46c0-8adc-3293bd718835:stored_source",
+        "listing:7fe3936f-5b3b-46c0-8adc-3293bd718835:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "The Waiting Room N16. Club and Live Music Venue Underneath the Three Crowns",
+        "fieldName": "siteName",
+        "sourceUrl": "https://thewaitingroomn16.com/",
+        "evidenceRef": "source:eda675068213b0b8d718e4eb241e800bdfabf346a5bc08635cc259287793d984:identity:2f5a577f2f927ed4"
+      },
+      {
+        "value": "The Waiting Room N16. Club and Live Music Venue Underneath the Three Crowns",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://thewaitingroomn16.com/",
+        "evidenceRef": "source:eda675068213b0b8d718e4eb241e800bdfabf346a5bc08635cc259287793d984:identity:b5e246db22fbc708"
+      },
+      {
+        "value": "The Waiting Room N16. Club and Live Music Venue Underneath the Three Crowns",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://thewaitingroomn16.com/about.php",
+        "evidenceRef": "source:271452cd63b7fca382f2678f5f8fa91e8528912b6f4269a2552bdea267c3a0ad:identity:b5e246db22fbc708"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "matty@threecrownsn16.com",
+        "sourceUrl": "https://thewaitingroomn16.com/about.php",
+        "evidenceRef": "source:271452cd63b7fca382f2678f5f8fa91e8528912b6f4269a2552bdea267c3a0ad:contact:c485c5d11a673a33",
+        "purpose": "SALES_HIRE",
+        "label": "matty@threecrownsn16.com he finest leftfield electronic artists from London, the UK, Europe and beyond. Book a Table in the Three Crowns! If you want to eat or have some drinks before heading downstairs you can book a table through OpenTable here - ticket holders get 20% off their food bill. How to Find us We're Under the Three Crowns Pub in Stoke Newington HIRING THE WAITING ROOM For live music venue hire please contact matty@threecrownsn16.com"
+      },
+      {
+        "value": "harry@threecrownsn16.com",
+        "sourceUrl": "https://thewaitingroomn16.com/about.php",
+        "evidenceRef": "source:271452cd63b7fca382f2678f5f8fa91e8528912b6f4269a2552bdea267c3a0ad:contact:4cc96650ba9bc3b4",
+        "purpose": "SALES_HIRE",
+        "label": "harry@threecrownsn16.com For club hire please contact harry@threecrownsn16.com"
+      }
+    ]
+  },
+  {
+    "venue": "The Half Moon",
+    "originalUrl": "https://halfmoon.co.uk/",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "85e6b497-3efe-4a1d-82b6-889ce2527a1f"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "50d0d11d-47b1-52ba-a0a7-b5907b2f4304",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "50d0d11d-47b1-52ba-a0a7-b5907b2f4304",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "London",
+        "territory": "GB",
+        "targetName": "The Half Moon",
+        "existingFacts": [
+          {
+            "value": "https://halfmoon.co.uk/",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:85e6b497-3efe-4a1d-82b6-889ce2527a1f:stored_source"
+          },
+          {
+            "value": "Putney, SW15 1EU",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:85e6b497-3efe-4a1d-82b6-889ce2527a1f:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "85e6b497-3efe-4a1d-82b6-889ce2527a1f",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:85e6b497-3efe-4a1d-82b6-889ce2527a1f:stored_source"
+          }
+        ],
+        "targetWebsite": "https://halfmoon.co.uk/"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "5286effcffd57e88cb5bf144875ccc6a66f05707fac551db8236a83cb9659073",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:85e6b497-3efe-4a1d-82b6-889ce2527a1f:stored_source",
+        "identityKey": "event_suite_resources:85e6b497-3efe-4a1d-82b6-889ce2527a1f",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "85e6b497-3efe-4a1d-82b6-889ce2527a1f",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:85e6b497-3efe-4a1d-82b6-889ce2527a1f:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:85e6b497-3efe-4a1d-82b6-889ce2527a1f:stored_source",
+        "listing:85e6b497-3efe-4a1d-82b6-889ce2527a1f:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "Young's",
+        "fieldName": "siteName",
+        "sourceUrl": "https://www.halfmoon.co.uk/",
+        "evidenceRef": "source:3845e091314f7338a6d8734db7abec4ce8afc48f520904c64a7442f205ad1654:identity:a69760737ac52128"
+      },
+      {
+        "value": "93 Lower Richmond Road, Putney, London, SW15 1EU",
+        "fieldName": "address",
+        "sourceUrl": "https://www.halfmoon.co.uk/",
+        "evidenceRef": "source:3845e091314f7338a6d8734db7abec4ce8afc48f520904c64a7442f205ad1654:identity:05a7d3c4094071af"
+      },
+      {
+        "value": "Discover The Half Moon, a live music venue and pub in London. Book tickets for gigs, enjoy great food and drinks, and see what’s on in Putney.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.halfmoon.co.uk/",
+        "evidenceRef": "source:3845e091314f7338a6d8734db7abec4ce8afc48f520904c64a7442f205ad1654:identity:1c4ee6f066fbf283"
+      },
+      {
+        "value": "The Half Moon Putney | Live Music Venue & Pub in London",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.halfmoon.co.uk/",
+        "evidenceRef": "source:3845e091314f7338a6d8734db7abec4ce8afc48f520904c64a7442f205ad1654:identity:c08ec805a0e5e551"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "halfmoon@youngs.co.uk",
+        "sourceUrl": "https://www.halfmoon.co.uk/",
+        "evidenceRef": "source:3845e091314f7338a6d8734db7abec4ce8afc48f520904c64a7442f205ad1654:contact:97b3aff46cf23112",
+        "purpose": "GENERAL",
+        "label": "halfmoon@youngs.co.uk The Half Moon Putney | Live Music Venue & Pub in London Gift Vouchers We Are Open Monday 12pm - 11pm View all times Food Served 12pm - 10pm Find Us 93 Lower Richmond Road, Putney, London, SW15 1EU View on a map 93 Lower Richmond Road, Putney, London, SW15 1EU 020 8780 9383 halfmoon@youngs.co.uk"
+      }
+    ]
+  },
+  {
+    "venue": "HOTEL DU VIN WIMBLEDON",
+    "originalUrl": "https://www.hotelduvin.com/",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "95df74e0-9989-4bf5-b985-0259a14c85c4"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "727650e8-c2a1-58dc-a902-2f067444628e",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "727650e8-c2a1-58dc-a902-2f067444628e",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "United Kingdom",
+        "territory": "GB",
+        "targetName": "HOTEL DU VIN WIMBLEDON",
+        "existingFacts": [
+          {
+            "value": "https://www.hotelduvin.com/",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:95df74e0-9989-4bf5-b985-0259a14c85c4:stored_source"
+          },
+          {
+            "value": "CANNIZARO HOUSE, 20 WESTSIDE COMMON, WIMBLEDON, LONDON, SW19 4UE",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:95df74e0-9989-4bf5-b985-0259a14c85c4:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "95df74e0-9989-4bf5-b985-0259a14c85c4",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:95df74e0-9989-4bf5-b985-0259a14c85c4:stored_source"
+          }
+        ],
+        "targetWebsite": "https://www.hotelduvin.com/"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "f8ba673bd267ca27d5e07b43de7af3a2288b4ccedaf7da3dd2eb2b3f6fac5ad8",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:95df74e0-9989-4bf5-b985-0259a14c85c4:stored_source",
+        "identityKey": "event_suite_resources:95df74e0-9989-4bf5-b985-0259a14c85c4",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "95df74e0-9989-4bf5-b985-0259a14c85c4",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:95df74e0-9989-4bf5-b985-0259a14c85c4:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:95df74e0-9989-4bf5-b985-0259a14c85c4:stored_source",
+        "listing:95df74e0-9989-4bf5-b985-0259a14c85c4:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "Hotel du Vin",
+        "fieldName": "siteName",
+        "sourceUrl": "https://www.hotelduvin.com/",
+        "evidenceRef": "source:cc272ec0ac8179e84e52332618c6ce46edebc93f32f2ac1f71023dc03e1008e9:identity:975765fd31bbf423"
+      },
+      {
+        "value": "Your Key To Black Friday",
+        "fieldName": "explicitVenueName",
+        "sourceUrl": "https://www.hotelduvin.com/",
+        "evidenceRef": "source:cc272ec0ac8179e84e52332618c6ce46edebc93f32f2ac1f71023dc03e1008e9:identity:b0afcfdf25a1122d"
+      },
+      {
+        "value": "Discover the charm of Hotel du Vin, an elegant collection of boutique hotels across the UK. Experience luxury, fine dining, and unique experiences.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.hotelduvin.com/",
+        "evidenceRef": "source:cc272ec0ac8179e84e52332618c6ce46edebc93f32f2ac1f71023dc03e1008e9:identity:519b790ad6dbe23a"
+      },
+      {
+        "value": "Your Destination for Luxury and Comfort | Hotel du Vin",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.hotelduvin.com/",
+        "evidenceRef": "source:cc272ec0ac8179e84e52332618c6ce46edebc93f32f2ac1f71023dc03e1008e9:identity:4a7720e66f2900d9"
+      },
+      {
+        "value": "Cannizaro House, an 18th-century Wimbledon manor. Hotel du Vin has characterful rooms, a curated wine cellar and French-inspired bistro dining in London.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.hotelduvin.com/locations/wimbledon/",
+        "evidenceRef": "source:6ebb6060e8e1c5d54c79a39050627509ebb0f7d2599970903490dbdf18ad95c0:identity:3d9a7d7795d7fad5"
+      },
+      {
+        "value": "Cannizaro House, Wimbledon | Luxury Manor Hotel | Hotel du Vin",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.hotelduvin.com/locations/wimbledon/",
+        "evidenceRef": "source:6ebb6060e8e1c5d54c79a39050627509ebb0f7d2599970903490dbdf18ad95c0:identity:06a158ac01ea5407"
+      },
+      {
+        "value": "Experience comfort and style in our rooms and suites at Hotel du Vin Wimbledon. Each room is tastefully decorated and equipped with modern amenities.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.hotelduvin.com/locations/wimbledon/rooms-suites/",
+        "evidenceRef": "source:b21b3b36057095ce896bc98aaaa0691cb72d7f50370f7f721d784740217fc893:identity:a83212846016d43d"
+      },
+      {
+        "value": "Rooms & Suites in Wimbledon | Hotel du Vin & Bistro",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.hotelduvin.com/locations/wimbledon/rooms-suites/",
+        "evidenceRef": "source:b21b3b36057095ce896bc98aaaa0691cb72d7f50370f7f721d784740217fc893:identity:573e9f579979774d"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "theteam@hotelduvin.com",
+        "sourceUrl": "https://www.hotelduvin.com/",
+        "evidenceRef": "source:cc272ec0ac8179e84e52332618c6ce46edebc93f32f2ac1f71023dc03e1008e9:contact:93c26f2105a9e445",
+        "purpose": "GENERAL",
+        "label": "Customer Service"
+      }
+    ]
+  },
+  {
+    "venue": "Thames Boat Cruises At Temple Pier",
+    "originalUrl": "https://thamesriverboats.co.uk/destinations/westminster-pier",
+    "request": {
+      "subject": {
+        "entityType": "UNKNOWN",
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "9c021183-6fe1-4a8c-abc9-81ce5fbf2475"
+        }
+      },
+      "createdAt": "2026-11-02T14:55:07.591Z",
+      "requestId": "4d4f9696-8d5e-5b1e-a453-378f7ece401e",
+      "costCeiling": {
+        "amount": 0,
+        "currency": "USD"
+      },
+      "requestedBy": {
+        "actorId": "resources-directory-standing-policy",
+        "actorType": "SYSTEM"
+      },
+      "correlationId": "44c9b8b7-6445-5cb4-ab8e-d4367325738e",
+      "idempotencyKey": "4d4f9696-8d5e-5b1e-a453-378f7ece401e",
+      "contractVersion": "nexus.research-request.v1",
+      "researchContext": {
+        "locality": "London",
+        "territory": "GB",
+        "targetName": "Thames Boat Cruises At Temple Pier",
+        "existingFacts": [
+          {
+            "value": "https://thamesriverboats.co.uk/destinations/westminster-pier",
+            "fieldName": "sourceSeedUrl",
+            "evidenceRef": "listing:9c021183-6fe1-4a8c-abc9-81ce5fbf2475:stored_source"
+          },
+          {
+            "value": "Temple, WC2R 2PN",
+            "fieldName": "formattedAddress",
+            "evidenceRef": "listing:9c021183-6fe1-4a8c-abc9-81ce5fbf2475:stored_address"
+          },
+          {
+            "value": [
+              {
+                "id": "9c021183-6fe1-4a8c-abc9-81ce5fbf2475",
+                "system": "event_suite_resources"
+              }
+            ],
+            "fieldName": "sourceLineage",
+            "evidenceRef": "listing:9c021183-6fe1-4a8c-abc9-81ce5fbf2475:stored_source"
+          }
+        ],
+        "targetWebsite": "https://thamesriverboats.co.uk/destinations/westminster-pier"
+      },
+      "researchPurpose": "SOURCE_ENTITY_CLASSIFICATION",
+      "directoryContext": {
+        "gaps": [
+          "OFFICIAL_WEBSITE",
+          "SOURCE_CLASSIFICATION"
+        ],
+        "action": "VERIFY_WEBSITE",
+        "country": "GB",
+        "queueId": "81d4672915b2ad2934321e76dd3e97d8c8b1df5f22b742cb2fc434ffc1105050",
+        "attempts": 0,
+        "policyId": "resources-sa-uk-per-run-20261025",
+        "evidenceRef": "listing:9c021183-6fe1-4a8c-abc9-81ce5fbf2475:stored_source",
+        "identityKey": "event_suite_resources:9c021183-6fe1-4a8c-abc9-81ce5fbf2475",
+        "policySha256": "657adca42e23b05dce5dd08a673d0832ae02f49ac56aaa1257a56b56e3c03e56",
+        "googlePlaceId": null,
+        "requestBudget": 6,
+        "sourceLineage": [
+          {
+            "id": "9c021183-6fe1-4a8c-abc9-81ce5fbf2475",
+            "system": "event_suite_resources"
+          }
+        ],
+        "googlePlaceName": null,
+        "placeEvidenceRef": null,
+        "addressEvidenceRef": "listing:9c021183-6fe1-4a8c-abc9-81ce5fbf2475:stored_address",
+        "verifiedWebsiteOrigin": null,
+        "canonicalImportAllowed": false,
+        "verifiedWebsiteOriginEvidenceRef": null
+      },
+      "originatingProduct": "event_suite_resources",
+      "providerAllowances": [
+        "PUBLIC_WEB"
+      ],
+      "requestedFactTypes": [
+        "officialWebsite",
+        "schemaOrgTypes",
+        "address",
+        "classificationSignals",
+        "sourceTextExcerpt"
+      ],
+      "existingEvidenceRefs": [
+        "listing:9c021183-6fe1-4a8c-abc9-81ce5fbf2475:stored_source",
+        "listing:9c021183-6fe1-4a8c-abc9-81ce5fbf2475:stored_address"
+      ],
+      "freshnessRequirements": {
+        "maxAgeHours": 24
+      }
+    },
+    "facts": [
+      {
+        "value": "You can join us for a cruise from Westminster to Chiswick, Kew, Richmond & Hampton Court.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.thamesriverboats.co.uk/destinations/westminster-pier",
+        "evidenceRef": "source:b2cfcb0dabdc43d073fd3b3cd88796b6ed9e41bc68e296bbc5ef7abde5c28040:identity:b3d8134642eb6b46"
+      },
+      {
+        "value": "Westminster Pier River Cruises & Boat Trips",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.thamesriverboats.co.uk/destinations/westminster-pier",
+        "evidenceRef": "source:b2cfcb0dabdc43d073fd3b3cd88796b6ed9e41bc68e296bbc5ef7abde5c28040:identity:34fe6720f2d07767"
+      },
+      {
+        "value": "Join us for a cruise from Chiswick Pier to Kew, Richmond, Hampton Court or Westminster.",
+        "fieldName": "siteDescription",
+        "sourceUrl": "https://www.thamesriverboats.co.uk/destinations/chiswick-pier",
+        "evidenceRef": "source:31e4c2a2eb37df84c430287c5ebd6f8563629d1adf1fce0f17681452dbd30015:identity:666e8336301bf445"
+      },
+      {
+        "value": "Chiswick Pier",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.thamesriverboats.co.uk/destinations/chiswick-pier",
+        "evidenceRef": "source:31e4c2a2eb37df84c430287c5ebd6f8563629d1adf1fce0f17681452dbd30015:identity:73061bd000362843"
+      }
+    ],
+    "contacts": [
+      {
+        "value": "theboats@wpsa.co.uk",
+        "sourceUrl": "https://www.thamesriverboats.co.uk/destinations/westminster-pier",
+        "evidenceRef": "source:b2cfcb0dabdc43d073fd3b3cd88796b6ed9e41bc68e296bbc5ef7abde5c28040:contact:8a0f40d5b3eb586e",
+        "purpose": "SALES_HIRE",
+        "label": "theboats@wpsa.co.uk e for the Board of Trade Standards Department (More commonly known as Weights and Measures). Walking Distance: 3 Minutes / 660 Feet Visit Website Book Online Information Events Destinations Fares & Sailings Private Hire Info Contact Boats Cockney Sparrow Connaught Princess Freda Tour Info Disabled Access Route Map Points of Interest The Bridges Times and Tides Journey Times Gallery Contact Email: theboats@wpsa.co.uk"
+      }
+    ]
+  },
+  {
+    "venue": "Drill Shed",
+    "originalUrl": "https://www.drillshedmargate.co.uk/",
+    "request": {
+      "subject": {
+        "canonicalEntityId": null,
+        "candidateReference": {
+          "sourceSystem": "event_suite_resources",
+          "sourceRecordId": "audit-drill-shed"
+        }
+      },
+      "existingEvidenceRefs": [
+        "audit:drill-shed"
+      ],
+      "researchContext": {
+        "targetWebsite": "https://www.drillshedmargate.co.uk/",
+        "locality": "Margate",
+        "existingFacts": [
+          {
+            "fieldName": "formattedAddress",
+            "value": "Cliftonville, Margate, N18 3HF",
+            "evidenceRef": "audit:drill-shed"
+          }
+        ]
+      }
+    },
+    "facts": [
+      {
+        "value": "The Drill Shed",
+        "fieldName": "siteName",
+        "sourceUrl": "https://www.drillshedmargate.co.uk/",
+        "evidenceRef": "source:f82d4f4aa94ad39a80f7d87eca94c6df22b300d4b884bd947e23c76467ac3e44:identity:ffddf8a30d28026e"
+      },
+      {
+        "value": "DRILL SHED",
+        "fieldName": "explicitVenueName",
+        "sourceUrl": "https://www.drillshedmargate.co.uk/",
+        "evidenceRef": "source:f82d4f4aa94ad39a80f7d87eca94c6df22b300d4b884bd947e23c76467ac3e44:identity:33ebb6b145bf32cc"
+      },
+      {
+        "value": "Drill Shed Margate | Live Music, Events & Venue Hire in Cliftonville",
+        "fieldName": "pageTitle",
+        "sourceUrl": "https://www.drillshedmargate.co.uk/",
+        "evidenceRef": "source:f82d4f4aa94ad39a80f7d87eca94c6df22b300d4b884bd947e23c76467ac3e44:identity:22236a089b1f751f"
+      },
+      {
+        "value": "The Drill Shed",
+        "fieldName": "siteName",
+        "sourceUrl": "https://www.drillshedmargate.co.uk/contact/",
+        "evidenceRef": "source:6844e2ee0780b4993cd02070d9cdffe710c00437d4241c8d79672b42a9626d92:identity:ffddf8a30d28026e"
+      },
+      {
+        "value": "1 Ethelbert Terrace, Cliftonville, Margate, CT9 1RX",
+        "fieldName": "address",
+        "sourceUrl": "https://www.drillshedmargate.co.uk/contact/",
+        "evidenceRef": "source:6844e2ee0780b4993cd02070d9cdffe710c00437d4241c8d79672b42a9626d92:identity:136b68df48615d30"
+      }
+    ],
+    "contacts": []
+  }
+]

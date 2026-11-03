@@ -368,7 +368,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
     evaluated += 1;
     let docs = output.documents;
     let finalUrl = output.finalUrl;
-    let extracted = extractFromFetchedDocuments(docs, ["IDENTITY"]);
+    let extracted = extractFromFetchedDocuments(docs, ["IDENTITY", "SOURCE_CLASSIFICATION"]);
     const rootSiteNames = extracted.identityFacts.filter((f) => f.fieldName === "siteName" && typeof f.value === "string").map((f) => f.value as string);
     const hasRootOperatorAlignment = rootSiteNames.some((s) => distinctiveNameTokens(identity.venueName).some((t) => t.length >= 4 && normalise(s).includes(t)));
     let assessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl, identityFacts: extracted.identityFacts });
@@ -378,7 +378,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
         crawl.requestCount += deepOut.stats.requestCount;
         if (deepOut.documents.length) {
           docs = [...docs, ...deepOut.documents];
-          extracted = extractFromFetchedDocuments(docs, ["IDENTITY"]);
+          extracted = extractFromFetchedDocuments(docs, ["IDENTITY", "SOURCE_CLASSIFICATION"]);
           const deepAssessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl: deepOut.finalUrl, identityFacts: extracted.identityFacts });
           if (deepAssessment.verified || (deepAssessment.nameSignal && !assessment.nameSignal)) {
             assessment = deepAssessment;

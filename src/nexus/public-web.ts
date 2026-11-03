@@ -176,7 +176,38 @@ export function withinAcceptedSite(value:string,scope:string){
   }catch{return false;}
 }
 
-export function verifyFirstPartyIdentity(name: string | null, context: Pick<ResearchContext, "locality" | "existingFacts">, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
+/** A fetched property title or shorter branch name needs the held postcode on
+ * that same page. A URL can corroborate a trailing branch qualifier, never the name
+ * itself. Neither a group description nor a sibling page supplies this proof. */
+function corroboratedPropertyPage(name: string, context: Pick<ResearchContext, "targetWebsite" | "existingFacts">, address: string | null, facts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
+  const postcode = (value: string) => value.toUpperCase().match(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/)?.[0]?.replace(/\s/g, "");
+  const held = address && postcode(address);
+  const wanted = [...tokens(name)].filter(token => token !== "the");
+  if (!held || !wanted.length) return null;
+  const scope = context.existingFacts?.find(fact => fact.fieldName === "acceptedWebsiteScope")?.value;
+  for (const fact of facts) {
+    if (!["pageTitle", "siteName", "explicitVenueName", "placeName"].includes(fact.fieldName) || typeof fact.value !== "string" || !fact.sourceUrl) continue;
+    let page: URL;
+    try {
+      page = new URL(fact.sourceUrl);
+      if (page.protocol !== "https:" || page.username || page.password || page.port) continue;
+      if (typeof scope === "string" && !withinAcceptedSite(fact.sourceUrl, scope)) continue;
+      if (context.targetWebsite && !withinAcceptedSite(fact.sourceUrl, new URL(context.targetWebsite).origin)) continue;
+    } catch { continue; }
+    if (!facts.some(addressFact => addressFact.fieldName === "address" && addressFact.sourceUrl === fact.sourceUrl && typeof addressFact.value === "string" && postcode(addressFact.value) === held)) continue;
+    const observed = tokens(fact.value);
+    const missing = wanted.filter(token => !observed.has(token));
+    const direct = missing.length === 0;
+    const firstMissing = wanted.findIndex(token => !observed.has(token));
+    const alias = firstMissing >= 2
+      && wanted.slice(0, firstMissing).filter(token => !INTERCHANGEABLE_VENUE_SUFFIXES.has(token)).length >= 2
+      && wanted.slice(firstMissing).every(token => !observed.has(token) && tokens(page.pathname).has(token));
+    if (direct || alias) return [direct ? "corroborated first-party page title" : "corroborated property-page alias", "matching property postcode", `property proof: ${fact.sourceUrl}`];
+  }
+  return null;
+}
+
+export function verifyFirstPartyIdentity(name: string | null, context: Pick<ResearchContext, "locality" | "existingFacts" | "targetWebsite">, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
   if (!name) return { verified: false, path: null, signals: [] as string[], nameSignal: false, locationSignal: false };
   const existingAddress = text(context.existingFacts?.find((item) => ["address", "formattedAddress"].includes(item.fieldName))?.value);
   const locality = context.locality?.trim();
@@ -204,6 +235,8 @@ export function verifyFirstPartyIdentity(name: string | null, context: Pick<Rese
   ));
   const existingVerifiedOrigin = Boolean(context.existingFacts?.some((item) => item.fieldName === "verifiedWebsiteOriginMatch" && item.value === true && item.evidenceRef));
   if(existingVerifiedOrigin)return {verified:true,path:'DIRECT' as const,signals:['existing verified Nexus origin','accepted subject-to-site association'],nameSignal,locationSignal};
+  const propertyProof = corroboratedPropertyPage(name, context, existingAddress, identityFacts);
+  if (propertyProof) return { verified: true, path: "DIRECT" as const, signals: propertyProof, nameSignal: true, locationSignal: true };
   if (nameSignal && (locationSignal || ((existingPlaceEvidence || existingVerifiedOrigin) && hasTitle) || (!locationRequired && hasTitle && hasHeading))) {
     return { verified: true, path: "DIRECT" as const, signals: ["direct venue name", ...(locationSignal ? ["location alignment"] : []), ...(existingPlaceEvidence ? ["known Place identity"] : []), ...(existingVerifiedOrigin ? ["existing verified Nexus origin"] : [])], nameSignal, locationSignal };
   }

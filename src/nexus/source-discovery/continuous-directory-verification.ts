@@ -110,7 +110,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    const adapted=async(args:Parameters<typeof provider>[0]):Promise<ProviderResult>=>{
     const value=await provider(args),crawl=observation.crawl;
     if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
-    const facts=extractFromFetchedDocuments(crawl.documents,['IDENTITY']).identityFacts;
+    const facts=extractFromFetchedDocuments(crawl.documents,['IDENTITY','SOURCE_CLASSIFICATION']).identityFacts;
     const address=research.existingFacts?.find(f=>f.fieldName==='formattedAddress')?.value;
     const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts});
     const siteEvidence=value.evidence.find(e=>(e.payload as {kind?:string})?.kind==='FIRST_PARTY_WEBSITE');
