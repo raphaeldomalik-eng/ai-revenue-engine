@@ -43,7 +43,18 @@ function reconsiderStoredDirectoryVerifier(cached:Record<string,unknown>,input:R
  const assessment=assessWebsiteIdentity({venueName:context.targetName!,country,heldAddress:typeof address==='string'?address:null,context,finalUrl:crawl.finalUrl,identityFacts,contactObservations:observations});
  if(!assessment.verified)return cached;
  const scope=verifiedPropertyContactScope(context.targetName!,context,identityFacts,observations,crawl.finalUrl);
- const contactDecisions=observations.map((c:any)=>{const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,context.targetName!,c.label??''):null;const qualified=scope.get(c.sourceUrl)===true&&(!verdict||verdict.accepted);return {...c,accepted:qualified,rejectionReason:qualified?null:verdict&&!verdict.accepted?verdict.reason:'PROPERTY_OR_OPERATOR_ENQUIRY_SCOPE_UNCONFIRMED'};});
+ const contactDecisions=observations.map((c:any)=>{
+  const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,context.targetName!,c.label??''):null;
+  // A bare address on a child article has no retained enquiry-role evidence.
+  // Article schema must bind to this exact document; the held property root
+  // and explicitly contextual programme/general enquiries keep their authority.
+  const normalized=(value:unknown)=>String(value??'').trim().toLowerCase().replace(/\s+/g,' ');
+  const bareArticleContact=c.type==='EMAIL'&&c.purpose==='GENERAL'&&normalized(c.label)===normalized(c.value)
+   &&!sameDocument(c.sourceUrl,context.targetWebsite!)&&new URL(c.sourceUrl).pathname!=='/'
+   &&identityFacts.some((f:any)=>f.fieldName==='schemaOrgTypes'&&sameDocument(f.sourceUrl,c.sourceUrl)&&Array.isArray(f.value)&&f.value.some((type:string)=>type==='Article'||type==='NewsArticle'));
+  const qualified=scope.get(c.sourceUrl)===true&&(!verdict||verdict.accepted)&&!bareArticleContact;
+  return {...c,accepted:qualified,rejectionReason:qualified?null:verdict&&!verdict.accepted?verdict.reason:bareArticleContact?'ARTICLE_CONTACT_ENQUIRY_PURPOSE_UNCONFIRMED':'PROPERTY_OR_OPERATOR_ENQUIRY_SCOPE_UNCONFIRMED'};
+ });
  if(!contactDecisions.some((c:any)=>c.type==='EMAIL'&&c.accepted))return cached;
  const sourceFacts=identityFacts.filter((f:any)=>scope.get(f.sourceUrl)!==false);
  const refs=[...new Set([site.evidenceRef,...sourceFacts.map((f:any)=>f.evidenceRef),...contactDecisions.map((c:any)=>c.evidenceRef)])];
