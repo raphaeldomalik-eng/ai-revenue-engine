@@ -67,8 +67,23 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   if(!seed||!research?.targetName||!research.locality||candidateRejection(seed)||!context.queueId||!Number.isSafeInteger(context.attempts)||context.attempts<0||!Number.isSafeInteger(context.requestBudget)||context.requestBudget<1||context.requestBudget>(continuation?.originalRequestBudget??recovery?.originalRequestBudget??options.policy.maxRequestsPerVenue)||!Array.isArray(context.gaps)||!context.gaps.length)return Response.json({code:'DIRECTORY_VERIFICATION_CONTEXT_REQUIRED'},{status:400});
   const fingerprint=policyHash({subject:input.subject,purpose:input.researchPurpose,facts:input.requestedFactTypes,context:research,evidenceRefs:input.existingEvidenceRefs,freshness:input.freshnessRequirements,policy:continuation?.sourcePolicySha256??recoveryEntry?.sourcePolicySha256??options.approvedPolicyHash,queue:context.queueId,budget:context.requestBudget,gaps:context.gaps});
   const key=uuid('directory-verification-v1:'+input.idempotencyKey),cached=await options.store.get(key);
-  if(request.headers.get('x-nexus-cache-only')==='true'&&(!cached||retryableProviderFailure(cached)))return Response.json({code:'DIRECTORY_CACHED_RESULT_REQUIRED'},{status:409});
+  const cacheOnly=request.headers.get('x-nexus-cache-only')==='true';
+  if(cacheOnly&&!cached)return Response.json({code:'DIRECTORY_CACHED_RESULT_REQUIRED'},{status:409});
   if(cached&&cached.directoryRequestSha256!==fingerprint)return Response.json({code:'DIRECTORY_REPLAY_SUBJECT_MISMATCH'},{status:409});
+  // A historical finite-budget error does not invalidate positively proven
+  // retained evidence. This exact-scope cache-only view cannot retry research,
+  // replace the original cache, or complete/change its historical retry guard.
+  // Continuation/recovery policies retain their existing separate controls.
+  if(cacheOnly&&cached&&retryableProviderFailure(cached)&&!continuation&&!recovery){
+   const reservation=cached.directoryReservation as Parameters<ContinuousLedger['complete']>[0]|undefined;
+   if(!reservation||reservation.policyId!==options.policy.policyId||reservation.policySha256!==options.approvedPolicyHash||reservation.identityKey!==identity||reservation.queueId!==context.queueId
+    ||reservation.country!==context.country||reservation.host!==new URL(seed).hostname.toLowerCase()||reservation.action!=='VERIFY_WEBSITE'||reservation.requestBudget!==context.requestBudget)return Response.json({code:'DIRECTORY_CACHED_RESERVATION_SCOPE'},{status:409});
+   const recovered=storedDirectoryVerifierAcquisition(cached,input),recoveredVerification=recovered.directoryVerification as {state?:string}|undefined;
+   const positive=recovered!==cached&&recovered.status==='COMPLETED'&&recoveredVerification?.state==='VERIFIED'&&Array.isArray(recovered.evidence)&&recovered.evidence.some((e:{payload?:{storedVerifierRecovery?:{version?:number};firstPassAcquisition?:{publicContacts?:Array<{type:string;reviewRequired?:boolean}>}}})=>e.payload?.storedVerifierRecovery?.version===2&&e.payload.firstPassAcquisition?.publicContacts?.some(c=>c.type==='EMAIL'&&c.reviewRequired===false));
+   if(!positive)return Response.json({code:'DIRECTORY_CACHED_RESULT_REQUIRED'},{status:409});
+   return Response.json({result:validateResearchResult(recovered),verification:recoveredVerification,receipt:cacheReceipt});
+  }
+  if(cacheOnly&&cached&&retryableProviderFailure(cached))return Response.json({code:'DIRECTORY_CACHED_RESULT_REQUIRED'},{status:409});
   if(continuation){
    if(!entry||!cached)return Response.json({code:'DIRECTORY_CONTINUATION_ORIGINAL_REQUIRED'},{status:409});
    const prior=cached.directoryReservation as Parameters<ContinuousLedger['complete']>[0]|undefined;
@@ -112,13 +127,13 @@ export async function handleDirectoryVerificationRequest(request:Request,options
     if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
     const facts=extractFromFetchedDocuments(crawl.documents,['IDENTITY','SOURCE_CLASSIFICATION']).identityFacts;
     const address=research.existingFacts?.find(f=>f.fieldName==='formattedAddress')?.value;
-    const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts});
+    const observed=extractFromFetchedDocuments(crawl.documents,['PUBLIC_CONTACT']).publicContacts;
+    const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts,contactObservations:observed});
     const siteEvidence=value.evidence.find(e=>(e.payload as {kind?:string})?.kind==='FIRST_PARTY_WEBSITE');
     const state=crawl.stats.status==='BLOCKED'?'BLOCKED':assessment.verified?'VERIFIED':'UNVERIFIED';
     verification={state,url:assessment.verified?crawl.finalUrl:null,evidenceRef:siteEvidence?.evidenceRef??null,signals:assessment.signals,reason:assessment.reason};
     // Review telemetry from this exact existing crawl, never another fetch or
     // additional contact acceptance policy. Rejected observations stay evidence.
-    const observed=extractFromFetchedDocuments(crawl.documents,['PUBLIC_CONTACT']).publicContacts;
     const accepted=(siteEvidence?.payload as {contacts?:Array<{type:string;value:string;sourceUrl:string}>})?.contacts??[];
     crawlReceipt={...crawl.stats,finalUrl:crawl.finalUrl,evidenceManifest:crawl.evidenceManifest,
       contactObservations:observed.slice(0,100).map(c=>{const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,research.targetName!,c.label??''):null;

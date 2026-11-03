@@ -156,14 +156,14 @@ function namedLocalityOnSite(venueName: string, locality: string | null, heldAdd
   return normHeadings.some((value) => locTerms.some((place) => value.includes(` ${place} `)));
 }
 
-export function assessWebsiteIdentity(input: { venueName: string; country: "GB" | "ZA"; heldAddress: string | null; context: IdentityContext; finalUrl: string; identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }> }) {
+export function assessWebsiteIdentity(input: { venueName: string; country: "GB" | "ZA"; heldAddress: string | null; context: IdentityContext; finalUrl: string; identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>;contactObservations?:Array<{label?:string|null;sourceUrl:string;evidenceRef?:string}> }) {
   if (candidateRejection(input.finalUrl)) return { verified: false, state: "REJECTED" as const, reason: "REDIRECTED_TO_NON_FIRST_PARTY_HOST", path: null, signals: [] as string[], nameSignal: false };
   const heldPostcode=postcodeOf(input.heldAddress,input.country);
   const acceptedScope=input.context.existingFacts?.find(f=>f.fieldName==='acceptedWebsiteScope'&&f.evidenceRef)?.value;
   const acceptedOperator=input.context.existingFacts?.some(f=>f.fieldName==='verifiedWebsiteOriginMatch'&&f.value===true)&&input.context.existingFacts?.some(f=>f.fieldName==='acceptedWebsiteAssociation'&&Boolean((f.value as Record<string,unknown>)?.operatorName));
   const sitePostcodes=input.identityFacts.filter(f=>f.fieldName==='address'&&typeof f.value==='string'&&(typeof acceptedScope!=='string'||!f.sourceUrl||withinAcceptedSite(f.sourceUrl,acceptedScope))).map(f=>postcodeOf(f.value as string,input.country)).filter(Boolean);
   if(!acceptedOperator&&heldPostcode&&sitePostcodes.length&&!sitePostcodes.includes(heldPostcode))return {verified:false,state:'REJECTED' as const,reason:'ADDRESS_POSTCODE_CONFLICT',path:null,signals:[] as string[],nameSignal:true};
-  let verification = verifyFirstPartyIdentity(input.venueName, input.context, input.identityFacts);
+  let verification = verifyFirstPartyIdentity(input.venueName, input.context, input.identityFacts,input.contactObservations);
   if (!verification.verified && namedLocalityOnSite(input.venueName, input.context.locality ?? null, input.heldAddress, input.identityFacts)) {
     verification = { verified: true, path: "DIRECT", signals: ["direct venue name", "locality named in first-party title or heading"], nameSignal: true, locationSignal: true };
   }
@@ -174,7 +174,7 @@ export function assessWebsiteIdentity(input: { venueName: string; country: "GB" 
   }
   if(typeof acceptedScope==='string'&&!withinAcceptedSite(input.finalUrl,acceptedScope))return {verified:false,state:'UNVERIFIED' as const,reason:'OUTSIDE_ACCEPTED_SITE_SCOPE',path:null,signals:[] as string[],nameSignal:verification.nameSignal};
   const acceptedAssociation=input.context.existingFacts?.some(f=>f.fieldName==='verifiedWebsiteOriginMatch'&&f.value===true&&f.evidenceRef);
-  if (!acceptedAssociation && isGenericVenueName(input.venueName) && !addressCorroborated(input.identityFacts, input.heldAddress, input.country)) {
+  if (!acceptedAssociation && isGenericVenueName(input.venueName) && !verification.signals.includes('matching property postcode') && !addressCorroborated(input.identityFacts, input.heldAddress, input.country)) {
     return { verified: false, state: "UNVERIFIED" as const, reason: "GENERIC_NAME_REQUIRES_ADDRESS_CORROBORATION", path: null, signals: [] as string[], nameSignal: true };
   }
   return { verified: true, state: "SELECTED" as const, reason: `VERIFIED_${verification.path}`, path: verification.path, signals: verification.signals, nameSignal: verification.nameSignal };
