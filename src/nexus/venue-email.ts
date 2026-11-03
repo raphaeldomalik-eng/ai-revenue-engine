@@ -113,6 +113,8 @@ export function acceptVenueEmail(value: string, verifiedSiteUrl: string, venueNa
   if (/^(?:press|media|pr|recruitment|recruiting|careers?|jobs?|hr|vacancies)(?:[._+-]|$)/i.test(shape.mailbox)) return {accepted:false,reason:'NON_VENUE_CONTACT_PURPOSE'};
   if (DESIGNER_CONTEXT.test(nearby)) return { accepted: false, reason: "DESIGNER_OR_VENDOR" };
   if (PRIVACY_CONTEXT.test(nearby)) return { accepted: false, reason: "PRIVACY_OR_DPO" };
+  if (/\b(?:copyright infringement|infringes your copyright|intellectual property|designated agent|legal[- ]only|legal enquiries)\b/i.test(nearby)) return {accepted:false,reason:'LEGAL_ONLY_CONTACT'};
+  if (/\b(?:travel (?:insurance|protection) plan|insurance benefits|insurance (?:provider|claims)|Allianz Partners)\b/i.test(nearby)) return {accepted:false,reason:'INSURANCE_PROVIDER_CONTACT'};
   if (/\bticketing\s+provider\b/i.test(nearby)) return { accepted: false, reason: "THIRD_PARTY_PLATFORM_DOMAIN" };
   if (/\bseparately operated (?:programme|program|business)\b/i.test(nearby)) return {accepted:false,reason:'NON_VENUE_PROGRAMME_CONTACT'};
   if (/\/(?:partners|suppliers|sponsors)(?:\/|$)/i.test(new URL(verifiedSiteUrl).pathname)&&!PURPOSE_PUBLISHED_CONTACT.test(nearby)) return {accepted:false,reason:'UNRELATED_PARTNER_CONTACT'};

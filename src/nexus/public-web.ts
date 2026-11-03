@@ -176,6 +176,26 @@ export function withinAcceptedSite(value:string,scope:string){
   }catch{return false;}
 }
 
+/** A title/alias is property proof only alongside the held postcode on the
+ * same fetched page. A branch suffix may live in that page's path, never in
+ * another property's navigation or a group-homepage description. */
+function corroboratedPropertyPage(name:string,address:string|null,facts:Array<{fieldName:string;value:unknown;sourceUrl?:string}>){
+  const postcode=(value:string)=>value.toUpperCase().match(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/)?.[0]?.replace(/\s/g,'');
+  const held=address&&postcode(address);if(!held)return null;
+  const wanted=[...tokens(name)].filter(t=>t!=='the');
+  for(const fact of facts){
+    if(!['pageTitle','siteName','explicitVenueName','placeName'].includes(fact.fieldName)||typeof fact.value!=='string'||!fact.sourceUrl)continue;
+    if(!facts.some(a=>a.fieldName==='address'&&a.sourceUrl===fact.sourceUrl&&typeof a.value==='string'&&postcode(a.value)===held))continue;
+    let page:URL;try{page=new URL(fact.sourceUrl);if(page.protocol!=='https:')continue;}catch{continue;}
+    const observed=[...tokens(fact.value)],missing=wanted.filter(t=>!observed.includes(t));
+    const direct=missing.length===0;
+    const alias=wanted.filter(t=>observed.includes(t)&&!INTERCHANGEABLE_VENUE_SUFFIXES.has(t)).length>=2
+      &&missing.length>0&&missing.every(t=>tokens(page.pathname).has(t));
+    if(direct||alias)return {signals:[direct?'corroborated first-party page title':'corroborated property-page alias','matching property postcode',`property proof: ${fact.sourceUrl}`]};
+  }
+  return null;
+}
+
 export function verifyFirstPartyIdentity(name: string | null, context: Pick<ResearchContext, "locality" | "existingFacts">, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>) {
   if (!name) return { verified: false, path: null, signals: [] as string[], nameSignal: false, locationSignal: false };
   const existingAddress = text(context.existingFacts?.find((item) => ["address", "formattedAddress"].includes(item.fieldName))?.value);
@@ -204,6 +224,8 @@ export function verifyFirstPartyIdentity(name: string | null, context: Pick<Rese
   ));
   const existingVerifiedOrigin = Boolean(context.existingFacts?.some((item) => item.fieldName === "verifiedWebsiteOriginMatch" && item.value === true && item.evidenceRef));
   if(existingVerifiedOrigin)return {verified:true,path:'DIRECT' as const,signals:['existing verified Nexus origin','accepted subject-to-site association'],nameSignal,locationSignal};
+  const propertyPage=corroboratedPropertyPage(name,existingAddress,identityFacts);
+  if(propertyPage)return {verified:true,path:'DIRECT' as const,signals:propertyPage.signals,nameSignal:true,locationSignal:true};
   if (nameSignal && (locationSignal || ((existingPlaceEvidence || existingVerifiedOrigin) && hasTitle) || (!locationRequired && hasTitle && hasHeading))) {
     return { verified: true, path: "DIRECT" as const, signals: ["direct venue name", ...(locationSignal ? ["location alignment"] : []), ...(existingPlaceEvidence ? ["known Place identity"] : []), ...(existingVerifiedOrigin ? ["existing verified Nexus origin"] : [])], nameSignal, locationSignal };
   }

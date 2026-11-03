@@ -29,6 +29,20 @@ test('first-pass verification retains actual HTTP/page and contact observations 
  const before=h.counts().requests;await handleDirectoryVerificationRequest(request(),h.options);assert.equal(h.counts().requests,before);
 });
 
+test('unverified and inaccessible first passes retain exact execution and identity reasons in the versioned result',async()=>{
+ for(const inaccessible of [false,true]){
+  const h=harness('York');if(inaccessible)h.options.fetchImpl=async()=>new Response('',{status:404});
+  const body=await(await handleDirectoryVerificationRequest(request(),h.options)).json() as any;
+  const execution=body.result?.evidence.find((e:any)=>e.payload.kind==='DIRECTORY_WEBSITE_EXECUTION');
+  assert(execution,JSON.stringify(body));
+  assert.equal(execution.payload.requestId,id);assert.equal(execution.payload.originalUrl,payload.researchContext.targetWebsite);
+  assert(execution.payload.crawl.requestCount>0);assert.equal(execution.observedAt,new Date(now).toISOString());
+  assert.equal(execution.payload.verification.reason,inaccessible?'NO_SAME_ENTITY_IDENTITY_EVIDENCE':'ADDRESS_POSTCODE_CONFLICT');
+  assert.equal(execution.payload.verification.state,'UNVERIFIED');
+  assert.equal(body.result.status,'UNRESOLVED','execution telemetry must not make an unresolved website a successful business result');
+ }
+});
+
 test('verified first-pass contacts remain structured AIRE observations for the existing classified consumer, with replay costing no requests',async()=>{
  const h=harness(),fetch=h.options.fetchImpl;
  h.options.fetchImpl=async(input)=>{const response=await fetch(input);if(String(input).endsWith('/robots.txt'))return response;return new Response((await response.text()).replace('</body>','<a href="mailto:bookings@operator.co.uk">Venue event bookings</a></body>'),{headers:{'content-type':'text/html'}});};
