@@ -25,3 +25,13 @@ test('a finance and personnel department is retained for review rather than rela
  const c=result.evidence.find((e:any)=>e.payload?.firstPassAcquisition).payload.firstPassAcquisition.publicContacts.find((c:any)=>c.value==='elainemcp@millenniumforum.co.uk');
  assert.equal(c.reviewRequired,true);assert.equal(c.reviewReason,'NON_ENQUIRY_DEPARTMENT');
 });
+
+test('retained property conflicts return a versioned held assessment without changing the original decision',()=>{
+ const f=structuredClone(cases.find((c:any)=>c.name==='Glynde Place'));
+ const address=f.request.researchContext.existingFacts.find((x:any)=>x.fieldName==='formattedAddress');address.value='1 Example Road, London, SW1A 1AA';
+ const before=JSON.stringify(f.cached),result=storedDirectoryVerifierAcquisition(f.cached,f.request) as any;
+ const recovery=result.evidence.find((e:any)=>e.payload?.storedVerifierRecovery)?.payload.storedVerifierRecovery;
+ assert(recovery,'the exact held assessment must survive the cached handoff');assert.equal(recovery.state,'HELD');assert.equal(recovery.newVerification.reason,'ADDRESS_POSTCODE_CONFLICT');
+ assert.equal(result.directoryVerification.state,f.cached.directoryVerification.state);assert.equal(JSON.stringify(f.cached),before);assert.equal(recovery.websiteRequests,0);assert.equal(recovery.providerRequests,0);
+ assert.equal(result.evidence.some((e:any)=>e.payload?.firstPassAcquisition),false);
+});

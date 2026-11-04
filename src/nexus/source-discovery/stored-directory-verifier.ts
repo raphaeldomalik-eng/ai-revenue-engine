@@ -41,7 +41,10 @@ function reconsiderStoredDirectoryVerifier(cached:Record<string,unknown>,input:R
  const context=withVerifiedNexusOrigin(input,input.researchContext),address=context.existingFacts?.find(f=>f.fieldName==='formattedAddress')?.value,country=context.territory;
  if(country!=='GB'&&country!=='ZA')return cached;
  const assessment=assessWebsiteIdentity({venueName:context.targetName!,country,heldAddress:typeof address==='string'?address:null,context,finalUrl:crawl.finalUrl,identityFacts,contactObservations:observations});
- if(!assessment.verified)return cached;
+ if(!assessment.verified){
+  const recovery={version:2,state:'HELD',originalRequestId:raw.requestId,originalObservedAt:raw.observedAt,originalResultSha256:createHash('sha256').update(JSON.stringify(cached)).digest('hex'),originalVerification:raw.directoryVerification,newVerification:{state:'UNVERIFIED',url:crawl.finalUrl,evidenceRef:site.evidenceRef,reason:assessment.reason,signals:assessment.signals},sourceEvidenceRefs:input.existingEvidenceRefs,websiteRequests:0,providerRequests:0};
+  return {...cached,evidence:raw.evidence.map(e=>e===site?{...e,payload:{...(e.payload as Record<string,unknown>),storedVerifierRecovery:recovery}}:e)};
+ }
  const scope=verifiedPropertyContactScope(context.targetName!,context,identityFacts,observations,crawl.finalUrl);
  const contactDecisions=observations.map((c:any)=>{
   const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,context.targetName!,c.label??''):null;
@@ -55,7 +58,10 @@ function reconsiderStoredDirectoryVerifier(cached:Record<string,unknown>,input:R
   const qualified=scope.get(c.sourceUrl)===true&&(!verdict||verdict.accepted)&&!bareArticleContact;
   return {...c,accepted:qualified,rejectionReason:qualified?null:verdict&&!verdict.accepted?verdict.reason:bareArticleContact?'ARTICLE_CONTACT_ENQUIRY_PURPOSE_UNCONFIRMED':'PROPERTY_OR_OPERATOR_ENQUIRY_SCOPE_UNCONFIRMED'};
  });
- if(!contactDecisions.some((c:any)=>c.type==='EMAIL'&&c.accepted))return cached;
+ if(!contactDecisions.some((c:any)=>c.type==='EMAIL'&&c.accepted)){
+  const recovery={version:2,state:'HELD',originalRequestId:raw.requestId,originalObservedAt:raw.observedAt,originalResultSha256:createHash('sha256').update(JSON.stringify(cached)).digest('hex'),originalVerification:raw.directoryVerification,newVerification:{state:'UNVERIFIED',url:crawl.finalUrl,evidenceRef:site.evidenceRef,reason:'NO_SUPPORTED_PROPERTY_ENQUIRY_EMAIL',signals:assessment.signals},contactDecisions,sourceEvidenceRefs:input.existingEvidenceRefs,websiteRequests:0,providerRequests:0};
+  return {...cached,evidence:raw.evidence.map(e=>e===site?{...e,payload:{...(e.payload as Record<string,unknown>),storedVerifierRecovery:recovery}}:e)};
+ }
  const sourceFacts=identityFacts.filter((f:any)=>scope.get(f.sourceUrl)!==false);
  const refs=[...new Set([site.evidenceRef,...sourceFacts.map((f:any)=>f.evidenceRef),...contactDecisions.map((c:any)=>c.evidenceRef)])];
  const verification={state:'VERIFIED',url:crawl.finalUrl,evidenceRef:site.evidenceRef,signals:assessment.signals,reason:assessment.reason};
