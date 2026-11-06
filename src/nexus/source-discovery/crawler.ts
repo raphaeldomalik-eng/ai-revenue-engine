@@ -1,3 +1,4 @@
+import {classifyCrawlDisposition} from './crawl-disposition.ts';
 import { createHash } from "node:crypto";
 import type { SourceExtractor } from "../contracts.ts";
 import { classifyContent, decodeText, inflateBoundedDocument, refuseByHeaders, TYPE_BYTE_LIMITS, type ContentKind } from "./content.ts";
@@ -160,6 +161,11 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T
 }
 
 /** One network request: public-network check, budget accounting, per-origin politeness, single-flight, size ceiling. */
+function diagnostic(ctx:Ctx,url:string,error:unknown){
+ if((ctx.stats.diagnostics??=[]).length>=256)return;
+ const e=error as Error&{code?:string;cause?:{code?:string}};
+ ctx.stats.diagnostics.push({url:manifestSafeUrl(url),observedAt:ctx.now().toISOString(),code:String(e?.code??e?.cause?.code??e?.name??'UNKNOWN').slice(0,128),message:refusalMessage(error,'Request failed.').slice(0,1024)});
+}
 async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: number, headers: Record<string, string> = {}): Promise<ResponseSnapshot> {
   const allowedHosts = ctx.input.allowedHosts;
   if (allowedHosts?.length && !allowedHosts.includes(new URL(url).hostname.toLowerCase())) {
@@ -173,6 +179,7 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
     if (!(error instanceof NetworkRefusal)) {
       // A resolver failure is a transport attempt, counted exactly as the pinned production path counts it.
       ctx.stats.requestCount += 1;
+      diagnostic(ctx,url,error);
       throw transportRefusal(error);
     }
     ctx.stats.blockedCount += 1;
@@ -207,11 +214,16 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
         return { status: response.status, headers: response.headers, bytes };
       })(), ctx.budget.timeoutMs);
     }));
+    const retryAfter=snapshot.headers.get('retry-after'),delay=parseRetryAfter(retryAfter,ctx.now().getTime());
+    const challenge=/cf-chl-|challenge-platform|verify (?:that )?you are human|<title>\s*(?:just a moment|attention required)/i.test(new TextDecoder().decode(snapshot.bytes.subarray(0,16000)))&&(snapshot.status===403||snapshot.status===503||snapshot.status===200);
+    if((snapshot.status>=400||challenge)&&(ctx.stats.diagnostics??=[]).length<256)ctx.stats.diagnostics.push({url:manifestSafeUrl(url),observedAt:ctx.now().toISOString(),code:challenge?'BOT_WAF_CHALLENGE':'HTTP_'+snapshot.status,status:snapshot.status,retryAfter:retryAfter?.slice(0,128)??null,retryNotBefore:delay===null?null:new Date(ctx.now().getTime()+delay).toISOString()});
+    if (delay!==null)ctx.politeness.noteRetryAfter(origin,delay);
     if (ctx.obs.responseManifest.length < 256) {
       ctx.obs.responseManifest.push({ url: manifestSafeUrl(url), status: snapshot.status, contentType: snapshot.headers.get("content-type"), bytes: snapshot.bytes.length, responseHash: createHash("sha256").update(snapshot.bytes).digest("hex") });
     } else ctx.obs.responseManifestOmitted += 1;
     return snapshot;
   } catch (error) {
+    diagnostic(ctx,url,error);
     if (error instanceof CrawlRefusal) throw error;
     if (error instanceof UnsupportedContent) throw new ContentSkipped(error.message);
     if (error instanceof NetworkRefusal) throw new CrawlRefusal(error.message, "TERMINAL");
@@ -262,6 +274,7 @@ async function fetchRobots(ctx: Ctx, origin: string): Promise<string> {
       const decision = ctx.site.decideRedirect(current, location, snapshot.status, "ROBOTS");
       if (!decision.next) {
         ctx.stats.blockedCount += 1;
+        ctx.obs.blockedPages.push({url:current,reason:`REDIRECT_${decision.reason}`});
         throw redirectRefusal(current, location, decision.reason);
       }
       if (redirects >= ctx.budget.maxRedirects) throw new CrawlRefusal("Redirect budget exhausted.", "TERMINAL");
@@ -466,6 +479,10 @@ function finish(ctx: Ctx, output: { verifiedUrl: string; finalUrl: string; docum
   obs.finalStatus = ctx.stats.status;
   obs.dimensionsSatisfied = obs.dimensionsRequested.filter((dim) => satisfied.includes(dim));
   obs.dimensionsMissing = obs.dimensionsRequested.filter((dim) => !satisfied.includes(dim));
+  ctx.stats.disposition=classifyCrawlDisposition({...output,stats:ctx.stats,observability:obs});
+  // A failed robots/transport check says access is unproven, not that the
+  // website is known to prohibit us. Explicit refusals retain BLOCKED.
+  if(ctx.stats.status==='BLOCKED'&&['HTTP_403_ACCESS_UNCERTAIN','HTTP_401_AUTH_REQUIRED','BOT_WAF_CHALLENGE_SUSPECTED','DNS_TEMPORARY'].includes(ctx.stats.disposition.code)){ctx.stats.status='FAILED';obs.finalStatus='FAILED';}
   const websiteOpportunity = assessWebsiteOpportunity(output.documents);
   obs.websiteOpportunity = websiteOpportunity;
   return { ...output, stats: ctx.stats, canonicalOrigin: ctx.site.canonicalOrigin, observability: obs, websiteOpportunity,

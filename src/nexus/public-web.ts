@@ -437,7 +437,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
       await options.onCrawl?.(crawl);
       const extracted = seedExtraction??extractFromFetchedDocuments(crawl.documents, [...extractors], targetName(request, context) ?? '');
       if (!crawl.documents.length) {
-        return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: true } });
+        return unresolved(request, purpose, "Public-web discovery produced no safe first-party document.", { facts: seededPlaceFacts, evidence: seedEvidence, providerUsage, error: { code: "PUBLIC_WEB_UNAVAILABLE", message: crawl.stats.warnings.join(" ") || "No safe public-web document was fetched.", retryable: crawl.stats.disposition?.retryable ?? false } });
       }
       const verification = seedCrawl?{...verifyIdentity(request,verificationContext,extracted.identityFacts,crawl.finalUrl,extracted.publicContacts),verified:true,path:"ORGANISATION_SOURCE_SEED"}:verifyIdentity(request, verificationContext, extracted.identityFacts,crawl.finalUrl,extracted.publicContacts);
       const neutralEvidence = request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION";

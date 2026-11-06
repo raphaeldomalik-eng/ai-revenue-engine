@@ -1,0 +1,167 @@
+[
+  {
+    "case": "bounded-response",
+    "crawl": {
+      "status": "FAILED",
+      "retries": 0,
+      "finalUrl": "https://www.mountsorrelparishcouncil.gov.uk/wp-content/uploads/sites/162/2024/04/24.04.22-MMC-Scanned-agenda.pdf",
+      "warnings": [
+        "Required HTML source unavailable: https://www.mountsorrelparishcouncil.gov.uk/wp-content/uploads/sites/162/2024/04/24.04.22-MMC-Scanned-agenda.pdf: Response exceeded the discovery size limit.",
+        "Candidate page unavailable: https://www.mountsorrelparishcouncil.gov.uk/community/need-a-room-to-hire/: Crawl request budget exhausted."
+      ],
+      "bytesRead": 0,
+      "pageCount": 0,
+      "redirects": 1,
+      "blockedCount": 0,
+      "failureClass": "TERMINAL",
+      "requestCount": 6,
+      "evidenceManifest": {
+        "pages": [],
+        "version": 1,
+        "requests": [
+          {
+            "url": "https://www.mountsorrelparishcouncil.gov.uk/robots.txt",
+            "bytes": 645,
+            "status": 200,
+            "contentType": "text/plain; charset=utf-8",
+            "responseHash": "79aac86354caa513da38e5e0fa62073cbbd534cac8560833cda4e93c7288b5fc"
+          },
+          {
+            "url": "https://www.mountsorrelparishcouncil.gov.uk/wp-sitemap.xml",
+            "bytes": 720,
+            "status": 200,
+            "contentType": "text/xml; charset=utf-8",
+            "responseHash": "7521114dda776b4073b13624542049b0830f7ef27ebc7f04338c29255f508344"
+          },
+          {
+            "url": "https://www.mountsorrelparishcouncil.gov.uk/sitemap.xml",
+            "bytes": 1618,
+            "status": 200,
+            "contentType": "text/xml; charset=utf-8",
+            "responseHash": "c9b5d976078ac8dd0ccbdf624e642ea21c219fe2bf264cae5ed10dc91996a5f5"
+          },
+          {
+            "url": "https://www.mountsorrelparishcouncil.gov.uk/community-sitemap.xml",
+            "bytes": 1605,
+            "status": 200,
+            "contentType": "text/xml; charset=utf-8",
+            "responseHash": "76988bb12f139ab9125f3bddf97bda0d4c4552cd918ce2f0b01cb367a0857f5e"
+          },
+          {
+            "url": "https://www.mountsorrelparishcouncil.gov.uk/community/need-a-room-to-hire/",
+            "bytes": 0,
+            "status": 301,
+            "contentType": "text/html; charset=UTF-8",
+            "responseHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        ],
+        "requestsOmitted": 0,
+        "attemptedRequests": 6,
+        "unrecordedRequests": 1
+      },
+      "contactObservationsOmitted": 0
+    }
+  },
+  {
+    "case": "reachable-insufficient-identity",
+    "crawl": {
+      "status": "PARTIAL",
+      "retries": 0,
+      "finalUrl": "https://murrayfieldexperience.com/privacy-policy-murrayfield-experience/",
+      "warnings": [
+        "Evidence gaps (PUBLIC_CONTACT:EMAIL, IDENTITY:NAME, IDENTITY:ADDRESS) remain beyond the finite crawl budget."
+      ],
+      "bytesRead": 223080,
+      "pageCount": 3,
+      "redirects": 0,
+      "blockedCount": 0,
+      "requestCount": 6,
+      "evidenceManifest": {
+        "pages": [
+          {
+            "url": "https://murrayfieldexperience.com/privacy-policy-murrayfield-experience/",
+            "kind": "HTML",
+            "bytes": 80052,
+            "retrieval": "STATIC",
+            "sourceHash": "897e4506a3d02bc9a5756969019adacf9c4cf41f0ba51696669ad3b02bd3872e",
+            "contentType": "text/html; charset=UTF-8",
+            "evidenceRefs": [],
+            "publisherType": "VERIFIED_FIRST_PARTY",
+            "subjectAssignment": "TARGET"
+          },
+          {
+            "url": "https://murrayfieldexperience.com/contact-us/",
+            "kind": "HTML",
+            "bytes": 80489,
+            "retrieval": "STATIC",
+            "sourceHash": "391b4f4e68251d94bf79592cc30da011a68dd2b4b87745c3a004ac856b78797d",
+            "contentType": "text/html; charset=UTF-8",
+            "evidenceRefs": [],
+            "publisherType": "VERIFIED_FIRST_PARTY",
+            "subjectAssignment": "TARGET"
+          },
+          {
+            "url": "https://murrayfieldexperience.com/about-us-murrayfield-hospitality/",
+            "kind": "HTML",
+            "bytes": 62539,
+            "retrieval": "STATIC",
+            "sourceHash": "d623c1a1c403171c165230e097aaa34d8b4a20f184d930fb52374b56629efbc0",
+            "contentType": "text/html; charset=UTF-8",
+            "evidenceRefs": [],
+            "publisherType": "VERIFIED_FIRST_PARTY",
+            "subjectAssignment": "TARGET"
+          }
+        ],
+        "version": 1,
+        "requests": [
+          {
+            "url": "https://murrayfieldexperience.com/robots.txt",
+            "bytes": 183,
+            "status": 200,
+            "contentType": "text/plain; charset=utf-8",
+            "responseHash": "a1d062b3fcdeff5b75bbff5722b2fd6c0e1995b538c90556d1a6d36b78b0fe88"
+          },
+          {
+            "url": "https://murrayfieldexperience.com/privacy-policy-murrayfield-experience/",
+            "bytes": 80052,
+            "status": 200,
+            "contentType": "text/html; charset=UTF-8",
+            "responseHash": "897e4506a3d02bc9a5756969019adacf9c4cf41f0ba51696669ad3b02bd3872e"
+          },
+          {
+            "url": "https://murrayfieldexperience.com/contact-us/",
+            "bytes": 80489,
+            "status": 200,
+            "contentType": "text/html; charset=UTF-8",
+            "responseHash": "391b4f4e68251d94bf79592cc30da011a68dd2b4b87745c3a004ac856b78797d"
+          },
+          {
+            "url": "https://murrayfieldexperience.com/sitemap_index.xml",
+            "bytes": 1808,
+            "status": 200,
+            "contentType": "text/xml; charset=UTF-8",
+            "responseHash": "9be1a83b9c27718040b25aa7d6fe67c2a0833e1e7c7ee4ea17fe4be80d70ce17"
+          },
+          {
+            "url": "https://murrayfieldexperience.com/event-series-sitemap.xml",
+            "bytes": 1359,
+            "status": 200,
+            "contentType": "text/xml; charset=UTF-8",
+            "responseHash": "9ff168ed8749177c0a00a676d9339eb8e3437245491d94138edca655a177a9ba"
+          },
+          {
+            "url": "https://murrayfieldexperience.com/about-us-murrayfield-hospitality/",
+            "bytes": 62539,
+            "status": 200,
+            "contentType": "text/html; charset=UTF-8",
+            "responseHash": "d623c1a1c403171c165230e097aaa34d8b4a20f184d930fb52374b56629efbc0"
+          }
+        ],
+        "requestsOmitted": 0,
+        "attemptedRequests": 6,
+        "unrecordedRequests": 0
+      },
+      "contactObservationsOmitted": 0
+    }
+  }
+]
