@@ -12,6 +12,16 @@ test('a reachable domain plus missing target page is retained separately from do
  const x=sample(404);x.observability!.responseManifest.unshift({url:'https://venue.example/robots.txt',status:200});
  assert.equal(classifyCrawlDisposition(x).domainReachable,true);
 });
+test('a missing linked page on a live requested site is not a terminal requested-URL failure',()=>{
+ for(const status of [404,410]){
+  const x=sample(200);x.documents=[{url}];x.stats.pageCount=1;x.stats.status='PARTIAL';
+  x.observability!.responseManifest.push({url:'https://venue.example/missing-contact',status});
+  const r=classifyCrawlDisposition(x,{identityVerified:false});
+  assert.equal(r.code,'LINKED_PAGE_HTTP_'+status);assert.equal(r.category,'EVIDENCE_HELD');assert.equal(r.domainReachable,true);assert.equal(r.url,'https://venue.example/missing-contact');assert.equal(r.businessConclusion,false);
+ }
+ const target=sample(404);target.documents=[{url:'https://venue.example/'}];target.observability!.responseManifest.unshift({url:'https://venue.example/',status:200});
+ assert.equal(classifyCrawlDisposition(target).category,'TERMINAL','the actual requested missing page remains terminal on a live domain');
+});
 test('403 is uncertain access evidence, not a permanent business exclusion; robots remains protected',()=>{
  assert.equal(classifyCrawlDisposition(sample(403)).code,'HTTP_403_ACCESS_UNCERTAIN');
  assert.equal(classifyCrawlDisposition(sample(401)).code,'HTTP_401_AUTH_REQUIRED');

@@ -25,7 +25,11 @@ export function classifyCrawlDisposition(c:Input,scope:{identityVerified?:boolea
  if(/ECONNRESET|ECONNABORTED|EPIPE/.test(code))return result('CONNECTION_RESET','RETRYABLE');
  if(/CERT|TLS|EPROTO/.test(code)||/certificate|TLS handshake/i.test(message))return result('TLS_CERTIFICATE_FAILURE','EVIDENCE_HELD');
  if(diagnostics.some(d=>d.code==='BOT_WAF_CHALLENGE'))return result('BOT_WAF_CHALLENGE_SUSPECTED','EVIDENCE_HELD');
- if(status===404||status===410)return result('HTTP_'+status,'TERMINAL');
+ if(status===404||status===410){
+  const targetReachable=pageResponses.some(r=>[c.verifiedUrl,c.finalUrl].includes(r.url)&&r.status>=200&&r.status<400);
+  if(entry&&![c.verifiedUrl,c.finalUrl].includes(entry.url)&&targetReachable)return result('LINKED_PAGE_HTTP_'+status,'EVIDENCE_HELD');
+  return result('HTTP_'+status,'TERMINAL');
+ }
  if(status===429)return result('HTTP_429_RATE_LIMIT','RETRYABLE');
  if(status!==null&&[500,502,503,504].includes(status))return result('HTTP_'+status,'RETRYABLE');
  if(status===401)return result('HTTP_401_AUTH_REQUIRED','EVIDENCE_HELD');
