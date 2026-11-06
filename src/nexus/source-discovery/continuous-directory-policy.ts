@@ -3,7 +3,7 @@ export type DirectoryAction='ENRICH_VERIFIED_VENUE'|'VERIFY_WEBSITE'|'DISCOVER_W
 export type StandingPolicy={policyId:string;version:number;enabled:boolean;validFrom:string;validUntil:string|null;standing?:boolean;productPublicationAllowed?:boolean;providerLimits?:{brave:{monthlyUsd:number;dailyRequests:number;reserveUsd:number};serper:{allocationUsd:number;dailyRequests:number}};countries:string[];actions?:string[];allowedIdentityKeys?:string[];maxVenuesPerDay?:number;maxRequestsPerDay?:number;quotaMode?:'PER_RUN';maxVenuesPerRun?:number;maxRequestsPerRun?:number;braveMaxRequestsPerRun?:number;serperMaxRequestsPerRun?:number;maxRequestsPerVenue:number;maxBatchVenues:number;paidProviderBudgetUsd:number;minHostDelayMs:number;freshnessHours:number;maxAttempts:number;retryBackoffHours:number;stopAfterConsecutiveFailures:number;publicationAllowed:boolean;outreachAllowed:boolean};
 export type DirectoryWork={queueId:string;identityKey:string;country:string;verifiedSourceUrl:string;verifiedAt:string|null;evidenceRef:string;entityType:string;gaps:string[];ownership:string;status:string;attempts:number;requestBudget:number;runId?:string;cacheObservedAt?:string;cacheSatisfiedGaps?:string[];nextAttemptAt?:string;identityConflict?:boolean;suppressed?:boolean};
 export type Reservation={policyId:string;policySha256:string;queueId:string;identityKey:string;country:string;host:string;reservationKey:string;requestBudget:number;day:string;runId?:string;action?:DirectoryAction};
-export type ExecutionReceipt={requestCount:number;costUsd:number;status:string;retryable?:boolean;resultRef?:string};
+export type ExecutionReceipt={requestCount:number;costUsd:number;status:string;retryable?:boolean;resultRef?:string;nextAttemptAt?:string;failureCode?:string};
 export type Completion=Reservation&{state:string;requestCount:number|null;costUsd:number|null;nextAttemptAt:string|null;error?:string;resultRef?:string};
 export type ContinuousLedger={reserve:(r:Reservation)=>Promise<boolean>;complete:(r:Completion)=>Promise<void>;denialReason?:(r:Reservation)=>Promise<string|null>;nextEligibleAt?:(r:Reservation)=>Promise<string|null>;isQuarantined?:(policyId:string,identityKey:string)=>Promise<boolean>};
 const stable=(v:unknown):string=>Array.isArray(v)?'['+v.map(stable).join(',')+']':v&&typeof v==='object'?'{'+Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>JSON.stringify(k)+':'+stable(x)).join(',')+'}':JSON.stringify(v)??'null';
@@ -65,8 +65,8 @@ export async function runContinuousDirectoryTick(items:DirectoryWork[],policy:St
   result.actualHttpRequestsKnown+=receipt.requestCount;result.knownCostUsd+=receipt.costUsd;
   const ok=!receipt.retryable&&['COMPLETED','PARTIAL'].includes(receipt.status);failures=0;
   const state=ok?'COMPLETED':receipt.status==='BLOCKED'||receipt.retryable===false?'QUARANTINED':'RETRYABLE';
-  const nextRetryAt=state==='RETRYABLE'?new Date(Date.parse(now)+p.retryBackoffHours*3600000*2**item.attempts).toISOString():null;retainGuard(nextRetryAt);
-  await ledger.complete({...reservation,state,requestCount:receipt.requestCount,costUsd:receipt.costUsd,resultRef:receipt.resultRef,nextAttemptAt:nextRetryAt});
+  const nextRetryAt=state==='RETRYABLE'?new Date(Math.max(Date.parse(now)+p.retryBackoffHours*3600000*2**item.attempts,Number.isFinite(Date.parse(receipt.nextAttemptAt??''))?Date.parse(receipt.nextAttemptAt!):0)).toISOString():null;retainGuard(nextRetryAt);
+  await ledger.complete({...reservation,state,requestCount:receipt.requestCount,costUsd:receipt.costUsd,resultRef:receipt.resultRef,nextAttemptAt:nextRetryAt,...(receipt.failureCode?{error:receipt.failureCode}:{})});
   if(failures>=p.stopAfterConsecutiveFailures){result.stopped='CONSECUTIVE_FAILURE_LIMIT';break;}
  }
  return result;

@@ -1,3 +1,4 @@
+import {classifyCrawlDisposition} from './source-discovery/crawl-disposition.ts';
 import { createHash } from "node:crypto";
 import { canonicalHttpsUrl } from "./source-discovery/network.ts";
 import { searchCompaniesHouse, type CompaniesHouseSearchResult } from "../ai-sales-team/companies-house.ts";
@@ -245,7 +246,8 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
   const warnings = boundCrawlWarnings([...crawl.stats.warnings, ...extracted.warnings]);
   const crawlStatus = crawl.stats.status === "COMPLETED" && warnings.length ? "PARTIAL" : crawl.stats.status;
-  const retryable = crawlStatus !== "COMPLETED" && crawlStatus !== "PARTIAL" && crawl.stats.failureClass === "RETRYABLE";
+  const disposition = classifyCrawlDisposition(crawl,{identityVerified:true,contactAccepted:emailGoal?publicContacts.some(c=>c.type==="EMAIL"&&!c.reviewRequired):undefined});
+  const retryable = disposition.retryable;
   const emailFound = emailGoal && publicContacts.some((contact) => contact.type === "EMAIL" && !contact.reviewRequired);
   const emailOutcome = deriveEmailAcquisitionOutcome({
     emailGoal,
@@ -279,7 +281,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     idempotencyKey: request.idempotencyKey,
     subjectReference: request.subjectReference,
     source: { verifiedUrl: request.verifiedSourceUrl, finalUrl: crawl.finalUrl, observedAt: now, sourceHash },
-    crawl: { status: crawlStatus, warnings, requestCount: crawl.stats.requestCount, pageCount: crawl.stats.pageCount, bytesRead: crawl.stats.bytesRead, redirects: crawl.stats.redirects, blockedCount: crawl.stats.blockedCount, retryable, emailOutcome, evidenceManifest },
+    crawl: { status: crawlStatus, warnings, requestCount: crawl.stats.requestCount, pageCount: crawl.stats.pageCount, bytesRead: crawl.stats.bytesRead, redirects: crawl.stats.redirects, blockedCount: crawl.stats.blockedCount, retryable, emailOutcome, evidenceManifest, disposition, ...(crawl.stats.diagnostics?{diagnostics:crawl.stats.diagnostics}:{} ) },
     identityFacts, publicContacts, venueFacts,
     imageCandidates: extracted.imageCandidates.map((item) => ({ ...item, discoveredAt: now })),
     eventCandidates: extracted.eventCandidates,

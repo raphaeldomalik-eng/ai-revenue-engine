@@ -1,3 +1,4 @@
+import {classifyCrawlDisposition} from './crawl-disposition.ts';
 import {storedDirectoryVerifierAcquisition} from './stored-directory-verifier.ts';
 import {createHash} from 'node:crypto';
 import {validateResearchRequest,validateResearchResult} from '../contracts.ts';
@@ -135,12 +136,13 @@ export async function handleDirectoryVerificationRequest(request:Request,options
     // Review telemetry from this exact existing crawl, never another fetch or
     // additional contact acceptance policy. Rejected observations stay evidence.
     const accepted=(siteEvidence?.payload as {contacts?:Array<{type:string;value:string;sourceUrl:string}>})?.contacts??[];
-    crawlReceipt={...crawl.stats,finalUrl:crawl.finalUrl,evidenceManifest:crawl.evidenceManifest,
+    const disposition=classifyCrawlDisposition(crawl,{identityVerified:assessment.verified,contactAccepted:accepted.some(c=>c.type==='EMAIL')});
+    crawlReceipt={...crawl.stats,disposition,finalUrl:crawl.finalUrl,evidenceManifest:crawl.evidenceManifest,
       contactObservations:observed.slice(0,100).map(c=>{const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,research.targetName!,c.label??''):null;
        const supported=assessment.verified&&accepted.some(a=>a.type===c.type&&a.value.toLowerCase()===c.value.toLowerCase()&&a.sourceUrl===c.sourceUrl);
        return {...c,accepted:supported,rejectionReason:supported?null:verdict&&!verdict.accepted?verdict.reason:!assessment.verified?'WEBSITE_IDENTITY_UNRESOLVED':'NOT_ACCEPTED_BY_EXISTING_SOURCE_SCOPE',...(c.type==='CONTACT_FORM'?{usability:'OBSERVED_NOT_USABILITY_CONFIRMED'}:{})};}),
       contactObservationsOmitted:Math.max(0,observed.length-100)};
-    const retryable=!assessment.verified&&['FAILED','PARTIAL'].includes(crawl.stats.status)&&crawl.stats.failureClass!=='TERMINAL';
+    const retryable=!assessment.verified&&disposition.retryable;
     const observedFacts=assessment.verified?value.facts.map(f=>f.fieldName==='officialWebsite'?{...f,confidence:0.95}:f):[];
     if(assessment.verified&&siteEvidence)observedFacts.push({subjectEntityType:'UNKNOWN',canonicalEntityId:input.subject.canonicalEntityId,fieldName:'sourceTextExcerpt',value:crawl.documents.map(d=>visibleText(d.body)).join('\n').slice(0,6000),evidenceRef:siteEvidence.evidenceRef,confidence:1,observedAt:now});
     // Preserve structured observations from THIS crawl for Nexus's existing
@@ -164,7 +166,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
    await options.store.set(key,{...result,directoryRequestSha256:fingerprint,directoryVerification:verification,directoryReservation:reservation,directoryRequestCount:crawl.stats.requestCount,directoryCrawlReceipt:crawlReceipt});
    const retryable=retryableProviderFailure(result);
-   return {requestCount:crawl.stats.requestCount,costUsd:0,status:retryable?'FAILED':verification?.state==='VERIFIED'?'COMPLETED':'BLOCKED',retryable,resultRef:input.requestId};
+   return {requestCount:crawl.stats.requestCount,costUsd:0,status:retryable?'FAILED':verification?.state==='VERIFIED'?'COMPLETED':'BLOCKED',retryable,resultRef:input.requestId,nextAttemptAt:crawlReceipt?.disposition?((crawlReceipt.disposition as {retryNotBefore?:string}).retryNotBefore??undefined):undefined,failureCode:(crawlReceipt?.disposition as {code?:string}|undefined)?.code};
   },now);
   const returned=result as ReturnType<typeof validateResearchResult>|null;
   const contactOutcome=returned?.evidence.find(e=>(e.payload as Record<string,unknown>)?.kind==='FIRST_PARTY_WEBSITE')?.payload as Record<string,unknown>|undefined;

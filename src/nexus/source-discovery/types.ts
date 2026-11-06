@@ -1,3 +1,4 @@
+import type {CrawlDiagnostic,CrawlDisposition} from './crawl-disposition.ts';
 import type { EntityType, SourceExtractor } from "../contracts.ts";
 import type { Dimension, ExtractorProfile } from "./planner.ts";
 import type { OriginPoliteness } from "./politeness.ts";
@@ -54,6 +55,8 @@ export type CrawlStats = {
   warnings: string[];
   status: "COMPLETED" | "PARTIAL" | "BLOCKED" | "FAILED";
   failureClass?: "TERMINAL" | "RETRYABLE";
+  diagnostics?: CrawlDiagnostic[];
+  disposition?: CrawlDisposition;
 };
 export type CrawlStopReason =
   | "DIMENSIONS_SATISFIED" | "GAPS_EXHAUSTED" | "NO_GAP_CANDIDATES" | "QUEUE_EXHAUSTED" | "PAGE_BUDGET" | "REQUEST_BUDGET"
