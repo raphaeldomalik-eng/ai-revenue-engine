@@ -78,7 +78,9 @@ export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: b
       },
       satisfied(state) {
         if (profile.extractor === "IMAGE_CANDIDATES") {
-          const enough = Number(state.images ?? 0) >= 8 || state.galleryPage === true;
+          // Complete-content discovery needs candidates, not just a gallery path.
+          // Preserve the gallery-visit shortcut for legacy venue crawls.
+          const enough = Number(state.images ?? 0) >= 8 || (!options.completeContent && state.galleryPage === true);
           return enough ? ["IMAGE_CANDIDATES:IMAGES"] : [];
         }
         return [...profile.satisfied(state), ...(options.completeContent&&profile.extractor==='VENUE_FACTS'?(state.observedFields as string[]??[]).map(field=>'VENUE_FACTS:'+field):[]), ...(state.character ? ["VENUE_DESCRIPTION:CHARACTER"] : [])];

@@ -739,10 +739,17 @@ function venueDescriptionParagraph(text: string, venueName: string, pageIdentity
   const namedSubject = text.match(/^([A-Z][\p{L}'-]*(?:\s+[A-Z][\p{L}'-]*){1,5})(?=\s*(?:,|\b(?:is|has|offers|hosts|provides|features|boasts)\b))/u)?.[1];
   if (target && namedSubject && !/^(?:Our|The Venue|This Venue)\b/.test(namedSubject) && !matchesTarget(namedSubject)) return false;
   // A page title cannot lend the target's identity to a separately named property card.
-  const sectionWords=new Set(['about','hire','welcome','discover','explore','information','details','history','facilities','amenities','private','corporate','wedding','weddings','contact','gallery','photos','images','accessibility','accommodation','our','the','this','why','choose']);
-  const namedVenueHeading = /\b(?:hall|hotel|bar|pub|restaurant|venue|centre|center|theatre|theater|stadium|gallery|museum|lodge|estate)\b/i.test(localHeading)
-    && distinctiveNameTokens(localHeading).some(token=>!sectionWords.has(token)) && !/^(?:our|the venue|this venue)\b/i.test(localHeading);
-  if (target && namedVenueHeading && !matchesTarget(localHeading)) return false;
+  const sectionWords=new Set(['about','hire','welcome','discover','explore','information','details','history','story','facilities','amenities','private','corporate','wedding','weddings','contact','gallery','photos','images','accessibility','accommodation','our','the','this','why','choose','and']);
+  // Property names need not contain a venue noun (for example The Old Bank).
+  // Unknown named sections cannot inherit the page title's identity; only the
+  // target's own heading or a generic section label may lend that context.
+  // Independently target-named subject prose does not borrow heading identity;
+  // a passing mention in a comparison or sibling card is not enough.
+  const namedSection = distinctiveNameTokens(localHeading).some(token=>!sectionWords.has(token));
+  const normalizedSubjectText=normalized(text).replace(/^the /,'');
+  const exactTargetSubject=Boolean(target && normalizedSubjectText.startsWith(target+' ')
+    && /^(?:is|has|offers|hosts|provides|features|boasts)\b/.test(normalizedSubjectText.slice(target.length+1)));
+  if (target && namedSection && !matchesTarget(localHeading) && !exactTargetSubject) return false;
   if (target) return matchesTarget(text) || matchesTarget(pageIdentity);
   // Unscoped extraction retains clearly descriptive venue copy only; it grants no identity authority.
   return /\b(?:venue|hall|pub|bar|theatre|theater|restaurant|hotel|museum|gallery|chapel|church|stadium|auditorium|room|space|garden|courtyard|terrace|tap\s*room|food|dining|entertainment|heritage|historic|brickwork|riverside|waterfront)\b/i.test(text);

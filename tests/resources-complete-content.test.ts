@@ -94,3 +94,45 @@ test('privacy policy, terms and partner pages never become non-review venue phon
   assert(!out.publicContacts.some(c=>c.type==='PHONE'||c.type==='CONTACT_FORM'),path);
  }
 });
+
+
+test('sibling property headings cannot borrow the target page identity without a venue noun',()=>{
+ for(const sibling of ['The Old Bank', "King’s Arms", 'The Exchange']){
+  const foreign='Set beside the river, this restored coaching inn offers private dining and wedding receptions for up to 120 guests.';
+  const actual='Alpha Hall is a contemporary concert venue in the city centre.';
+  const body='<title>Alpha Hall</title><h1>Alpha Hall</h1><section><h2>'+sibling+'</h2><p>'+foreign+'</p><a href="/properties/another-site">Explore '+sibling+'</a></section><section><h2>About Alpha Hall</h2><p>'+actual+'</p></section>';
+  const out=extractResourcesFromDocuments([document(body)],['IDENTITY','VENUE_FACTS'],'Alpha Hall');
+  const descriptions=out.identityFacts.filter(f=>f.fieldName==='siteDescription').map(f=>String(f.value));
+  assert.deepEqual(descriptions,[actual],sibling);
+ }
+});
+
+test('generic descriptive sections retain source copy without repeating the target name',()=>{
+ for(const heading of ['About Us','Our Story','Our History','Facilities and Amenities','Private Hire']){
+  const body='Built in 1875, it retains original oak beams and overlooks the River Avon.';
+  const out=extractResourcesFromDocuments([document('<title>Alpha Hall</title><h1>Alpha Hall</h1><h2>'+heading+'</h2><p>'+body+'</p>')],['IDENTITY'],'Alpha Hall');
+  assert(out.identityFacts.some(f=>f.fieldName==='siteDescription'&&f.value===body),heading);
+ }
+});
+
+
+test('explicit target descriptions survive generic marketing headings without lending identity to comparisons',()=>{
+ const actual='Alpha Hall is a restored riverside venue with flexible rooms for private events.';
+ for(const heading of ['Weddings and Celebrations','Meetings and Events','Flexible Spaces','A place for every occasion']){
+  const out=extractResourcesFromDocuments([document('<title>Alpha Hall</title><h1>Alpha Hall</h1><h2>'+heading+'</h2><p>'+actual+'</p>')],['IDENTITY'],'Alpha Hall');
+  assert(out.identityFacts.some(f=>f.fieldName==='siteDescription'&&f.value===actual),heading);
+ }
+ for(const foreign of ['Opposite Alpha Hall, this restored coaching inn offers private dining for up to 120 guests.','Our new riverside property near Alpha Hall offers private dining for up to 120 guests.','The Old Bank offers private dining, unlike Alpha Hall.']){
+  const out=extractResourcesFromDocuments([document('<title>Alpha Hall</title><h1>Alpha Hall</h1><h2>The Old Bank</h2><p>'+foreign+'</p>')],['IDENTITY'],'Alpha Hall');
+  assert(!out.identityFacts.some(f=>f.fieldName==='siteDescription'),foreign);
+ }
+});
+
+
+test('exact target subject attribution supports ordinary venue name forms',()=>{
+ for(const name of ['Scala','King’s Arms','1 Lombard Street','The Church at the Oaks']){
+  const text=name+' is a restored riverside venue with flexible rooms for private events.';
+  const out=extractResourcesFromDocuments([document('<title>'+name+'</title><h1>'+name+'</h1><h2>Flexible Spaces</h2><p>'+text+'</p>')],['IDENTITY'],name);
+  assert(out.identityFacts.some(f=>f.fieldName==='siteDescription'&&f.value===text),name);
+ }
+});
