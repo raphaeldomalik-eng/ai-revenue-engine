@@ -1,3 +1,4 @@
+import {activeDirectoryAuditConfig,prepareDirectoryAudit} from './directory-audit-capture.ts';
 import {contentCoverage} from "./content-coverage.ts";
 import {resultStoreTerminalUrlHistory} from './terminal-url-history.ts';
 import {classifyCrawlDisposition} from './crawl-disposition.ts';
@@ -17,7 +18,7 @@ import {validatedVerificationRecovery,type RecoveryPolicy,type RecoveryEntry} fr
 type ContinuationEntry={queueId:string;requestId:string;identityKey:string;host:string};
 type Continuation={sourcePolicyId:string;sourcePolicySha256:string;originalRequestBudget:number;priorRequestCount:number;additionalRequestBudget:number;entries:ContinuationEntry[]};
 export type VerificationPolicy=RecoveryPolicy&{continuation?:Continuation};
-type Options={policy:VerificationPolicy;approvedPolicyHash:string;secret:string;store:NexusResultStore;ledger:ContinuousLedger;now?:()=>number;fetchImpl?:FetchLike;resolveHost?:ResolveHost;continuationReady?:(entry:ContinuationEntry,now:string)=>Promise<boolean>;recoveryReady?:(entry:RecoveryEntry,now:string)=>Promise<boolean>};
+type Options={auditCapture?:unknown;policy:VerificationPolicy;approvedPolicyHash:string;secret:string;store:NexusResultStore;ledger:ContinuousLedger;now?:()=>number;fetchImpl?:FetchLike;resolveHost?:ResolveHost;continuationReady?:(entry:ContinuationEntry,now:string)=>Promise<boolean>;recoveryReady?:(entry:RecoveryEntry,now:string)=>Promise<boolean>};
 export function validatedVerificationContinuation(policy:VerificationPolicy):Continuation|null{
  const c=policy.continuation;if(!c)return null;
  const window=Date.parse(policy.validUntil??'')-Date.parse(policy.validFrom);
@@ -124,7 +125,10 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   let crawlReceipt:Record<string,unknown>|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const observation:{crawl:CrawlOutput|null}={crawl:null};
-   const provider=createPublicWebProvider({emailGoal:true,venueContent:true,terminalUrlHistory:options.store.terminalUrlHistory??resultStoreTerminalUrlHistory(options.store),fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
+    const auditConfig=activeDirectoryAuditConfig(options.auditCapture,input.requestId,options.now?.()??Date.now());
+    const audit=auditConfig?await prepareDirectoryAudit({config:auditConfig,binding:{requestId:input.requestId,requestSha256:fingerprint,identityKey:identity,queueId:context.queueId,policySha256:options.approvedPolicyHash,runId:context.runId??null,attempt:context.attempts+1,reservationKey:reservation.reservationKey},store:options.store.privateAuditStore,now:options.now??Date.now}):null;
+   let directoryAudit=cached?.directoryAudit;
+    const provider=createPublicWebProvider({auditCapture:audit?.sink,emailGoal:true,venueContent:true,terminalUrlHistory:options.store.terminalUrlHistory??resultStoreTerminalUrlHistory(options.store),fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:async crawl=>{observation.crawl=crawl;if(audit)directoryAudit=await audit.finish(crawl)}});
    const adapted=async(args:Parameters<typeof provider>[0]):Promise<ProviderResult>=>{
     const value=await provider(args),crawl=observation.crawl;
     if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
@@ -170,7 +174,8 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    result=validateResearchResult(await executeResearchRequest(input,research,{publicWeb:adapted,now:()=>now},new InMemoryNexusResultStore()));
    const crawl=observation.crawl as CrawlOutput|null;
    if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
-   await options.store.set(key,{...result,directoryRequestSha256:fingerprint,directoryVerification:verification,directoryReservation:reservation,directoryRequestCount:crawl.stats.requestCount,directoryCrawlReceipt:crawlReceipt});
+   // The independent corpus was sealed before extraction/identity acceptance in onCrawl.
+    await options.store.set(key,{...result,...(directoryAudit?{directoryAudit}:{}),directoryRequestSha256:fingerprint,directoryVerification:verification,directoryReservation:reservation,directoryRequestCount:crawl.stats.requestCount,directoryCrawlReceipt:crawlReceipt});
    const retryable=retryableProviderFailure(result);
    return {requestCount:crawl.stats.requestCount,costUsd:0,status:retryable?'FAILED':verification?.state==='VERIFIED'?'COMPLETED':'BLOCKED',retryable,resultRef:input.requestId,nextAttemptAt:crawlReceipt?.disposition?((crawlReceipt.disposition as {retryNotBefore?:string}).retryNotBefore??undefined):undefined,failureCode:(crawlReceipt?.disposition as {code?:string}|undefined)?.code};
   },now);

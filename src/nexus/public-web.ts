@@ -10,6 +10,7 @@ import type { ProviderResult, ResearchContext } from "./executor.ts";
 import { acceptVenueEmail, distinctiveNameTokens } from "./venue-email.ts";
 
 export type PublicWebProviderOptions = {
+  auditCapture?: CrawlInput['auditCapture'];
   onCrawl?: (output: CrawlOutput) => void | Promise<void>;
   fetchImpl?: FetchLike;
   resolveHost?: ResolveHost;
@@ -431,6 +432,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
         requestedExtractors: [...extractors],
         profiles: options.venueContent ? [...venueCrawlProfiles(undefined,{emailGoal:true,venueName:targetName(request,context)??'',completeContent:true}),...profilesFor(['EVENTS','SOURCE_CLASSIFICATION'])] : undefined,
         terminalUrlHistory: options.terminalUrlHistory,
+        auditCapture: options.auditCapture,
         budget: { ...DEFAULT_BUDGET, ...options.budget },
         fetchImpl: options.fetchImpl,
         resolveHost: options.resolveHost,

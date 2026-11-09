@@ -138,6 +138,8 @@ export type TerminalUrlHistory = {
 };
 
 export type CrawlInput = {
+  /** Private, bounded exact-canary evidence only; never included in crawler outputs. */
+  auditCapture?: import('./directory-audit-capture.ts').CrawlAuditSink;
   /** Durable exact-URL HTTP 404/410 evidence. Never expires automatically. */
   terminalUrlHistory?: TerminalUrlHistory;
   verifiedUrl: string;

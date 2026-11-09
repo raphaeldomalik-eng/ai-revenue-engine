@@ -5,9 +5,12 @@ import type { ContentExecutionStore } from "./content-interpretation.ts";
 
 export class SupabaseNexusResultStore implements NexusResultStore, ContentExecutionStore {
   readonly terminalUrlHistory;
+  readonly privateAuditStore;
   private readonly client: SupabaseClient;
   constructor(client: SupabaseClient) {
     this.client = client;
+    // Auxiliary audit receipts are immutable and cannot enter directory-result replacement RPCs.
+    this.privateAuditStore = { get: (key: string) => this.get(key), set: (key: string, value: Record<string, unknown>) => this.writeResult(key, value) };
     // Auxiliary observations use the existing ledger directly. Directory result RPCs validate a different contract.
     this.terminalUrlHistory = resultStoreTerminalUrlHistory({ get: key => this.get(key), set: (key, result) => this.writeResult(key, result) });
   }

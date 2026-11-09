@@ -27,6 +27,7 @@ export type SourceDiscoveryExecutorOptions = { fetchImpl?: FetchLike; resolveHos
 export type BatchRequestReservation = { scopeId: string; manifestSha256: string; requestSha256: string; listingId: string; host: string; idempotencyKey: string; requestBudget: number; validFrom: string; validUntil: string; maxVenues: number; maxRequestsPerVenue: number; maxTotalRequests: number };
 export type BatchRequestReceipt = { scopeId: string; manifestSha256: string; listingId: string; host: string; idempotencyKey: string; status: string; requestCount: number; bytesRead: number; providerCostUsd: 0; resultStatus: string };
 export interface NexusResultStore {
+  readonly privateAuditStore?: import('./source-discovery/directory-audit-capture.ts').PrivateAuditStore;
   readonly terminalUrlHistory?: TerminalUrlHistory;
   get(key: string): Promise<Record<string, unknown> | null>;
   set(key: string, result: Record<string, unknown>): Promise<void>;
@@ -35,6 +36,7 @@ export interface NexusResultStore {
 }
 export class InMemoryNexusResultStore implements NexusResultStore {
   private readonly values = new Map<string, Record<string, unknown>>();
+  readonly privateAuditStore = { get: (key: string) => this.get(key), set: async (key: string, value: Record<string, unknown>) => { if (!this.values.has(key)) this.values.set(key, value); } };
   private readonly batchReservations = new Map<string, BatchRequestReservation>();
   private batchReservedRequests = new Map<string, number>();
   async get(key: string) { return this.values.get(key) ?? null; }

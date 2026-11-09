@@ -220,7 +220,8 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
     if (!(error instanceof NetworkRefusal)) {
       // A resolver failure is a transport attempt, counted exactly as the pinned production path counts it.
       ctx.stats.requestCount += 1;
-      diagnostic(ctx,url,error);
+      ctx.input.auditCapture?.failure(url,/size limit/i.test(String(error))?'RESPONSE_SIZE_LIMIT':error instanceof UnsupportedContent?'CONTENT_TYPE_NOT_READ':'RESPONSE_UNAVAILABLE');
+    diagnostic(ctx,url,error);
       throw transportRefusal(error);
     }
     ctx.stats.blockedCount += 1;
@@ -265,6 +266,7 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
       })(), ctx.budget.timeoutMs);
       return retainTerminalSnapshot(ctx, url, responseSnapshot);
     }));
+    ctx.input.auditCapture?.response({url,status:snapshot.status,contentType:snapshot.headers.get('content-type'),contentEncoding:snapshot.headers.get('content-encoding'),bytes:snapshot.bytes});
     const retryAfter=snapshot.headers.get('retry-after'),delay=parseRetryAfter(retryAfter,ctx.now().getTime());
     const challenge=/cf-chl-|challenge-platform|verify (?:that )?you are human|<title>\s*(?:just a moment|attention required)/i.test(new TextDecoder().decode(snapshot.bytes.subarray(0,16000)))&&(snapshot.status===403||snapshot.status===503||snapshot.status===200);
     if((snapshot.status>=400||challenge)&&(ctx.stats.diagnostics??=[]).length<256)ctx.stats.diagnostics.push({url:manifestSafeUrl(url),observedAt:ctx.now().toISOString(),code:challenge?'BOT_WAF_CHALLENGE':'HTTP_'+snapshot.status,status:snapshot.status,retryAfter:retryAfter?.slice(0,128)??null,retryNotBefore:delay===null?null:new Date(ctx.now().getTime()+delay).toISOString()});
@@ -275,6 +277,7 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
     return snapshot;
   } catch (error) {
     if (error instanceof TerminalUrlHistoryFailure) throw error;
+    ctx.input.auditCapture?.failure(url,/size limit/i.test(String(error))?'RESPONSE_SIZE_LIMIT':error instanceof UnsupportedContent?'CONTENT_TYPE_NOT_READ':'RESPONSE_UNAVAILABLE');
     diagnostic(ctx,url,error);
     if (error instanceof CrawlRefusal) throw error;
     if (error instanceof UnsupportedContent) throw new ContentSkipped(error.message);
