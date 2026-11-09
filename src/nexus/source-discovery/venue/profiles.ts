@@ -1,3 +1,4 @@
+import {RESOURCE_PRACTICAL_FIELDS} from '../extractors/resources.ts';
 import type { SourceExtractor } from "../../contracts.ts";
 import { profilesFor, propertyLinkStrength } from "../extractors/profiles.ts";
 import type { ExtractorProfile } from "../planner.ts";
@@ -15,11 +16,11 @@ const PDF_SKIP = /\b(?:menu|privacy|policy|job|accounts|minutes|newsletter|vouch
  * Venue-only profiles. Events are not requested, so what's-on pages do not compete for the venue budget.
  * Link choice uses the venue assessment (navigation, path, label, PDF context), not the generic event ranking.
  */
-export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: boolean; venueName?: string } = {}): ExtractorProfile[] {
+export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: boolean; venueName?: string; completeContent?: boolean } = {}): ExtractorProfile[] {
   return profilesFor([...VENUE_EXTRACTORS], site, options).map((profile) => {
     const dimensions = profile.extractor === "IDENTITY"
       ? [...profile.dimensions, "VENUE_DESCRIPTION:CHARACTER"]
-      : profile.dimensions;
+      : options.completeContent && profile.extractor === "VENUE_FACTS" ? [...profile.dimensions,...RESOURCE_PRACTICAL_FIELDS.map(field=>"VENUE_FACTS:"+field)] : profile.dimensions;
     return {
       ...profile,
       dimensions,
@@ -27,7 +28,13 @@ export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: b
       linkDimensions(url, label) {
         if (propertyLinkStrength(options.venueName,url,label)) return dimensions;
         if (profile.extractor === 'PUBLIC_CONTACT') return profile.linkDimensions(url, label);
-        return venueLinkDimensions(url, label).filter((dim) => dimensions.includes(dim));
+        const base=venueLinkDimensions(url,label).filter(dim=>dimensions.includes(dim));
+        if(options.completeContent&&profile.extractor==='VENUE_FACTS'){
+          const text=`${url} ${label}`;
+          const broad=base.some(dim=>['VENUE_FACTS:FACILITIES','VENUE_FACTS:ACCESSIBILITY','VENUE_FACTS:SPACES'].includes(dim))||/facilit|amenit|technical|accessib|catering|kitchen|wifi|wi-fi|parking|transport|loading|power|outdoor|garden|terrace|courtyard|accommodation|cloakroom/i.test(text);
+          if(broad)base.push(...RESOURCE_PRACTICAL_FIELDS.map(field=>'VENUE_FACTS:'+field));
+        }
+        return base;
       },
       linkStrength: (url,label) => Math.max(propertyLinkStrength(options.venueName,url,label),profile.extractor === 'PUBLIC_CONTACT' ? profile.linkStrength?.(url,label) ?? 1 : venueLinkStrength(url,label)),
       pdfDimensions(url, label) {
@@ -35,13 +42,14 @@ export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: b
         if (profile.extractor !== "VENUE_FACTS" || !isPdfUrl(url)) return null;
         const text = `${url} ${label}`;
         if (!PDF_USEFUL.test(text) || PDF_SKIP.test(text)) return null;
-        return ["VENUE_FACTS:CAPACITY", "VENUE_FACTS:SPACES", "VENUE_FACTS:FACILITIES"];
+        return ["VENUE_FACTS:CAPACITY", "VENUE_FACTS:SPACES", "VENUE_FACTS:FACILITIES", ...(options.completeContent ? RESOURCE_PRACTICAL_FIELDS.map(field => "VENUE_FACTS:"+field) : [])];
       },
       observe(document, observation, state, selectedFor) {
         profile.observe(document, observation, state, selectedFor);
         const path = new URL(document.url).pathname;
         if (profile.extractor === "VENUE_FACTS") {
           const facts = observation.resources().venueFacts;
+          if(options.completeContent)state.observedFields=[...new Set([...(state.observedFields as string[]??[]),...facts.map(f=>f.fieldName)])];
           const capacityLinked = new Set(facts.flatMap((fact) => {
             if (fact.fieldName !== "capacity" || !fact.value || typeof fact.value !== "object") return [];
             const space = (fact.value as { space?: string | null }).space;
@@ -73,7 +81,7 @@ export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: b
           const enough = Number(state.images ?? 0) >= 8 || state.galleryPage === true;
           return enough ? ["IMAGE_CANDIDATES:IMAGES"] : [];
         }
-        return [...profile.satisfied(state), ...(state.character ? ["VENUE_DESCRIPTION:CHARACTER"] : [])];
+        return [...profile.satisfied(state), ...(options.completeContent&&profile.extractor==='VENUE_FACTS'?(state.observedFields as string[]??[]).map(field=>'VENUE_FACTS:'+field):[]), ...(state.character ? ["VENUE_DESCRIPTION:CHARACTER"] : [])];
       },
     };
   });

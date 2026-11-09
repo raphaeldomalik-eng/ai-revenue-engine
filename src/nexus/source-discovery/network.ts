@@ -174,6 +174,8 @@ export async function fetchPinned(args: {
   allowInsecureHttp?: boolean;
   /** Keep the status when Content-Length exceeds maxBytes, without buffering the body. */
   statusOnOversize?: boolean;
+  /** Return observed terminal headers without consuming an irrelevant or broken error body. */
+  skipBodyStatuses?: readonly number[];
 }): Promise<Response> {
   const addresses = await resolvePublicNetworkAddresses(args.url, args.resolveHost, { allowInsecureHttp: args.allowInsecureHttp });
   const url = new URL(args.url);
@@ -194,6 +196,13 @@ export async function fetchPinned(args: {
       let size = 0;
       let settled = false;
       const status = response.statusCode ?? 0;
+      if (args.skipBodyStatuses?.includes(status)) {
+        const headers = new Headers();
+        for (const [key, value] of Object.entries(response.headers)) if (value) headers.set(key, Array.isArray(value) ? value.join(", ") : String(value));
+        resolve(new Response(null, { status, headers }));
+        response.destroy();
+        return;
+      }
       const contentLength = Number(response.headers["content-length"]);
       if (Number.isFinite(contentLength) && contentLength > args.maxBytes && !args.statusOnOversize) {
         request.destroy();

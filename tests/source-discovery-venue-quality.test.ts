@@ -132,13 +132,13 @@ test("embedded external ticketing Organization contacts are not attributed to th
   assert.equal(result.identityFacts.some((item) => item.value === "Ticket Seller"), false);
 });
 
-test("search and comments forms are not public contact forms, and repeated navigation links collapse", () => {
+test("only observed enquiry forms count, not search, comments or repeated contact navigation", () => {
   const home = page("/", `<a href="/contact">Contact us</a><form action="/search"><input name="query"></form>
     <form action="/wp-comments-post.php"><textarea name="comment"></textarea></form>`);
   const hire = page("/hire", `<a href="/contact">Contact us</a><form action="/enquiry"><input name="email"><textarea name="message"></textarea></form>`);
   const result = extractFromFetchedDocuments([home, hire], ["PUBLIC_CONTACT"]);
   assert.deepEqual(result.publicContacts.filter((item) => item.type === "CONTACT_FORM").map((item) => item.value),
-    [`${origin}/contact`, `${origin}/enquiry`]);
+    [`${origin}/enquiry`]);
 });
 
 test("comma-separated capacities keep the full number and generic headings do not invent spaces", () => {

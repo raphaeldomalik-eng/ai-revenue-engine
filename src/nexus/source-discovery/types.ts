@@ -1,3 +1,4 @@
+import type { ContentCoverage } from "./content-coverage.ts";
 import type {CrawlDiagnostic,CrawlDisposition} from './crawl-disposition.ts';
 import type { EntityType, SourceExtractor } from "../contracts.ts";
 import type { Dimension, ExtractorProfile } from "./planner.ts";
@@ -100,6 +101,7 @@ export type CrawlObservability = {
   extractors: SourceExtractor[];
   /** Filled after extraction by the caller that ran the extractors (see observability.ts). */
   extractorYields?: ExtractorYields;
+  contentCoverage?: ContentCoverage;
   websiteOpportunity?: WebsiteOpportunity;
 };
 export type ExtractorYields = {
@@ -129,7 +131,15 @@ export type DocumentCache = {
   set(document: CachedDocument): Promise<void>;
 };
 
+export type TerminalUrlObservation = { url: string; status: 404 | 410; observedAt: string; source: "DIRECT_HTTP_RESPONSE" };
+export type TerminalUrlHistory = {
+  get(url: string): Promise<TerminalUrlObservation | null>;
+  set(observation: TerminalUrlObservation): Promise<void>;
+};
+
 export type CrawlInput = {
+  /** Durable exact-URL HTTP 404/410 evidence. Never expires automatically. */
+  terminalUrlHistory?: TerminalUrlHistory;
   verifiedUrl: string;
   requestedExtractors: SourceExtractor[];
   budget: CrawlBudget;

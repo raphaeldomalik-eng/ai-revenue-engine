@@ -1,9 +1,16 @@
+import { resultStoreTerminalUrlHistory } from "./source-discovery/terminal-url-history.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { BatchRequestReceipt, BatchRequestReservation, NexusResultStore } from "./executor.ts";
 import type { ContentExecutionStore } from "./content-interpretation.ts";
 
 export class SupabaseNexusResultStore implements NexusResultStore, ContentExecutionStore {
-  constructor(private readonly client: SupabaseClient) {}
+  readonly terminalUrlHistory;
+  private readonly client: SupabaseClient;
+  constructor(client: SupabaseClient) {
+    this.client = client;
+    // Auxiliary observations use the existing ledger directly. Directory result RPCs validate a different contract.
+    this.terminalUrlHistory = resultStoreTerminalUrlHistory({ get: key => this.get(key), set: (key, result) => this.writeResult(key, result) });
+  }
   async reserveOrganisationSeedSearch(programmeId:string,key:string,fingerprint:string):Promise<boolean>{
     const {data,error}=await this.client.rpc("reserve_organisation_seed_search",{p_programme_id:programmeId,p_idempotency_key:key,p_request_fingerprint:fingerprint});
     if(error)throw error;return data?.state==="RESERVED";
@@ -26,6 +33,10 @@ export class SupabaseNexusResultStore implements NexusResultStore, ContentExecut
   }
 
   async set(key: string, result: Record<string, unknown>): Promise<void> {
+    await this.writeResult(key, result);
+  }
+
+  private async writeResult(key: string, result: Record<string, unknown>): Promise<void> {
     const { error } = await this.client.from("nexus_executor_results").upsert({ idempotency_key: key, contract_version: String(result.contractVersion ?? "unknown"), request_id: String(result.requestId ?? result.discoveryRequestId ?? "unknown"), result_payload: result }, { onConflict: "idempotency_key", ignoreDuplicates: true });
     if (error) throw error;
   }

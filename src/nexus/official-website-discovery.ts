@@ -1,3 +1,4 @@
+import { resultStoreTerminalUrlHistory } from "./source-discovery/terminal-url-history.ts";
 import { createHash } from "node:crypto";
 import {
   CONTRACTS,
@@ -235,6 +236,7 @@ type Verification = { candidate: Candidate; finalUrl: string; documents: Fetched
 
 export async function executeOfficialWebsiteDiscovery(input: unknown, options: OfficialWebsiteDiscoveryOptions = {}, store: NexusResultStore = new InMemoryNexusResultStore()) {
   const request = validateOfficialWebsiteDiscoveryRequest(input);
+  const terminalUrlHistory = store.terminalUrlHistory ?? resultStoreTerminalUrlHistory(store);
   const storeKey = versionedUuid(`nexus-official-website-discovery:${OFFICIAL_WEBSITE_DISCOVERY_EXECUTION_VERSION}:${request.idempotencyKey}`);
   const prior = await store.get(storeKey);
   if (prior && prior.retryable !== true) return prior;
@@ -344,7 +346,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
     );
     let output;
     try {
-      output = await crawlVerifiedSource({ verifiedUrl: candidate.source === "PUBLIC_WEB_SEARCH" ? candidate.origin! : heldCrawlUrl(candidate.url), requestedExtractors: ["IDENTITY"], budget, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost });
+      output = await crawlVerifiedSource({ verifiedUrl: candidate.source === "PUBLIC_WEB_SEARCH" ? candidate.origin! : heldCrawlUrl(candidate.url), requestedExtractors: ["IDENTITY"], budget, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost, terminalUrlHistory });
     } catch {
       crawl.unavailable += 1;
       candidate.state = "UNVERIFIED";
@@ -354,7 +356,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
     crawl.requestCount += output.stats.requestCount;
     if (!output.documents.length && tryDeepFallback && output.stats.status !== "BLOCKED") {
       try {
-        const deepOut = await crawlVerifiedSource({ verifiedUrl: deepUrl!, requestedExtractors: ["IDENTITY"], budget: { ...budget, maxPages: 1, maxRequests: 2 }, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost });
+        const deepOut = await crawlVerifiedSource({ verifiedUrl: deepUrl!, requestedExtractors: ["IDENTITY"], budget: { ...budget, maxPages: 1, maxRequests: 2 }, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost, terminalUrlHistory });
         crawl.requestCount += deepOut.stats.requestCount;
         if (deepOut.documents.length) output = deepOut;
       } catch { /* keep original failure */ }
@@ -374,7 +376,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
     let assessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl, identityFacts: extracted.identityFacts });
     if (!assessment.verified && (tryDeepFallback || (hasRootOperatorAlignment && deepUrl && deepUrl !== candidate.origin && !EVENT_DETAIL_PATH.test(new URL(deepUrl).pathname) && !/\.pdf(?:$|\?)/i.test(deepUrl))) && !docs.some((d) => d.url === deepUrl)) {
       try {
-        const deepOut = await crawlVerifiedSource({ verifiedUrl: deepUrl!, requestedExtractors: ["IDENTITY"], budget: { ...budget, maxPages: 1, maxRequests: 2 }, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost });
+        const deepOut = await crawlVerifiedSource({ verifiedUrl: deepUrl!, requestedExtractors: ["IDENTITY"], budget: { ...budget, maxPages: 1, maxRequests: 2 }, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost, terminalUrlHistory });
         crawl.requestCount += deepOut.stats.requestCount;
         if (deepOut.documents.length) {
           docs = [...docs, ...deepOut.documents];

@@ -1,3 +1,4 @@
+import type { ContentCoverage } from "./content-coverage.ts";
 import { attributes, documentNavigationHtml, tags, visibleText } from "./html.ts";
 import type { FetchedDocument } from "./types.ts";
 
@@ -64,10 +65,11 @@ export async function storeWithWebsiteOpportunity(
   key: string,
   result: Record<string, unknown>,
   assessment: WebsiteOpportunity | undefined,
+  contentCoverage?: ContentCoverage,
 ) {
-  if (assessment) {
+  if (assessment || contentCoverage) {
     try {
-      await store.set(key, { ...result, crawlIntelligence: { websiteOpportunity: assessment } });
+      await store.set(key, { ...result, crawlIntelligence: { ...(assessment ? { websiteOpportunity: assessment } : {}), ...(contentCoverage ? { contentCoverage } : {}) } });
       return;
     } catch { /* Retry the original mandatory payload without optional intelligence. */ }
   }

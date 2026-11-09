@@ -1,3 +1,7 @@
+import {contentCoverage} from "./source-discovery/content-coverage.ts";
+import {venueCrawlProfiles} from './source-discovery/venue/profiles.ts';
+import {profilesFor} from './source-discovery/extractors/profiles.ts';
+import {resultStoreTerminalUrlHistory} from './source-discovery/terminal-url-history.ts';
 import {classifyCrawlDisposition} from './source-discovery/crawl-disposition.ts';
 import { createHash } from "node:crypto";
 import { canonicalHttpsUrl } from "./source-discovery/network.ts";
@@ -10,7 +14,7 @@ import { crawlVerifiedSource, extractFromFetchedDocuments, type CrawlBudget, typ
 import { deriveEmailAcquisitionOutcome } from "./source-discovery/email-outcome.ts";
 import { acceptVenueEmail, candidateRejection } from "./venue-email.ts";
 import { crawlLogLine, extractorYields } from "./source-discovery/observability.ts";
-import type { CrawlInput, DocumentCache } from "./source-discovery/types.ts";
+import type { CrawlInput, CrawlOutput, DocumentCache, TerminalUrlHistory } from "./source-discovery/types.ts";
 import { storeWithWebsiteOpportunity } from "./source-discovery/website-opportunity.ts";
 
 export type ProposedFact = { subjectEntityType: ResearchRequest["subject"]["entityType"]; canonicalEntityId: string | null; fieldName: string; value: unknown; evidenceRef: string | null; confidence: number | null; observedAt: string | null };
@@ -23,6 +27,7 @@ export type SourceDiscoveryExecutorOptions = { fetchImpl?: FetchLike; resolveHos
 export type BatchRequestReservation = { scopeId: string; manifestSha256: string; requestSha256: string; listingId: string; host: string; idempotencyKey: string; requestBudget: number; validFrom: string; validUntil: string; maxVenues: number; maxRequestsPerVenue: number; maxTotalRequests: number };
 export type BatchRequestReceipt = { scopeId: string; manifestSha256: string; listingId: string; host: string; idempotencyKey: string; status: string; requestCount: number; bytesRead: number; providerCostUsd: 0; resultStatus: string };
 export interface NexusResultStore {
+  readonly terminalUrlHistory?: TerminalUrlHistory;
   get(key: string): Promise<Record<string, unknown> | null>;
   set(key: string, result: Record<string, unknown>): Promise<void>;
   reserveBatchRequest?(reservation: BatchRequestReservation): Promise<boolean>;
@@ -187,17 +192,24 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     : request.requestedExtractors as SourceExtractor[];
   const venueName = request.venueName ?? "";
   const now = nowOf(options);
-  let crawl;
+  const rejectedSource = request.originatingProduct === "event_suite_resources" ? candidateRejection(request.verifiedSourceUrl) : null;
+  let crawl: CrawlOutput;
   try {
-    crawl = await crawlVerifiedSource({
+    // A caller's stale verified flag cannot turn a known directory into first-party evidence.
+    // Refuse before DNS, robots or document requests and leave identity unresolved.
+    crawl = rejectedSource ? {
+      verifiedUrl: request.verifiedSourceUrl, finalUrl: request.verifiedSourceUrl, documents: [],
+      stats: { status: "BLOCKED" as const, failureClass: "TERMINAL" as const, requestCount: 0, pageCount: 0, bytesRead: 0, redirects: 0, blockedCount: 1, retries: 0, warnings: [`SOURCE_NOT_OFFICIAL:${rejectedSource}`] },
+    } : await crawlVerifiedSource({
       verifiedUrl: request.verifiedSourceUrl,
       requestedExtractors,
-      profiles: options.profiles,
+      profiles: options.profiles ?? (request.originatingProduct==='event_suite_resources'&&requestedExtractors.includes('VENUE_FACTS')?[...venueCrawlProfiles(undefined,{emailGoal,venueName,completeContent:true}).filter(p=>requestedExtractors.includes(p.extractor)),...profilesFor(requestedExtractors.filter(e=>!['IDENTITY','PUBLIC_CONTACT','VENUE_FACTS','IMAGE_CANDIDATES'].includes(e)))]:undefined),
       budget: request.crawlBudget as CrawlBudget,
       subjectType: request.subjectReference.entityType,
       fetchImpl: options.fetchImpl,
       resolveHost: options.resolveHost,
       documentCache: options.documentCache,
+      terminalUrlHistory: store.terminalUrlHistory ?? resultStoreTerminalUrlHistory(store),
       renderAdapter: options.renderAdapter,
       renderPolicy: options.renderPolicy,
       userAgent: options.userAgent,
@@ -246,7 +258,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
   const warnings = boundCrawlWarnings([...crawl.stats.warnings, ...extracted.warnings]);
   const crawlStatus = crawl.stats.status === "COMPLETED" && warnings.length ? "PARTIAL" : crawl.stats.status;
-  const disposition = classifyCrawlDisposition(crawl,{identityVerified:true,contactAccepted:emailGoal?publicContacts.some(c=>c.type==="EMAIL"&&!c.reviewRequired):undefined});
+  const disposition = classifyCrawlDisposition(crawl,{identityVerified:!rejectedSource,contactAccepted:emailGoal?publicContacts.some(c=>c.type==="EMAIL"&&!c.reviewRequired):undefined});
   const retryable = disposition.retryable;
   const emailFound = emailGoal && publicContacts.some((contact) => contact.type === "EMAIL" && !contact.reviewRequired);
   const emailOutcome = deriveEmailAcquisitionOutcome({
@@ -271,8 +283,8 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
   const listingPath = /^\/venues\/venue-[^/]+-\d+\/?$/i;
   const evidenceManifest = { ...(crawl.evidenceManifest ?? { version: 1 as const, attemptedRequests: 0, requests: [], requestsOmitted: 0, unrecordedRequests: 0, pages: [] }),
     pages: (crawl.evidenceManifest?.pages ?? []).map((page) => ({ ...page,
-      publisherType: listingPath.test(new URL(page.url).pathname) ? "THIRD_PARTY_DIRECTORY" as const : "VERIFIED_FIRST_PARTY" as const,
-      subjectAssignment: "TARGET" as const,
+      publisherType: (listingPath.test(new URL(page.url).pathname)||candidateRejection(page.url)) ? "THIRD_PARTY_DIRECTORY" as const : "VERIFIED_FIRST_PARTY" as const,
+      subjectAssignment: candidateRejection(page.url) ? "UNRESOLVED" as const : "TARGET" as const,
       evidenceRefs: [...new Set(evidenceByPage.get(page.url) ?? [])],
     })) };
   const result = validateSourceDiscoveryResult({
@@ -288,8 +300,9 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     evidenceRefs: extracted.evidenceRefs,
     guideEmailReady: emailFound,
   });
-  if (crawl.observability) await reportCrawlObservability({ ...crawl.observability, extractorYields: extractorYields(extracted) }, options);
-  await storeWithWebsiteOpportunity(store, versionedKey, result, crawl.websiteOpportunity);
+  const coverage = contentCoverage(extracted, { requestedExtractors, stopReason: crawl.observability?.stopReason, retrievalStatus: crawl.stats.status, documentCount: crawl.documents.length });
+  if (crawl.observability) await reportCrawlObservability({ ...crawl.observability, extractorYields: extractorYields(extracted), contentCoverage: coverage }, options);
+  await storeWithWebsiteOpportunity(store, versionedKey, result, crawl.websiteOpportunity, coverage);
   return result;
 }
 

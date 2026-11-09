@@ -1,3 +1,5 @@
+import {contentCoverage} from "./content-coverage.ts";
+import {resultStoreTerminalUrlHistory} from './terminal-url-history.ts';
 import {classifyCrawlDisposition} from './crawl-disposition.ts';
 import {storedDirectoryVerifierAcquisition} from './stored-directory-verifier.ts';
 import {createHash} from 'node:crypto';
@@ -122,7 +124,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   let crawlReceipt:Record<string,unknown>|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const observation:{crawl:CrawlOutput|null}={crawl:null};
-   const provider=createPublicWebProvider({emailGoal:options.policy.quotaMode==='PER_RUN',fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
+   const provider=createPublicWebProvider({emailGoal:true,venueContent:true,terminalUrlHistory:options.store.terminalUrlHistory??resultStoreTerminalUrlHistory(options.store),fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
    const adapted=async(args:Parameters<typeof provider>[0]):Promise<ProviderResult>=>{
     const value=await provider(args),crawl=observation.crawl;
     if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
@@ -148,13 +150,17 @@ export async function handleDirectoryVerificationRequest(request:Request,options
     // Preserve structured observations from THIS crawl for Nexus's existing
     // classified acquisition consumer. Verification does not grant publication
     // or canonical authority, and an unverified site exports no such handoff.
-    const extracted=assessment.verified?extractFromFetchedDocuments(crawl.documents,['IDENTITY','PUBLIC_CONTACT','VENUE_FACTS'],research.targetName!):null;
+    const allExtracted=extractFromFetchedDocuments(crawl.documents,['IDENTITY','PUBLIC_CONTACT','VENUE_FACTS','IMAGE_CANDIDATES','EVENTS','SOURCE_CLASSIFICATION'],research.targetName!);
+    crawlReceipt.contentCoverage=contentCoverage(allExtracted,{requestedExtractors:['IDENTITY','PUBLIC_CONTACT','VENUE_FACTS','IMAGE_CANDIDATES','EVENTS','SOURCE_CLASSIFICATION'],stopReason:crawl.observability?.stopReason,retrievalStatus:crawl.stats.status,documentCount:crawl.documents.length});
+    const extracted=assessment.verified?allExtracted:null;
+    if(extracted)for(const image of extracted.imageCandidates)extracted.evidenceRefs.push('image:'+createHash('sha256').update(image.sourceImageUrl).digest('hex').slice(0,24));
     const acquisition=extracted&&siteEvidence&&['COMPLETED','PARTIAL'].includes(crawl.stats.status)?{
       version:1,requestId:input.requestId,
       source:{verifiedUrl:seed,finalUrl:crawl.finalUrl,observedAt:now,sourceHash:createHash('sha256').update(crawl.documents.map(d=>`${d.url}:${d.sourceHash}`).join('\n')).digest('hex')},
-      crawl:{...crawl.stats,retryable:false,evidenceManifest:crawl.evidenceManifest?{...crawl.evidenceManifest,pages:crawl.evidenceManifest.pages.map(p=>({...p,evidenceRefs:[...new Set([...extracted.identityFacts,...extracted.publicContacts,...extracted.venueFacts].filter(f=>f.sourceUrl===p.url).map(f=>f.evidenceRef))]}))}:null},
+      crawl:{...crawl.stats,retryable:false,evidenceManifest:crawl.evidenceManifest?{...crawl.evidenceManifest,pages:crawl.evidenceManifest.pages.map(p=>({...p,evidenceRefs:[...new Set([...([...extracted.identityFacts,...extracted.publicContacts,...extracted.venueFacts].filter(f=>f.sourceUrl===p.url).map(f=>f.evidenceRef)),...extracted.imageCandidates.filter(i=>i.sourcePageUrl===p.url).map(i=>'image:'+createHash('sha256').update(i.sourceImageUrl).digest('hex').slice(0,24))])]}))}:null},
       identityFacts:extracted.identityFacts.slice(0,100).map(f=>({...f,subjectEntityType:'UNKNOWN',canonicalEntityId:input.subject.canonicalEntityId,confidence:0.8,observedAt:now})),
       publicContacts:extracted.publicContacts.slice(0,100).map(c=>{const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,research.targetName!,c.label??''):null;return {...c,observedAt:now,reviewRequired:c.reviewRequired||!accepted.some(a=>a.type===c.type&&a.value.toLowerCase()===c.value.toLowerCase()&&a.sourceUrl===c.sourceUrl),...(verdict&&!verdict.accepted?{reviewReason:verdict.reason}:{})};}),
+      imageCandidates:extracted.imageCandidates.slice(0,100).map(i=>({...i,discoveredAt:now})),eventCandidates:extracted.eventCandidates.slice(0,100),
       venueFacts:extracted.venueFacts.slice(0,100).map(f=>({...f,observedAt:now})),evidenceRefs:extracted.evidenceRefs.slice(0,1000),
     }:null;
     const executionEvidence={evidenceRef:`research:${input.requestId}:public_web:directory-execution`,externalRecordId:`directory-execution:${input.requestId}`,provider:'PUBLIC_WEB' as const,sourceUrl:seed,observedAt:now,dataClassification:'PUBLIC' as const,licenceType:'PUBLIC_SOURCE',

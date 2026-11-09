@@ -2,13 +2,15 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 import type {ContinuousLedger,Reservation,Completion} from './continuous-directory-policy.ts';
 import {SupabaseNexusResultStore} from '../persistence.ts';
 export class SupabaseDirectoryResultStore extends SupabaseNexusResultStore{
- constructor(private readonly directoryClient:SupabaseClient){super(directoryClient)}
+ private readonly directoryClient:SupabaseClient;
+ constructor(directoryClient:SupabaseClient){super(directoryClient);this.directoryClient=directoryClient;}
  override async set(key:string,result:Record<string,unknown>){const {data,error}=await this.directoryClient.rpc('store_nexus_directory_result',{p_key:key,p_result:result});if(error)throw error;if(!['STORED','REUSED'].includes(data?.state))throw Error('DIRECTORY_RESULT_NOT_STORED');}
 }
 /** Shared database reservations enforce budgets across workers, restarts and concurrent ticks. */
 export class SupabaseContinuousDirectoryLedger implements ContinuousLedger{
  private readonly denials=new Map<string,string>();
- constructor(private readonly client:SupabaseClient){}
+ private readonly client:SupabaseClient;
+ constructor(client:SupabaseClient){this.client=client;}
  async denialReason(reservation:Reservation){return this.denials.get(reservation.reservationKey)??null;}
  async isQuarantined(policyId:string,identityKey:string){const {data,error}=await this.client.from('nexus_directory_work_receipt').select('reservation_key').eq('policy_id',policyId).eq('identity_key',identityKey).eq('state','QUARANTINED').limit(1);if(error)throw error;return Boolean(data?.length);}
  async reserve(reservation:Reservation){const {data,error}=await this.client.rpc(reservation.runId?'reserve_nexus_directory_run_work':'reserve_nexus_directory_work',{p_reservation:reservation});if(error)throw error;if(data?.state!=='RESERVED'&&typeof data?.reason==='string')this.denials.set(reservation.reservationKey,data.reason);return data?.state==='RESERVED';}

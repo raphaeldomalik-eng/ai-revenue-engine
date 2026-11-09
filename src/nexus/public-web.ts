@@ -1,3 +1,5 @@
+import {venueCrawlProfiles,VENUE_EXTRACTORS} from './source-discovery/venue/profiles.ts';
+import {profilesFor} from './source-discovery/extractors/profiles.ts';
 import { createHash } from "node:crypto";
 import { getGooglePlaceDetails, type GooglePlacesDetailsInput } from "../ai-sales-team/google-places.ts";
 import { officialWebsiteDetailsAuthorization, validateResearchRequest, type ResearchRequest } from "./contracts.ts";
@@ -14,6 +16,8 @@ export type PublicWebProviderOptions = {
   now?: () => string;
   budget?: Partial<CrawlBudget>;
   emailGoal?: boolean;
+  venueContent?: boolean;
+  terminalUrlHistory?: CrawlInput['terminalUrlHistory'];
   renderAdapter?: CrawlInput['renderAdapter'];
   renderPolicy?: CrawlInput['renderPolicy'];
   placeDetails?: typeof getGooglePlaceDetails;
@@ -373,7 +377,7 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
     let seedCrawl:CrawlOutput|null=null;
     let seedExtraction:ReturnType<typeof extractFromFetchedDocuments>|null=null;
     if(!website && options.organisationSeed && request.originatingProduct==="last_train_home" && request.subject.candidateReference?.sourceRecordId.startsWith("ticketmaster:promoter:")){
-      const seed=await discoverOrganisationSource({...request,researchContext:{targetName:context.targetName,territory:context.territory,locality:context.locality,existingFacts:context.existingFacts}},{...options.organisationSeed,fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:options.now});
+      const seed=await discoverOrganisationSource({...request,researchContext:{targetName:context.targetName,territory:context.territory,locality:context.locality,existingFacts:context.existingFacts}},{...options.organisationSeed, terminalUrlHistory: options.terminalUrlHistory,fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:options.now});
       providerUsage.push(...seed.providerUsage);if(seed.searchEvidence)seedEvidence.push(seed.searchEvidence);
       if(seed.status!=="VERIFIED")return unresolved(request,purpose,seed.reason,{evidence:seedEvidence,providerUsage});
       website=seed.website;seedCrawl=seed.crawl;seedExtraction=seed.extraction;
@@ -419,12 +423,14 @@ export function createPublicWebProvider(options: PublicWebProviderOptions = {}) 
 
     try {
       if(!seedCrawl)providerUsage.push({ provider: "PUBLIC_WEB", callCount: 1, purpose, cost: { currency: "USD", amount: 0 } });
-      const extractors = request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION"
+      const extractors = options.venueContent ? [...VENUE_EXTRACTORS,"EVENTS","SOURCE_CLASSIFICATION"] as const : request.subject.entityType === "UNKNOWN" || purpose === "CONFLICT_RESOLUTION" || purpose === "SOURCE_ENTITY_CLASSIFICATION"
         ? ["IDENTITY", "PUBLIC_CONTACT", "SOURCE_CLASSIFICATION"] as const
         : ["IDENTITY", "PUBLIC_CONTACT"] as const;
       const crawl = seedCrawl??await crawlVerifiedSource({
         verifiedUrl: website,
         requestedExtractors: [...extractors],
+        profiles: options.venueContent ? [...venueCrawlProfiles(undefined,{emailGoal:true,venueName:targetName(request,context)??'',completeContent:true}),...profilesFor(['EVENTS','SOURCE_CLASSIFICATION'])] : undefined,
+        terminalUrlHistory: options.terminalUrlHistory,
         budget: { ...DEFAULT_BUDGET, ...options.budget },
         fetchImpl: options.fetchImpl,
         resolveHost: options.resolveHost,

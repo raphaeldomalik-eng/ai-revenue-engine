@@ -36,7 +36,7 @@ export async function crawlVenueOfficialSite(args: {
   budget?: CrawlBudget;
   renderAdapter?: RenderAdapter;
   renderPolicy?: RenderPolicy;
-} & Pick<CrawlInput, "fetchImpl" | "resolveHost" | "userAgent" | "politeness" | "now" | "sleep">): Promise<VenueCrawlResult> {
+} & Pick<CrawlInput, "fetchImpl" | "resolveHost" | "userAgent" | "politeness" | "now" | "sleep" | "terminalUrlHistory">): Promise<VenueCrawlResult> {
   const authority = planVenueHttpsTarget(args.authorisedUrl);
   if (!authority.crawlUrl) {
     return { authority, sameSite: false, crawl: null, evidence: null, refusal: authority.refusal };
@@ -53,6 +53,7 @@ export async function crawlVenueOfficialSite(args: {
     resolveHost: args.resolveHost,
     userAgent: args.userAgent,
     politeness: args.politeness,
+    terminalUrlHistory: args.terminalUrlHistory,
     now: args.now,
     sleep: args.sleep,
     renderAdapter: args.renderAdapter,
