@@ -157,7 +157,31 @@ function namedLocalityOnSite(venueName: string, locality: string | null, heldAdd
   return normHeadings.some((value) => locTerms.some((place) => value.includes(` ${place} `)));
 }
 
-export function assessWebsiteIdentity(input: { venueName: string; country: "GB" | "ZA"; heldAddress: string | null; context: IdentityContext; finalUrl: string; identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>;contactObservations?:Array<{label?:string|null;sourceUrl:string;evidenceRef?:string}> }) {
+/**
+ * A name-and-locality match on a page shows the page talks about the venue, not that the site is the
+ * venue's own. Directories, job boards, news, review and booking pages all pass that test. Production
+ * run 2026-11-10: 24 of 26 UK and 5 of 11 ZA first-pass "verified" sites were not venue-operated
+ * (leadiq, talent.com, workin.space, tripreporter, hotel-scoop, ...). A venue-operated site carries the
+ * venue's name in its host, or names the venue as the site itself on its homepage.
+ */
+export function siteOperatedBySubject(venueName: string, finalUrl: string, identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>): { operated: boolean; signal: string | null } {
+  let url: URL;
+  try { url = new URL(finalUrl); } catch { return { operated: false, signal: null }; }
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  const folded = host.replace(/[^a-z0-9]/g, "");
+  if (distinctiveNameTokens(venueName).some((token) => token.length >= 4 && folded.includes(token))) return { operated: true, signal: "venue name in site domain" };
+  const label = registrableDomain(host).split(".")[0]!.replace(/[^a-z0-9]/g, "");
+  if (label.length >= 5 && normalise(venueName).replace(/\s+/g, "").includes(label)) return { operated: true, signal: "site domain contained in venue name" };
+  const initials = normalise(venueName).split(/\s+/).filter((word) => word && !/^(?:the|of|and|at|in|on|a)$/.test(word)).map((word) => word[0]).join("");
+  if (initials.length >= 3 && label === initials) return { operated: true, signal: "site domain is the venue acronym" };
+  const homepage = (sourceUrl: string) => { try { const parsed = new URL(sourceUrl); return parsed.origin === url.origin && parsed.pathname.replace(/\/+$/, "") === ""; } catch { return false; } };
+  const homepageNamesVenue = identityFacts.some((fact) => ["siteName", "operatorName"].includes(fact.fieldName) && typeof fact.value === "string" && Boolean(fact.sourceUrl) && homepage(fact.sourceUrl!) && nameMatches(venueName, fact.value));
+  return homepageNamesVenue ? { operated: true, signal: "homepage names the venue as the site" } : { operated: false, signal: null };
+}
+
+export function assessWebsiteIdentity(input: { venueName: string; country: "GB" | "ZA"; heldAddress: string | null; context: IdentityContext; finalUrl: string; identityFacts: Array<{ fieldName: string; value: unknown; sourceUrl?: string }>;contactObservations?:Array<{label?:string|null;sourceUrl:string;evidenceRef?:string}>;
+  /** True for a candidate that came from a web search. Held and Nexus-verified websites keep their existing evidence path. */
+  requireOperatedSite?: boolean }) {
   if (candidateRejection(input.finalUrl)) return { verified: false, state: "REJECTED" as const, reason: "REDIRECTED_TO_NON_FIRST_PARTY_HOST", path: null, signals: [] as string[], nameSignal: false };
   const heldPostcode=postcodeOf(input.heldAddress,input.country);
   const acceptedScope=input.context.existingFacts?.find(f=>f.fieldName==='acceptedWebsiteScope'&&f.evidenceRef)?.value;
@@ -178,7 +202,9 @@ export function assessWebsiteIdentity(input: { venueName: string; country: "GB" 
   if (!acceptedAssociation && isGenericVenueName(input.venueName) && !verification.signals.includes('matching property postcode') && !addressCorroborated(input.identityFacts, input.heldAddress, input.country)) {
     return { verified: false, state: "UNVERIFIED" as const, reason: "GENERIC_NAME_REQUIRES_ADDRESS_CORROBORATION", path: null, signals: [] as string[], nameSignal: true };
   }
-  return { verified: true, state: "SELECTED" as const, reason: `VERIFIED_${verification.path}`, path: verification.path, signals: verification.signals, nameSignal: verification.nameSignal };
+  const operated = input.requireOperatedSite && !acceptedAssociation ? siteOperatedBySubject(input.venueName, input.finalUrl, input.identityFacts) : null;
+  if (operated && !operated.operated) return { verified: false, state: "UNVERIFIED" as const, reason: "THIRD_PARTY_PAGE_NOT_VENUE_OPERATED", path: null, signals: [] as string[], nameSignal: true };
+  return { verified: true, state: "SELECTED" as const, reason: `VERIFIED_${verification.path}`, path: verification.path, signals: operated?.signal ? [...verification.signals, operated.signal] : verification.signals, nameSignal: verification.nameSignal };
 }
 
 // The crawler is HTTPS-only; a held http:// website is tried at the same host over HTTPS, never downgraded.
@@ -373,7 +399,8 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
     let extracted = extractFromFetchedDocuments(docs, ["IDENTITY", "SOURCE_CLASSIFICATION"]);
     const rootSiteNames = extracted.identityFacts.filter((f) => f.fieldName === "siteName" && typeof f.value === "string").map((f) => f.value as string);
     const hasRootOperatorAlignment = rootSiteNames.some((s) => distinctiveNameTokens(identity.venueName).some((t) => t.length >= 4 && normalise(s).includes(t)));
-    let assessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl, identityFacts: extracted.identityFacts });
+    const requireOperatedSite = candidate.source === "PUBLIC_WEB_SEARCH";
+    let assessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl, identityFacts: extracted.identityFacts, requireOperatedSite });
     if (!assessment.verified && (tryDeepFallback || (hasRootOperatorAlignment && deepUrl && deepUrl !== candidate.origin && !EVENT_DETAIL_PATH.test(new URL(deepUrl).pathname) && !/\.pdf(?:$|\?)/i.test(deepUrl))) && !docs.some((d) => d.url === deepUrl)) {
       try {
         const deepOut = await crawlVerifiedSource({ verifiedUrl: deepUrl!, requestedExtractors: ["IDENTITY"], budget: { ...budget, maxPages: 1, maxRequests: 2 }, subjectType: request.subject.entityType, fetchImpl: options.fetchImpl, resolveHost: options.resolveHost, terminalUrlHistory });
@@ -381,7 +408,7 @@ export async function executeOfficialWebsiteDiscovery(input: unknown, options: O
         if (deepOut.documents.length) {
           docs = [...docs, ...deepOut.documents];
           extracted = extractFromFetchedDocuments(docs, ["IDENTITY", "SOURCE_CLASSIFICATION"]);
-          const deepAssessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl: deepOut.finalUrl, identityFacts: extracted.identityFacts });
+          const deepAssessment = assessWebsiteIdentity({ venueName: identity.venueName, country: identity.country, heldAddress, context: verificationContext, finalUrl: deepOut.finalUrl, identityFacts: extracted.identityFacts, requireOperatedSite });
           if (deepAssessment.verified || (deepAssessment.nameSignal && !assessment.nameSignal)) {
             assessment = deepAssessment;
             if (deepAssessment.verified) finalUrl = deepOut.finalUrl;

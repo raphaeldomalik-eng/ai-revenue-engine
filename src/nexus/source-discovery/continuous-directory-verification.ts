@@ -135,7 +135,7 @@ export async function handleDirectoryVerificationRequest(request:Request,options
     const facts=extractFromFetchedDocuments(crawl.documents,['IDENTITY','SOURCE_CLASSIFICATION']).identityFacts;
     const address=research.existingFacts?.find(f=>f.fieldName==='formattedAddress')?.value;
     const observed=extractFromFetchedDocuments(crawl.documents,['PUBLIC_CONTACT']).publicContacts;
-    const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts,contactObservations:observed});
+    const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts,contactObservations:observed,requireOperatedSite:/^directory-search:/.test(String(context.evidenceRef??''))});
     const siteEvidence=value.evidence.find(e=>(e.payload as {kind?:string})?.kind==='FIRST_PARTY_WEBSITE');
     const state=crawl.stats.status==='BLOCKED'?'BLOCKED':assessment.verified?'VERIFIED':'UNVERIFIED';
     verification={state,url:assessment.verified?crawl.finalUrl:null,evidenceRef:siteEvidence?.evidenceRef??null,signals:assessment.signals,reason:assessment.reason};

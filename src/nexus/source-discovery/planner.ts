@@ -66,6 +66,34 @@ export type Candidate = {
   strength: number;
 };
 
+/**
+ * News, blog and inspiration posts, headline-length slugs, dated posts and gallery/download items describe one
+ * story or file, not the venue. Retained 2026-11 crawls spent 8-page budgets on them (stlukesglasgow: a 2015
+ * "doors open day" post; dgb.co.za: a casino-layout blog post; yeswedocaterers: four wedding-inspiration posts)
+ * before reaching spaces or hire pages. They are ranked last, never excluded, so a site with nothing better
+ * is still read.
+ */
+export function articleLikePath(url: string): boolean {
+  let path: string;
+  try { path = decodeURIComponent(new URL(url).pathname).toLowerCase(); } catch { return false; }
+  const segments = path.split("/").filter(Boolean);
+  if (!segments.length) return false;
+  if (segments.some((segment) => /^(?:blogs?|news|newsroom|press-releases?|articles?|posts?|stories|inspiration|insights?|journal|magazine|updates?)$/.test(segment))) return true;
+  if (segments.some((segment) => /(?:^|-)inspiration(?:-|$)/.test(segment))) return true;
+  if (segments.length > 1 && /^(?:gallery|galleries|portfolio|downloads?)$/.test(segments[segments.length - 2]!)) return true;
+  const slug = segments[segments.length - 1]!;
+  return slug.split("-").length >= 8 || /(?:^|-)20\d{2}(?:-|$)/.test(slug);
+}
+
+/** `/us/info/contact-us` repeats `/info/contact-us` for another market; reading both only spends budget. */
+const LOCALE_PREFIX = /^\/(?:[a-z]{2}|[a-z]{2}-[a-z]{2})(?=\/)/i;
+function localeTwinKey(url: string): string | null {
+  const parsed = new URL(url);
+  if (!LOCALE_PREFIX.test(parsed.pathname)) return null;
+  parsed.pathname = parsed.pathname.replace(LOCALE_PREFIX, "");
+  return planKey(parsed.toString());
+}
+
 /** `/a` and `/a/` are one page on virtually every site; planning them twice only buys a redirect to a fetched page. */
 export function planKey(url: string): string {
   const parsed = new URL(url);
@@ -98,6 +126,8 @@ export class GapPlanner {
   add(candidate: Omit<Candidate, "order">) {
     const key = planKey(candidate.url);
     if (this.done.has(key) || !candidate.dims.length) return;
+    const twin = localeTwinKey(candidate.url);
+    if (twin && (this.done.has(twin) || this.candidates.has(twin))) return;
     const existing = this.candidates.get(key);
     if (existing) {
       existing.dims = [...new Set([...existing.dims, ...candidate.dims])];
@@ -156,7 +186,7 @@ export class GapPlanner {
   private rank(item: Candidate, open: Set<Dimension>) {
     const served = item.dims.filter((dim) => open.has(dim)).length;
     const depth = new URL(item.url).pathname.split("/").filter(Boolean).length;
-    return item.strength * 10 + served * 4 - Math.min(depth, 6) + (item.source === "LINK" ? 2 : 0);
+    return item.strength * 10 + served * 4 - Math.min(depth, 6) + (item.source === "LINK" ? 2 : 0) - (articleLikePath(item.url) ? 30 : 0);
   }
 
   /** Round-robin across open dimensions so one extractor's gap cannot starve another's; ties keep discovery order. */

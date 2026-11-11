@@ -25,7 +25,15 @@ export async function consumeDirectorySearchEvidence(input:unknown,receipts:Held
  const result=validateOfficialWebsiteDiscoveryResult(await executeOfficialWebsiteDiscovery(request,{now:()=>now,maxSearchCalls:1,maxResultsPerQuery:10,searchProvider:{id:evidence.mechanism==='native_web_search'?'held-native-search-evidence':'held-'+evidence.mechanism+'-evidence',costModel:{kind:'ZERO_INCREMENTAL',currency:'USD',amountPerCall:0},async search({query,country,maxResults}){if(normal(query)!==normal(expected)||country!==evidence.country)throw Error('DIRECTORY_SEARCH_EVIDENCE_SCOPE');return evidence.results.slice(0,maxResults)}},fetchImpl:async()=>{throw Error('DIRECTORY_SEARCH_CRAWL_FORBIDDEN')}}));
  if(result.crawl.requestCount!==0||result.officialWebsite||result.publicContacts.length||result.sourceDiscovery||result.costSummary.amount!==0)throw Error('DIRECTORY_SEARCH_ACQUISITION_FORBIDDEN');
  async function finish(){
-  const candidates=result.candidates.filter(c=>c.state==='NOT_EVALUATED'&&!c.reasons.includes('EVENT_DETAIL_PATH_DEPRIORITISED')&&!/^\/wiki\//i.test(new URL(c.url).pathname)&&distinctiveNameTokens(request.identity.venueName).length>0&&c.reasons.some(r=>r==='DOMAIN_NAME_ALIGNMENT'||r==='TITLE_NAME_ALIGNMENT')).slice(0,5).map(c=>{const url=new URL(c.url);url.protocol='https:';return {websiteSeed:url.href,sourceUrl:c.url,websiteAuthority:'UNVERIFIED_SEARCH_RESULT' as const,evidenceRefs:[evidence.evidenceRef],observedAt:evidence.observedAt,identityEstablished:false,canonicalImportAllowed:false}});
+  const eligible=result.candidates.filter(c=>c.state==='NOT_EVALUATED'&&!c.reasons.includes('EVENT_DETAIL_PATH_DEPRIORITISED')&&!/^\/wiki\//i.test(new URL(c.url).pathname)&&distinctiveNameTokens(request.identity.venueName).length>0&&c.reasons.some(r=>r==='DOMAIN_NAME_ALIGNMENT'||r==='TITLE_NAME_ALIGNMENT'));
+  // A venue-named domain is the strongest sign a result is the venue's own site. Title text alone is shared by
+  // every directory and listing page (2026-11-10: 14 first-pass venues verified a third-party page while a
+  // venue-named domain sat in the same results). Title-only results are therefore kept only when no result has
+  // a venue-named domain, and then only as a site homepage. The Nexus queue has no rank order, so the emitted
+  // set itself must be the best evidence; rank and reasons stay on each candidate for later ordering.
+  const domainAligned=eligible.filter(c=>c.reasons.includes('DOMAIN_NAME_ALIGNMENT'));
+  const pool=(domainAligned.length?domainAligned:eligible.filter(c=>new URL(c.url).pathname.replace(/\/+$/,'')==='')).sort((a,b)=>a.rank-b.rank);
+  const candidates=pool.slice(0,5).map(c=>{const url=new URL(c.url);url.protocol='https:';return {websiteSeed:url.href,sourceUrl:c.url,websiteAuthority:'UNVERIFIED_SEARCH_RESULT' as const,evidenceRefs:[evidence.evidenceRef],observedAt:evidence.observedAt,identityEstablished:false,canonicalImportAllowed:false,searchRank:c.rank,rankingReasons:c.reasons}});
   return {fingerprint,requestId:request.requestId,subject:request.subject,sourceObservedAt:evidence.observedAt,result,candidates,cacheReused:false,actualSearchApiCalls:0,actualWebsiteRequests:0,paidProviderCostUsd:0};
  }
  const output=await finish();await store.set(key,output as unknown as Record<string,unknown>);return output;

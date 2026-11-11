@@ -43,11 +43,19 @@ test('an earlier event page cannot suppress a later homepage on the same origin'
  assert.deepEqual(r.candidates.map(c=>c.websiteSeed),['https://alphahall.example/']);
 });
 
-test('a name-aligned homepage supersedes a weaker same-origin result without losing other domains',async()=>{
+test('a name-aligned homepage supersedes a weaker same-origin result without losing other venue-named domains',async()=>{
  const r=await consumeDirectorySearchEvidence(request(),[{...receipt(),results:[
   {url:'https://neutral.example/old',title:'Old programme'},
   {url:'https://neutral.example/',title:'Alpha Hall Bristol'},
-  {url:'https://otheralphahall.example/',title:'Alpha Hall Bristol'}
+  {url:'https://otheralphahall.example/',title:'Alpha Hall Bristol'},
+  {url:'https://alphahall-bristol.example/',title:'Alpha Hall Bristol'}
  ]}],{now});
- assert.equal(r.candidates.length,2);assert(r.candidates.some(c=>c.websiteSeed==='https://neutral.example/'));
+ assert.deepEqual(r.candidates.map(c=>c.websiteSeed).sort(),['https://alphahall-bristol.example/','https://otheralphahall.example/']);
+});
+
+test('title text alone is not enough when a venue-named domain is available; a title-aligned homepage is kept when none is',async()=>{
+ const withDomain=await consumeDirectorySearchEvidence(request(),[{...receipt(),results:[{url:'https://neutral.example/',title:'Alpha Hall Bristol'},{url:'https://alphahall.example/',title:'Welcome'}]}],{now});
+ assert.deepEqual(withDomain.candidates.map(c=>c.websiteSeed),['https://alphahall.example/']);
+ const without=await consumeDirectorySearchEvidence(request(),[{...receipt(),results:[{url:'https://neutral.example/',title:'Alpha Hall Bristol'},{url:'https://listings.example/venues/alpha-hall-bristol',title:'Alpha Hall Bristol'}]}],{now});
+ assert.deepEqual(without.candidates.map(c=>c.websiteSeed),['https://neutral.example/']);
 });

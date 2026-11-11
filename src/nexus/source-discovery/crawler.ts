@@ -306,6 +306,13 @@ async function fetchRobots(ctx: Ctx, origin: string): Promise<string> {
   let redirects = 0;
   let attempt = 0;
   const maxBytes = Math.min(ctx.budget.maxBytesPerResponse, 500_000);
+  // An apex that redirects to www answers with www's own robots.txt. Record it for that origin too, so
+  // the redirected page does not buy the same file again (2026-11-10: veldandsea fetched it three times).
+  const settled = (text: string) => {
+    const finalOrigin = new URL(current).origin;
+    if (redirects > 0 && finalOrigin !== origin && !ctx.robots.has(finalOrigin)) ctx.robots.set(finalOrigin, { text, status: text ? "FETCHED" : "ABSENT" });
+    return text;
+  };
   for (;;) {
     if (ctx.stats.requestCount >= ctx.budget.maxRequests) {
       throw new CrawlRefusal("Crawl request budget exhausted before robots.txt could be checked.", "TERMINAL");
@@ -347,10 +354,10 @@ async function fetchRobots(ctx: Ctx, origin: string): Promise<string> {
       continue;
     }
     if (snapshot.status === 429 || snapshot.status >= 500) throw new CrawlRefusal(`robots.txt returned HTTP ${snapshot.status}`, "RETRYABLE");
-    if (snapshot.status === 404 || snapshot.status === 410) return "";
+    if (snapshot.status === 404 || snapshot.status === 410) return settled("");
     if (snapshot.status < 200 || snapshot.status >= 300) throw new CrawlRefusal(`robots.txt returned HTTP ${snapshot.status}`, "TERMINAL");
     if (snapshot.bytes.length > maxBytes) throw new CrawlRefusal("robots.txt exceeded the discovery size limit.", "TERMINAL");
-    return decodeText(snapshot.bytes, snapshot.headers.get("content-type"));
+    return settled(decodeText(snapshot.bytes, snapshot.headers.get("content-type")));
   }
 }
 
