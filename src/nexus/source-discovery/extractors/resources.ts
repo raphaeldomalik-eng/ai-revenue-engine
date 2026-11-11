@@ -328,9 +328,12 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: stri
     const descriptor = `${form.attrs.action ?? ""} ${form.attrs.id ?? ""} ${form.attrs.class ?? ""} ${form.attrs.name ?? ""}`;
     if (/\b(?:search|comments?|newsletter|login|subscribe|signin|register|password)\b|wp-comments-post|wp-login/i.test(descriptor)) continue;
     if (/type=["']?password/i.test(form.inner)) continue;
-    if (!/\b(?:contact|enquir\w*|book\w*|hire|message|sendmail)\b/i.test(descriptor)
+    // "contactForm" has no word boundary after "contact"; match camelCase ids as well as hyphenated ones.
+    if (!/(?:^|[^a-z])(?:contact|enquir|book|hire|message|sendmail)/i.test(descriptor)
       && !(/<textarea\b/i.test(form.inner) && /(?:name|id)=["']?email/i.test(form.inner))) continue;
-    const action = form.attrs.action?.trim() ? sameOrigin(form.attrs.action, doc.url) : doc.url;
+    // A venue page whose form posts to its booking provider is still the venue's own enquiry form: the
+    // observable contact route is this page, not the provider endpoint (2026-11-11: toca.social #contactForm).
+    const action = form.attrs.action?.trim() ? sameOrigin(form.attrs.action, doc.url) ?? doc.url : doc.url;
     if (action) addContact(out, doc, "CONTACT_FORM", action, 0.8, false, descriptor);
   }
   // A label must be separated from the address, or "bookings@venue" would also yield "s@venue".

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { consumeDirectorySearchEvidence } from "../src/nexus/search/directory-held-search.ts";
 import { assessWebsiteIdentity, siteOperatedBySubject } from "../src/nexus/official-website-discovery.ts";
-import { crawlVerifiedSource } from "../src/nexus/source-discovery/crawler.ts";
+import { crawlVerifiedSource, extractFromFetchedDocuments } from "../src/nexus/source-discovery/crawler.ts";
 import { articleLikePath, GapPlanner } from "../src/nexus/source-discovery/planner.ts";
 import { rankChildSitemaps } from "../src/nexus/source-discovery/sitemap.ts";
 
@@ -108,6 +108,8 @@ test("articleLikePath marks news, blog, inspiration, dated and headline slugs an
     "https://www.yeswedocaterers.co.za/wedding-inspiration-tasneem-muhammed/wedding-inspiration-food/",
     "https://www.museeventartistry.com/gallery/item-id-5dd680bf46a43",
     "https://www.stlukesglasgow.com/saint-lukes/newspress/".replace("newspress", "news"),
+    "https://revolution-bars.co.uk/bar/Aberdeen/menus/food-menu/",
+    "https://revolution-bars.co.uk/bar/aberdeen/menus/drinks-menu/",
   ]) assert.equal(articleLikePath(url), true, url);
   for (const url of [
     "https://www.revolution-bars.co.uk/parties-and-events/private-hire/",
@@ -117,6 +119,8 @@ test("articleLikePath marks news, blog, inspiration, dated and headline slugs an
     "https://veldandsea.com/venue-hire/",
     "https://www.stlukesglasgow.com/special-events/weddings/",
     "https://www.example.org/",
+    "https://revolution-bars.co.uk/parties-and-events/corporate-events/",
+    "https://revolution-bars.co.uk/bar/aberdeen/",
   ]) assert.equal(articleLikePath(url), false, url);
 });
 
@@ -139,10 +143,31 @@ test("a market-prefixed twin of a page already planned is not planned again", ()
   assert.deepEqual(planner.pending().map((item) => item.url), ["https://t.example/info/contact-us"]);
 });
 
+test("a case-variant of a page already planned or read is not planned again", () => {
+  const planner = new GapPlanner(["VENUE_FACTS:SPACES"]);
+  const add = (url: string) => planner.add({ url, kind: "PAGE", dims: ["VENUE_FACTS:SPACES"], source: "LINK", discoveredFrom: "https://r.example/", label: "", strength: 1 });
+  add("https://r.example/bar/Aberdeen/menus/food-menu/");
+  add("https://r.example/bar/aberdeen/menus/food-menu/");
+  assert.equal(planner.pending().length, 1);
+  planner.markDone("https://r.example/bar/aberdeen/menus/food-menu/");
+  add("https://r.example/bar/Aberdeen/menus/food-menu");
+  assert.equal(planner.pending().length, 0);
+});
+
 test("only the best sitemap tier is fetched: page sitemaps, never author, template or post archives", () => {
   assert.deepEqual(rankChildSitemaps(["https://r.example/ct/author-sitemap.xml", "https://r.example/ct/wpr_templates-sitemap.xml", "https://r.example/ct/page-sitemap.xml", "https://r.example/ct/post-sitemap.xml"]), ["https://r.example/ct/page-sitemap.xml"]);
   assert.deepEqual(rankChildSitemaps(["https://r.example/a-sitemap.xml", "https://r.example/b-sitemap.xml"]), ["https://r.example/a-sitemap.xml", "https://r.example/b-sitemap.xml"]);
   assert.deepEqual(rankChildSitemaps(["https://r.example/post-sitemap.xml", "https://r.example/author-sitemap.xml"]), ["https://r.example/author-sitemap.xml"]);
+});
+
+test("an on-page enquiry form that posts to a booking provider is recorded at the venue page; newsletter forms are not", () => {
+  const doc = (body: string) => ({ url: "https://www.toca.social/events/large-bookings", body, kind: "HTML" as const, contentType: "text/html", bytes: body.length, observedAt: now, sourceHash: "b".repeat(64) });
+  const enquiry = '<form action="https://bookings.designmynight.com/book" id="contactForm" method="POST"><textarea name="notes"></textarea><input name="email"></form>';
+  const newsletter = '<form id="wf-footer-signup" method="get"><input name="email"></form>';
+  const forms = (body: string) => extractFromFetchedDocuments([doc(body)], ["PUBLIC_CONTACT"], "TOCA Social").publicContacts.filter((item) => item.type === "CONTACT_FORM");
+  assert.deepEqual(forms(enquiry).map((item) => item.value), ["https://www.toca.social/events/large-bookings"]);
+  assert.equal(forms(newsletter).length, 0);
+  assert.equal(forms('<form action="/search" id="searchContact"><input name="q"></form>').length, 0);
 });
 
 test("an apex that redirects to www buys robots.txt once, not once per origin", async () => {

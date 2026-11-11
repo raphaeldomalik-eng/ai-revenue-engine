@@ -80,6 +80,9 @@ export function articleLikePath(url: string): boolean {
   if (!segments.length) return false;
   if (segments.some((segment) => /^(?:blogs?|news|newsroom|press-releases?|articles?|posts?|stories|inspiration|insights?|journal|magazine|updates?)$/.test(segment))) return true;
   if (segments.some((segment) => /(?:^|-)inspiration(?:-|$)/.test(segment))) return true;
+  // Food/drink menus name dishes, not contacts or spaces: revolution-bars.co.uk spent four of six pages on
+  // them (2026-11-11 replay) while /parties-and-events/corporate-events/ held the enquiry address.
+  if (segments.some((segment) => /^menus?$/.test(segment)) || /-menus?$/.test(segments[segments.length - 1]!)) return true;
   if (segments.length > 1 && /^(?:gallery|galleries|portfolio|downloads?)$/.test(segments[segments.length - 2]!)) return true;
   const slug = segments[segments.length - 1]!;
   return slug.split("-").length >= 8 || /(?:^|-)20\d{2}(?:-|$)/.test(slug);
@@ -99,6 +102,9 @@ export function planKey(url: string): string {
   const parsed = new URL(url);
   parsed.hash = "";
   if (parsed.pathname.length > 1 && parsed.pathname.endsWith("/")) parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+  // `/bar/Aberdeen/menus/food-menu/` and `/bar/aberdeen/menus/food-menu/` served the same page; retained
+  // 2026-11 crawls read both (revolution-bars.co.uk) and then ran out of pages before the events page.
+  parsed.pathname = parsed.pathname.toLowerCase();
   return parsed.toString();
 }
 
