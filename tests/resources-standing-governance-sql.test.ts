@@ -188,6 +188,60 @@ test('initial inventory bypasses only the business venue cap, transitions once, 
 
 test('ongoing phase admits one hundred recurring venues, stops the next, and preserves opening inventory receipts',async()=>{const f=await setup();try{const file=fs.readdirSync('supabase/migrations').find(n=>n.endsWith('_resources_initial_inventory_phase.sql'))!;await f.db.exec(fs.readFileSync('supabase/migrations/'+file,'utf8'));await f.db.query('update public.nexus_directory_standing_policy set policy=$1 where policy_id=$2',[{...policy,productPublicationAllowed:true},'p']);const inventory={snapshotSha256:'e'.repeat(64),total:100,remaining:0,byCountry:{GB:0,ZA:0}},day=new Date().toISOString().slice(0,10);let run:any;for(let n=0;n<101;n++){if(n%10===0){if(run){await f.db.query("update public.nexus_directory_work_receipt set state='COMPLETED' where run_id=$1",[run.runId]);const closed=(await f.db.query('select public.finish_nexus_directory_run($1,$2,$3,$4,$5) r',[run.runId,'worker',{productiveJobs:10},'p',hash])).rows[0].r;assert.equal(closed.state,'COMPLETED');const saved=(await f.db.query('select receipt from public.nexus_directory_run where run_id=$1',[run.runId])).rows[0].receipt;assert.equal(saved.initialInventory.snapshotSha256,inventory.snapshotSha256);}run=(await f.db.query('select public.open_nexus_directory_run($1,$2,$3,10,140,$4) r',['p',hash,'worker',inventory])).rows[0].r;}const result=(await f.db.query('select public.reserve_nexus_directory_run_work($1) r',[{policyId:'p',policySha256:hash,runId:run.runId,day,host:'v'+n+'.example',identityKey:'v'+n,queueId:'q'+n,reservationKey:n.toString(16).padStart(64,'0'),country:n%2?'GB':'ZA',action:'VERIFY_WEBSITE',requestBudget:1}])).rows[0].r;assert.equal(result.state,n<100?'RESERVED':'DENIED');if(n===100)assert.equal(result.reason,'DAILY_VENUE_BUDGET');}assert.equal((await f.db.query('select count(*)::int n from public.nexus_directory_work_receipt')).rows[0].n,100);assert.equal((await f.db.query('select reserved_requests from public.nexus_directory_daily_budget')).rows[0].reserved_requests,100);assert.equal((await f.status()).providers.length,2);}finally{await f.db.close();}});
 
+async function accelerationFixture(){
+ const f=await setup(),files=fs.readdirSync('supabase/migrations');
+ await f.db.exec(fs.readFileSync('supabase/migrations/'+files.find(n=>n.endsWith('_resources_initial_inventory_phase.sql'))!,'utf8'));
+ const migration=fs.readFileSync('supabase/migrations/'+files.find(n=>n.endsWith('_resources_inventory_search_acceleration.sql'))!,'utf8');await f.db.exec(migration);await f.db.exec(migration);
+ const policyHashBefore=(await f.db.query("select policy_sha256,policy from public.nexus_directory_standing_policy where policy_id='p'")).rows[0];
+ const open=async(remaining=500)=>(await f.db.query('select public.open_nexus_directory_run($1,$2,$3,10,140,$4) r',['p',hash,'worker',{snapshotSha256:'d'.repeat(64),total:1000,remaining,byCountry:{GB:remaining/2,ZA:remaining/2}}])).rows[0].r;
+ // The daily counter is the provider's receipts since UTC midnight; earlier spacing is satisfied by backdating.
+ const fill=async(provider:'serper'|'brave',n:number)=>f.db.query(`insert into public.nexus_directory_search_receipt(query_sha256,allowance_id,request_key,parameters,reserved_micro_usd,state,reserved_at) select md5(n::text||$2)||md5($2||n::text),$2,$2||n,'{}',${provider==='serper'?1000:5000},'COMPLETED',clock_timestamp()-interval '2 seconds' from generate_series(1,$1) n`,[n,provider]);
+ const accel=(sql:string)=>f.db.exec(sql);
+ return {...f,open,fill,accel,policyHashBefore};
+}
+test('inventory acceleration is OFF by default and changes neither the policy nor its hash',async()=>{
+ const f=await accelerationFixture();try{
+  const run=await f.open();assert.equal(run.executionPhase,'INITIAL_INVENTORY');await f.fill('serper',100);
+  assert.equal((await f.reserve(run.runId,'d','serper-google-search')).reason,'PROVIDER_DAILY_BUDGET','the existing ceiling holds until the control row is enabled');
+  const after=(await f.db.query("select policy_sha256,policy from public.nexus_directory_standing_policy where policy_id='p'")).rows[0];assert.deepEqual(after,f.policyHashBefore);
+  assert.equal((await f.db.query('select count(*)::int n from public.nexus_directory_inventory_acceleration')).rows[0].n,0);
+  assert.equal((await f.db.query("select has_function_privilege('anon','public.directory_inventory_acceleration_allows(text,text,text,bigint)','execute') a,has_table_privilege('authenticated','public.nexus_directory_inventory_acceleration','select') t")).rows[0].a,false);
+  await assert.rejects(f.accel("insert into public.nexus_directory_inventory_acceleration(policy_id,enabled) values('p',true)"),/check/i,'enabling needs an authorisation reference');
+ }finally{await f.db.close();}
+});
+test('an enabled initial-inventory row lifts only the daily ceiling; bounded and unbounded windows both work',async()=>{
+ const f=await accelerationFixture();try{
+  const run=await f.open();await f.fill('serper',100);
+  await f.accel("insert into public.nexus_directory_inventory_acceleration(policy_id,enabled,serper_daily_limit,brave_daily_limit,authorisation_ref,enabled_at) values('p',true,102,null,'owner-approval-2026-11-11 bounded acceptance window',now())");
+  assert.equal((await f.reserve(run.runId,'d','serper-google-search')).state,'RESERVED','a bounded window admits up to its own limit');
+  await f.db.exec("update public.nexus_directory_run set serper_requests=0");
+  assert.equal((await f.reserve(run.runId,'e','serper-google-search')).reason,'PROVIDER_RATE_LIMIT','spacing between provider searches is still enforced');
+  await f.db.exec("update public.nexus_directory_search_receipt set reserved_at=clock_timestamp()-interval '5 seconds'");
+  assert.equal((await f.reserve(run.runId,'e','serper-google-search')).state,'RESERVED');
+  await f.db.exec("update public.nexus_directory_search_receipt set reserved_at=clock_timestamp()-interval '5 seconds';update public.nexus_directory_run set serper_requests=0");
+  assert.equal((await f.reserve(run.runId,'f','serper-google-search')).reason,'PROVIDER_DAILY_BUDGET','the bounded limit is a ceiling');
+  await f.accel("update public.nexus_directory_inventory_acceleration set serper_daily_limit=null,updated_at=now() where policy_id='p'");
+  assert.equal((await f.reserve(run.runId,'f','serper-google-search')).state,'RESERVED','no internal daily ceiling when the limit is null');
+  assert.equal((await f.db.query("select policy_sha256 from public.nexus_directory_standing_policy where policy_id='p'")).rows[0].policy_sha256,f.policyHashBefore.policy_sha256);
+ }finally{await f.db.close();}
+});
+test('acceleration never bypasses the per-run cap, spend cap, account balance or the recurring phase',async()=>{
+ const f=await accelerationFixture();try{
+  await f.accel("insert into public.nexus_directory_inventory_acceleration(policy_id,enabled,authorisation_ref,enabled_at) values('p',true,'owner-approval-2026-11-11 unbounded initial inventory',now())");
+  const run=await f.open();await f.fill('serper',500);
+  await f.db.exec("update public.nexus_directory_search_receipt set reserved_at=clock_timestamp()-interval '5 seconds'");
+  await f.db.exec("update public.nexus_directory_run set serper_requests=serper_max_requests where run_id='"+run.runId+"'");
+  assert.equal((await f.reserve(run.runId,'d','serper-google-search')).reason,'RUN_PROVIDER_BUDGET','per-run provider cap stays');
+  await f.db.exec("update public.nexus_directory_run set serper_requests=0 where run_id='"+run.runId+"'");
+  await f.db.query("update public.nexus_directory_search_allowance set reserved_micro_usd=allocated_micro_usd-500 where allowance_id='serper'");
+  const exhausted=await f.reserve(run.runId,'f','serper-google-search');assert.equal(exhausted.state,'DENIED','a nearly exhausted allocation is never exceeded');assert.notEqual(exhausted.reason,'PROVIDER_DAILY_BUDGET');
+  await f.db.exec("update public.nexus_directory_search_allowance set reserved_micro_usd=1342000 where allowance_id='serper'");
+  await f.db.exec("update public.nexus_directory_run set state='COMPLETED'");
+  const recurring=await f.open(0);assert.equal(recurring.executionPhase,'ONGOING_ENRICHMENT');
+  assert.equal((await f.reserve(recurring.runId,'1','serper-google-search')).reason,'PROVIDER_DAILY_BUDGET','recurring enrichment keeps its daily provider ceiling');
+ }finally{await f.db.close();}
+});
+
 async function httpAccountingFixture(){
  const f=await setup(),files=fs.readdirSync('supabase/migrations');
  await f.db.exec(fs.readFileSync('supabase/migrations/'+files.find(n=>n.endsWith('_resources_initial_inventory_phase.sql'))!,'utf8'));
