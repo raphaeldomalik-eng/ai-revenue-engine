@@ -10,7 +10,7 @@ import { venuePageTier } from "./page-tier.ts";
 
 export const VENUE_EXTRACTORS = ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES"] as const satisfies readonly SourceExtractor[];
 
-const PDF_USEFUL = /\b(?:venue|hire|wedding|conference|capacity|floor|plan|technical|spec|brochure|pack|access|room|space)\b/i;
+const PDF_USEFUL = /\b(?:venue|hire|wedding|conferenc\w*|capacity|floor|plan|technical|spec|brochure|pack|access|room|space)\b/i;
 const PDF_SKIP = /\b(?:menu|privacy|policy|job|accounts|minutes|newsletter|voucher)\b/i;
 
 /**

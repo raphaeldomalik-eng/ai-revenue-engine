@@ -145,6 +145,19 @@ test("a market-prefixed twin of a page already planned is not planned again", ()
   assert.deepEqual(planner.pending().map((item) => item.url), ["https://t.example/info/contact-us"]);
 });
 
+test("item-picker variants of a page already planned or read are not planned again", () => {
+  const planner = new GapPlanner(["VENUE_FACTS:SPACES"]);
+  const add = (url: string) => planner.add({ url, kind: "PAGE", dims: ["VENUE_FACTS:SPACES"], source: "LINK", discoveredFrom: "https://g.example/", label: "", strength: 1 });
+  add("https://g.example/meeting-space-photos");
+  add("https://g.example/meeting-space-photos?itemId=abc");
+  add("https://g.example/rooms?page=2");
+  add("https://g.example/hire?type=wedding");
+  assert.deepEqual(planner.pending().map((item) => item.url).sort(), ["https://g.example/hire?type=wedding", "https://g.example/meeting-space-photos", "https://g.example/rooms?page=2"]);
+  planner.markDone("https://g.example/rooms");
+  add("https://g.example/rooms?page=3");
+  assert.equal(planner.pending().some((item) => item.url.includes("page=3")), false);
+});
+
 test("a case-variant of a page already planned or read is not planned again", () => {
   const planner = new GapPlanner(["VENUE_FACTS:SPACES"]);
   const add = (url: string) => planner.add({ url, kind: "PAGE", dims: ["VENUE_FACTS:SPACES"], source: "LINK", discoveredFrom: "https://r.example/", label: "", strength: 1 });
@@ -180,6 +193,10 @@ test("venue page tiers: contact and identity first, hire and spaces next, galler
   for (const url of ["https://v.example/bar/aberdeen/menus/food-menu/", "https://v.example/info/food-and-drinks", "https://v.example/wedding-menus", "https://v.example/news/launch", "https://v.example/blog/post", "https://v.example/offers/christmas", "https://v.example/shop/gift-cards", "https://v.example/whats-on", "https://v.example/tickets"]) assert.equal(tier(url), 4, url);
   assert.equal(tier("https://group.example/bar/aberdeen/", "", "Revolution Aberdeen"), 1, "property landing page on a group site");
   assert.equal(tier("https://group.example/menus/contact-us"), 1, "a contact route is never demoted");
+  for (const url of ["https://v.example/special-events/", "https://v.example/special-events/weddings/", "https://v.example/conferencing/", "https://v.example/private-experiences/", "https://v.example/venues/"]) assert.equal(tier(url), 2, url);
+  assert.equal(tier("https://v.example/special-offers"), 4, "special offers remain a promotion");
+  assert.equal(tier("https://saint.example/saint-lukes/", "About", "Saint Luke's Glasgow"), 1, "the property's own landing page");
+  assert.equal(tier("https://saint.example/saint-lukes/newspress/", "News & Press", "Saint Luke's Glasgow"), 3, "a sub-page that merely sits under the venue name is not an identity page");
 });
 
 test("with tiers, a property-named menu path cannot outrank contact or hire pages, and tier 4 is not planned for a venue crawl", () => {
@@ -208,6 +225,39 @@ test("a group's property directory page cannot assert the mailboxes of sibling p
   for (const sibling of ["info@emperorspalace.com", "info@graceland.co.za", "info@riocasino.co.za"]) assert.equal(flags[sibling], true, sibling);
   const single = extractFromFetchedDocuments([{ ...doc, url: "https://www.example-hotel.com/contact/", body: '<a href="mailto:events@sister-brand.com">events@sister-brand.com</a> <a href="mailto:info@example-hotel.com">info@example-hotel.com</a>' }], ["PUBLIC_CONTACT"], "Example Hotel").publicContacts;
   assert(single.every((item) => item.reviewRequired === false), "a single operator-domain mailbox keeps the existing acceptance policy");
+  const staff = ["anna", "olga", "hakan", "nook", "amy", "daiana"].map((name) => `<a href="mailto:${name}@group-world.com">${name}@group-world.com</a>`).join(" ");
+  const directory = extractFromFetchedDocuments([{ ...doc, url: "https://www.school-london.co.uk/contact-us/", body: `<main>${staff}</main>` }], ["PUBLIC_CONTACT"], "School London").publicContacts.filter((item) => item.type === "EMAIL");
+  assert.equal(directory.length, 6);
+  assert(directory.every((item) => item.reviewRequired === true), "a staff directory on one off-domain host is retained for review, not asserted");
+  const group = ["pivot", "palazzo", "piazza"].map((name) => `<a href="mailto:${name}.reservations@groupco.com">${name}.reservations@groupco.com</a>`).join(" ");
+  const sameDomain = Object.fromEntries(extractFromFetchedDocuments([{ ...doc, url: "https://www.groupco.com/hotel/the-pivot-hotel/", body: `<main>${group}</main>` }], ["PUBLIC_CONTACT"], "The Pivot Hotel").publicContacts.filter((item) => item.type === "EMAIL").map((item) => [item.value, item.reviewRequired]));
+  assert.equal(sameDomain["pivot.reservations@groupco.com"], false);
+  assert.equal(sameDomain["palazzo.reservations@groupco.com"], true);
+  assert.equal(sameDomain["piazza.reservations@groupco.com"], true);
+  const only = extractFromFetchedDocuments([{ ...doc, url: "https://www.groupco.com/hotel/the-pivot-hotel/", body: '<a href="mailto:pivot.reservations@groupco.com">pivot.reservations@groupco.com</a>' }], ["PUBLIC_CONTACT"], "The Pivot Hotel").publicContacts;
+  assert(only.every((item) => item.reviewRequired === false), "a lone property mailbox is unaffected");
+  const mailFor = (url: string, body: string, name = "The Pivot Hotel") => extractFromFetchedDocuments([{ ...doc, url, body }], ["PUBLIC_CONTACT"], name).publicContacts.filter((item) => item.type === "EMAIL");
+  const bird = '<a href="mailto:reception@sister-gardens.co.za">reception@sister-gardens.co.za</a>';
+  assert(mailFor("https://www.groupco.com/casino/bird-gardens/", bird).every((item) => item.reviewRequired === true), "an off-domain mailbox on an unrelated page of a group site is retained for review");
+  assert(mailFor("https://www.groupco.com/contact-us/", bird).every((item) => item.reviewRequired === false), "the same mailbox on a contact page keeps the existing policy");
+  assert(mailFor("https://www.groupco.com/", bird).every((item) => item.reviewRequired === false), "and on the homepage");
+  assert(mailFor("https://www.groupco.com/casino/montecasino-bird-gardens/", bird, "The Pivot Hotel Montecasino").every((item) => item.reviewRequired === true), "sharing one word with the venue name does not make another attraction's page the venue's");
+  assert(mailFor("https://www.groupco.com/hotel/the-pivot-hotel/", bird, "The Pivot Hotel Montecasino").every((item) => item.reviewRequired === false), "the venue's own landing page keeps the existing policy");
+});
+
+test("a WordPress author link is page metadata, not a venue mailbox", () => {
+  const body = '<main><p>Welcome</p><span class="vcard rich-snippet-hidden"><span class="fn"><a href="https://venue-site.com/author/jo-builder-co-uk/" rel="author">jo@builder.co.uk</a></span></span><a href="mailto:hello@venue-site.com">hello@venue-site.com</a></main>';
+  const emails = extractFromFetchedDocuments([{ url: "https://venue-site.com/", body, kind: "HTML" as const, contentType: "text/html", bytes: body.length, observedAt: now, sourceHash: "f".repeat(64) }], ["PUBLIC_CONTACT"], "V").publicContacts.filter((item) => item.type === "EMAIL").map((item) => item.value);
+  assert.deepEqual(emails, ["hello@venue-site.com"]);
+});
+
+test("capacity is read from the ways venues state it, and overnight beds are not event capacity", () => {
+  const page = (body: string) => ({ url: "https://v.example/events/", body: `<main><p>${body}</p></main>`, kind: "HTML" as const, contentType: "text/html", bytes: body.length, observedAt: now, sourceHash: "d".repeat(64) });
+  const counts = (body: string) => extractFromFetchedDocuments([page(body)], ["VENUE_FACTS"], "V").venueFacts.filter((fact) => fact.fieldName === "capacity").map((fact) => (fact.value as { count: number; layout: string }).count);
+  assert.deepEqual(counts("Saint Luke’s can accommodate intimate meetings from 10 guests to larger reception sets up to 450. Get in touch."), [450]);
+  assert.deepEqual(counts("There you have enough space to host 80 people comfortably, with a projector screen."), [80]);
+  assert.deepEqual(counts("We are located in a valley and can cater for 100 – 120 Guests in the historic family cellar."), [120]);
+  assert.deepEqual(counts("We offer accommodation for 22 guests in self-catering cottages and glamping tents. The cottages hold 22 guests overnight."), []);
 });
 
 test("an apex that redirects to www buys robots.txt once, not once per origin", async () => {

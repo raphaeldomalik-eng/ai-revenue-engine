@@ -99,6 +99,20 @@ function localeTwinKey(url: string): string | null {
   return planKey(parsed.toString());
 }
 
+/**
+ * `/meeting-space-photos?itemId=…` is one gallery shown item by item; the retained benchmark read three of them
+ * (shoreditchballs.com) and stopped before the capacity page. A URL whose only parameters pick an item, page or sort
+ * order repeats the parameter-free page.
+ */
+const ITEM_PARAMETERS = /^(?:item_?id|item|id|page|paged|pg|p|sort|order|filter|view|variant|image|img|photo|slide|utm_\w+)$/i;
+function queryTwinKey(url: string): string | null {
+  const parsed = new URL(url);
+  const names = [...parsed.searchParams.keys()];
+  if (!names.length || !names.every((name) => ITEM_PARAMETERS.test(name))) return null;
+  parsed.search = "";
+  return planKey(parsed.toString());
+}
+
 /** `/a` and `/a/` are one page on virtually every site; planning them twice only buys a redirect to a fetched page. */
 export function planKey(url: string): string {
   const parsed = new URL(url);
@@ -143,6 +157,8 @@ export class GapPlanner {
     if (this.done.has(key) || !candidate.dims.length) return;
     const twin = localeTwinKey(candidate.url);
     if (twin && (this.done.has(twin) || this.candidates.has(twin))) return;
+    const itemTwin = queryTwinKey(candidate.url);
+    if (itemTwin && (this.done.has(itemTwin) || this.candidates.has(itemTwin))) return;
     const existing = this.candidates.get(key);
     if (existing) {
       existing.dims = [...new Set([...existing.dims, ...candidate.dims])];

@@ -17,9 +17,23 @@ export type VenuePageTier = 1 | 2 | 3 | 4;
 const CONTACT = /\b(?:contact(?:[- ]us)?|get[- ]in[- ]touch|enquir\w*|inquir\w*|reach[- ]us|speak[- ]to|talk[- ]to[- ]us)\b/i;
 const IDENTITY = /\b(?:about(?:[- ]us)?|our[- ]story|the[- ]venue|who[- ]we[- ]are|find[- ]us|location|directions|address|visit(?:[- ]us)?|how[- ]to[- ]find)\b/i;
 const MENU = /\b(?:menus?|food|drinks?|wine[- ]list|wines|cocktails?|brunch|lunch|dinner|breakfast|a[- ]la[- ]carte|set[- ]menus?|tasting|prices?|pricing|tariffs?)\b/i;
-const COMMERCE = /\b(?:shop|store|cart|basket|checkout|products?|collections?|merch\w*|gift[- ]?(?:cards?|vouchers?)|vouchers?|offers?|deals?|promotions?|promo|specials?|sale|discounts?|memberships?|subscriptions?|whats?[- ]?on|tickets?|box[- ]?office|programme|reviews?|testimonials?|competitions?)\b/i;
-const HIRE = /\b(?:venue[- ]hire|private[- ](?:hire|events?|dining|parties)|hire|functions?|events?|weddings?|celebrations?|parties|party|birthdays?|corporate|conferences?|conferencing|meetings?|spaces?|rooms?|halls?|suites?|studios?|ballrooms?|auditor(?:ium|ia)|facilit\w*|amenit\w*|capacit\w*|accessib\w*|packages|exhibitions?|filming|accommodation|catering|christmas|team[- ]building)\b/i;
+const COMMERCE = /\b(?:shop|store|cart|basket|checkout|products?|collections?|merch\w*|gift[- ]?(?:cards?|vouchers?)|vouchers?|offers?|deals?|promotions?|promo|specials?(?![- ]events?)|sale|discounts?|memberships?|subscriptions?|whats?[- ]?on|tickets?|box[- ]?office|programme|reviews?|testimonials?|competitions?)\b/i;
+const HIRE = /\b(?:venue[- ]hire|private[- ](?:hire|events?|dining|parties|experiences?|functions?|rooms?|spaces?|venues?)|hire|functions?|events?|weddings?|celebrations?|parties|party|birthdays?|corporate|conferences?|conferencing|meetings?|spaces?|rooms?|venues|halls?|suites?|studios?|ballrooms?|auditor(?:ium|ia)|facilit\w*|amenit\w*|capacit\w*|accessib\w*|packages|exhibitions?|filming|accommodation|catering|christmas|team[- ]building)\b/i;
 const SUPPORTING = /\b(?:galler(?:y|ies)|photos?|images|pictures|virtual[- ]tour|floor[- ]?plans?|brochures?|downloads?|spec(?:ification)?s?|tech(?:nical)?[- ]specs?|media|fact[- ]?sheets?|layouts?)\b/i;
+
+/**
+ * Property-landing strength: the venue name must be in the page's own final path segment (or its link text), so
+ * "/bar/aberdeen/" is the Aberdeen landing page but "/saint-lukes/newspress/" is not (2026-11-11 replay: on a
+ * single-venue site every path carried the venue name and outranked /contact/ and /special-events/).
+ */
+export function propertyLandingStrength(venueName: string | undefined, url: string, label = ""): number {
+  if (!venueName) return 0;
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { return 0; }
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  if (segments.length <= 1) return propertyLinkStrength(venueName, url, label);
+  return propertyLinkStrength(venueName, `${parsed.origin}/${segments.at(-1)}/`, label);
+}
 
 export function venuePageTier(url: string, label = "", venueName = ""): VenuePageTier {
   let parsed: URL;
@@ -35,6 +49,6 @@ export function venuePageTier(url: string, label = "", venueName = ""): VenuePag
   if (HIRE.test(text)) return 2;
   if (SUPPORTING.test(text)) return 3;
   // A property landing page on a group site ("/bar/aberdeen/") is the venue's own identity page.
-  if (venueName && propertyLinkStrength(venueName, url, label) > 0) return 1;
+  if (venueName && propertyLandingStrength(venueName, url, label) > 0) return 1;
   return 3;
 }

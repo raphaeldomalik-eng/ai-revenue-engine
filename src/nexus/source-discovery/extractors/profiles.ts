@@ -80,14 +80,14 @@ export function publicContactProfile(options: { emailGoal?: boolean; venueName?:
 }
 
 const VENUE_SIGNALS: Array<[Dimension, RegExp]> = [
-  ["VENUE_FACTS:SPACES", /\b(?:spaces?|rooms?|venues?|halls?|suites?|floor[- ]?plans?|function|studios?|theatres?|auditori\w*|hire|weddings?|conferences?|corporate|meetings?|private[- ](?:hire|events?|dining)|parties|celebrations?|exhibitions?|filming)\b/i],
-  ["VENUE_FACTS:CAPACITY", /\b(?:capacit\w*|specifications?|specs?|tech(?:nical)?[- ]specs?|floor[- ]?plans?|room[- ]guide|dimensions|hire|spaces?|rooms?|event[- ]packs?|brochures?|downloads?|weddings?|conferences?|meetings?|seating|layouts?)\b/i],
+  ["VENUE_FACTS:SPACES", /\b(?:spaces?|rooms?|venues?|halls?|suites?|floor[- ]?plans?|function|studios?|theatres?|auditori\w*|hire|weddings?|conferenc\w*|corporate|meetings?|private[- ](?:hire|events?|dining)|parties|celebrations?|exhibitions?|filming)\b/i],
+  ["VENUE_FACTS:CAPACITY", /\b(?:capacit\w*|specifications?|specs?|tech(?:nical)?[- ]specs?|floor[- ]?plans?|room[- ]guide|dimensions|hire|spaces?|rooms?|event[- ]packs?|brochures?|downloads?|weddings?|conferenc\w*|meetings?|seating|layouts?)\b/i],
   ["VENUE_FACTS:FACILITIES", /\b(?:facilit\w*|technical|production|av|audio[- ]?visual|sound|lighting|catering|food|drinks?|menus?|amenit\w*|equipment|staging|stage|backstage|green[- ]room|dressing[- ]rooms?|riders?|load[- ]?in)\b/i],
   ["VENUE_FACTS:ACCESSIBILITY", /\b(?:accessib\w*|access|getting[- ]here|find[- ]us|directions|parking|travel|how[- ]to[- ]get|visit(?:ing)?)\b/i],
 ];
 /** Event detail slugs ("…-karaoke-in-room-2") describe one performance, not the venue's spaces. */
 const EVENT_DETAIL_PATH = /\/(?:events?|gigs?|shows?|whats-on|listings?|tickets?|performances?|programme)\/[^/]+/i;
-const VENUE_PDF = /\b(?:spec\w*|capacit\w*|floor|plans?|technical|tech|riders?|access\w*|brochures?|packs?|hire|rooms?|spaces?|guides?|venue|weddings?|conferences?|corporate|meetings?|dimensions|layouts?|seating|factsheet|fact[- ]sheet|delegate|production)\b/i;
+const VENUE_PDF = /\b(?:spec\w*|capacit\w*|floor|plans?|technical|tech|riders?|access\w*|brochures?|packs?|hire|rooms?|spaces?|guides?|venue|weddings?|conferenc\w*|corporate|meetings?|dimensions|layouts?|seating|factsheet|fact[- ]sheet|delegate|production)\b/i;
 const NOT_VENUE_PDF = /\b(?:menu|menus|terms|privacy|policy|policies|allergen|job|vacanc|annual[- ]report|accounts|minutes|agenda|newsletter|gift|voucher)\b/i;
 
 export const venueFactsProfile: ExtractorProfile = {

@@ -97,13 +97,64 @@ function addContact(out: ResourceExtraction, doc: FetchedDocument, type: string,
  * mailboxes on nine unrelated domains, all accepted). Three or more different off-domain mailbox domains on one
  * page identify a directory of other properties, so those mailboxes are retained for review, not asserted.
  */
-function flagSiblingPropertyMailboxes(doc: FetchedDocument, out: ResourceExtraction, firstIndex: number) {
+function flagSiblingPropertyMailboxes(doc: FetchedDocument, out: ResourceExtraction, firstIndex: number, venueName = "") {
   const site = registrableDomain(new URL(doc.url).hostname);
   const offDomain = out.publicContacts.slice(firstIndex).filter((item) => item.type === "EMAIL" && !item.reviewRequired && registrableDomain(String(item.value).split("@")[1] ?? "") !== site && !FREE_MAIL.test(String(item.value).split("@")[1] ?? ""));
-  if (new Set(offDomain.map((item) => registrableDomain(String(item.value).split("@")[1] ?? ""))).size < 3) return;
+  // An off-domain mailbox is accepted from the homepage and from contact, hire, event and venue pages. On any other page of
+  // a group site it belongs to whatever that page is about (2026-11-11 replay: reception@montebg.co.za on
+  // /casino/montecasino-bird-gardens/ was asserted for The Pivot Hotel).
+  const pagePath = new URL(doc.url).pathname.toLowerCase();
+  const nameTokens = venueName.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 3 && !GENERIC_NAME_WORD.test(token));
+  // A path that names the venue only counts when every word in it belongs to the venue name or is a generic path word:
+  // "/casino/montecasino-bird-gardens/" shares "montecasino" with "The Pivot Hotel Montecasino" but is another attraction.
+  const nameWordSet = new Set(venueName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const pathWordList = pagePath.split(/[^a-z0-9]+/).filter(Boolean);
+  const namesVenue = nameTokens.some((token) => pathWordList.includes(token)) && pathWordList.every((word) => nameWordSet.has(word) || GENERIC_PATH_WORD.test(word));
+  const relevantPage = pagePath.replace(/\/+$/, "") === "" || PURPOSE_PAGE.test(pagePath) || namesVenue;
+  if (!relevantPage && offDomain.length) {
+    for (const item of offDomain) {
+      item.reviewRequired = true;
+      item.label = `${item.label ?? ""} Mailbox of another domain found on a page unrelated to contact or hire; retained for review.`.trim().slice(-512);
+    }
+    return;
+  }
+  const domains = new Set(offDomain.map((item) => registrableDomain(String(item.value).split("@")[1] ?? ""))).size;
+  // Six or more off-domain mailboxes on one page is a staff or agent directory (2026-11-11 replay: eslondon.co.uk
+  // /contact-us/ listed 19 esworld.com agent mailboxes), not a venue enquiry address.
+  if (domains < 3 && offDomain.length < 6) return;
   for (const item of offDomain) {
     item.reviewRequired = true;
-    item.label = `${item.label ?? ""} Page lists mailboxes of several other properties; retained for review.`.trim().slice(-512);
+    item.label = `${item.label ?? ""} Page lists many mailboxes outside the venue site (other properties or staff directory); retained for review.`.trim().slice(-512);
+  }
+}
+/**
+ * A group's venue page may list several properties' role mailboxes on the group's own domain
+ * (2026-11-11 replay: tsogosun.com/hotel/the-pivot-hotel listed palazzo.reservations@, piazza.reservations@ and
+ * hotelperte.reservations@ beside pivot.reservations@). When two or more different property prefixes appear,
+ * those that do not match the venue name belong to other properties and are retained for review.
+ */
+const GENERIC_PATH_WORD = /^(?:the|and|at|of|hotel|hotels|resort|lodge|inn|spa|venue|venues|bar|bars|restaurant|home|our|uk|za|en|us|gb|property|properties|location|locations|accommodation|accommodations|stay|rooms?|suites?|overview|details|gallery|photos|index|html|php|aspx)$/i;
+const PURPOSE_PAGE =/contact|enquir|inquir|hire|event|wedding|function|conferenc|corporate|private|book|about|location|find-us|venue|meeting|part(?:y|ies)|celebrat|reserv|get-in-touch|sales|facilit|space|room/i;
+/** A WordPress author link (`rel="author"`, vcard) carries the site builder's login e-mail as page metadata, not a venue contact. */
+function withoutAuthorMetadata(html: string): string {
+  return html.replace(/<a\b[^>]*\brel=["'][^"']*\bauthor\b[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, " ");
+}
+const PROPERTY_ROLE_MAILBOX =/^([a-z][a-z0-9-]{2,})[._-](?:reservations?|reception|bookings?|events?|info|enquiries|conferences?|banqueting|sales|stay)$/i;
+const GENERIC_MAILBOX_PREFIX = /^(?:info|events?|sales|hire|bookings?|booking|enquiries|enquiry|reservations?|reception|general|admin|office|marketing|team|hello|venue|weddings?|functions?|conference|conferences|groups?|corporate|private|res|accounts?|support|manager|head)$/i;
+const GENERIC_NAME_WORD = /^(?:the|and|hotel|hotels|resort|lodge|inn|venue|centre|center|hall|house|suites?|spa|bar|club|apartments?|guest|conference|convention)$/i;
+function flagOtherPropertyMailboxes(out: ResourceExtraction, firstIndex: number, venueName: string) {
+  const tokens = venueName.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 3 && !GENERIC_NAME_WORD.test(token));
+  const squashed = venueName.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const prefixed = out.publicContacts.slice(firstIndex).flatMap((item) => {
+    if (item.type !== "EMAIL" || item.reviewRequired) return [];
+    const prefix = PROPERTY_ROLE_MAILBOX.exec(String(item.value).split("@")[0] ?? "")?.[1]?.toLowerCase();
+    return prefix && !GENERIC_MAILBOX_PREFIX.test(prefix) ? [{ item, prefix }] : [];
+  });
+  if (new Set(prefixed.map((entry) => entry.prefix)).size < 2) return;
+  for (const { item, prefix } of prefixed) {
+    if (tokens.some((token) => prefix.includes(token) || token.includes(prefix)) || (squashed.length >= 3 && squashed.includes(prefix))) continue;
+    item.reviewRequired = true;
+    item.label = `${item.label ?? ""} Mailbox names a different property from this venue; retained for review.`.trim().slice(-512);
   }
 }
 const FREE_MAIL = /^(?:gmail|googlemail|outlook|hotmail|live|msn|yahoo|ymail|icloud|me|aol|btinternet|sky|mweb|telkomsa|vodamail|webmail|iafrica|absamail)\./i;
@@ -314,7 +365,7 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: stri
     /\b(?:ticketing[\s-]*provider|third[\s-]*party|website[\s-]*designer|external[\s-]*support)\b/i.test(`${attrs} ${visibleText(section).slice(0, 100)}`) ? " " : section)
     .replace(/<form\b[^>]*(?:newsletter|subscribe|mailchimp|login|signin)[^>]*>[\s\S]*?<\/form>/gi, " ");
   const primary = visibleText(body.replace(/<footer\b[\s\S]*?<\/footer>/gi, " "));
-  const emailText = [emailSurface(cloudflareEmailHtml(doc.body)), ...publishedDescriptions(doc.body)].filter(Boolean).join("\n");
+  const emailText = [emailSurface(cloudflareEmailHtml(withoutAuthorMetadata(doc.body))),...publishedDescriptions(doc.body)].filter(Boolean).join("\n");
   const addPublishedEmail = (email: string, confidence: number, context: string) => {
     const domain = email.split("@")[1] ?? "";
     if (!registrableDomain(domain)) return;
@@ -562,6 +613,10 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
       /\bcapacity\s*(?:of|:|-)?\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(banquet|reception|theatre|theater|standing|seated|classroom|cabaret|dinner|conference|boardroom)?\b/gi,
       /\bup to\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(standing|seated|guests?|people)\b/gi,
       /\b(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(standing|seated)\b/gi,
+      // "larger reception sets up to 450": the layout comes first, so the count is the second group, as in pattern 0.
+      /\b(banquet|reception|theatre|theater|standing|seated|classroom|cabaret|dinner|conference|boardroom)\s+(?:sets?|set[- ]?ups?|layouts?)\s+(?:of\s+|up\s+)?(?:up\s+)?to\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\b/gi,
+      // "host 80 people comfortably", "cater for 100 – 120 guests": a hosting verb states event capacity; a range keeps its upper bound.
+      /\b(?:host|hosts|cater\s+for|caters\s+for|seat|seats|hold|holds)\s+(?:up\s+to\s+|between\s+)?(\d{1,3}(?:,\d{3})+|\d{1,5})(?:\s*(?:[-–—]|to|and)\s*(\d{1,3}(?:,\d{3})+|\d{1,5}))?\s+(?:guests?|people|delegates|persons|pax)\b/gi,
     ];
     const consumed: Array<[number, number]> = [];
     for (const match of section.body.matchAll(/\b(?:[Cc]apacit(?:y|ies)|CAPACIT(?:Y|IES))\s*[:\-–]?\s*((?:[A-Z][A-Za-z'&]*\s+){0,3}[A-Z][A-Za-z'&]*)\s*[:\-–]\s*(\d{1,3}(?:,\d{3})+|\d{2,5})\b/g)) {
@@ -571,16 +626,25 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
       addFact(out, doc, "spaces", name, 0.85);
       addFact(out, doc, "capacity", { space: name, layout: "unspecified", count, statement: match[0].trim() }, 0.85);
     }
-    for (const [index, pattern] of patterns.entries()) for (const match of section.body.matchAll(pattern)) {
+    for (const [index, pattern] of patterns.entries()) {
+      const hosting = index === 5;
+      // Welcome copy is often set as a heading (cellar1848.co.za: "…can cater for 100 – 120 Guests…" inside an h2),
+      // and heading text is otherwise only a section name.
+      const text = hosting ? `${section.name ?? ""}. ${section.body}` : section.body;
+      for (const match of text.matchAll(pattern)) {
       const start = match.index ?? 0; const end = start + match[0].length;
-      if (consumed.some(([from, to]) => start < to && end > from)) continue;
-      if (/^\s*x\b/i.test(section.body.slice(end, end + 4))) continue;
-      const count = Number((index === 0 ? match[2] : match[1])?.replaceAll(",", ""));
+      if (!hosting && consumed.some(([from, to]) => start < to && end > from)) continue;
+      if (/^\s*x\b/i.test(text.slice(end, end + 4))) continue;
+      const layoutFirst = index === 0 || index === 4;
+      // Beds are not event capacity ("hold 22 guests in self-catering cottages").
+      if (hosting && /\b(?:cottages?|bedrooms?|overnight|sleeps?|beds?|tents?|glamping|accommodation|rooms? (?:are|is)? ?available)\b/i.test(text.slice(Math.max(0, start - 60), end + 80))) continue;
+      const count = Number((layoutFirst ? match[2] : hosting ? match[2] ?? match[1] : match[1])?.replaceAll(",", ""));
       if (!Number.isSafeInteger(count) || count < (index === 3 ? 10 : 2) || count > 100000) continue;
-      consumed.push([start, end]);
-      const rawLayout = index === 0 ? match[1] : match[2];
+      if (!hosting) consumed.push([start, end]);
+      const rawLayout = hosting ? null : layoutFirst ? match[1] : match[2];
       const layout = rawLayout ? /^(?:guests?|people)$/i.test(rawLayout) ? "unspecified" : rawLayout.toLowerCase().replace("theater", "theatre") : "unspecified";
       addFact(out, doc, "capacity", { space, layout, count, statement: match[0].trim() }, 0.9);
+      }
     }
     if (/\b(?:room|space|venue)\s+capacit(?:y|ies)\b/i.test(section.body)) {
       const listed = [...section.body.matchAll(/\b([A-Z][\w'&-]*(?:\s+[A-Z][\w'&-]*){0,3})\s*[–—-]\s*(\d{2,5})\b/g)];
@@ -827,7 +891,7 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
     const canonicalUrl = canonical ? sameOrigin(canonical, doc.url) : null;
     if (landingPage && canonicalUrl) addIdentity(out, doc, "canonicalUrl", canonicalUrl);
   }
-  if (extractors.includes("PUBLIC_CONTACT")) { const first = out.publicContacts.length; contacts(doc, out, venueName); flagSiblingPropertyMailboxes(doc, out, first); }
+  if (extractors.includes("PUBLIC_CONTACT")) { const first = out.publicContacts.length; contacts(doc, out, venueName); flagSiblingPropertyMailboxes(doc, out, first, venueName); flagOtherPropertyMailboxes(out, first, venueName); }
   if (extractors.includes("VENUE_FACTS")) venueFacts(doc, out, root);
   if (extractors.includes("SOURCE_CLASSIFICATION")) classificationEvidence(doc, out);
   if (extractors.includes("IMAGE_CANDIDATES")) images(doc, out, root, venueName);
