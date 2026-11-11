@@ -1,0 +1,35 @@
+name: Release runner verification
+on:
+  pull_request:
+    paths:
+      - scripts/release/apply-reviewed-migrations.mjs
+      - release/**
+      - supabase/migrations/20261111100000_resources_inventory_search_acceleration.sql
+      - tests/release_migration_runner_postgres.test.mjs
+      - tests/fixtures/resources-production-*.sql
+      - .github/workflows/release-runner-verification.yml
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      SHARED_EXECUTION_TEST_URL: postgresql://postgres@127.0.0.1:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the runner test reads the migration bytes from the approved commit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Real PostgreSQL proof of the acceleration migration, the reviewed runner and the rollback
+        run: node --test --test-concurrency=1 tests/release_migration_runner_postgres.test.mjs
