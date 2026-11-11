@@ -21,7 +21,9 @@ test("a venue-named domain in the results is the only candidate prepared, not th
     { url: "https://www.myrsvp.com/london/restaurants/ambassadors-clubhouse-london/", title: "Ambassadors Clubhouse London" },
     { url: "https://www.andyhayler.com/restaurant/ambassadors-clubhouse", title: "review of Indian restaurant Ambassadors Clubhouse" },
   ])], { now });
-  assert.deepEqual(r.candidates.map((c) => c.websiteSeed), ["https://ambassadorsclubhouse.com/our-story/"]);
+  // A venue-named site is verified from its homepage; the deep result stays on the candidate as its source.
+  assert.deepEqual(r.candidates.map((c) => c.websiteSeed), ["https://ambassadorsclubhouse.com/"]);
+  assert.equal(r.candidates[0]!.sourceUrl, "https://ambassadorsclubhouse.com/our-story/");
   assert.equal(r.candidates[0]!.searchRank, 1);
   assert(r.candidates[0]!.rankingReasons.includes("DOMAIN_NAME_ALIGNMENT"));
 });
@@ -33,6 +35,33 @@ test("without a venue-named domain only a site homepage is prepared, never a dee
     { url: "https://www.completeofficesearch.com/office-space/health-foundry", title: "Health Foundry serviced offices" },
   ])], { now });
   assert.deepEqual(r.candidates.map((c) => c.websiteSeed), ["https://neutralhost.example/"]);
+});
+
+test("retained group-B searches: listings and platform subdomains never win, the venue's own site does", async () => {
+  // Shoreditch Balls: the only title match with a homepage is a directory subdomain; the venue's own site is an event page at rank 5.
+  const balls = await consumeDirectorySearchEvidence(request("Shoreditch Balls", "London"), [receipt("Shoreditch Balls", "London", [
+    { url: "https://uk.tortoisepath.com/place/shoreditch-balls/", title: "Shoreditch Balls" },
+    { url: "https://www.shoreditchballs.com/events/adlibretto", title: "AdLibretto" },
+    { url: "https://shoreditch-balls.wheree.com/", title: "SHOREDITCH BALLS - Reviews, Photos & Phone Number" },
+  ])], { now });
+  assert.deepEqual(balls.candidates.map((c) => c.websiteSeed), ["https://www.shoreditchballs.com/"]);
+  assert(!balls.candidates[0]!.rankingReasons.includes("EVENT_DETAIL_PATH_DEPRIORITISED"), "the seed is the homepage, not the event page");
+  assert.equal(siteOperatedBySubject("Shoreditch Balls", "https://shoreditch-balls.wheree.com/", []).operated, false);
+  assert.equal(siteOperatedBySubject("Monkey Valley Resort", "https://monkeyvalley.wixsite.com/resort", []).operated, true, "site-builder tenants keep their subdomain signal");
+  // National Portrait Gallery: "gallery" in onlinegallery.art is a generic word; the venue's initials identify npg.org.uk.
+  const npg = await consumeDirectorySearchEvidence(request("National Portrait Gallery", "London"), [receipt("National Portrait Gallery", "London", [
+    { url: "https://npgshop.org.uk/", title: "National Portrait Gallery Shop" },
+    { url: "https://onlinegallery.art/en/museums/national-portrait-gallery", title: "National Portrait Gallery — London, United Kingdom" },
+    { url: "https://www.npg.org.uk/about/organisation/", title: "Organisation" },
+  ])], { now });
+  assert.deepEqual(npg.candidates.map((c) => c.websiteSeed), ["https://www.npg.org.uk/"]);
+  assert.equal(siteOperatedBySubject("National Portrait Gallery", "https://onlinegallery.art/", []).operated, false);
+  // A group site that only shows the property on a deep page is not promoted to an official site.
+  const pivot = await consumeDirectorySearchEvidence(request("The Pivot Hotel Montecasino", "Johannesburg", "ZA"), [receipt("The Pivot Hotel Montecasino", "Johannesburg", [
+    { url: "https://www.tsogosun.com/hotel/the-pivot-hotel/", title: "The Pivot Hotel Montecasino Fourways, Johannesburg" },
+    { url: "https://bnbfinder.co.za/places/the-pivot-hotel-montecasino/", title: "The Pivot Hotel Montecasino - BNB Finder" },
+  ], "ZA")], { now });
+  assert.deepEqual(pivot.candidates.map((c) => c.websiteSeed), []);
 });
 
 test("a search with only directory pages prepares no candidate", async () => {

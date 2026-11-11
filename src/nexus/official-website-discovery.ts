@@ -157,6 +157,22 @@ function namedLocalityOnSite(venueName: string, locality: string | null, heldAdd
   return normHeadings.some((value) => locTerms.some((place) => value.includes(` ${place} `)));
 }
 
+// Words that describe the kind of place rather than which place it is. "gallery" in onlinegallery.art says nothing
+// about the National Portrait Gallery, so these never establish a venue-named domain on their own.
+const DOMAIN_TYPE_WORDS = new Set(["gallery", "galleries", "museum", "museums", "library", "cinema", "casino", "academy", "institute", "university", "college", "school", "online", "shop", "store"]);
+const SITE_BUILDER_HOST = /^(?:wixsite\.com|weebly\.com|squarespace\.com|wordpress\.com|blogspot\.com|godaddysites\.com|business\.site|myshopify\.com|webflow\.io|carrd\.co|framer\.website|netlify\.app|vercel\.app|github\.io)$/;
+function domainNameTokens(name: string) {
+  const tokens = distinctiveNameTokens(name);
+  const specific = tokens.filter((token) => !DOMAIN_TYPE_WORDS.has(token));
+  return specific.length ? specific : tokens;
+}
+/** A site domain that is the initials of a multi-word venue name (npg.org.uk for National Portrait Gallery). */
+function domainIsAcronym(name: string, registrable: string) {
+  const label = registrable.split(".")[0]!.replace(/[^a-z0-9]/g, "");
+  const initials = normalise(name).split(/\s+/).filter((word) => word && !/^(?:the|of|and|at|in|on|a)$/.test(word)).map((word) => word[0]).join("");
+  return initials.length >= 3 && label === initials;
+}
+
 /**
  * A name-and-locality match on a page shows the page talks about the venue, not that the site is the
  * venue's own. Directories, job boards, news, review and booking pages all pass that test. Production
@@ -168,9 +184,12 @@ export function siteOperatedBySubject(venueName: string, finalUrl: string, ident
   let url: URL;
   try { url = new URL(finalUrl); } catch { return { operated: false, signal: null }; }
   const host = url.hostname.toLowerCase().replace(/^www\./, "");
-  const folded = host.replace(/[^a-z0-9]/g, "");
-  if (distinctiveNameTokens(venueName).some((token) => token.length >= 4 && folded.includes(token))) return { operated: true, signal: "venue name in site domain" };
-  const label = registrableDomain(host).split(".")[0]!.replace(/[^a-z0-9]/g, "");
+  // A venue-labelled subdomain of someone else's domain (shoreditch-balls.wheree.com) is that platform's listing,
+  // not the venue's site. Only the registrable domain counts, except on site-builder hosts where the subdomain is the tenant.
+  const registrable = registrableDomain(host);
+  const folded = (SITE_BUILDER_HOST.test(registrable) ? host : registrable).replace(/[^a-z0-9]/g, "");
+  if (domainNameTokens(venueName).some((token) => token.length >= 4 && folded.includes(token))) return { operated: true, signal: "venue name in site domain" };
+  const label = registrable.split(".")[0]!.replace(/[^a-z0-9]/g, "");
   if (label.length >= 5 && normalise(venueName).replace(/\s+/g, "").includes(label)) return { operated: true, signal: "site domain contained in venue name" };
   const initials = normalise(venueName).split(/\s+/).filter((word) => word && !/^(?:the|of|and|at|in|on|a)$/.test(word)).map((word) => word[0]).join("");
   if (initials.length >= 3 && label === initials) return { operated: true, signal: "site domain is the venue acronym" };
@@ -247,7 +266,8 @@ function candidateFrom(result: PublicWebSearchResult, rank: number, name: string
   const reg = registrableDomain(bare);
   const domainTarget = reg === "wixsite.com" ? bare : reg.split(".")[0] ?? reg;
   const host = normalise(domainTarget).replace(/\s+/g, "");
-  if (distinctiveNameTokens(name).some((token) => token.length >= 4 && host.includes(token))) { score += 2; reasons.push("DOMAIN_NAME_ALIGNMENT"); }
+  if (domainNameTokens(name).some((token) => token.length >= 4 && host.includes(token))) { score += 2; reasons.push("DOMAIN_NAME_ALIGNMENT"); }
+  else if (domainIsAcronym(name, reg)) { score += 2; reasons.push("DOMAIN_ACRONYM_ALIGNMENT"); }
   if (result.title && distinctiveNameTokens(name).every((token) => normalise(result.title!).includes(token))) { score += 1; reasons.push("TITLE_NAME_ALIGNMENT"); }
   if (EVENT_DETAIL_PATH.test(parsed.pathname)) { score -= 2; reasons.push("EVENT_DETAIL_PATH_DEPRIORITISED"); }
   return { url: result.url.slice(0, 4096), origin, source: "PUBLIC_WEB_SEARCH", rank, state: "NOT_EVALUATED", reasons, score };
