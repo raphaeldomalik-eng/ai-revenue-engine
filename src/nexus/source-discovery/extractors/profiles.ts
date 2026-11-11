@@ -34,13 +34,16 @@ const directoryLink = (url: string) => PROPERTY_DIRECTORY.test(new URL(url).path
 /** DIRECT stays satisfied by phone or a contact-page form. EMAIL is a separate sufficiency goal. */
 export function publicContactProfile(options: { emailGoal?: boolean; venueName?: string } = {}): ExtractorProfile {
   const emailGoal = options.emailGoal === true;
-  const dimensions = emailGoal ? ["PUBLIC_CONTACT:DIRECT", "PUBLIC_CONTACT:EMAIL"] : ["PUBLIC_CONTACT:DIRECT"];
+  // An enquiry form lives on the contact page, which a homepage email never reaches. FORM is satisfied by a form
+  // seen anywhere or by the contact page having been read (no form there means none is published).
+  const dimensions = emailGoal ? ["PUBLIC_CONTACT:DIRECT", "PUBLIC_CONTACT:EMAIL", "PUBLIC_CONTACT:FORM"] : ["PUBLIC_CONTACT:DIRECT"];
+  const formDims = (url: string, label: string) => (emailGoal && matches(CONTACT_PAGE, url, label) ? dimensions : dimensions.filter((dim) => dim !== "PUBLIC_CONTACT:FORM"));
   return {
     extractor: "PUBLIC_CONTACT",
     dimensions,
     priorityDimensions: emailGoal ? ["PUBLIC_CONTACT:EMAIL"] : ["PUBLIC_CONTACT:DIRECT"],
     strategy: emailGoal ? "GAP_PLANNED" : "LINK_FOLLOWING",
-    linkDimensions: (url, label) => (propertyLinkStrength(options.venueName,url,label) || options.venueName && directoryLink(url) || matches(CONTACT_LINK, url, label) ? dimensions : []),
+    linkDimensions: (url, label) => (propertyLinkStrength(options.venueName,url,label) || options.venueName && directoryLink(url) || matches(CONTACT_LINK, url, label) ? formDims(url, label) : []),
     linkStrength: (url,label) => propertyLinkStrength(options.venueName,url,label) || (options.venueName && directoryLink(url) ? 3 : /contact|hire/i.test(new URL(url).pathname) ? 2 : 1),
     pdfDimensions: (url, label) => emailGoal && matches(CONTACT_LINK, url, label) ? ['PUBLIC_CONTACT:EMAIL'] : null,
     observe(document, observation, state) {
@@ -57,7 +60,9 @@ export function publicContactProfile(options: { emailGoal?: boolean; venueName?:
         }
       }
       const contactPage = CONTACT_PAGE.test(new URL(document.url).pathname);
+      if (contactPage && document.kind === "HTML") state.contactPageRead = true;
       for (const contact of observation.resources().publicContacts) {
+        if (contact.type === "CONTACT_FORM" && !contact.reviewRequired) state.formSeen = true;
         if (contact.type === "EMAIL") {
           if (emailGoal && !contact.reviewRequired && acceptVenueEmail(contact.value, document.url, options.venueName ?? "", contact.label ?? "").accepted) state.email = true;
           if (contact.reviewRequired) continue;
@@ -68,6 +73,7 @@ export function publicContactProfile(options: { emailGoal?: boolean; venueName?:
     },
     satisfied: (state) => [
       ...(state.direct ? ["PUBLIC_CONTACT:DIRECT"] : []),
+      ...(emailGoal && (state.formSeen || state.contactPageRead) ? ["PUBLIC_CONTACT:FORM"] : []),
       ...(state.email && (!state.propertyPending || state.propertyVisited) && (!state.directoryPending || state.directoryVisited || state.propertyVisited) ? ["PUBLIC_CONTACT:EMAIL"] : []),
     ],
   };

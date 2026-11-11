@@ -696,6 +696,12 @@ class ProfileSet {
     return [...new Set(this.profiles.flatMap((profile) => profile.linkDimensions(url, label)))];
   }
 
+  /** Present only when a requested profile ranks pages by venue information value. */
+  get tierOf(): ((url: string, label: string) => number) | undefined {
+    const tiering = this.profiles.filter((profile) => profile.pageTier);
+    return tiering.length ? (url, label) => Math.min(...tiering.map((profile) => profile.pageTier!(url, label))) : undefined;
+  }
+
   pdfDimensions(url: string, label: string): Dimension[] | null {
     const dims = this.profiles.flatMap((profile) => profile.pdfDimensions(url, label) ?? []);
     return dims.length ? [...new Set(dims)] : null;
@@ -775,7 +781,8 @@ async function consultSitemaps(ctx: Ctx, planner: GapPlanner, set: ProfileSet, r
 }
 
 async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, set: ProfileSet): Promise<CrawlOutput> {
-  const planner = new GapPlanner(set.requested);
+  // A form gap is closed by reading the contact page; it never takes a round-robin turn ahead of other gaps.
+  const planner = new GapPlanner(set.requested, set.requested.filter((dim) => !dim.endsWith(":FORM")), undefined, { tierOf: set.tierOf });
   const documents: FetchedDocument[] = [];
   const rendered = { count: 0 };
   const maxPdfs = args.budget.maxPdfDocuments ?? DEFAULT_MAX_PDFS;

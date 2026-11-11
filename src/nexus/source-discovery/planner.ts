@@ -20,6 +20,8 @@ export type ExtractorProfile = {
   /** "LINK_FOLLOWING" keeps the established ranked link traversal when only such profiles are requested. */
   strategy: "GAP_PLANNED" | "LINK_FOLLOWING";
   linkDimensions(url: string, label: string): Dimension[];
+  /** Information-value tier (1 best, 4 never worth a page) when this profile ranks links by tier. */
+  pageTier?(url: string, label: string): number;
   /** PDF relevance for this extractor; null means the extractor does not read PDFs. */
   pdfDimensions(url: string, label: string): Dimension[] | null;
   /** Additional candidates only this extractor can recognise (event details, calendars). */
@@ -119,14 +121,21 @@ export class GapPlanner {
   private readonly done = new Set<string>();
   private readonly attempts = new Map<Dimension, number>();
   private readonly maxAttempts: number;
+  private readonly tierOf: ((url: string, label: string) => number) | null;
   private order = 0;
   private pointer = 0;
   readonly selections: Array<{ url: string; kind: Candidate["kind"]; reason: string }> = [];
 
-  constructor(requested: Dimension[], roundRobin: Dimension[] = requested, maxAttempts = DEFAULT_ATTEMPTS_PER_DIMENSION) {
+  constructor(requested: Dimension[], roundRobin: Dimension[] = requested, maxAttempts = DEFAULT_ATTEMPTS_PER_DIMENSION, options: { tierOf?: (url: string, label: string) => number } = {}) {
     this.requested = requested;
     this.roundRobin = roundRobin.filter((dim) => requested.includes(dim));
     this.maxAttempts = maxAttempts;
+    this.tierOf = options.tierOf ?? null;
+  }
+
+  private tier(item: Candidate): number {
+    if (!this.tierOf || item.source === "ENTRY") return 1;
+    return this.tierOf(item.url, item.label);
   }
 
   add(candidate: Omit<Candidate, "order">) {
@@ -192,14 +201,21 @@ export class GapPlanner {
   private rank(item: Candidate, open: Set<Dimension>) {
     const served = item.dims.filter((dim) => open.has(dim)).length;
     const depth = new URL(item.url).pathname.split("/").filter(Boolean).length;
-    return item.strength * 10 + served * 4 - Math.min(depth, 6) + (item.source === "LINK" ? 2 : 0) - (articleLikePath(item.url) ? 30 : 0);
+    // The tier dominates: a property-named menu path must not outrank a contact or hire page on link strength.
+    const tierBase = this.tierOf ? (4 - this.tier(item)) * 1000 : 0;
+    return tierBase + item.strength * 10 + served * 4 - Math.min(depth, 6) + (item.source === "LINK" ? 2 : 0) - (articleLikePath(item.url) ? 30 : 0);
   }
 
   /** Round-robin across open dimensions so one extractor's gap cannot starve another's; ties keep discovery order. */
   next(allowPdf: boolean): Candidate | null {
     const open = new Set(this.open());
-    const eligible = this.pending().filter((item) => (allowPdf || item.kind !== "PDF") && item.dims.some((dim) => open.has(dim)));
+    let eligible = this.pending().filter((item) => (allowPdf || item.kind !== "PDF") && item.dims.some((dim) => open.has(dim)));
     if (!eligible.length) return null;
+    if (this.tierOf) {
+      // Higher-value pages are spent first: lower tiers wait until no higher-tier page serves an open gap.
+      const best = Math.min(...eligible.map((item) => this.tier(item)));
+      eligible = eligible.filter((item) => this.tier(item) === best);
+    }
     for (let step = 0; step < this.roundRobin.length; step += 1) {
       const dim = this.roundRobin[(this.pointer + step) % this.roundRobin.length]!;
       if (!open.has(dim)) continue;

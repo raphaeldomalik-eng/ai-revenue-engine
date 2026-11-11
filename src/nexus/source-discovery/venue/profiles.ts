@@ -6,6 +6,7 @@ import { isPdfUrl } from "../planner.ts";
 import type { SiteIdentity } from "../site-identity.ts";
 import { classifyVenueSpace } from "./evidence.ts";
 import { venueLinkDimensions, venueLinkStrength } from "./selection.ts";
+import { venuePageTier } from "./page-tier.ts";
 
 export const VENUE_EXTRACTORS = ["IDENTITY", "PUBLIC_CONTACT", "VENUE_FACTS", "IMAGE_CANDIDATES"] as const satisfies readonly SourceExtractor[];
 
@@ -25,7 +26,10 @@ export function venueCrawlProfiles(site?: SiteIdentity, options: { emailGoal?: b
       ...profile,
       dimensions,
       priorityDimensions: dimensions,
+      pageTier: (url, label) => venuePageTier(url, label, options.venueName ?? ""),
       linkDimensions(url, label) {
+        // Menus, prices, news, promotions and shop pages are not planned for a venue crawl at all.
+        if (venuePageTier(url, label, options.venueName ?? "") === 4) return [];
         if (propertyLinkStrength(options.venueName,url,label)) return dimensions;
         if (profile.extractor === 'PUBLIC_CONTACT') return profile.linkDimensions(url, label);
         const base=venueLinkDimensions(url,label).filter(dim=>dimensions.includes(dim));

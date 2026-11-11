@@ -91,6 +91,22 @@ function addContact(out: ResourceExtraction, doc: FetchedDocument, type: string,
   out.publicContacts.push({ type, value, sourceUrl: doc.url, confidence, reviewRequired, evidenceRef, purpose: classifyPurpose(type, `${type === "EMAIL" ? value : ""} ${context} ${new URL(doc.url).pathname.replace(/[\/_-]/g, " ")}`), normalized, original, label });
   out.evidenceRefs.push(evidenceRef);
 }
+/**
+ * A group site's "our properties" page lists every sibling property's mailbox. Those addresses belong to other
+ * properties, not to the venue being enriched (2026-11-11 replay: peermont.com/our-properties/ yielded ten
+ * mailboxes on nine unrelated domains, all accepted). Three or more different off-domain mailbox domains on one
+ * page identify a directory of other properties, so those mailboxes are retained for review, not asserted.
+ */
+function flagSiblingPropertyMailboxes(doc: FetchedDocument, out: ResourceExtraction, firstIndex: number) {
+  const site = registrableDomain(new URL(doc.url).hostname);
+  const offDomain = out.publicContacts.slice(firstIndex).filter((item) => item.type === "EMAIL" && !item.reviewRequired && registrableDomain(String(item.value).split("@")[1] ?? "") !== site && !FREE_MAIL.test(String(item.value).split("@")[1] ?? ""));
+  if (new Set(offDomain.map((item) => registrableDomain(String(item.value).split("@")[1] ?? ""))).size < 3) return;
+  for (const item of offDomain) {
+    item.reviewRequired = true;
+    item.label = `${item.label ?? ""} Page lists mailboxes of several other properties; retained for review.`.trim().slice(-512);
+  }
+}
+const FREE_MAIL = /^(?:gmail|googlemail|outlook|hotmail|live|msn|yahoo|ymail|icloud|me|aol|btinternet|sky|mweb|telkomsa|vodamail|webmail|iafrica|absamail)\./i;
 function addFact(out: ResourceExtraction, doc: FetchedDocument, fieldName: string, value: unknown, confidence = 0.8,reviewRequired=false) {
   if (fieldName === "capacity") {
     const next = value as { space: string | null; layout: string; count: number };
@@ -811,7 +827,7 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
     const canonicalUrl = canonical ? sameOrigin(canonical, doc.url) : null;
     if (landingPage && canonicalUrl) addIdentity(out, doc, "canonicalUrl", canonicalUrl);
   }
-  if (extractors.includes("PUBLIC_CONTACT")) contacts(doc, out, venueName);
+  if (extractors.includes("PUBLIC_CONTACT")) { const first = out.publicContacts.length; contacts(doc, out, venueName); flagSiblingPropertyMailboxes(doc, out, first); }
   if (extractors.includes("VENUE_FACTS")) venueFacts(doc, out, root);
   if (extractors.includes("SOURCE_CLASSIFICATION")) classificationEvidence(doc, out);
   if (extractors.includes("IMAGE_CANDIDATES")) images(doc, out, root, venueName);

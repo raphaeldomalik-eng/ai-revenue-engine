@@ -4,6 +4,8 @@ import { consumeDirectorySearchEvidence } from "../src/nexus/search/directory-he
 import { assessWebsiteIdentity, siteOperatedBySubject } from "../src/nexus/official-website-discovery.ts";
 import { crawlVerifiedSource, extractFromFetchedDocuments } from "../src/nexus/source-discovery/crawler.ts";
 import { articleLikePath, GapPlanner } from "../src/nexus/source-discovery/planner.ts";
+import { venuePageTier } from "../src/nexus/source-discovery/venue/page-tier.ts";
+import { venueCrawlProfiles } from "../src/nexus/source-discovery/venue/profiles.ts";
 import { rankChildSitemaps } from "../src/nexus/source-discovery/sitemap.ts";
 
 // Fixtures are shortened retained Production observations from 2026-11-10 (AIRE nexus_directory_search_receipt
@@ -168,6 +170,44 @@ test("an on-page enquiry form that posts to a booking provider is recorded at th
   assert.deepEqual(forms(enquiry).map((item) => item.value), ["https://www.toca.social/events/large-bookings"]);
   assert.equal(forms(newsletter).length, 0);
   assert.equal(forms('<form action="/search" id="searchContact"><input name="q"></form>').length, 0);
+});
+
+test("venue page tiers: contact and identity first, hire and spaces next, galleries after, menus and news never", () => {
+  const tier = (url: string, label = "", name = "") => venuePageTier(url, label, name);
+  for (const url of ["https://v.example/", "https://v.example/contact-us/", "https://v.example/get-in-touch", "https://v.example/enquiries", "https://v.example/about-us", "https://v.example/find-us"]) assert.equal(tier(url), 1, url);
+  for (const url of ["https://v.example/venue-hire/", "https://v.example/private-hire", "https://v.example/functions", "https://v.example/weddings", "https://v.example/celebrations", "https://v.example/corporate-events", "https://v.example/conferences-and-meetings", "https://v.example/spaces", "https://v.example/rooms/ballroom", "https://v.example/facilities", "https://v.example/events/kids-parties"]) assert.equal(tier(url), 2, url);
+  for (const url of ["https://v.example/gallery/", "https://v.example/photos", "https://v.example/virtual-tour", "https://v.example/floor-plans", "https://v.example/downloads/venue-brochure.pdf"]) assert.equal(tier(url), 3, url);
+  for (const url of ["https://v.example/bar/aberdeen/menus/food-menu/", "https://v.example/info/food-and-drinks", "https://v.example/wedding-menus", "https://v.example/news/launch", "https://v.example/blog/post", "https://v.example/offers/christmas", "https://v.example/shop/gift-cards", "https://v.example/whats-on", "https://v.example/tickets"]) assert.equal(tier(url), 4, url);
+  assert.equal(tier("https://group.example/bar/aberdeen/", "", "Revolution Aberdeen"), 1, "property landing page on a group site");
+  assert.equal(tier("https://group.example/menus/contact-us"), 1, "a contact route is never demoted");
+});
+
+test("with tiers, a property-named menu path cannot outrank contact or hire pages, and tier 4 is not planned for a venue crawl", () => {
+  const profiles = venueCrawlProfiles(undefined, { emailGoal: true, venueName: "Revolution Aberdeen" });
+  const dims = (url: string) => [...new Set(profiles.flatMap((profile) => profile.linkDimensions(url, "")))];
+  assert.deepEqual(dims("https://r.example/bar/Aberdeen/menus/food-menu/"), []);
+  assert(dims("https://r.example/parties-and-events/corporate-events/").length > 0);
+  const planner = new GapPlanner(["PUBLIC_CONTACT:EMAIL", "VENUE_FACTS:SPACES"], undefined, undefined, { tierOf: (url, label) => venuePageTier(url, label, "Revolution Aberdeen") });
+  const add = (url: string, strength: number, dim: string) => planner.add({ url, kind: "PAGE", dims: [dim], source: "LINK", discoveredFrom: "https://r.example/", label: "", strength });
+  add("https://r.example/gallery/photos", 9, "VENUE_FACTS:SPACES");
+  add("https://r.example/bar/aberdeen/rooms", 9, "VENUE_FACTS:SPACES");
+  add("https://r.example/contact-us", 1, "PUBLIC_CONTACT:EMAIL");
+  assert.equal(planner.next(false)?.url, "https://r.example/contact-us");
+  planner.markDone("https://r.example/contact-us");
+  assert.equal(planner.next(false)?.url, "https://r.example/bar/aberdeen/rooms");
+  planner.markDone("https://r.example/bar/aberdeen/rooms");
+  assert.equal(planner.next(false)?.url, "https://r.example/gallery/photos");
+});
+
+test("a group's property directory page cannot assert the mailboxes of sibling properties", () => {
+  const body = '<main><h1>Our properties</h1><p>Emperors Palace <a href="mailto:info@emperorspalace.com">info@emperorspalace.com</a></p><p>Graceland <a href="mailto:info@graceland.co.za">info@graceland.co.za</a></p><p>Rio <a href="mailto:info@riocasino.co.za">info@riocasino.co.za</a></p><p>Group <a href="mailto:info@peermont.com">info@peermont.com</a></p></main>';
+  const doc = { url: "https://www.peermont.com/our-properties/", body, kind: "HTML" as const, contentType: "text/html", bytes: body.length, observedAt: now, sourceHash: "c".repeat(64) };
+  const mail = extractFromFetchedDocuments([doc], ["PUBLIC_CONTACT"], "Peermont D'oreale Grande Hotel").publicContacts.filter((item) => item.type === "EMAIL");
+  const flags = Object.fromEntries(mail.map((item) => [item.value, item.reviewRequired]));
+  assert.equal(flags["info@peermont.com"], false);
+  for (const sibling of ["info@emperorspalace.com", "info@graceland.co.za", "info@riocasino.co.za"]) assert.equal(flags[sibling], true, sibling);
+  const single = extractFromFetchedDocuments([{ ...doc, url: "https://www.example-hotel.com/contact/", body: '<a href="mailto:events@sister-brand.com">events@sister-brand.com</a> <a href="mailto:info@example-hotel.com">info@example-hotel.com</a>' }], ["PUBLIC_CONTACT"], "Example Hotel").publicContacts;
+  assert(single.every((item) => item.reviewRequired === false), "a single operator-domain mailbox keeps the existing acceptance policy");
 });
 
 test("an apex that redirects to www buys robots.txt once, not once per origin", async () => {
