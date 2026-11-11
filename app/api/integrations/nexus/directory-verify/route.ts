@@ -1,3 +1,4 @@
+import {directoryAuditConfigFromEnvironment} from '../../../../../src/nexus/source-discovery/directory-audit-capture.ts';
 import {createClient} from '@supabase/supabase-js';
 import {SupabaseContinuousDirectoryLedger,SupabaseDirectoryResultStore} from '../../../../../src/nexus/source-discovery/continuous-directory-store.ts';
 import {handleDirectoryVerificationRequest,validatedVerificationContinuation,type VerificationPolicy} from '../../../../../src/nexus/source-discovery/continuous-directory-verification.ts';
@@ -33,7 +34,7 @@ export async function POST(request:Request){
  const continuation=validatedVerificationContinuation(policy);
  let recovery:ReturnType<typeof validatedVerificationRecovery>;
  try{recovery=validatedVerificationRecovery(policy)}catch{return Response.json({code:'DIRECTORY_RECOVERY_SCOPE_INVALID'},{status:404})}
- return handleDirectoryVerificationRequest(request,{policy,approvedPolicyHash:selectedHash,secret,
+ return handleDirectoryVerificationRequest(request,{auditCapture:directoryAuditConfigFromEnvironment(process.env),policy,approvedPolicyHash:selectedHash,secret,
   ledger:new SupabaseContinuousDirectoryLedger(client),store:new SupabaseDirectoryResultStore(client),
   recoveryReady:recovery?async(entry,now)=>{
    const {data:prior,error:priorError}=await client.from('nexus_directory_work_receipt')

@@ -20,6 +20,8 @@ export type ExtractorProfile = {
   /** "LINK_FOLLOWING" keeps the established ranked link traversal when only such profiles are requested. */
   strategy: "GAP_PLANNED" | "LINK_FOLLOWING";
   linkDimensions(url: string, label: string): Dimension[];
+  /** Information-value tier (1 best, 4 never worth a page) when this profile ranks links by tier. */
+  pageTier?(url: string, label: string): number;
   /** PDF relevance for this extractor; null means the extractor does not read PDFs. */
   pdfDimensions(url: string, label: string): Dimension[] | null;
   /** Additional candidates only this extractor can recognise (event details, calendars). */
@@ -66,11 +68,59 @@ export type Candidate = {
   strength: number;
 };
 
+/**
+ * News, blog and inspiration posts, headline-length slugs, dated posts and gallery/download items describe one
+ * story or file, not the venue. Retained 2026-11 crawls spent 8-page budgets on them (stlukesglasgow: a 2015
+ * "doors open day" post; dgb.co.za: a casino-layout blog post; yeswedocaterers: four wedding-inspiration posts)
+ * before reaching spaces or hire pages. They are ranked last, never excluded, so a site with nothing better
+ * is still read.
+ */
+export function articleLikePath(url: string): boolean {
+  let path: string;
+  try { path = decodeURIComponent(new URL(url).pathname).toLowerCase(); } catch { return false; }
+  const segments = path.split("/").filter(Boolean);
+  if (!segments.length) return false;
+  if (segments.some((segment) => /^(?:blogs?|news|newsroom|press-releases?|articles?|posts?|stories|inspiration|insights?|journal|magazine|updates?)$/.test(segment))) return true;
+  if (segments.some((segment) => /(?:^|-)inspiration(?:-|$)/.test(segment))) return true;
+  // Food/drink menus name dishes, not contacts or spaces: revolution-bars.co.uk spent four of six pages on
+  // them (2026-11-11 replay) while /parties-and-events/corporate-events/ held the enquiry address.
+  if (segments.some((segment) => /^menus?$/.test(segment)) || /-menus?$/.test(segments[segments.length - 1]!)) return true;
+  if (segments.length > 1 && /^(?:gallery|galleries|portfolio|downloads?)$/.test(segments[segments.length - 2]!)) return true;
+  const slug = segments[segments.length - 1]!;
+  return slug.split("-").length >= 8 || /(?:^|-)20\d{2}(?:-|$)/.test(slug);
+}
+
+/** `/us/info/contact-us` repeats `/info/contact-us` for another market; reading both only spends budget. */
+const LOCALE_PREFIX = /^\/(?:[a-z]{2}|[a-z]{2}-[a-z]{2})(?=\/)/i;
+function localeTwinKey(url: string): string | null {
+  const parsed = new URL(url);
+  if (!LOCALE_PREFIX.test(parsed.pathname)) return null;
+  parsed.pathname = parsed.pathname.replace(LOCALE_PREFIX, "");
+  return planKey(parsed.toString());
+}
+
+/**
+ * `/meeting-space-photos?itemId=…` is one gallery shown item by item; the retained benchmark read three of them
+ * (shoreditchballs.com) and stopped before the capacity page. A URL whose only parameters pick an item, page or sort
+ * order repeats the parameter-free page.
+ */
+const ITEM_PARAMETERS = /^(?:item_?id|item|id|page|paged|pg|p|sort|order|filter|view|variant|image|img|photo|slide|utm_\w+)$/i;
+function queryTwinKey(url: string): string | null {
+  const parsed = new URL(url);
+  const names = [...parsed.searchParams.keys()];
+  if (!names.length || !names.every((name) => ITEM_PARAMETERS.test(name))) return null;
+  parsed.search = "";
+  return planKey(parsed.toString());
+}
+
 /** `/a` and `/a/` are one page on virtually every site; planning them twice only buys a redirect to a fetched page. */
 export function planKey(url: string): string {
   const parsed = new URL(url);
   parsed.hash = "";
   if (parsed.pathname.length > 1 && parsed.pathname.endsWith("/")) parsed.pathname = parsed.pathname.replace(/\/+$/, "");
+  // `/bar/Aberdeen/menus/food-menu/` and `/bar/aberdeen/menus/food-menu/` served the same page; retained
+  // 2026-11 crawls read both (revolution-bars.co.uk) and then ran out of pages before the events page.
+  parsed.pathname = parsed.pathname.toLowerCase();
   return parsed.toString();
 }
 
@@ -85,19 +135,30 @@ export class GapPlanner {
   private readonly done = new Set<string>();
   private readonly attempts = new Map<Dimension, number>();
   private readonly maxAttempts: number;
+  private readonly tierOf: ((url: string, label: string) => number) | null;
   private order = 0;
   private pointer = 0;
   readonly selections: Array<{ url: string; kind: Candidate["kind"]; reason: string }> = [];
 
-  constructor(requested: Dimension[], roundRobin: Dimension[] = requested, maxAttempts = DEFAULT_ATTEMPTS_PER_DIMENSION) {
+  constructor(requested: Dimension[], roundRobin: Dimension[] = requested, maxAttempts = DEFAULT_ATTEMPTS_PER_DIMENSION, options: { tierOf?: (url: string, label: string) => number } = {}) {
     this.requested = requested;
     this.roundRobin = roundRobin.filter((dim) => requested.includes(dim));
     this.maxAttempts = maxAttempts;
+    this.tierOf = options.tierOf ?? null;
+  }
+
+  private tier(item: Candidate): number {
+    if (!this.tierOf || item.source === "ENTRY") return 1;
+    return this.tierOf(item.url, item.label);
   }
 
   add(candidate: Omit<Candidate, "order">) {
     const key = planKey(candidate.url);
     if (this.done.has(key) || !candidate.dims.length) return;
+    const twin = localeTwinKey(candidate.url);
+    if (twin && (this.done.has(twin) || this.candidates.has(twin))) return;
+    const itemTwin = queryTwinKey(candidate.url);
+    if (itemTwin && (this.done.has(itemTwin) || this.candidates.has(itemTwin))) return;
     const existing = this.candidates.get(key);
     if (existing) {
       existing.dims = [...new Set([...existing.dims, ...candidate.dims])];
@@ -156,14 +217,21 @@ export class GapPlanner {
   private rank(item: Candidate, open: Set<Dimension>) {
     const served = item.dims.filter((dim) => open.has(dim)).length;
     const depth = new URL(item.url).pathname.split("/").filter(Boolean).length;
-    return item.strength * 10 + served * 4 - Math.min(depth, 6) + (item.source === "LINK" ? 2 : 0);
+    // The tier dominates: a property-named menu path must not outrank a contact or hire page on link strength.
+    const tierBase = this.tierOf ? (4 - this.tier(item)) * 1000 : 0;
+    return tierBase + item.strength * 10 + served * 4 - Math.min(depth, 6) + (item.source === "LINK" ? 2 : 0) - (articleLikePath(item.url) ? 30 : 0);
   }
 
   /** Round-robin across open dimensions so one extractor's gap cannot starve another's; ties keep discovery order. */
   next(allowPdf: boolean): Candidate | null {
     const open = new Set(this.open());
-    const eligible = this.pending().filter((item) => (allowPdf || item.kind !== "PDF") && item.dims.some((dim) => open.has(dim)));
+    let eligible = this.pending().filter((item) => (allowPdf || item.kind !== "PDF") && item.dims.some((dim) => open.has(dim)));
     if (!eligible.length) return null;
+    if (this.tierOf) {
+      // Higher-value pages are spent first: lower tiers wait until no higher-tier page serves an open gap.
+      const best = Math.min(...eligible.map((item) => this.tier(item)));
+      eligible = eligible.filter((item) => this.tier(item) === best);
+    }
     for (let step = 0; step < this.roundRobin.length; step += 1) {
       const dim = this.roundRobin[(this.pointer + step) % this.roundRobin.length]!;
       if (!open.has(dim)) continue;

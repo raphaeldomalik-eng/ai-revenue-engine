@@ -1,3 +1,6 @@
+import {activeDirectoryAuditConfig,prepareDirectoryAudit} from './directory-audit-capture.ts';
+import {contentCoverage} from "./content-coverage.ts";
+import {resultStoreTerminalUrlHistory} from './terminal-url-history.ts';
 import {classifyCrawlDisposition} from './crawl-disposition.ts';
 import {storedDirectoryVerifierAcquisition} from './stored-directory-verifier.ts';
 import {createHash} from 'node:crypto';
@@ -15,7 +18,7 @@ import {validatedVerificationRecovery,type RecoveryPolicy,type RecoveryEntry} fr
 type ContinuationEntry={queueId:string;requestId:string;identityKey:string;host:string};
 type Continuation={sourcePolicyId:string;sourcePolicySha256:string;originalRequestBudget:number;priorRequestCount:number;additionalRequestBudget:number;entries:ContinuationEntry[]};
 export type VerificationPolicy=RecoveryPolicy&{continuation?:Continuation};
-type Options={policy:VerificationPolicy;approvedPolicyHash:string;secret:string;store:NexusResultStore;ledger:ContinuousLedger;now?:()=>number;fetchImpl?:FetchLike;resolveHost?:ResolveHost;continuationReady?:(entry:ContinuationEntry,now:string)=>Promise<boolean>;recoveryReady?:(entry:RecoveryEntry,now:string)=>Promise<boolean>};
+type Options={auditCapture?:unknown;policy:VerificationPolicy;approvedPolicyHash:string;secret:string;store:NexusResultStore;ledger:ContinuousLedger;now?:()=>number;fetchImpl?:FetchLike;resolveHost?:ResolveHost;continuationReady?:(entry:ContinuationEntry,now:string)=>Promise<boolean>;recoveryReady?:(entry:RecoveryEntry,now:string)=>Promise<boolean>};
 export function validatedVerificationContinuation(policy:VerificationPolicy):Continuation|null{
  const c=policy.continuation;if(!c)return null;
  const window=Date.parse(policy.validUntil??'')-Date.parse(policy.validFrom);
@@ -122,14 +125,17 @@ export async function handleDirectoryVerificationRequest(request:Request,options
   let crawlReceipt:Record<string,unknown>|null=null;
   const receipt=await runContinuousDirectoryTick([item],options.policy,options.approvedPolicyHash,options.ledger,async(_work,reservation)=>{
    const observation:{crawl:CrawlOutput|null}={crawl:null};
-   const provider=createPublicWebProvider({emailGoal:options.policy.quotaMode==='PER_RUN',fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:crawl=>{observation.crawl=crawl}});
+    const auditConfig=activeDirectoryAuditConfig(options.auditCapture,input.requestId,options.now?.()??Date.now());
+    const audit=auditConfig?await prepareDirectoryAudit({config:auditConfig,binding:{requestId:input.requestId,requestSha256:fingerprint,identityKey:identity,queueId:context.queueId,policySha256:options.approvedPolicyHash,runId:context.runId??null,attempt:context.attempts+1,reservationKey:reservation.reservationKey},store:options.store.privateAuditStore,now:options.now??Date.now}):null;
+   let directoryAudit=cached?.directoryAudit;
+    const provider=createPublicWebProvider({auditCapture:audit?.sink,emailGoal:true,venueContent:true,terminalUrlHistory:options.store.terminalUrlHistory??resultStoreTerminalUrlHistory(options.store),fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,now:()=>now,budget:{maxPages:4,maxRequests:executionBudget,maxBytesPerResponse:1_000_000,maxRedirects:2,maxRetries:0,timeoutMs:8000,minRequestDelayMs:options.policy.minHostDelayMs},onCrawl:async crawl=>{observation.crawl=crawl;if(audit)directoryAudit=await audit.finish(crawl)}});
    const adapted=async(args:Parameters<typeof provider>[0]):Promise<ProviderResult>=>{
     const value=await provider(args),crawl=observation.crawl;
     if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
     const facts=extractFromFetchedDocuments(crawl.documents,['IDENTITY','SOURCE_CLASSIFICATION']).identityFacts;
     const address=research.existingFacts?.find(f=>f.fieldName==='formattedAddress')?.value;
     const observed=extractFromFetchedDocuments(crawl.documents,['PUBLIC_CONTACT']).publicContacts;
-    const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts,contactObservations:observed});
+    const assessment=assessWebsiteIdentity({venueName:research.targetName!,country:context.country,heldAddress:typeof address==='string'?address:null,context:withVerifiedNexusOrigin(input,research),finalUrl:crawl.finalUrl,identityFacts:facts,contactObservations:observed,requireOperatedSite:/^directory-search:/.test(String(context.evidenceRef??''))});
     const siteEvidence=value.evidence.find(e=>(e.payload as {kind?:string})?.kind==='FIRST_PARTY_WEBSITE');
     const state=crawl.stats.status==='BLOCKED'?'BLOCKED':assessment.verified?'VERIFIED':'UNVERIFIED';
     verification={state,url:assessment.verified?crawl.finalUrl:null,evidenceRef:siteEvidence?.evidenceRef??null,signals:assessment.signals,reason:assessment.reason};
@@ -148,13 +154,17 @@ export async function handleDirectoryVerificationRequest(request:Request,options
     // Preserve structured observations from THIS crawl for Nexus's existing
     // classified acquisition consumer. Verification does not grant publication
     // or canonical authority, and an unverified site exports no such handoff.
-    const extracted=assessment.verified?extractFromFetchedDocuments(crawl.documents,['IDENTITY','PUBLIC_CONTACT','VENUE_FACTS'],research.targetName!):null;
+    const allExtracted=extractFromFetchedDocuments(crawl.documents,['IDENTITY','PUBLIC_CONTACT','VENUE_FACTS','IMAGE_CANDIDATES','EVENTS','SOURCE_CLASSIFICATION'],research.targetName!);
+    crawlReceipt.contentCoverage=contentCoverage(allExtracted,{requestedExtractors:['IDENTITY','PUBLIC_CONTACT','VENUE_FACTS','IMAGE_CANDIDATES','EVENTS','SOURCE_CLASSIFICATION'],stopReason:crawl.observability?.stopReason,retrievalStatus:crawl.stats.status,documentCount:crawl.documents.length});
+    const extracted=assessment.verified?allExtracted:null;
+    if(extracted)for(const image of extracted.imageCandidates)extracted.evidenceRefs.push('image:'+createHash('sha256').update(image.sourceImageUrl).digest('hex').slice(0,24));
     const acquisition=extracted&&siteEvidence&&['COMPLETED','PARTIAL'].includes(crawl.stats.status)?{
       version:1,requestId:input.requestId,
       source:{verifiedUrl:seed,finalUrl:crawl.finalUrl,observedAt:now,sourceHash:createHash('sha256').update(crawl.documents.map(d=>`${d.url}:${d.sourceHash}`).join('\n')).digest('hex')},
-      crawl:{...crawl.stats,retryable:false,evidenceManifest:crawl.evidenceManifest?{...crawl.evidenceManifest,pages:crawl.evidenceManifest.pages.map(p=>({...p,evidenceRefs:[...new Set([...extracted.identityFacts,...extracted.publicContacts,...extracted.venueFacts].filter(f=>f.sourceUrl===p.url).map(f=>f.evidenceRef))]}))}:null},
+      crawl:{...crawl.stats,retryable:false,evidenceManifest:crawl.evidenceManifest?{...crawl.evidenceManifest,pages:crawl.evidenceManifest.pages.map(p=>({...p,evidenceRefs:[...new Set([...([...extracted.identityFacts,...extracted.publicContacts,...extracted.venueFacts].filter(f=>f.sourceUrl===p.url).map(f=>f.evidenceRef)),...extracted.imageCandidates.filter(i=>i.sourcePageUrl===p.url).map(i=>'image:'+createHash('sha256').update(i.sourceImageUrl).digest('hex').slice(0,24))])]}))}:null},
       identityFacts:extracted.identityFacts.slice(0,100).map(f=>({...f,subjectEntityType:'UNKNOWN',canonicalEntityId:input.subject.canonicalEntityId,confidence:0.8,observedAt:now})),
       publicContacts:extracted.publicContacts.slice(0,100).map(c=>{const verdict=c.type==='EMAIL'?acceptVenueEmail(c.value,c.sourceUrl,research.targetName!,c.label??''):null;return {...c,observedAt:now,reviewRequired:c.reviewRequired||!accepted.some(a=>a.type===c.type&&a.value.toLowerCase()===c.value.toLowerCase()&&a.sourceUrl===c.sourceUrl),...(verdict&&!verdict.accepted?{reviewReason:verdict.reason}:{})};}),
+      imageCandidates:extracted.imageCandidates.slice(0,100).map(i=>({...i,discoveredAt:now})),eventCandidates:extracted.eventCandidates.slice(0,100),
       venueFacts:extracted.venueFacts.slice(0,100).map(f=>({...f,observedAt:now})),evidenceRefs:extracted.evidenceRefs.slice(0,1000),
     }:null;
     const executionEvidence={evidenceRef:`research:${input.requestId}:public_web:directory-execution`,externalRecordId:`directory-execution:${input.requestId}`,provider:'PUBLIC_WEB' as const,sourceUrl:seed,observedAt:now,dataClassification:'PUBLIC' as const,licenceType:'PUBLIC_SOURCE',
@@ -164,7 +174,8 @@ export async function handleDirectoryVerificationRequest(request:Request,options
    result=validateResearchResult(await executeResearchRequest(input,research,{publicWeb:adapted,now:()=>now},new InMemoryNexusResultStore()));
    const crawl=observation.crawl as CrawlOutput|null;
    if(!crawl)throw Error('VERIFICATION_REQUEST_USAGE_UNKNOWN');
-   await options.store.set(key,{...result,directoryRequestSha256:fingerprint,directoryVerification:verification,directoryReservation:reservation,directoryRequestCount:crawl.stats.requestCount,directoryCrawlReceipt:crawlReceipt});
+   // The independent corpus was sealed before extraction/identity acceptance in onCrawl.
+    await options.store.set(key,{...result,...(directoryAudit?{directoryAudit}:{}),directoryRequestSha256:fingerprint,directoryVerification:verification,directoryReservation:reservation,directoryRequestCount:crawl.stats.requestCount,directoryCrawlReceipt:crawlReceipt});
    const retryable=retryableProviderFailure(result);
    return {requestCount:crawl.stats.requestCount,costUsd:0,status:retryable?'FAILED':verification?.state==='VERIFIED'?'COMPLETED':'BLOCKED',retryable,resultRef:input.requestId,nextAttemptAt:crawlReceipt?.disposition?((crawlReceipt.disposition as {retryNotBefore?:string}).retryNotBefore??undefined):undefined,failureCode:(crawlReceipt?.disposition as {code?:string}|undefined)?.code};
   },now);

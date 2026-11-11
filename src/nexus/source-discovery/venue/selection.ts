@@ -14,14 +14,14 @@ export const VENUE_DIMENSIONS = {
 } as const;
 
 const SKIP_PATH = /\b(?:whats?-?on|whatson|tickets?|box-?office|news|blog|shop|store|cart|privacy|cookies?|careers?|jobs|search|login|account|directions-from|catalogue|catalog)\b/i;
-const CONTACT = /\b(?:contact|enquir\w*|inquir\w*|bookings?|hire|private[- ](?:hire|events?)|get[- ]in[- ]touch|find[- ]us)\b/i;
-const SPACES = /\b(?:spaces?|rooms?|halls?|suites?|studios?|auditor(?:ium|ia)|ballrooms?|floor[- ]?plans?|our[- ]venue|function[- ]spaces?)\b/i;
-const HIRE = /\b(?:venue[- ]hire|private[- ]hire|weddings?|conferences?|meetings?|corporate|exhibitions?|banquets?|parties|celebrations?|filming|photo[- ]shoots?)\b/i;
+const CONTACT = /\b(?:contact|enquir\w*|inquir\w*|bookings?|hire|private[- ](?:hire|events?|experiences?|functions?)|get[- ]in[- ]touch|find[- ]us)\b/i;
+const SPACES = /\b(?:spaces?|rooms?|venues|halls?|suites?|studios?|auditor(?:ium|ia)|ballrooms?|floor[- ]?plans?|our[- ]venue|function[- ]spaces?)\b/i;
+const HIRE = /\b(?:special[- ]events?|corporate[- ]events?|events?[- ](?:hire|enquir\w*|spaces?|venues|team|packages?|and[- ]functions?)|(?:group|large)[- ](?:group[- ])?bookings?|venue[- ]hire|private[- ](?:hire|events?|dining|parties|experiences?|functions?|rooms?|spaces?|venues?)|functions?|hire|weddings?|conferenc\w*|meetings?|corporate|exhibitions?|banquets?|parties|celebrations?|filming|photo[- ]shoots?)\b/i;
 const CAPACITY = /\b(?:capacit\w*|specifications?|tech(?:nical)?[- ]specs?|floor[- ]?plans?|dimensions|seating|layouts?|brochures?|venue[- ]packs?|fact[- ]?sheets?)\b/i;
-const PRACTICAL = /\b(?:accessib\w*|parking|getting[- ]here|directions|how[- ]to[- ](?:get|find)|catering|bars?|licen[cs]ing|audio[- ]?visual|\bav\b|staging|load[- ]?in|accommodation|cloakroom|toilets?|curfew|wifi|wi-fi)\b/i;
+const PRACTICAL = /\b(?:facilit\w*|amenit\w*|accessib\w*|parking|getting[- ]here|directions|how[- ]to[- ](?:get|find)|catering|bars?|licen[cs]ing|audio[- ]?visual|\bav\b|staging|load[- ]?in|accommodation|cloakroom|toilets?|curfew|wifi|wi-fi)\b/i;
 const IMAGES = /\b(?:galler(?:y|ies)|photos?|images|pictures|virtual[- ]tour|media)\b/i;
 const ABOUT = /\b(?:about|our[- ]story|the[- ]venue|visit|location|history)\b/i;
-const PDF_USEFUL = /\b(?:venue|hire|wedding|conference|capacity|floor|plan|technical|spec|brochure|pack|access|room|space)\b/i;
+const PDF_USEFUL = /\b(?:venue|hire|wedding|conferenc\w*|capacity|floor|plan|technical|spec|brochure|pack|access|room|space)\b/i;
 const PDF_SKIP = /\b(?:menu|privacy|policy|job|accounts|minutes|newsletter|voucher)\b/i;
 
 export type VenueLinkAssessment = {

@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {validateOfficialWebsiteDiscoveryRequest,validateOfficialWebsiteDiscoveryResult} from '../contracts.ts';
-import {executeOfficialWebsiteDiscovery,distinctiveNameTokens,type PublicWebSearchResult} from '../official-website-discovery.ts';
+import {executeOfficialWebsiteDiscovery,distinctiveNameTokens,registrableDomain,type PublicWebSearchResult} from '../official-website-discovery.ts';
 import {InMemoryNexusResultStore,type NexusResultStore} from '../executor.ts';
 
 export type HeldSearchEvidence={query:string;country:string;observedAt:string;evidenceRef:string;mechanism:string;paidProviderCostUsd:number;results:PublicWebSearchResult[]};
@@ -25,7 +25,23 @@ export async function consumeDirectorySearchEvidence(input:unknown,receipts:Held
  const result=validateOfficialWebsiteDiscoveryResult(await executeOfficialWebsiteDiscovery(request,{now:()=>now,maxSearchCalls:1,maxResultsPerQuery:10,searchProvider:{id:evidence.mechanism==='native_web_search'?'held-native-search-evidence':'held-'+evidence.mechanism+'-evidence',costModel:{kind:'ZERO_INCREMENTAL',currency:'USD',amountPerCall:0},async search({query,country,maxResults}){if(normal(query)!==normal(expected)||country!==evidence.country)throw Error('DIRECTORY_SEARCH_EVIDENCE_SCOPE');return evidence.results.slice(0,maxResults)}},fetchImpl:async()=>{throw Error('DIRECTORY_SEARCH_CRAWL_FORBIDDEN')}}));
  if(result.crawl.requestCount!==0||result.officialWebsite||result.publicContacts.length||result.sourceDiscovery||result.costSummary.amount!==0)throw Error('DIRECTORY_SEARCH_ACQUISITION_FORBIDDEN');
  async function finish(){
-  const candidates=result.candidates.filter(c=>c.state==='NOT_EVALUATED'&&!c.reasons.includes('EVENT_DETAIL_PATH_DEPRIORITISED')&&!/^\/wiki\//i.test(new URL(c.url).pathname)&&distinctiveNameTokens(request.identity.venueName).length>0&&c.reasons.some(r=>r==='DOMAIN_NAME_ALIGNMENT'||r==='TITLE_NAME_ALIGNMENT')).slice(0,5).map(c=>{const url=new URL(c.url);url.protocol='https:';return {websiteSeed:url.href,sourceUrl:c.url,websiteAuthority:'UNVERIFIED_SEARCH_RESULT' as const,evidenceRefs:[evidence.evidenceRef],observedAt:evidence.observedAt,identityEstablished:false,canonicalImportAllowed:false}});
+  const eligible=result.candidates.filter(c=>c.state==='NOT_EVALUATED'&&(!c.reasons.includes('EVENT_DETAIL_PATH_DEPRIORITISED')||c.reasons.includes('DOMAIN_NAME_ALIGNMENT')||c.reasons.includes('DOMAIN_ACRONYM_ALIGNMENT'))&&!/^\/wiki\//i.test(new URL(c.url).pathname)&&distinctiveNameTokens(request.identity.venueName).length>0&&c.reasons.some(r=>r==='DOMAIN_NAME_ALIGNMENT'||r==='DOMAIN_ACRONYM_ALIGNMENT'||r==='TITLE_NAME_ALIGNMENT'));
+  // A venue-named domain is the strongest sign a result is the venue's own site. Title text alone is shared by
+  // every directory and listing page (2026-11-10: 14 first-pass venues verified a third-party page while a
+  // venue-named domain sat in the same results). Title-only results are therefore kept only when no result has
+  // a venue-named domain, and then only as a site homepage. The Nexus queue has no rank order, so the emitted
+  // set itself must be the best evidence; rank and reasons stay on each candidate for later ordering.
+  // Replay of the retained results (2026-11-11) showed two more ways a listing won: a venue-labelled subdomain of a
+  // directory (shoreditch-balls.wheree.com) passed as a title-aligned homepage, and a generic word in a domain
+  // (onlinegallery.art for "National Portrait Gallery") counted as a venue-named domain. A title-only homepage must
+  // now be the site's own apex or www host, and the venue's initials in the domain (npg.org.uk) count as a domain match.
+  const apexHomepage=(u:string)=>{const x=new URL(u),host=x.hostname.toLowerCase();return x.pathname.replace(/\/+$/,'')===''&&(host===registrableDomain(host)||host==='www.'+registrableDomain(host));};
+  const domainAligned=eligible.filter(c=>c.reasons.includes('DOMAIN_NAME_ALIGNMENT')||c.reasons.includes('DOMAIN_ACRONYM_ALIGNMENT'));
+  const pool=(domainAligned.length?domainAligned:eligible.filter(c=>apexHomepage(c.url))).sort((a,b)=>a.rank-b.rank);
+  // A venue-named site is verified from its homepage: a deep result (a client case study, a privacy page) is a poor
+  // identity page and one failed verification retires the site. The original result stays as sourceUrl.
+  const seen=new Set<string>();
+  const candidates=pool.filter(c=>{const key=new URL(c.url).origin;if(seen.has(key))return false;seen.add(key);return true}).slice(0,5).map(c=>{const url=new URL(domainAligned.length?c.origin??c.url:c.url);url.protocol='https:';return {websiteSeed:url.href,sourceUrl:c.url,websiteAuthority:'UNVERIFIED_SEARCH_RESULT' as const,evidenceRefs:[evidence.evidenceRef],observedAt:evidence.observedAt,identityEstablished:false,canonicalImportAllowed:false,searchRank:c.rank,rankingReasons:domainAligned.length?c.reasons.filter(r=>r!=='EVENT_DETAIL_PATH_DEPRIORITISED'):c.reasons}});
   return {fingerprint,requestId:request.requestId,subject:request.subject,sourceObservedAt:evidence.observedAt,result,candidates,cacheReused:false,actualSearchApiCalls:0,actualWebsiteRequests:0,paidProviderCostUsd:0};
  }
  const output=await finish();await store.set(key,output as unknown as Record<string,unknown>);return output;

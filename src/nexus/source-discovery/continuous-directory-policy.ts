@@ -67,6 +67,7 @@ export async function runContinuousDirectoryTick(items:DirectoryWork[],policy:St
   const state=ok?'COMPLETED':receipt.status==='BLOCKED'||receipt.retryable===false?'QUARANTINED':'RETRYABLE';
   const nextRetryAt=state==='RETRYABLE'?new Date(Math.max(Date.parse(now)+p.retryBackoffHours*3600000*2**item.attempts,Number.isFinite(Date.parse(receipt.nextAttemptAt??''))?Date.parse(receipt.nextAttemptAt!):0)).toISOString():null;retainGuard(nextRetryAt);
   await ledger.complete({...reservation,state,requestCount:receipt.requestCount,costUsd:receipt.costUsd,resultRef:receipt.resultRef,nextAttemptAt:nextRetryAt,...(receipt.failureCode?{error:receipt.failureCode}:{})});
+   if(receipt.failureCode&&['TERMINAL_URL_HISTORY_READ_FAILED','TERMINAL_URL_HISTORY_WRITE_FAILED'].includes(receipt.failureCode)){result.stopped=receipt.failureCode;break;}
   if(failures>=p.stopAfterConsecutiveFailures){result.stopped='CONSECUTIVE_FAILURE_LIMIT';break;}
  }
  return result;

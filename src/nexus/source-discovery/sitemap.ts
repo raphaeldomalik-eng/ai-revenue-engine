@@ -45,13 +45,20 @@ export function parseSitemap(text: string): ParsedSitemap {
   return { kind: "TEXT", urls };
 }
 
-/** Child sitemaps likely to list pages (not posts/products/media archives) are visited first. */
+/**
+ * Child sitemaps likely to list pages (not posts/products/media archives) are visited first. Only the best
+ * tier is returned: each child costs one request from the crawl budget, and a WordPress index lists
+ * author, template and post sitemaps that never name a hire, contact or spaces page (2026-11-10:
+ * rockingthedaisies spent 5 of its 9 requests on sitemaps and fetched only 2 content pages).
+ */
 export function rankChildSitemaps(urls: string[]): string[] {
   const score = (url: string) => {
     const path = new URL(url).pathname.toLowerCase();
-    if (/(?:post|blog|news|product|tag|categor|author|attachment|image|video|event_listing|archive|feed)/.test(path)) return 0;
+    if (/(?:post|blog|news|product|tag|categor|author|attachment|image|video|event_listing|archive|feed|template)/.test(path)) return 0;
     if (/(?:page|venue|space|room|hire|site|main|static)/.test(path)) return 3;
     return 1;
   };
-  return [...urls].sort((a, b) => score(b) - score(a) || a.localeCompare(b));
+  const ranked = [...urls].sort((a, b) => score(b) - score(a) || a.localeCompare(b));
+  const best = ranked.length ? score(ranked[0]!) : 0;
+  return best > 0 ? ranked.filter((url) => score(url) === best) : ranked.slice(0, 1);
 }

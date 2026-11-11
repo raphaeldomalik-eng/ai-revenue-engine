@@ -5,7 +5,7 @@ import { attributes, decodeHtml, hrefTags, selfClosingTags, tags, visibleText } 
 import { canonicalHttpsUrl } from "../network.ts";
 import { registrableDomain, wwwCounterpart } from "../site-identity.ts";
 import { recognisedEmailDomain } from "../../email-suffix.ts";
-import { acceptVenueEmail } from "../../venue-email.ts";
+import { acceptVenueEmail, distinctiveNameTokens } from "../../venue-email.ts";
 import type { FetchedDocument } from "../types.ts";
 
 export type IdentityFact = { fieldName: string; value: unknown; sourceUrl: string; evidenceRef: string };
@@ -91,6 +91,73 @@ function addContact(out: ResourceExtraction, doc: FetchedDocument, type: string,
   out.publicContacts.push({ type, value, sourceUrl: doc.url, confidence, reviewRequired, evidenceRef, purpose: classifyPurpose(type, `${type === "EMAIL" ? value : ""} ${context} ${new URL(doc.url).pathname.replace(/[\/_-]/g, " ")}`), normalized, original, label });
   out.evidenceRefs.push(evidenceRef);
 }
+/**
+ * A group site's "our properties" page lists every sibling property's mailbox. Those addresses belong to other
+ * properties, not to the venue being enriched (2026-11-11 replay: peermont.com/our-properties/ yielded ten
+ * mailboxes on nine unrelated domains, all accepted). Three or more different off-domain mailbox domains on one
+ * page identify a directory of other properties, so those mailboxes are retained for review, not asserted.
+ */
+function flagSiblingPropertyMailboxes(doc: FetchedDocument, out: ResourceExtraction, firstIndex: number, venueName = "") {
+  const site = registrableDomain(new URL(doc.url).hostname);
+  const offDomain = out.publicContacts.slice(firstIndex).filter((item) => item.type === "EMAIL" && !item.reviewRequired && registrableDomain(String(item.value).split("@")[1] ?? "") !== site && !FREE_MAIL.test(String(item.value).split("@")[1] ?? ""));
+  // An off-domain mailbox is accepted from the homepage and from contact, hire, event and venue pages. On any other page of
+  // a group site it belongs to whatever that page is about (2026-11-11 replay: reception@montebg.co.za on
+  // /casino/montecasino-bird-gardens/ was asserted for The Pivot Hotel).
+  const pagePath = new URL(doc.url).pathname.toLowerCase();
+  const nameTokens = venueName.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 3 && !GENERIC_NAME_WORD.test(token));
+  // A path that names the venue only counts when every word in it belongs to the venue name or is a generic path word:
+  // "/casino/montecasino-bird-gardens/" shares "montecasino" with "The Pivot Hotel Montecasino" but is another attraction.
+  const nameWordSet = new Set(venueName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const pathWordList = pagePath.split(/[^a-z0-9]+/).filter(Boolean);
+  const namesVenue = nameTokens.some((token) => pathWordList.includes(token)) && pathWordList.every((word) => nameWordSet.has(word) || GENERIC_PATH_WORD.test(word));
+  const relevantPage = pagePath.replace(/\/+$/, "") === "" || PURPOSE_PAGE.test(pagePath) || namesVenue;
+  if (!relevantPage && offDomain.length) {
+    for (const item of offDomain) {
+      item.reviewRequired = true;
+      item.label = `${item.label ?? ""} Mailbox of another domain found on a page unrelated to contact or hire; retained for review.`.trim().slice(-512);
+    }
+    return;
+  }
+  const domains = new Set(offDomain.map((item) => registrableDomain(String(item.value).split("@")[1] ?? ""))).size;
+  // Six or more off-domain mailboxes on one page is a staff or agent directory (2026-11-11 replay: eslondon.co.uk
+  // /contact-us/ listed 19 esworld.com agent mailboxes), not a venue enquiry address.
+  if (domains < 3 && offDomain.length < 6) return;
+  for (const item of offDomain) {
+    item.reviewRequired = true;
+    item.label = `${item.label ?? ""} Page lists many mailboxes outside the venue site (other properties or staff directory); retained for review.`.trim().slice(-512);
+  }
+}
+/**
+ * A group's venue page may list several properties' role mailboxes on the group's own domain
+ * (2026-11-11 replay: tsogosun.com/hotel/the-pivot-hotel listed palazzo.reservations@, piazza.reservations@ and
+ * hotelperte.reservations@ beside pivot.reservations@). When two or more different property prefixes appear,
+ * those that do not match the venue name belong to other properties and are retained for review.
+ */
+const GENERIC_PATH_WORD = /^(?:the|and|at|of|hotel|hotels|resort|lodge|inn|spa|venue|venues|bar|bars|restaurant|home|our|uk|za|en|us|gb|property|properties|location|locations|accommodation|accommodations|stay|rooms?|suites?|overview|details|gallery|photos|index|html|php|aspx)$/i;
+const PURPOSE_PAGE =/contact|enquir|inquir|hire|event|wedding|function|conferenc|corporate|private|book|about|location|find-us|venue|meeting|part(?:y|ies)|celebrat|reserv|get-in-touch|sales|facilit|space|room/i;
+/** A WordPress author link (`rel="author"`, vcard) carries the site builder's login e-mail as page metadata, not a venue contact. */
+function withoutAuthorMetadata(html: string): string {
+  return html.replace(/<a\b[^>]*\brel=["'][^"']*\bauthor\b[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, " ");
+}
+const PROPERTY_ROLE_MAILBOX =/^([a-z][a-z0-9-]{2,})[._-](?:reservations?|reception|bookings?|events?|info|enquiries|conferences?|banqueting|sales|stay)$/i;
+const GENERIC_MAILBOX_PREFIX = /^(?:info|events?|sales|hire|bookings?|booking|enquiries|enquiry|reservations?|reception|general|admin|office|marketing|team|hello|venue|weddings?|functions?|conference|conferences|groups?|corporate|private|res|accounts?|support|manager|head)$/i;
+const GENERIC_NAME_WORD = /^(?:the|and|hotel|hotels|resort|lodge|inn|venue|centre|center|hall|house|suites?|spa|bar|club|apartments?|guest|conference|convention)$/i;
+function flagOtherPropertyMailboxes(out: ResourceExtraction, firstIndex: number, venueName: string) {
+  const tokens = venueName.toLowerCase().split(/[^a-z0-9]+/).filter((token) => token.length >= 3 && !GENERIC_NAME_WORD.test(token));
+  const squashed = venueName.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const prefixed = out.publicContacts.slice(firstIndex).flatMap((item) => {
+    if (item.type !== "EMAIL" || item.reviewRequired) return [];
+    const prefix = PROPERTY_ROLE_MAILBOX.exec(String(item.value).split("@")[0] ?? "")?.[1]?.toLowerCase();
+    return prefix && !GENERIC_MAILBOX_PREFIX.test(prefix) ? [{ item, prefix }] : [];
+  });
+  if (new Set(prefixed.map((entry) => entry.prefix)).size < 2) return;
+  for (const { item, prefix } of prefixed) {
+    if (tokens.some((token) => prefix.includes(token) || token.includes(prefix)) || (squashed.length >= 3 && squashed.includes(prefix))) continue;
+    item.reviewRequired = true;
+    item.label = `${item.label ?? ""} Mailbox names a different property from this venue; retained for review.`.trim().slice(-512);
+  }
+}
+const FREE_MAIL = /^(?:gmail|googlemail|outlook|hotmail|live|msn|yahoo|ymail|icloud|me|aol|btinternet|sky|mweb|telkomsa|vodamail|webmail|iafrica|absamail)\./i;
 function addFact(out: ResourceExtraction, doc: FetchedDocument, fieldName: string, value: unknown, confidence = 0.8,reviewRequired=false) {
   if (fieldName === "capacity") {
     const next = value as { space: string | null; layout: string; count: number };
@@ -290,12 +357,15 @@ function publishedEmailReview(email: string, pageUrl: string, context: string, v
 function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: string) {
   const path = new URL(doc.url).pathname;
   // These paths stay out of phone, form, and messaging extraction. Email candidates are still read and classified one by one.
-  const skipNonEmail = /\b(?:accommodation|hotels?|suppliers?|partners?|sponsors?|directory|search|privacy|terms)\b/i.test(path);
+  const excludedNonContactPath = /\b(?:suppliers?|partners?|sponsors?|directory|search|privacy|terms)\b/i.test(path);
+  const accommodationDirectory = /(?:^|\/)(?:accommodation|hotels?)(?:\/|$)/i.test(path);
+  const contactPurposePath = /(?:^|\/)(?:contact(?:-us)?|meetings?|venue-hire|private-hire|enquir(?:y|ies)|conference)(?:\/|$)/i.test(path);
+  const skipNonEmail = excludedNonContactPath || (accommodationDirectory && !contactPurposePath);
   const body = doc.body.replace(/<section\b([^>]*)>[\s\S]*?<\/section>/gi, (section, attrs: string) =>
     /\b(?:ticketing[\s-]*provider|third[\s-]*party|website[\s-]*designer|external[\s-]*support)\b/i.test(`${attrs} ${visibleText(section).slice(0, 100)}`) ? " " : section)
     .replace(/<form\b[^>]*(?:newsletter|subscribe|mailchimp|login|signin)[^>]*>[\s\S]*?<\/form>/gi, " ");
   const primary = visibleText(body.replace(/<footer\b[\s\S]*?<\/footer>/gi, " "));
-  const emailText = [emailSurface(cloudflareEmailHtml(doc.body)), ...publishedDescriptions(doc.body)].filter(Boolean).join("\n");
+  const emailText = [emailSurface(cloudflareEmailHtml(withoutAuthorMetadata(doc.body))),...publishedDescriptions(doc.body)].filter(Boolean).join("\n");
   const addPublishedEmail = (email: string, confidence: number, context: string) => {
     const domain = email.split("@")[1] ?? "";
     if (!registrableDomain(domain)) return;
@@ -319,18 +389,18 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: stri
     }
     else if (/^(?:https:\/\/(?:wa\.me\/\d|(?:api\.)?whatsapp\.com\/send\?phone=)|whatsapp:\/\/send\?phone=)/i.test(href)) addContact(out, doc, "WHATSAPP", href, 0.85, false, label);
     else if (/messenger|facebook\.com\/messages/i.test(href)) addContact(out, doc, "BUSINESS_MESSAGING", href, 0.75, false, label);
-    else if (/\bcontact(?:\s+us)?\b/i.test(label)) {
-      const url = sameOrigin(href, doc.url);
-      if (url && /\bcontact\b/i.test(new URL(url).pathname)) addContact(out, doc, "CONTACT_FORM", url, 0.6, true, label);
-    }
+    // A navigation link is a crawl lead, not evidence that a form exists.
   }
   if (!skipNonEmail) for (const form of tags(body, "form")) {
     const descriptor = `${form.attrs.action ?? ""} ${form.attrs.id ?? ""} ${form.attrs.class ?? ""} ${form.attrs.name ?? ""}`;
     if (/\b(?:search|comments?|newsletter|login|subscribe|signin|register|password)\b|wp-comments-post|wp-login/i.test(descriptor)) continue;
     if (/type=["']?password/i.test(form.inner)) continue;
-    if (!/\b(?:contact|enquir\w*|book\w*|hire|message|sendmail)\b/i.test(descriptor)
+    // "contactForm" has no word boundary after "contact"; match camelCase ids as well as hyphenated ones.
+    if (!/(?:^|[^a-z])(?:contact|enquir|book|hire|message|sendmail)/i.test(descriptor)
       && !(/<textarea\b/i.test(form.inner) && /(?:name|id)=["']?email/i.test(form.inner))) continue;
-    const action = form.attrs.action?.trim() ? sameOrigin(form.attrs.action, doc.url) : doc.url;
+    // A venue page whose form posts to its booking provider is still the venue's own enquiry form: the
+    // observable contact route is this page, not the provider endpoint (2026-11-11: toca.social #contactForm).
+    const action = form.attrs.action?.trim() ? sameOrigin(form.attrs.action, doc.url) ?? doc.url : doc.url;
     if (action) addContact(out, doc, "CONTACT_FORM", action, 0.8, false, descriptor);
   }
   // A label must be separated from the address, or "bookings@venue" would also yield "s@venue".
@@ -366,6 +436,8 @@ const practical: Array<[string, RegExp]> = [
   ["hireSuitability", /\b(?:available|suitable)\s+for\s+(?:weddings?|receptions?|corporate events?|conferences?|private events?|meetings?|exhibitions?)\b[^.]{0,100}/i],
 ];
 
+export const RESOURCE_PRACTICAL_FIELDS = Object.freeze(practical.map(([field])=>field));
+
 const LAYOUTS: Array<[RegExp, string]> = [
   [/^(?:theatre|theater)(?:[- ]style)?$/i, "theatre"], [/^cabaret(?:[- ]style)?$/i, "cabaret"], [/^banquet(?:ing)?$/i, "banquet"],
   [/^(?:seated )?dinner(?: dance)?$|^dining$/i, "dinner"], [/^(?:drinks )?reception$/i, "reception"], [/^standing$/i, "standing"],
@@ -398,7 +470,8 @@ function headingSpace(heading: string | null, docUrl: string): string | null {
   const candidate = heading.replace(/\s+(?:hire|facilities)$/i, "");
   const named = /^[A-Za-z]/.test(heading)
     && !/^(?:ideal for|capacities|capacity|our spaces|venue spaces|the space|rooms|facilities|venue|contact|home|gallery|events|newsletter|more at|venue hire)/i.test(heading)
-    && !/\b(?:where|included|signup|follow|blog|homepage|experience|everything|enquiry)\b/i.test(heading)
+    && !/\b(?:where|included|signup|follow|blog|homepage|experience|everything|enquiry|opening hours|opening times)\b/i.test(heading)
+    && !/^(?:private|private hire|hire)$/i.test(heading.trim())
     && !/\b(?:access(?:ible|ibility)?|step[- ]free|wheelchair|tickets?|booking|parking|toilets?|companions?|assistance|performances?)\b/i.test(heading)
     && !/\b(?:event|capacity)\b/i.test(heading)
     && !/^(?:conference|corporate|wedding)\s+venue$/i.test(heading)
@@ -500,6 +573,13 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
   const body = visibleText(doc.body);
   for (const [field, pattern] of practical) {
     const match=body.match(pattern);let statement=clean(field==='outdoorSpace'?match?.[1]:match?.[0]);
+    if(match){
+      const start=match.index??0,preceding=body.slice(0,start).split(/[.!?\n]/).at(-1)??'';
+      const context=(preceding+match[0]).trim();
+      if(/\b(?:no|not|without|don['’]t|doesn['’]t|isn['’]t|aren['’]t|can['’]t|cannot|won['’]t)\s+(?:[a-z-]+\s+){0,4}$/i.test(preceding)||/\b(?:not (?:available|permitted|provided|allowed|accessible)|unavailable|closed)\b/i.test(match[0])){
+        addFact(out,doc,field,context,.8,true);continue;
+      }
+    }
     if(field==='outdoorSpace'&&match){
       const context=body.slice(Math.max(0,(match.index??0)-30),(match.index??0)+match[0].length+90);
       if(/\b(?:no|without)\s+(?:\w+\s+){0,2}(?:garden|terrace|courtyard|outdoor space)\b|\b(?:garden|terrace|courtyard|outdoor space)\b.{0,35}\b(?:not|unavailable|closed|may|might|subject to)\b/i.test(context)){
@@ -533,6 +613,10 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
       /\bcapacity\s*(?:of|:|-)?\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(banquet|reception|theatre|theater|standing|seated|classroom|cabaret|dinner|conference|boardroom)?\b/gi,
       /\bup to\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(standing|seated|guests?|people)\b/gi,
       /\b(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(standing|seated)\b/gi,
+      // "larger reception sets up to 450": the layout comes first, so the count is the second group, as in pattern 0.
+      /\b(banquet|reception|theatre|theater|standing|seated|classroom|cabaret|dinner|conference|boardroom)\s+(?:sets?|set[- ]?ups?|layouts?)\s+(?:of\s+|up\s+)?(?:up\s+)?to\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\b/gi,
+      // "host 80 people comfortably", "cater for 100 – 120 guests": a hosting verb states event capacity; a range keeps its upper bound.
+      /\b(?:host|hosts|cater\s+for|caters\s+for|seat|seats|hold|holds)\s+(?:up\s+to\s+|between\s+)?(\d{1,3}(?:,\d{3})+|\d{1,5})(?:\s*(?:[-–—]|to|and)\s*(\d{1,3}(?:,\d{3})+|\d{1,5}))?\s+(?:guests?|people|delegates|persons|pax)\b/gi,
     ];
     const consumed: Array<[number, number]> = [];
     for (const match of section.body.matchAll(/\b(?:[Cc]apacit(?:y|ies)|CAPACIT(?:Y|IES))\s*[:\-–]?\s*((?:[A-Z][A-Za-z'&]*\s+){0,3}[A-Z][A-Za-z'&]*)\s*[:\-–]\s*(\d{1,3}(?:,\d{3})+|\d{2,5})\b/g)) {
@@ -542,16 +626,25 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
       addFact(out, doc, "spaces", name, 0.85);
       addFact(out, doc, "capacity", { space: name, layout: "unspecified", count, statement: match[0].trim() }, 0.85);
     }
-    for (const [index, pattern] of patterns.entries()) for (const match of section.body.matchAll(pattern)) {
+    for (const [index, pattern] of patterns.entries()) {
+      const hosting = index === 5;
+      // Welcome copy is often set as a heading (cellar1848.co.za: "…can cater for 100 – 120 Guests…" inside an h2),
+      // and heading text is otherwise only a section name.
+      const text = hosting ? `${section.name ?? ""}. ${section.body}` : section.body;
+      for (const match of text.matchAll(pattern)) {
       const start = match.index ?? 0; const end = start + match[0].length;
-      if (consumed.some(([from, to]) => start < to && end > from)) continue;
-      if (/^\s*x\b/i.test(section.body.slice(end, end + 4))) continue;
-      const count = Number((index === 0 ? match[2] : match[1])?.replaceAll(",", ""));
+      if (!hosting && consumed.some(([from, to]) => start < to && end > from)) continue;
+      if (/^\s*x\b/i.test(text.slice(end, end + 4))) continue;
+      const layoutFirst = index === 0 || index === 4;
+      // Beds are not event capacity ("hold 22 guests in self-catering cottages").
+      if (hosting && /\b(?:cottages?|bedrooms?|overnight|sleeps?|beds?|tents?|glamping|accommodation|rooms? (?:are|is)? ?available)\b/i.test(text.slice(Math.max(0, start - 60), end + 80))) continue;
+      const count = Number((layoutFirst ? match[2] : hosting ? match[2] ?? match[1] : match[1])?.replaceAll(",", ""));
       if (!Number.isSafeInteger(count) || count < (index === 3 ? 10 : 2) || count > 100000) continue;
-      consumed.push([start, end]);
-      const rawLayout = index === 0 ? match[1] : match[2];
+      if (!hosting) consumed.push([start, end]);
+      const rawLayout = hosting ? null : layoutFirst ? match[1] : match[2];
       const layout = rawLayout ? /^(?:guests?|people)$/i.test(rawLayout) ? "unspecified" : rawLayout.toLowerCase().replace("theater", "theatre") : "unspecified";
       addFact(out, doc, "capacity", { space, layout, count, statement: match[0].trim() }, 0.9);
+      }
     }
     if (/\b(?:room|space|venue)\s+capacit(?:y|ies)\b/i.test(section.body)) {
       const listed = [...section.body.matchAll(/\b([A-Z][\w'&-]*(?:\s+[A-Z][\w'&-]*){0,3})\s*[–—-]\s*(\d{2,5})\b/g)];
@@ -716,6 +809,35 @@ function pdfPageDocuments(doc: FetchedDocument): FetchedDocument[] {
   })).filter((page) => page.body.length > 0);
 }
 
+/** Body copy is a description candidate only when it describes this page's venue, not interface or sibling marketing. */
+function venueDescriptionParagraph(text: string, venueName: string, pageIdentity: string, localHeading: string): boolean {
+  if (/^(?:please\s+)?(?:select|choose|enter|click|submit|search|subscribe)\b|\b(?:read more|find out more|book now|sign up|send message)\b/i.test(text)) return false;
+  if (/\b(?:sister|partner|another|other)\s+(?:venue|property|location|hotel|bar|pub|restaurant)\b|\bacross (?:our|all) (?:venues|properties|locations)\b/i.test(text)) return false;
+  const normalized = (value: string) => value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const target = normalized(venueName).replace(/^the /,''), distinctive = distinctiveNameTokens(venueName);
+  const matchesTarget = (value: string) => {
+    const words = normalized(value), tokens = new Set(words.split(' '));
+    return Boolean(target && (distinctive.length ? distinctive.every(token=>tokens.has(token)) : words.includes(target)));
+  };
+  const namedSubject = text.match(/^([A-Z][\p{L}'-]*(?:\s+[A-Z][\p{L}'-]*){1,5})(?=\s*(?:,|\b(?:is|has|offers|hosts|provides|features|boasts)\b))/u)?.[1];
+  if (target && namedSubject && !/^(?:Our|The Venue|This Venue)\b/.test(namedSubject) && !matchesTarget(namedSubject)) return false;
+  // A page title cannot lend the target's identity to a separately named property card.
+  const sectionWords=new Set(['about','hire','welcome','discover','explore','information','details','history','story','facilities','amenities','private','corporate','wedding','weddings','contact','gallery','photos','images','accessibility','accommodation','our','the','this','why','choose','and']);
+  // Property names need not contain a venue noun (for example The Old Bank).
+  // Unknown named sections cannot inherit the page title's identity; only the
+  // target's own heading or a generic section label may lend that context.
+  // Independently target-named subject prose does not borrow heading identity;
+  // a passing mention in a comparison or sibling card is not enough.
+  const namedSection = distinctiveNameTokens(localHeading).some(token=>!sectionWords.has(token));
+  const normalizedSubjectText=normalized(text).replace(/^the /,'');
+  const exactTargetSubject=Boolean(target && normalizedSubjectText.startsWith(target+' ')
+    && /^(?:is|has|offers|hosts|provides|features|boasts)\b/.test(normalizedSubjectText.slice(target.length+1)));
+  if (target && namedSection && !matchesTarget(localHeading) && !exactTargetSubject) return false;
+  if (target) return matchesTarget(text) || matchesTarget(pageIdentity);
+  // Unscoped extraction retains clearly descriptive venue copy only; it grants no identity authority.
+  return /\b(?:venue|hall|pub|bar|theatre|theater|restaurant|hotel|museum|gallery|chapel|church|stadium|auditorium|room|space|garden|courtyard|terrace|tap\s*room|food|dining|entertainment|heritage|historic|brickwork|riverside|waterfront)\b/i.test(text);
+}
+
 function extractDocument(source: FetchedDocument, extractors: SourceExtractor[], venueName: string): ResourceExtraction {
   const out: ResourceExtraction = { identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], evidenceRefs: [], warnings: [] };
   if (source.kind === "PDF") {
@@ -727,7 +849,7 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
     return out;
   }
   const doc = source.derivedMarkup ? { ...source, body: `${source.body}\n${source.derivedMarkup}` } : source;
-  const root = extractors.includes("VENUE_FACTS") || extractors.includes("IMAGE_CANDIDATES") ? parseHtml(doc.body) : null;
+  const root = extractors.some(e=>["IDENTITY","VENUE_FACTS","IMAGE_CANDIDATES"].includes(e)) ? parseHtml(doc.body) : null;
   structured(doc, out, extractors, venueName);
   if (extractors.includes("IDENTITY")) {
     const parsedDocUrl = new URL(doc.url);
@@ -750,12 +872,26 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
     if (landingPage && heading && !/^(?:home|welcome|contact us)$/i.test(heading)) addIdentity(out, doc, "explicitVenueName", heading);
     const existingAddresses = out.identityFacts.filter((item) => item.fieldName === "address").map((item) => String(item.value).replace(/\s+/g, " ").trim().toLowerCase());
     if (address && !existingAddresses.includes(address.replace(/\s+/g, " ").trim().toLowerCase())) addIdentity(out, doc, "address", address);
+    // Retain source paragraphs verbatim, before meta, with the same page/hash
+    // lineage. Navigation, forms and unrelated news are not venue descriptions.
+    if(root&&!/\/(?:news|blogs?|press|events?|gigs?|shows?|tickets?|privacy|terms)(?:\/|$)/i.test(new URL(doc.url).pathname)){
+      const descriptions=elements(root,e=>e.tag==='p'||e.attrs.itemprop==='description').filter(e=>
+        !closestAncestor(e,a=>['nav','footer','header','form','aside','script','style','template'].includes(a.tag)
+          || /cookie|newsletter|subscribe|navigation|social-links/i.test(`${a.attrs.id??''} ${a.attrs.class??''}`)))
+        .map(e=>({text:clean(textContent(e)),heading:precedingHeading(root,e)})).filter(row=>Boolean(row.text&&/[a-z]/i.test(row.text)
+          && !/@|\b(?:subscribe|cookie consent|privacy policy|all rights reserved|send message)\b/i.test(row.text)
+          && venueDescriptionParagraph(row.text,venueName,`${title??''} ${heading??''} ${out.identityFacts.filter(f=>['siteName','placeName','explicitVenueName'].includes(f.fieldName)).map(f=>String(f.value)).join(' ')}`,row.heading?textContent(row.heading):''))).map(row=>row.text!);
+      for(const text of [...new Set(descriptions)].slice(0,20)){
+        if(text.length>10000){out.warnings.push('Source description paragraph exceeded the bounded text payload; retained page evidence requires review.');continue;}
+        addIdentity(out,doc,'siteDescription',text);
+      }
+    }
     addIdentity(out, doc, "siteDescription", firstMeta(doc.body, "description") ?? firstMeta(doc.body, "og:description"));
     const canonical = selfClosingTags(doc.body, "link").map((tag) => tag.attrs).find((attrs) => /\bcanonical\b/i.test(attrs.rel ?? ""))?.href;
     const canonicalUrl = canonical ? sameOrigin(canonical, doc.url) : null;
     if (landingPage && canonicalUrl) addIdentity(out, doc, "canonicalUrl", canonicalUrl);
   }
-  if (extractors.includes("PUBLIC_CONTACT")) contacts(doc, out, venueName);
+  if (extractors.includes("PUBLIC_CONTACT")) { const first = out.publicContacts.length; contacts(doc, out, venueName); flagSiblingPropertyMailboxes(doc, out, first, venueName); flagOtherPropertyMailboxes(out, first, venueName); }
   if (extractors.includes("VENUE_FACTS")) venueFacts(doc, out, root);
   if (extractors.includes("SOURCE_CLASSIFICATION")) classificationEvidence(doc, out);
   if (extractors.includes("IMAGE_CANDIDATES")) images(doc, out, root, venueName);
@@ -770,7 +906,7 @@ export function extractResourcesFromDocuments(documents: FetchedDocument[], extr
     seenSources.add(key);
     const item = extractDocument(doc, extractors, venueName);
     merged.identityFacts.push(...item.identityFacts); merged.publicContacts.push(...item.publicContacts);
-    merged.venueFacts.push(...item.venueFacts); merged.imageCandidates.push(...item.imageCandidates); merged.evidenceRefs.push(...item.evidenceRefs);
+    merged.venueFacts.push(...item.venueFacts); merged.imageCandidates.push(...item.imageCandidates); merged.evidenceRefs.push(...item.evidenceRefs); merged.warnings.push(...item.warnings);
   }
   const unique = <T>(items: T[], key: (item: T) => string) => [...new Map(items.map((item) => [key(item), item])).values()];
   const identityFacts = unique(merged.identityFacts, (item) => `${item.fieldName}:${JSON.stringify(item.value)}:${item.sourceUrl}`);

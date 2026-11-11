@@ -1,3 +1,4 @@
+import {candidateRejection} from '../venue-email.ts';
 import {classifyCrawlDisposition} from './crawl-disposition.ts';
 import { createHash } from "node:crypto";
 import type { SourceExtractor } from "../contracts.ts";
@@ -93,6 +94,20 @@ class CrawlRefusal extends Error {
   }
 }
 
+/** Operational evidence-storage failure: never an optional page failure or transport retry. */
+class TerminalUrlHistoryFailure extends Error {
+  readonly code: "TERMINAL_URL_HISTORY_READ_FAILED" | "TERMINAL_URL_HISTORY_WRITE_FAILED";
+  readonly url: string;
+  readonly status: 404 | 410 | null;
+  constructor(operation: "READ" | "WRITE", url: string, status: 404 | 410 | null = null) {
+    super(`Terminal URL history ${operation.toLowerCase()} failed; all crawl work blocked pending operational recovery.`);
+    this.name = "TerminalUrlHistoryFailure";
+    this.code = operation === "READ" ? "TERMINAL_URL_HISTORY_READ_FAILED" : "TERMINAL_URL_HISTORY_WRITE_FAILED";
+    this.url = url;
+    this.status = status;
+  }
+}
+
 function transportRefusal(error: unknown): CrawlRefusal {
   const failure = classifyTransportFailure(error);
   return new CrawlRefusal(refusalMessage(error, "Discovery request failed."), failure === "CERTIFICATE" ? "TERMINAL" : "RETRYABLE", failure === "TRANSIENT");
@@ -166,6 +181,31 @@ function diagnostic(ctx:Ctx,url:string,error:unknown){
  const e=error as Error&{code?:string;cause?:{code?:string}};
  ctx.stats.diagnostics.push({url:manifestSafeUrl(url),observedAt:ctx.now().toISOString(),code:String(e?.code??e?.cause?.code??e?.name??'UNKNOWN').slice(0,128),message:refusalMessage(error,'Request failed.').slice(0,1024)});
 }
+async function terminalSnapshot(ctx: Ctx, url: string): Promise<ResponseSnapshot | null> {
+  let held;
+  try { held = await ctx.input.terminalUrlHistory?.get(url); }
+  catch { throw new TerminalUrlHistoryFailure("READ", url); }
+  if (held) {
+    if ((ctx.stats.diagnostics ??= []).length < 256) ctx.stats.diagnostics.push({ url: manifestSafeUrl(url), observedAt: held.observedAt, code: "TERMINAL_URL_HISTORY", status: held.status, message: "Reused direct HTTP observation; no network request." });
+    return { status: held.status, headers: new Headers(), bytes: new Uint8Array() };
+  }
+  return null;
+}
+
+async function retainTerminalSnapshot(ctx: Ctx, url: string, snapshot: ResponseSnapshot): Promise<ResponseSnapshot> {
+  if (snapshot.status === 404 || snapshot.status === 410) {
+    try { await ctx.input.terminalUrlHistory?.set({ url, status: snapshot.status, observedAt: ctx.now().toISOString(), source: "DIRECT_HTTP_RESPONSE" }); }
+    catch {
+      // Preserve the real response even when its durable write fails. It is not a fabricated transport status.
+      if ((ctx.stats.diagnostics ??= []).length < 256) ctx.stats.diagnostics.push({ url: manifestSafeUrl(url), observedAt: ctx.now().toISOString(), code: "HTTP_" + snapshot.status, status: snapshot.status });
+      if (ctx.obs.responseManifest.length < 256) ctx.obs.responseManifest.push({ url: manifestSafeUrl(url), status: snapshot.status, contentType: snapshot.headers.get("content-type"), bytes: snapshot.bytes.length, responseHash: createHash("sha256").update(snapshot.bytes).digest("hex") });
+      else ctx.obs.responseManifestOmitted++;
+      throw new TerminalUrlHistoryFailure("WRITE", url, snapshot.status);
+    }
+  }
+  return snapshot;
+}
+
 async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: number, headers: Record<string, string> = {}): Promise<ResponseSnapshot> {
   const allowedHosts = ctx.input.allowedHosts;
   if (allowedHosts?.length && !allowedHosts.includes(new URL(url).hostname.toLowerCase())) {
@@ -176,28 +216,39 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
   try {
     if (ctx.fetchImpl) await assertPublicNetworkTarget(url, ctx.resolveHost);
   } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
     if (!(error instanceof NetworkRefusal)) {
       // A resolver failure is a transport attempt, counted exactly as the pinned production path counts it.
       ctx.stats.requestCount += 1;
-      diagnostic(ctx,url,error);
+      ctx.input.auditCapture?.failure(url,/size limit/i.test(String(error))?'RESPONSE_SIZE_LIMIT':error instanceof UnsupportedContent?'CONTENT_TYPE_NOT_READ':'RESPONSE_UNAVAILABLE');
+    diagnostic(ctx,url,error);
       throw transportRefusal(error);
     }
     ctx.stats.blockedCount += 1;
     ctx.obs.blockedPages.push({ url, reason: "NON_PUBLIC_NETWORK_TARGET" });
     throw new CrawlRefusal(refusalMessage(error, "Refused a non-public HTTPS URL."), "TERMINAL");
   }
+  const held = await terminalSnapshot(ctx, url);
+  if (held) return held;
   ctx.stats.requestCount += 1;
   const origin = new URL(url).origin;
   const key = `${url}\n${accept}\n${JSON.stringify(headers)}`;
   try {
     const snapshot = await ctx.politeness.singleFlight(key, () => ctx.politeness.run(origin, ctx.budget.minRequestDelayMs, async () => {
+      // Recheck after the origin queue: another request may have just observed this exact URL.
+      const held = await terminalSnapshot(ctx, url);
+      if (held) { ctx.stats.requestCount -= 1; return held; }
       if (!ctx.fetchImpl) {
-        const response = await fetchPinned({ url, resolveHost: ctx.resolveHost, userAgent: ctx.userAgent, accept, maxBytes, timeoutMs: ctx.budget.timeoutMs, headers, refuseContentType: refuseByHeaders });
-        return { status: response.status, headers: response.headers, bytes: new Uint8Array(await response.arrayBuffer()) };
+        const response = await fetchPinned({ url, resolveHost: ctx.resolveHost, userAgent: ctx.userAgent, accept, maxBytes, timeoutMs: ctx.budget.timeoutMs, headers, skipBodyStatuses: [404, 410], refuseContentType: refuseByHeaders });
+        return retainTerminalSnapshot(ctx, url, { status: response.status, headers: response.headers, bytes: new Uint8Array(await response.arrayBuffer()) });
       }
       const fetchImpl = ctx.fetchImpl;
-      return withTimeout((async () => {
+      const responseSnapshot = await withTimeout((async () => {
         const response = await fetchImpl(url, { redirect: "manual", headers: { "User-Agent": ctx.userAgent, Accept: accept, ...headers } });
+        if (response.status === 404 || response.status === 410) {
+          await response.body?.cancel().catch(() => undefined);
+          return { status: response.status, headers: response.headers, bytes: new Uint8Array() };
+        }
         const contentType = response.headers.get("content-type");
         const refusal = response.status >= 200 && response.status < 300 ? refuseByHeaders(contentType) : null;
         if (refusal) {
@@ -213,7 +264,9 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
         if (bytes.length > maxBytes) throw new Error("Response exceeded the discovery size limit.");
         return { status: response.status, headers: response.headers, bytes };
       })(), ctx.budget.timeoutMs);
+      return retainTerminalSnapshot(ctx, url, responseSnapshot);
     }));
+    ctx.input.auditCapture?.response({url,status:snapshot.status,contentType:snapshot.headers.get('content-type'),contentEncoding:snapshot.headers.get('content-encoding'),bytes:snapshot.bytes});
     const retryAfter=snapshot.headers.get('retry-after'),delay=parseRetryAfter(retryAfter,ctx.now().getTime());
     const challenge=/cf-chl-|challenge-platform|verify (?:that )?you are human|<title>\s*(?:just a moment|attention required)/i.test(new TextDecoder().decode(snapshot.bytes.subarray(0,16000)))&&(snapshot.status===403||snapshot.status===503||snapshot.status===200);
     if((snapshot.status>=400||challenge)&&(ctx.stats.diagnostics??=[]).length<256)ctx.stats.diagnostics.push({url:manifestSafeUrl(url),observedAt:ctx.now().toISOString(),code:challenge?'BOT_WAF_CHALLENGE':'HTTP_'+snapshot.status,status:snapshot.status,retryAfter:retryAfter?.slice(0,128)??null,retryNotBefore:delay===null?null:new Date(ctx.now().getTime()+delay).toISOString()});
@@ -223,6 +276,8 @@ async function networkRequest(ctx: Ctx, url: string, accept: string, maxBytes: n
     } else ctx.obs.responseManifestOmitted += 1;
     return snapshot;
   } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
+    ctx.input.auditCapture?.failure(url,/size limit/i.test(String(error))?'RESPONSE_SIZE_LIMIT':error instanceof UnsupportedContent?'CONTENT_TYPE_NOT_READ':'RESPONSE_UNAVAILABLE');
     diagnostic(ctx,url,error);
     if (error instanceof CrawlRefusal) throw error;
     if (error instanceof UnsupportedContent) throw new ContentSkipped(error.message);
@@ -251,6 +306,13 @@ async function fetchRobots(ctx: Ctx, origin: string): Promise<string> {
   let redirects = 0;
   let attempt = 0;
   const maxBytes = Math.min(ctx.budget.maxBytesPerResponse, 500_000);
+  // An apex that redirects to www answers with www's own robots.txt. Record it for that origin too, so
+  // the redirected page does not buy the same file again (2026-11-10: veldandsea fetched it three times).
+  const settled = (text: string) => {
+    const finalOrigin = new URL(current).origin;
+    if (redirects > 0 && finalOrigin !== origin && !ctx.robots.has(finalOrigin)) ctx.robots.set(finalOrigin, { text, status: text ? "FETCHED" : "ABSENT" });
+    return text;
+  };
   for (;;) {
     if (ctx.stats.requestCount >= ctx.budget.maxRequests) {
       throw new CrawlRefusal("Crawl request budget exhausted before robots.txt could be checked.", "TERMINAL");
@@ -259,6 +321,7 @@ async function fetchRobots(ctx: Ctx, origin: string): Promise<string> {
     try {
       snapshot = await networkRequest(ctx, current, "text/plain,*/*;q=0.1", maxBytes);
     } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
       if (error instanceof ContentSkipped) return "";
       if (canRetryTransient(ctx, error, attempt)) {
         await backoff(ctx, attempt);
@@ -291,10 +354,10 @@ async function fetchRobots(ctx: Ctx, origin: string): Promise<string> {
       continue;
     }
     if (snapshot.status === 429 || snapshot.status >= 500) throw new CrawlRefusal(`robots.txt returned HTTP ${snapshot.status}`, "RETRYABLE");
-    if (snapshot.status === 404 || snapshot.status === 410) return "";
+    if (snapshot.status === 404 || snapshot.status === 410) return settled("");
     if (snapshot.status < 200 || snapshot.status >= 300) throw new CrawlRefusal(`robots.txt returned HTTP ${snapshot.status}`, "TERMINAL");
     if (snapshot.bytes.length > maxBytes) throw new CrawlRefusal("robots.txt exceeded the discovery size limit.", "TERMINAL");
-    return decodeText(snapshot.bytes, snapshot.headers.get("content-type"));
+    return settled(decodeText(snapshot.bytes, snapshot.headers.get("content-type")));
   }
 }
 
@@ -306,6 +369,7 @@ async function ensureRobots(ctx: Ctx, origin: string): Promise<RobotsRecord> {
     const text = await fetchRobots(ctx, origin);
     record = { text, status: text ? "FETCHED" : "ABSENT" };
   } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
     record = { text: "", status: "UNAVAILABLE", error: error instanceof CrawlRefusal ? error : new CrawlRefusal(refusalMessage(error, "robots.txt unavailable"), "RETRYABLE") };
   }
   ctx.robots.set(origin, record);
@@ -361,6 +425,9 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
       ctx.obs.blockedPages.push({ url: current, reason: "ROBOTS_DISALLOW" });
       throw new Error(`robots.txt disallows ${current}`);
     }
+    // A prior success cache cannot override a later terminal HTTP observation.
+    const held = await terminalSnapshot(ctx, current);
+    if (held) throw new CrawlRefusal(`Source returned HTTP ${held.status} (retained direct observation; not fetched).`, "TERMINAL");
     const cached = cache ? await cache.get(current) : null;
     if (cached && ctx.input.freshnessMaxAgeHours && ctx.now().getTime() - Date.parse(cached.observedAt) <= ctx.input.freshnessMaxAgeHours * 3_600_000) {
       ctx.obs.cacheFreshHits += 1;
@@ -375,6 +442,7 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
     try {
       snapshot = await networkRequest(ctx, current, accept, ceiling, conditional);
     } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
       if (!canRetryTransient(ctx, error, attempt)) throw error;
       await backoff(ctx, attempt);
       ctx.stats.retries += 1;
@@ -400,6 +468,7 @@ async function fetchResource(ctx: Ctx, url: string, mode: FetchMode): Promise<{ 
     try {
       bytes = inflateBoundedDocument(snapshot.bytes, snapshot.headers.get("content-encoding"), snapshot.headers.get("content-type"), current, ceiling);
     } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
       throw new ContentSkipped(error instanceof Error ? error.message : "Compressed document could not be decoded within bounds.");
     }
     const headers = bytes === snapshot.bytes ? snapshot.headers : new Headers(snapshot.headers);
@@ -488,7 +557,7 @@ function finish(ctx: Ctx, output: { verifiedUrl: string; finalUrl: string; docum
   return { ...output, stats: ctx.stats, canonicalOrigin: ctx.site.canonicalOrigin, observability: obs, websiteOpportunity,
     evidenceManifest: { version: 1, attemptedRequests: ctx.stats.requestCount, requests: obs.responseManifest, requestsOmitted: obs.responseManifestOmitted,
       unrecordedRequests: Math.max(0, ctx.stats.requestCount - obs.responseManifest.length - obs.responseManifestOmitted),
-      pages: output.documents.filter((item) => item.kind !== "CALENDAR").map((item) => ({ url: item.url, sourceHash: item.sourceHash, contentType: item.contentType, bytes: item.bytes, kind: item.kind ?? "HTML", retrieval: item.retrieval ?? null, publisherType: "VERIFIED_FIRST_PARTY" as const, subjectAssignment: "TARGET" as const, evidenceRefs: [] })) } };
+      pages: output.documents.filter((item) => item.kind !== "CALENDAR").map((item) => ({ url: item.url, sourceHash: item.sourceHash, contentType: item.contentType, bytes: item.bytes, kind: item.kind ?? "HTML", retrieval: item.retrieval ?? null, publisherType: candidateRejection(item.url) ? "THIRD_PARTY_DIRECTORY" as const : "VERIFIED_FIRST_PARTY" as const, subjectAssignment: candidateRejection(item.url) ? "UNRESOLVED" as const : "TARGET" as const, evidenceRefs: [] })) } };
 }
 
 /** Thin static shells are first read through embedded hydration data, then (only if still inadequate) rendered. */
@@ -520,6 +589,7 @@ async function completeStaticRetrieval(ctx: Ctx, document: FetchedDocument, rend
     ctx.obs.renderedPages += 1;
     return { ...document, url: rendered.finalUrl, body: rendered.html, bytes: Buffer.byteLength(rendered.html, "utf8"), sourceHash: hashText(rendered.html), retrieval: "RENDERED", shellSignals: assessment.signals, derivedMarkup: derived || undefined };
   } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
     ctx.stats.warnings.push(`Rendered fallback for ${document.url} failed safely: ${refusalMessage(error, "unknown error")}`);
     return enriched;
   }
@@ -581,6 +651,7 @@ async function legacyLinkFollowing(ctx: Ctx, args: CrawlInput, verifiedUrl: stri
         }
       }
     } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
       rememberFailure(ctx.stats, error);
       if (error instanceof ContentSkipped) ctx.obs.skippedContent.push({ url: next, reason: error.message });
       if (item.calendar) ctx.stats.warnings.push(`Optional calendar unavailable: ${next}: ${error instanceof Error ? error.message : "unknown error"}`);
@@ -625,6 +696,12 @@ class ProfileSet {
     return [...new Set(this.profiles.flatMap((profile) => profile.linkDimensions(url, label)))];
   }
 
+  /** Present only when a requested profile ranks pages by venue information value. */
+  get tierOf(): ((url: string, label: string) => number) | undefined {
+    const tiering = this.profiles.filter((profile) => profile.pageTier);
+    return tiering.length ? (url, label) => Math.min(...tiering.map((profile) => profile.pageTier!(url, label))) : undefined;
+  }
+
   pdfDimensions(url: string, label: string): Dimension[] | null {
     const dims = this.profiles.flatMap((profile) => profile.pdfDimensions(url, label) ?? []);
     return dims.length ? [...new Set(dims)] : null;
@@ -660,7 +737,7 @@ async function consultSitemaps(ctx: Ctx, planner: GapPlanner, set: ProfileSet, r
   obs.consulted = true;
   obs.reason = reason;
   const origin = ctx.site.canonicalOrigin;
-  const robots = await ensureRobots(ctx, origin).catch(() => null);
+  const robots = await ensureRobots(ctx, origin).catch(error => { if (error instanceof TerminalUrlHistoryFailure) throw error; return null; });
   const declared = robotsSitemapDirectives(robots?.text ?? "").map((url) => ctx.site.canonicalize(url, `${origin}/`)).filter((url): url is string => Boolean(url) && ctx.site.isAllowedOrigin(new URL(url!).origin));
   const queue: Array<{ url: string; depth: number }> = (declared.length ? declared : conventionalSitemapUrls(origin)).map((url) => ({ url, depth: 0 }));
   const seen = new Set<string>();
@@ -696,6 +773,7 @@ async function consultSitemaps(ctx: Ctx, planner: GapPlanner, set: ProfileSet, r
         obs.candidatesAdded += 1;
       }
     } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
       if (error instanceof ContentSkipped) ctx.obs.skippedContent.push({ url: item.url, reason: error.message });
       if (!(error instanceof CrawlRefusal && /HTTP 404|HTTP 410/.test(error.message))) ctx.stats.warnings.push(`Sitemap unavailable: ${item.url}: ${refusalMessage(error, "unknown error")}`);
     }
@@ -703,7 +781,8 @@ async function consultSitemaps(ctx: Ctx, planner: GapPlanner, set: ProfileSet, r
 }
 
 async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, set: ProfileSet): Promise<CrawlOutput> {
-  const planner = new GapPlanner(set.requested);
+  // A form gap is closed by reading the contact page; it never takes a round-robin turn ahead of other gaps.
+  const planner = new GapPlanner(set.requested, set.requested.filter((dim) => !dim.endsWith(":FORM")), undefined, { tierOf: set.tierOf });
   const documents: FetchedDocument[] = [];
   const rendered = { count: 0 };
   const maxPdfs = args.budget.maxPdfDocuments ?? DEFAULT_MAX_PDFS;
@@ -807,6 +886,7 @@ async function gapPlannedCrawl(ctx: Ctx, args: CrawlInput, verifiedUrl: string, 
         planner.add({ ...followUp, discoveredFrom: document.url, label: "", strength: followUp.kind === "CALENDAR" ? 0 : 1 });
       }
     } catch (error) {
+    if (error instanceof TerminalUrlHistoryFailure) throw error;
       rememberFailure(ctx.stats, error);
       if (error instanceof ContentSkipped) ctx.obs.skippedContent.push({ url: candidate.url, reason: error.message });
       const message = error instanceof Error ? error.message : "unknown error";
@@ -855,6 +935,7 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
     politeness: args.politeness ?? sharedOriginPoliteness, sleep: args.sleep ?? realSleep, now: args.now ?? (() => new Date()), robots: new Map(), input: args,
     singleFlightBase: (args.politeness ?? sharedOriginPoliteness).singleFlightHits,
   };
+  try {
   const origin = new URL(verifiedUrl).origin;
   const robots = await ensureRobots(ctx, origin);
   if (robots.status === "UNAVAILABLE") {
@@ -874,7 +955,26 @@ export async function crawlVerifiedSource(args: CrawlInput): Promise<CrawlOutput
     ctx.obs.blockedPages.push({ url: verifiedUrl, reason: "ROBOTS_DISALLOW" });
     return finish(ctx, { verifiedUrl, finalUrl: verifiedUrl, documents: [] }, "ROBOTS_BLOCKED");
   }
-  return gapPlanned(profiles) ? gapPlannedCrawl(ctx, args, verifiedUrl, new ProfileSet(profiles)) : legacyLinkFollowing(ctx, args, verifiedUrl);
+  return await (gapPlanned(profiles) ? gapPlannedCrawl(ctx, args, verifiedUrl, new ProfileSet(profiles)) : legacyLinkFollowing(ctx, args, verifiedUrl));
+  } catch (error) {
+    if (!(error instanceof TerminalUrlHistoryFailure)) throw error;
+    stats.status = "BLOCKED";
+    stats.failureClass = "TERMINAL";
+    stats.blockedCount += 1;
+    stats.warnings.push(error.message);
+    diagnostic(ctx, error.url, error);
+    ctx.obs.blockedPages.push({ url: manifestSafeUrl(error.url), reason: error.code });
+    // pageCount counts returned evidence pages. Withhold fetched pages on an operational block,
+    // while retaining actual requests, bytes and response manifests for audit/accounting.
+    const withheldPages = stats.pageCount;
+    stats.pageCount = 0;
+    if (withheldPages) stats.warnings.push(`${withheldPages} fetched page(s) withheld after terminal URL history failure.`);
+    const result = finish(ctx, { verifiedUrl, finalUrl: verifiedUrl, documents: [] }, "ENTRY_FAILED");
+    stats.status = "BLOCKED";
+    ctx.obs.finalStatus = "BLOCKED";
+    stats.disposition = { ...stats.disposition!, code: error.code, category: "EVIDENCE_HELD", retryable: false, businessConclusion: false, url: manifestSafeUrl(error.url), httpStatus: error.status };
+    return result;
+  }
 }
 
 /** Established ranked link-following is kept whenever no requested profile asks for gap planning (e.g. EVENTS-only). */

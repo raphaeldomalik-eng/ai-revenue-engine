@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   return handleNexusExecuteRequest(request, {
     secret,
     store,
-    publicWeb: createPublicWebProvider({organisationSeed:configuredOrganisationSeed(store)}),
+    publicWeb: createPublicWebProvider({organisationSeed:configuredOrganisationSeed(store),terminalUrlHistory:store.terminalUrlHistory}),
     researchContext: researchContextFromPayload,
     allowResearch: !researchDisabled,
     allowSourceDiscovery: !sourceDiscoveryDisabled,

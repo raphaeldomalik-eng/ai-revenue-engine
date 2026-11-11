@@ -2,8 +2,11 @@
  * operator authority, contact acceptance or publication eligibility. */
 export type CrawlDiagnostic={url:string;observedAt:string;code:string;message?:string;status?:number;retryAfter?:string|null;retryNotBefore?:string|null};
 export type CrawlDisposition={version:1;code:string;category:'SUCCESS'|'RETRYABLE'|'TERMINAL'|'EVIDENCE_HELD';retryable:boolean;businessConclusion:false;url:string;domainReachable:boolean;httpStatus:number|null;retryNotBefore:string|null};
-type Input={verifiedUrl:string;finalUrl:string;documents?:Array<{url:string}>;stats:{requestCount:number;pageCount:number;warnings:string[];status:string;failureClass?:string;diagnostics?:CrawlDiagnostic[]};observability?:{responseManifest:Array<{url:string;status:number}>;blockedPages:Array<{url:string;reason:string}>;redirectChain?:unknown[]}};
+type Input={verifiedUrl:string;finalUrl:string;documents?:Array<{url:string}>;stats:{requestCount:number;pageCount:number;warnings:string[];status:string;failureClass?:string;diagnostics?:CrawlDiagnostic[];disposition?:CrawlDisposition};observability?:{responseManifest:Array<{url:string;status:number}>;blockedPages:Array<{url:string;reason:string}>;redirectChain?:unknown[]}};
 export function classifyCrawlDisposition(c:Input,scope:{identityVerified?:boolean;contactAccepted?:boolean;conflict?:string;humanExcluded?:boolean}={}):CrawlDisposition{
+ // Storage outages are operational holds, never a new website/business conclusion.
+ const retained=c.stats.disposition;
+ if(retained&&['TERMINAL_URL_HISTORY_READ_FAILED','TERMINAL_URL_HISTORY_WRITE_FAILED'].includes(retained.code))return {...retained};
  const responses=c.observability?.responseManifest??[],diagnostics=c.stats.diagnostics??[],blocked=c.observability?.blockedPages??[];
  const pageResponses=responses.filter(r=>!/(?:\/robots\.txt|sitemap[^/]*\.xml)(?:[?#]|$)/i.test(r.url));
  const entry=pageResponses.find(r=>r.url===c.verifiedUrl&&r.status>=400)||pageResponses.find(r=>r.status>=400)||pageResponses.find(r=>r.url===c.verifiedUrl)||pageResponses.at(-1);

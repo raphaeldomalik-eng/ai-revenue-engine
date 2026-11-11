@@ -1,0 +1,137 @@
+{
+  "version": "ReviewedMigrationManifestV2",
+  "description": "Resources V2 initial-inventory search acceleration (AIRE #121). Inert until a row in nexus_directory_inventory_acceleration is enabled with an authorisation reference.",
+  "target": {
+    "name": "aire",
+    "projectRef": "cdcfmnlmshnustrqficy",
+    "database": "postgres",
+    "ledgerHistory": {
+      "throughVersion": "20261102162851",
+      "rows": 49,
+      "sha256": "c196213180dea76da20167d3c68a97389474a9c56a2c40bf563e75ddc9afe1e2"
+    },
+    "preState": [
+      {
+        "description": "reserve_directory_search is exactly the reviewed pre-release definition (md5 9d6350c1...)",
+        "sql": "select md5(replace(pg_get_functiondef('public.reserve_directory_search(jsonb)'::regprocedure), chr(13), '')) = '9d6350c1edce3956c5b11f91ab023857' as ok"
+      },
+      {
+        "description": "neither the acceleration table nor its gate function exists yet",
+        "sql": "select to_regclass('public.nexus_directory_inventory_acceleration') is null and to_regprocedure('public.directory_inventory_acceleration_allows(text,text,text,bigint)') is null as ok"
+      }
+    ],
+    "identity": [
+      {
+        "description": "AIRE standing policy table, run table with execution_phase, receipt table and the migration ledger exist",
+        "sql": "select to_regclass('public.nexus_directory_standing_policy') is not null and to_regclass('public.nexus_directory_search_receipt') is not null and to_regclass('supabase_migrations.schema_migrations') is not null and exists(select 1 from information_schema.columns where table_schema='public' and table_name='nexus_directory_run' and column_name='execution_phase') and exists(select 1 from information_schema.columns where table_schema='public' and table_name='nexus_directory_standing_policy' and column_name='initial_inventory_completed_at') as ok"
+      },
+      {
+        "description": "service_role exists",
+        "sql": "select exists(select 1 from pg_roles where rolname='service_role') as ok"
+      },
+      {
+        "description": "reserve_directory_search exists, is SECURITY DEFINER and carries the daily ceiling exactly once, or the gate (already installed)",
+        "sql": "select p.prosecdef and (pg_get_functiondef(p.oid) like '%directory_inventory_acceleration_allows%' or (length(pg_get_functiondef(p.oid))-length(replace(pg_get_functiondef(p.oid),'if daily_count>=(case when a.provider_id=''brave-web-search''','')))/length('if daily_count>=(case when a.provider_id=''brave-web-search''')=1) as ok from pg_proc p where p.oid='public.reserve_directory_search(jsonb)'::regprocedure"
+      }
+    ],
+    "ledgerMustContain": [
+      "resources_initial_inventory_phase",
+      "resources_initial_http_clearance"
+    ]
+  },
+  "source": {
+    "approvedCommit": "63e05dbd336a5691fbbda8a29a7cf51993f8fabb",
+    "migrationDir": "supabase/migrations"
+  },
+  "limits": {
+    "lockTimeout": "10s",
+    "maxLockTimeout": "10s",
+    "statementTimeout": "120s",
+    "maxStatementTimeout": "120s",
+    "idleInTransactionTimeout": "60s",
+    "maxTransactionSeconds": 60
+  },
+  "lockTables": [],
+  "forbiddenSql": [
+    "\\btruncate\\b",
+    "\\bdrop\\s+(table|schema)\\b",
+    "(insert\\s+into|update|delete\\s+from)\\s+public\\.nexus_directory_(search_allowance|search_receipt|run|standing_policy)\\b"
+  ],
+  "preserve": [
+    {
+      "description": "every standing policy row, complete content of every column (so every policy hash)",
+      "sql": "select md5(count(*)::text||':'||coalesce(string_agg(md5(p::text),',' order by p.policy_id),'')) as snapshot from public.nexus_directory_standing_policy p"
+    },
+    {
+      "description": "the configuration of every search allowance (provider, policy, limits, prices, enabled, verification and expiry; counters excluded because AIRE keeps running)",
+      "sql": "select md5(count(*)::text||':'||coalesce(string_agg(md5(concat_ws('|',a.allowance_id,a.provider_id,a.policy_id,a.allocated_micro_usd,a.price_per_request_micro_usd,a.max_requests,a.enabled,a.requires_run,a.verified_at,a.expires_at,a.verification_ref)),',' order by a.allowance_id),'')) as snapshot from public.nexus_directory_search_allowance a"
+    }
+  ],
+  "migrations": [
+    {
+      "ordinal": 1,
+      "file": "20261111100000_resources_inventory_search_acceleration.sql",
+      "ledgerName": "resources_inventory_search_acceleration",
+      "bytes": 4245,
+      "sha256": "47469efd758fb3376b88cfbb43d2142beb2a8023766fef94474717d2970978d1",
+      "verify": [
+        {
+          "description": "acceleration table exists with row level security on and exactly the default-off state (no enabled row)",
+          "sql": "select to_regclass('public.nexus_directory_inventory_acceleration') is not null and (select relrowsecurity from pg_class where oid='public.nexus_directory_inventory_acceleration'::regclass) and not exists(select 1 from public.nexus_directory_inventory_acceleration where enabled) as ok"
+        },
+        {
+          "description": "reserve_directory_search calls the acceleration gate and still carries its budget, role and run-cap guards",
+          "sql": "select pg_get_functiondef('public.reserve_directory_search(jsonb)'::regprocedure) ~ all(array['directory_inventory_acceleration_allows','PROVIDER_DAILY_BUDGET','DIRECTORY_SEARCH_SERVICE_ROLE_REQUIRED','RUN_PROVIDER_BUDGET']) as ok"
+        }
+      ]
+    }
+  ],
+  "finalVerify": [
+    {
+      "description": "acceleration table exists with row level security on",
+      "sql": "select to_regclass('public.nexus_directory_inventory_acceleration') is not null and (select relrowsecurity from pg_class where oid='public.nexus_directory_inventory_acceleration'::regclass) as ok"
+    },
+    {
+      "description": "reserve_directory_search calls the acceleration gate and still carries its budget, role and run-cap guards",
+      "sql": "select pg_get_functiondef('public.reserve_directory_search(jsonb)'::regprocedure) ~ all(array['directory_inventory_acceleration_allows','PROVIDER_DAILY_BUDGET','DIRECTORY_SEARCH_SERVICE_ROLE_REQUIRED','RUN_PROVIDER_BUDGET']) as ok"
+    },
+    {
+      "description": "public.directory_inventory_acceleration_allows(text,text,text,bigint) is executable by service_role only",
+      "sql": "select has_function_privilege('service_role','public.directory_inventory_acceleration_allows(text,text,text,bigint)','execute') and not has_function_privilege('anon','public.directory_inventory_acceleration_allows(text,text,text,bigint)','execute') and not has_function_privilege('authenticated','public.directory_inventory_acceleration_allows(text,text,text,bigint)','execute')\n   and not exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE') as ok from pg_proc p where p.oid='public.directory_inventory_acceleration_allows(text,text,text,bigint)'::regprocedure"
+    },
+    {
+      "description": "public.reserve_directory_search(jsonb) is still executable by service_role only",
+      "sql": "select has_function_privilege('service_role','public.reserve_directory_search(jsonb)','execute') and not has_function_privilege('anon','public.reserve_directory_search(jsonb)','execute') and not has_function_privilege('authenticated','public.reserve_directory_search(jsonb)','execute')\n   and not exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE') as ok from pg_proc p where p.oid='public.reserve_directory_search(jsonb)'::regprocedure"
+    },
+    {
+      "description": "acceleration table: service_role may read and write, anon and authenticated have no access",
+      "sql": "select has_table_privilege('service_role','public.nexus_directory_inventory_acceleration','select,insert,update') and not has_table_privilege('anon','public.nexus_directory_inventory_acceleration','select') and not has_table_privilege('authenticated','public.nexus_directory_inventory_acceleration','select') as ok"
+    }
+  ],
+  "rollback": {
+    "file": "release/rollback/resources-v2-aire-rollback.sql",
+    "bytes": 7029,
+    "sha256": "4f9298362eb316e0cc3a637ce05e19ca838037105bdab78a04adc689d2be92f0",
+    "forbiddenSql": [
+      "\\btruncate\\b",
+      "\\bdrop\\s+schema\\b",
+      "delete\\s+from\\s+public\\.nexus_directory_",
+      "alter\\s+table\\s+public\\.nexus_directory_",
+      "drop\\s+table\\s+(?!public\\.nexus_directory_inventory_acceleration\\b)"
+    ],
+    "verify": [
+      {
+        "description": "reserve_directory_search is restored to the reviewed pre-release definition",
+        "sql": "select md5(replace(pg_get_functiondef('public.reserve_directory_search(jsonb)'::regprocedure), chr(13), '')) = '9d6350c1edce3956c5b11f91ab023857' as ok"
+      },
+      {
+        "description": "the acceleration gate function is gone and no enabled control row can matter",
+        "sql": "select to_regprocedure('public.directory_inventory_acceleration_allows(text,text,text,bigint)') is null as ok"
+      },
+      {
+        "description": "public.reserve_directory_search(jsonb) is still executable by service_role only",
+        "sql": "select has_function_privilege('service_role','public.reserve_directory_search(jsonb)','execute') and not has_function_privilege('anon','public.reserve_directory_search(jsonb)','execute') and not has_function_privilege('authenticated','public.reserve_directory_search(jsonb)','execute')\n   and not exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE') as ok from pg_proc p where p.oid='public.reserve_directory_search(jsonb)'::regprocedure"
+      }
+    ]
+  }
+}

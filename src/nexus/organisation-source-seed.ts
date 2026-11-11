@@ -1,10 +1,11 @@
+import type { TerminalUrlHistory } from "./source-discovery/types.ts";
 import {createHash} from "node:crypto";
 import type {ResearchRequest} from "./contracts.ts";
 import type {ProviderResult} from "./executor.ts";
 import type {PublicWebSearchProvider} from "./official-website-discovery.ts";
 import {verifyFirstPartyIdentity,isSocialUrl} from "./public-web.ts";
 import {crawlVerifiedSource,extractFromFetchedDocuments,type CrawlOutput,type FetchLike,type ResolveHost} from "./source-discovery/crawler.ts";
-export type OrganisationSeedOptions={searchProvider:PublicWebSearchProvider|null;reserveSearch:(request:ResearchRequest,fingerprint:string)=>Promise<boolean>;fetchImpl?:FetchLike;resolveHost?:ResolveHost;now?:()=>string};
+export type OrganisationSeedOptions={terminalUrlHistory?:TerminalUrlHistory;searchProvider:PublicWebSearchProvider|null;reserveSearch:(request:ResearchRequest,fingerprint:string)=>Promise<boolean>;fetchImpl?:FetchLike;resolveHost?:ResolveHost;now?:()=>string};
 export type OrganisationSeedResult={status:"HELD"|"AMBIGUOUS"|"VERIFIED";reason:string;website:string|null;crawl:CrawlOutput|null;extraction:ReturnType<typeof extractFromFetchedDocuments>|null;searchEvidence:ProviderResult["evidence"][number]|null;providerUsage:NonNullable<ProviderResult["providerUsage"]>};
 const normal=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
 const intermediaries=new Set(["universe.com","ticketmaster.com","ticketmaster.co.uk","ticketweb.com","ticketweb.uk","wegottickets.com","eventbrite.com","eventbrite.co.uk","seetickets.com","dice.fm","skiddle.com","axs.com","companieshouse.gov.uk","find-and-update.company-information.service.gov.uk"]);
@@ -38,7 +39,7 @@ export async function discoverOrganisationSource(request:ResearchRequest,options
     for(const candidate of urls){
       const origin=new URL(candidate).origin;if(origins.has(origin))continue;origins.add(origin);if(checked++>=2)break;
       // Verify the site's own home page, rather than a directory/event page naming the seed.
-      const crawl=await crawlVerifiedSource({verifiedUrl:origin+"/",requestedExtractors:["IDENTITY","SOURCE_CLASSIFICATION","PUBLIC_CONTACT"],budget:{maxPages:2,maxRequests:4,maxBytesPerResponse:500000,maxRedirects:1,maxRetries:0,timeoutMs:2000,minRequestDelayMs:0},fetchImpl:options.fetchImpl,resolveHost:options.resolveHost});
+      const crawl=await crawlVerifiedSource({verifiedUrl:origin+"/",requestedExtractors:["IDENTITY","SOURCE_CLASSIFICATION","PUBLIC_CONTACT"],budget:{maxPages:2,maxRequests:4,maxBytesPerResponse:500000,maxRedirects:1,maxRetries:0,timeoutMs:2000,minRequestDelayMs:0},fetchImpl:options.fetchImpl,resolveHost:options.resolveHost,terminalUrlHistory:options.terminalUrlHistory});
       result.providerUsage.push({provider:"PUBLIC_WEB",callCount:1,purpose:"ORGANISATION_FIRST_PARTY_VERIFICATION",cost:{currency:request.costCeiling.currency,amount:0}});
       const extraction=extractFromFetchedDocuments(crawl.documents,["IDENTITY","SOURCE_CLASSIFICATION","PUBLIC_CONTACT"]);
       if(Buffer.byteLength(JSON.stringify(extraction),"utf8")>32000){attempts.push({candidate,finalUrl:crawl.finalUrl,documentCount:crawl.documents.length,identityVerified:false,reason:"SOURCE_IDENTITY_EVIDENCE_EXCEEDS_BOUNDED_RESULT",sourceHashes:crawl.documents.map(d=>d.sourceHash)});continue;}

@@ -77,7 +77,7 @@ test("a legacy Resources venue request still forces the email search", async () 
   assert.equal(requested.includes("venue.org/contact"), true);
 });
 
-test("VENUE_FACTS keeps crawling after a contact page email and extracts capacity", async () => {
+test("VENUE_FACTS seeks relevant venue pages despite a homepage email and extracts capacity", async () => {
   const { fetchImpl, requested } = venueSite();
   const result = await executeSourceDiscoveryRequest(request(), { resolveHost: publicResolver, fetchImpl }) as any;
   assert.equal(result.contractVersion, CONTRACTS.SOURCE_DISCOVERY_RESULT);
@@ -85,7 +85,6 @@ test("VENUE_FACTS keeps crawling after a contact page email and extracts capacit
   assert.equal(result.guideEmailReady, false);
   assert.equal(result.publicContacts.length, 0);
   assert.equal(result.identityFacts.some((fact: { fieldName: string; value: string }) => fact.fieldName === "siteName" && fact.value === "Example Venue"), true);
-  assert.equal(requested.includes("venue.org/contact"), true);
   assert.equal(requested.indexOf("venue.org/spaces") > requested.indexOf("venue.org/"), true);
   const capacity = capacityCount(result);
   assert.equal(capacity?.value.count, 250);

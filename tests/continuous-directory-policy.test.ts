@@ -67,3 +67,9 @@ test('retry timing is returned from actual completions and durable denied work w
  const failed=await runContinuousDirectoryTick([{...item(),attempts:1}],policy,policyHash(policy),{reserve:async()=>true,complete:async r=>assert.equal(r.nextAttemptAt,next)},async()=>({requestCount:2,costUsd:0,status:'FAILED',retryable:true}),now);
  assert.equal(failed.nextAttemptAt,next);
 });
+
+test('terminal-history operational failure quarantines and stops the batch before another venue',async()=>{
+ let calls=0;const receipts:any[]=[];
+ const result=await runContinuousDirectoryTick([item('a'),item('b')],policy,policyHash(policy),{reserve:async()=>true,complete:async receipt=>{receipts.push(receipt)}},async()=>{calls++;return {requestCount:3,costUsd:0,status:'BLOCKED',retryable:false,failureCode:'TERMINAL_URL_HISTORY_WRITE_FAILED'}},now);
+ assert.equal(calls,1);assert.equal(result.stopped,'TERMINAL_URL_HISTORY_WRITE_FAILED');assert.equal(result.actualHttpRequestsKnown,3);assert.equal(receipts[0].state,'QUARANTINED');assert.equal(receipts[0].nextAttemptAt,null);
+});

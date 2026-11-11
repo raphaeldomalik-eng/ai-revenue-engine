@@ -1,3 +1,4 @@
+import {resultStoreTerminalUrlHistory} from "../src/nexus/source-discovery/terminal-url-history.ts";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {handleDirectoryVerificationRequest,validatedVerificationContinuation} from '../src/nexus/source-discovery/continuous-directory-verification.ts';
@@ -24,7 +25,7 @@ function harness(city='Bristol'){
 test('first-pass verification retains actual HTTP/page and contact observations for review without another website request',async()=>{
  const h=harness();let saved:any;const set=h.options.store.set.bind(h.options.store);h.options.store.set=async(k,v)=>{saved=v;await set(k,v)};
  await handleDirectoryVerificationRequest(request(),h.options);
- assert(saved.directoryCrawlReceipt);assert(saved.directoryCrawlReceipt.evidenceManifest.requests.some((r:any)=>r.status===200));
+ assert(saved.directoryCrawlReceipt);assert(saved.directoryCrawlReceipt.contentCoverage.fields.description);assert(saved.directoryCrawlReceipt.contentCoverage.gaps.includes('wifi'));assert(saved.directoryCrawlReceipt.evidenceManifest.requests.some((r:any)=>r.status===200));
  assert(saved.directoryCrawlReceipt.evidenceManifest.pages.length>0);assert(Array.isArray(saved.directoryCrawlReceipt.contactObservations));
  const before=h.counts().requests;await handleDirectoryVerificationRequest(request(),h.options);assert.equal(h.counts().requests,before);
 });
@@ -102,7 +103,11 @@ test('temporary loss of the identity corroboration page remains retryable rather
  assert.equal(response.status,503,JSON.stringify(body));assert.equal(h.counts().states[0],'RETRYABLE');assert(body.result.researchErrors.some((e:any)=>e.retryable));
 });
 test('a bounded continuation reuses only the original retryable request and caps its new crawl at three',async()=>{
- const h=harness();let firstCalls=0;h.options.fetchImpl=async(input:RequestInfo|URL)=>{firstCalls++;const u=new URL(String(input));if(u.pathname==='/robots.txt')return new Response('',{status:404});if(u.pathname==='/contact')return new Response('',{status:503});return new Response('<html><head><title>Alpha Hall</title></head><body><h1>Alpha Hall</h1><a href="/contact">Contact</a></body></html>',{headers:{'content-type':'text/html'}})};
+ const h=harness();
+ // This exact historical authorization permits 3 prior requests. Retained 404s
+ // suppress sitemap retries without widening that continuation's budget.
+ for(const path of ['/sitemap.xml','/sitemap_index.xml'])await resultStoreTerminalUrlHistory(h.options.store).set({url:'https://alpha.example'+path,status:404,observedAt:'2026-10-20T00:00:00Z',source:'DIRECT_HTTP_RESPONSE'});
+let firstCalls=0;h.options.fetchImpl=async(input:RequestInfo|URL)=>{firstCalls++;const u=new URL(String(input));if(u.pathname==='/robots.txt')return new Response('',{status:404});if(u.pathname==='/contact')return new Response('',{status:503});return new Response('<html><head><title>Alpha Hall</title></head><body><h1>Alpha Hall</h1><a href="/contact">Contact</a></body></html>',{headers:{'content-type':'text/html'}})};
  assert.equal((await handleDirectoryVerificationRequest(request(),h.options)).status,503);
  assert.equal(firstCalls,3);
  const later=Date.parse('2026-10-22T06:17:00Z');
@@ -186,4 +191,16 @@ test('cache-only recovery derives the accepted historical contact handoff withou
 });
 test('cache-only recovery cannot fall through to website research when the cache is absent',async()=>{
  const h=harness(),input=request();input.headers.set('x-nexus-cache-only','true');const r=await handleDirectoryVerificationRequest(input,h.options);assert.equal(r.status,409);assert.equal(h.counts().requests,0);assert.equal(h.counts().reservations,0);
+});
+
+test('first pass retains complete source content including images and explicit facilities within the same budget',async()=>{
+ const h=harness(),fetch=h.options.fetchImpl;
+ h.options.fetchImpl=async(input)=>{const r=await fetch(input);if(String(input).endsWith('/robots.txt'))return r;return new Response((await r.text()).replace('</body>','<p>Alpha Hall has a courtyard and a spacious main hall for local gatherings.</p><p>Wheelchair accessible. On-site parking. Wi-Fi. Licensed bar.</p><img src="/alpha-hall-exterior.jpg" alt="Alpha Hall exterior" width="1200" height="800"><a href="mailto:hello@alpha.example">Contact Alpha Hall</a></body>'),{headers:{'content-type':'text/html'}});};
+ const body=await(await handleDirectoryVerificationRequest(request(),h.options)).json() as any;
+ const a=body.result.evidence.find((e:any)=>e.payload.firstPassAcquisition)?.payload.firstPassAcquisition;
+ assert(a);assert(a.imageCandidates?.some((i:any)=>i.sourceImageUrl.endsWith('/alpha-hall-exterior.jpg')),'same crawl must retain image candidates');
+ assert(a.identityFacts.some((f:any)=>f.fieldName==='siteDescription'&&String(f.value).includes('courtyard')),'retain descriptive body, not only meta');
+ for(const name of ['accessibility','parking','wifi','bar'])assert(a.venueFacts.some((f:any)=>f.fieldName===name),name);
+ assert(h.counts().requests<=context.requestBudget);assert.equal(a.imageCandidates[0].operatorConfirmed,false);
+ assert(a.crawl.evidenceManifest.pages.some((p:any)=>p.evidenceRefs.some((r:string)=>r.startsWith('image:'))),'image candidate needs page lineage');
 });
