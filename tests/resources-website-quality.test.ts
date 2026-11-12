@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿﻿import assert from "node:assert/strict";
 import test from "node:test";
 import { consumeDirectorySearchEvidence } from "../src/nexus/search/directory-held-search.ts";
 import { assessWebsiteIdentity, siteOperatedBySubject } from "../src/nexus/official-website-discovery.ts";
@@ -21,8 +21,8 @@ test("a venue-named domain in the results is the only candidate prepared, not th
     { url: "https://www.myrsvp.com/london/restaurants/ambassadors-clubhouse-london/", title: "Ambassadors Clubhouse London" },
     { url: "https://www.andyhayler.com/restaurant/ambassadors-clubhouse", title: "review of Indian restaurant Ambassadors Clubhouse" },
   ])], { now });
-  // A venue-named site is verified from its homepage; the deep result stays on the candidate as its source.
-  assert.deepEqual(r.candidates.map((c) => c.websiteSeed), ["https://ambassadorsclubhouse.com/"]);
+  // The seed keeps the result's own path: the Nexus consumer rejects any seed whose pathname differs from its sourceUrl (DIRECTORY_SEARCH_SEED_EVIDENCE).
+  assert.deepEqual(r.candidates.map((c) => c.websiteSeed), ["https://ambassadorsclubhouse.com/our-story/"]);
   assert.equal(r.candidates[0]!.sourceUrl, "https://ambassadorsclubhouse.com/our-story/");
   assert.equal(r.candidates[0]!.searchRank, 1);
   assert(r.candidates[0]!.rankingReasons.includes("DOMAIN_NAME_ALIGNMENT"));
@@ -44,8 +44,8 @@ test("retained group-B searches: listings and platform subdomains never win, the
     { url: "https://www.shoreditchballs.com/events/adlibretto", title: "AdLibretto" },
     { url: "https://shoreditch-balls.wheree.com/", title: "SHOREDITCH BALLS - Reviews, Photos & Phone Number" },
   ])], { now });
-  assert.deepEqual(balls.candidates.map((c) => c.websiteSeed), ["https://www.shoreditchballs.com/"]);
-  assert(!balls.candidates[0]!.rankingReasons.includes("EVENT_DETAIL_PATH_DEPRIORITISED"), "the seed is the homepage, not the event page");
+  assert.deepEqual(balls.candidates.map((c) => c.websiteSeed), ["https://www.shoreditchballs.com/events/adlibretto"]);
+  assert(!balls.candidates[0]!.rankingReasons.includes("EVENT_DETAIL_PATH_DEPRIORITISED"), "the venue-named event page is not deprioritised");
   assert.equal(siteOperatedBySubject("Shoreditch Balls", "https://shoreditch-balls.wheree.com/", []).operated, false);
   assert.equal(siteOperatedBySubject("Monkey Valley Resort", "https://monkeyvalley.wixsite.com/resort", []).operated, true, "site-builder tenants keep their subdomain signal");
   // National Portrait Gallery: "gallery" in onlinegallery.art is a generic word; the venue's initials identify npg.org.uk.
@@ -54,7 +54,7 @@ test("retained group-B searches: listings and platform subdomains never win, the
     { url: "https://onlinegallery.art/en/museums/national-portrait-gallery", title: "National Portrait Gallery — London, United Kingdom" },
     { url: "https://www.npg.org.uk/about/organisation/", title: "Organisation" },
   ])], { now });
-  assert.deepEqual(npg.candidates.map((c) => c.websiteSeed), ["https://www.npg.org.uk/"]);
+  assert.deepEqual(npg.candidates.map((c) => c.websiteSeed), ["https://www.npg.org.uk/about/organisation/"]);
   assert.equal(siteOperatedBySubject("National Portrait Gallery", "https://onlinegallery.art/", []).operated, false);
   // A group site that only shows the property on a deep page is not promoted to an official site.
   const pivot = await consumeDirectorySearchEvidence(request("The Pivot Hotel Montecasino", "Johannesburg", "ZA"), [receipt("The Pivot Hotel Montecasino", "Johannesburg", [
@@ -309,4 +309,12 @@ test("an apex that redirects to www buys robots.txt once, not once per origin", 
   });
   assert.equal(requested.filter((url) => url.endsWith("/robots.txt") && url.startsWith("https://www.venue.example")).length, 1, requested.join(" "));
   assert.equal(result.documents.length, 1);
+});
+
+test("every emitted seed keeps its source pathname, as the Nexus consumer requires", async () => {
+  const r = await consumeDirectorySearchEvidence(request("Shoreditch Balls", "London"), [receipt("Shoreditch Balls", "London", [
+    { url: "https://www.shoreditchballs.com/events/adlibretto", title: "AdLibretto" },
+  ])], { now });
+  assert(r.candidates.length > 0);
+  for (const c of r.candidates) assert.equal(new URL(c.websiteSeed).pathname, new URL(c.sourceUrl).pathname);
 });

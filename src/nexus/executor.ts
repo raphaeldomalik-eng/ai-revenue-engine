@@ -175,7 +175,9 @@ function sourceFact(request: SourceDiscoveryRequest, fieldName: string, value: u
 
 /** Contract warnings are limited to 256 characters. A longer crawler note must not reject an otherwise valid result. */
 export function boundCrawlWarnings(warnings: string[]) {
-  return [...new Set(warnings.map((warning) => warning.length <= 256 ? warning : `${warning.slice(0, 253)}...`))];
+  const bounded = [...new Set(warnings.map((warning) => warning.length <= 256 ? warning : `${warning.slice(0, 253)}...`))];
+  // The contract also allows at most 200 warnings. A deep venue crawl can exceed that; keep the first 199 and say how many were omitted.
+  return bounded.length <= 200 ? bounded : [...bounded.slice(0, 199), `${bounded.length - 199} further crawler warnings omitted at the contract limit.`];
 }
 export async function executeSourceDiscoveryRequest(input: unknown, options: SourceDiscoveryExecutorOptions = {}, store: NexusResultStore = new InMemoryNexusResultStore()) {
   const request = validateSourceDiscoveryRequest(input);
