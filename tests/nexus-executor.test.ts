@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import test from "node:test";
 import { boundCrawlWarnings, executeResearchRequest, executeSourceDiscoveryRequest, InMemoryNexusResultStore } from "../src/nexus/executor.ts";
 import { CONTRACTS, validateResearchRequest, validateSourceDiscoveryRequest, validateSourceDiscoveryResult } from "../src/nexus/contracts.ts";
@@ -179,4 +179,10 @@ test("a crawler warning longer than the contract limit is bounded before result 
     crawl: { status: "PARTIAL", warnings, requestCount: 1, pageCount: 1, bytesRead: 1, redirects: 0, blockedCount: 0, retryable: false, evidenceManifest: { version: 1, attemptedRequests: 1, requests: [], requestsOmitted: 0, unrecordedRequests: 1, pages: [{ url: "https://venue.org/", sourceHash: "abc", contentType: "text/html", bytes: 1, kind: "HTML", retrieval: "STATIC", publisherType: "VERIFIED_FIRST_PARTY", subjectAssignment: "TARGET", evidenceRefs: [] }] } },
     identityFacts: [], publicContacts: [], venueFacts: [], imageCandidates: [], eventCandidates: [], evidenceRefs: [],
   }));
+});
+
+test("crawler warnings are capped at the 200-item contract limit", () => {
+  const warnings = boundCrawlWarnings(Array.from({ length: 350 }, (_, i) => `Candidate page unavailable: https://example.com/p/${i}`));
+  assert.equal(warnings.length, 200);
+  assert.match(warnings[199]!, /^151 further crawler warnings omitted/);
 });
