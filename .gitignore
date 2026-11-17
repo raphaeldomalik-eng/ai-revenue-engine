@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.next-lead-preview/
 out/
 .env
 .env.local

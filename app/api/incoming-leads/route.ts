@@ -29,6 +29,7 @@ function dateValue(value: string | null, end = false) {
 }
 
 export async function GET(request: Request) {
+  if (process.env.AIRE_LEAD_PREVIEW === '1') return (await import('../../../scripts/lead-preview/server')).previewApi(request);
   const client = await createServerSupabaseClient();
   const access = await readAccess(client);
   if (access.error) return access.error;
@@ -53,7 +54,9 @@ export async function GET(request: Request) {
       lead.account_id ? client.from("research_evidence").select("id,evidence_type,claim,source_url,source_title,observed_at,confidence,created_at").eq("account_id", lead.account_id).order("created_at", { ascending: false }).limit(25) : Promise.resolve({ data: [], error: null }),
     ]);
     if (account.error || contact.error || opportunity.error || evidence.error) return NextResponse.json({ message: "Incoming lead enrichment evidence is unavailable." }, { status: 503 });
-    return NextResponse.json({ access: access.access, lead, changes: changes ?? [], notes: notes ?? [], submissions: submissions ?? [], activities: activities ?? [], members: members ?? [], account: account.data, contact: contact.data, opportunity: opportunity.data, evidence: evidence.data ?? [] });
+    const candidates = lead.account_id ? await client.from('product_opportunities').select('id,stage').eq('account_id',lead.account_id).eq('product_id',lead.product_id).not('stage','in','(converted,disqualified,lost)') : {data:[],error:null};
+    if (candidates.error) return NextResponse.json({message:'Opportunity candidates are unavailable.'},{status:503});
+    return NextResponse.json({ access: access.access, lead, changes: changes ?? [], notes: notes ?? [], submissions: submissions ?? [], activities: activities ?? [], members: members ?? [], account: account.data, contact: contact.data, opportunity: opportunity.data, opportunityCandidates:candidates.data??[], evidence: evidence.data ?? [] });
   }
 
   const view = oneOf(url.searchParams.get("view"), VIEWS, "needs-review");
@@ -88,10 +91,18 @@ export async function GET(request: Request) {
   ]);
   if (queue.error || metrics.error || sourceActivities.error) return NextResponse.json({ message: "Incoming Leads data is unavailable until the operator workspace migration is applied." }, { status: 503 });
   const leads = queue.data ?? [];
-  return NextResponse.json({ access: access.access, view, leads, totalCount: Number(leads[0]?.total_count ?? 0), metrics: { ...(metrics.data ?? {}), sourceActivities: sourceActivities.count ?? 0 }, members, page, pageSize });
+  if (leads.length) {
+    const holds=await client.from('incoming_leads').select('id,hold_reason,hold_review_condition,hold_review_at').in('id',leads.map((lead:any)=>lead.id));
+    if(holds.error) return NextResponse.json({message:'Lead workflow migration is required.'},{status:503});
+    for(const lead of leads) Object.assign(lead,holds.data?.find((row:any)=>row.id===lead.id));
+  }
+  const totals=await client.from('incoming_leads').select('id',{count:'exact',head:true});
+  if(totals.error) return NextResponse.json({message:'Lead totals are unavailable.'},{status:503});
+  return NextResponse.json({ access: access.access, view, leads, totalCount: Number(leads[0]?.total_count ?? 0), metrics: { ...(metrics.data ?? {}), sourceActivities: sourceActivities.count ?? 0,totalLeads:totals.count??0 }, members, page, pageSize });
 }
 
 export async function POST(request: Request) {
+  if (process.env.AIRE_LEAD_PREVIEW === '1') return (await import('../../../scripts/lead-preview/server')).previewApi(request);
   const client = await createServerSupabaseClient();
   const access = await readAccess(client);
   if (access.error) return access.error;
