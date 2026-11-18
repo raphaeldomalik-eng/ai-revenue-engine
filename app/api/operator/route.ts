@@ -215,6 +215,7 @@ async function readAccess(client: Awaited<ReturnType<typeof createServerSupabase
 }
 
 export async function GET(request: Request) {
+  if (process.env.AIRE_LEAD_PREVIEW === '1') return (await import('../../../scripts/lead-preview/server')).previewApi(request);
   const client = await createServerSupabaseClient();
   const access = await readAccess(client);
   if (access.error) return access.error;

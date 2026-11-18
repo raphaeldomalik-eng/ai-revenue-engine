@@ -49,7 +49,7 @@ export function isOperationalLead(classification?: string | null, isTest = false
 }
 
 export function classificationRequiresReason(classification?: string | null) {
-  return classification === "EXISTING_CUSTOMER" || isExcludedClassification(classification);
+  return classification === "GENUINE_PROSPECT" || classification === "EXISTING_CUSTOMER" || isExcludedClassification(classification);
 }
 
 export function describeDataQuality(lead: Record<string, unknown>) {

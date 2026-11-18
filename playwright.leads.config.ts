@@ -1,0 +1,2 @@
+import { defineConfig,devices } from '@playwright/test';
+export default defineConfig({testDir:'./tests/e2e',testMatch:'lead-workflow-preview.spec.ts',workers:1,retries:0,expect:{timeout:20000},reporter:'list',outputDir:'test-results/lead-workflow',use:{baseURL:'http://127.0.0.1:3123',...devices['Desktop Chrome'],channel:'chrome',actionTimeout:10000,screenshot:'only-on-failure',trace:'retain-on-failure'}});

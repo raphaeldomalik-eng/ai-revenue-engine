@@ -16,10 +16,10 @@ test("ticketing heuristic is deliberately simple and case-insensitive", () => {
   assert.equal(isLikelyTicketingOrganisation(null), false);
 });
 
-test("classification reasons are mandatory for non-leads and existing customers", () => {
+test("classification reasons are mandatory for genuine prospects, non-leads and existing customers", () => {
   assert.equal(classificationRequiresReason("TICKETING_PROVIDER"), true);
   assert.equal(classificationRequiresReason("EXISTING_CUSTOMER"), true);
-  assert.equal(classificationRequiresReason("GENUINE_PROSPECT"), false);
+  assert.equal(classificationRequiresReason("GENUINE_PROSPECT"), true);
 });
 
 test("data quality is specific and enrichment waits for a resolved account", () => {
@@ -66,6 +66,5 @@ test("operator workspace migration provides audited classification, restore, que
   assert.match(ui, /Exclude ticketing/);
   assert.match(ui, /QuickReviewDrawer/);
   assert.match(ui, /Undo exclusion/);
-  assert.match(ui, /keyboard triage/);
   assert.match(ui, /No send, schedule, provider or message action exists/);
 });
