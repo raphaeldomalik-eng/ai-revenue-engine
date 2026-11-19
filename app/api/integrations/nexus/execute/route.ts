@@ -12,6 +12,7 @@ export async function POST(request: Request) {
   const researchDisabled = nexusExecutorDisabled();
   const sourceDiscoveryDisabled = nexusSourceDiscoveryDisabled();
   const contentInterpretationDisabled = nexusContentInterpretationDisabled();
+  const communionEventsEnabled = process.env.VERCEL_ENV === 'production' && process.env.NEXUS_COMMUNION_EVENTS_ENABLED === 'true';
   let batchScope: SourceDiscoveryBatchScope | null = null;
   try {
     const encoded = process.env.NEXUS_SOURCE_DISCOVERY_BATCH_SCOPE?.trim();
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     return Response.json({ code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" }, { status: 404 });
   }
   // Keep global discovery closed. The signed handler admits only requests in the short-lived manifest scope.
-  if (researchDisabled && sourceDiscoveryDisabled && contentInterpretationDisabled && !batchScope) {
+  if (researchDisabled && sourceDiscoveryDisabled && contentInterpretationDisabled && !batchScope && !communionEventsEnabled) {
     return Response.json({ code: "NEXUS_EXECUTOR_NOT_AVAILABLE" }, { status: 404 });
   }
 
@@ -43,6 +44,7 @@ export async function POST(request: Request) {
     allowResearch: !researchDisabled,
     allowSourceDiscovery: !sourceDiscoveryDisabled,
     allowScopedSourceDiscovery: true,
+    allowCommunionEvents: communionEventsEnabled,
     sourceDiscoveryBatchScope: batchScope ?? undefined,
     allowContentInterpretation: !contentInterpretationDisabled,
     contentModel: contentInterpretationDisabled ? null : createContentInterpretationModel(),
