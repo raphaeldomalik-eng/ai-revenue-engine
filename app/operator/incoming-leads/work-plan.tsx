@@ -11,6 +11,8 @@ export function LeadWorkPlan({data,readOnly,onUpdated}:{data:Data;readOnly:boole
   const [holdReason,setHoldReason]=useState(lead.hold_reason??''); const [condition,setCondition]=useState(lead.hold_review_condition??'');
   const [reviewAt,setReviewAt]=useState(localDate(lead.hold_review_at)); const [stage,setStage]=useState(nextStages[opportunity?.stage??'']?.[0]??'qualified');
   const [selected,setSelected]=useState(''); const [busy,setBusy]=useState(false); const [message,setMessage]=useState('');
+  const [contactAt,setContactAt]=useState(''); const [channel,setChannel]=useState('PHONE');
+  const [contactReference,setContactReference]=useState(''); const [contactSummary,setContactSummary]=useState('');
   const save=async(name:string,value:Record<string,unknown>)=>{
     setBusy(true);setMessage('');
     try {
@@ -27,6 +29,15 @@ export function LeadWorkPlan({data,readOnly,onUpdated}:{data:Data;readOnly:boole
     <label>Recorded next action<input value={action} maxLength={500} onChange={e=>setAction(e.target.value)} /></label>
     <label>Follow-up due<input type="datetime-local" value={due} onChange={e=>setDue(e.target.value)} /></label>
     <button className="operator-button" disabled={!owner||!action.trim()||!due} onClick={()=>void save('SET_WORK_PLAN',{ownerId:owner,nextAction:action,followUpAt:due?new Date(due).toISOString():null})}>Save work plan</button>
+    {!lead.hold_reason&&(!lead.next_action?.trim()||!lead.follow_up_at)?<p>Incomplete work plan — visible in the Incomplete work queue until an eligible owner and action / due date or reviewed hold are recorded.</p>:null}
+    <details><summary>Record past manual contact</summary><p>Record an interaction that already happened outside AIRE, supported by a retained receipt or note. This does not send anything or verify delivery.</p>
+      <label>Contact occurred at<input type="datetime-local" value={contactAt} onChange={e=>setContactAt(e.target.value)}/></label>
+      <label>Manual contact channel<select value={channel} onChange={e=>setChannel(e.target.value)}><option value="PHONE">Phone</option><option value="IN_PERSON">In person</option><option value="VIDEO">Video call</option><option value="EMAIL">Previously sent email</option></select></label>
+      <label>Contact receipt / evidence reference<input value={contactReference} maxLength={1000} onChange={e=>setContactReference(e.target.value)} placeholder="Retained call log, meeting note or external receipt reference"/></label>
+      <label>Manual contact summary<textarea value={contactSummary} maxLength={2000} onChange={e=>setContactSummary(e.target.value)}/></label>
+      <button className="operator-button secondary" disabled={customer||Boolean(opportunity)||Boolean(lead.hold_reason)||!lead.owner_id||!lead.next_action?.trim()||!lead.follow_up_at||!contactAt||!contactReference.trim()||!contactSummary.trim()} onClick={()=>void save('MARK_CONTACTED',{contactedAt:new Date(contactAt).toISOString(),channel,evidenceReference:contactReference,summary:contactSummary})}>Record manual contact evidence</button>
+      {opportunity?<p>The existing opportunity progression restriction applies; this legacy contact action cannot update a linked opportunity.</p>:null}
+    </details>
     <details open={Boolean(lead.hold_reason)}><summary>Hold and review condition</summary>{lead.hold_reason?<p><strong>On hold: {lead.hold_reason}</strong><br/>{lead.hold_review_condition} · {new Date(lead.hold_review_at).toLocaleString()}</p>:null}
       <label>Hold reason<textarea value={holdReason} maxLength={1000} onChange={e=>setHoldReason(e.target.value)}/></label>
       <label>Next review condition<input value={condition} maxLength={1000} onChange={e=>setCondition(e.target.value)}/></label>
