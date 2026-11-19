@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "../../../src/lib/supabase-server";
 
-const VIEWS = new Set(["needs-review", "active-leads", "high-intent", "follow-up-due", "incomplete-data", "existing-customers", "excluded", "all"]);
+const VIEWS = new Set(["needs-review", "active-leads", "high-intent", "follow-up-due", "incomplete-data", "incomplete-work", "existing-customers", "excluded", "all"]);
 const SOURCE_CATEGORIES = new Set(["ALL", "DEMO_REQUEST", "TALK_TO_SALES", "TRIAL_STARTED", "PRODUCT_ENQUIRY", "RESOURCE_DOWNLOAD", "TEMPLATE_DOWNLOAD", "NEWSLETTER_SIGNUP", "INTERNAL_TEST"]);
 const CLASSIFICATIONS = new Set(["ALL", "NEEDS_REVIEW", "GENUINE_PROSPECT", "EXISTING_CUSTOMER", "PARTNER", "SUPPLIER", "COMPETITOR", "TICKETING_PROVIDER", "INTERNAL", "TEST_SYNTHETIC", "OTHER_NON_LEAD"]);
 const INTENTS = new Set(["ALL", "VERY_HIGH", "HIGH", "MEDIUM", "LOW", "NURTURE", "EXCLUDED"]);

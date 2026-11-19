@@ -11,6 +11,7 @@ export const previewMigrations = [
   '20260831150000_incoming_leads_operator_workspace_v1.sql',
   '20260831180000_event_suite_incoming_leads_receiver_v1.sql',
   '20261117192332_incoming_lead_workflow.sql',
+  '20261119064444_incoming_lead_accountability_contact_evidence.sql',
 ];
 
 export async function createPreviewDatabase(dataDir?: string) {
