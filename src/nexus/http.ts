@@ -41,6 +41,8 @@ export type NexusHttpOptions = {
   sourceDiscoveryOptions?: import("./executor.ts").SourceDiscoveryExecutorOptions;
   sourceDiscoveryBatchScope?: import("./source-discovery/batch-scope.ts").SourceDiscoveryBatchScope;
   allowScopedSourceDiscovery?: boolean;
+  /** Separate default-off exception; never enables general source discovery. */
+  allowCommunionEvents?: boolean;
   /**
    * When omitted, both lanes stay available for direct in-process callers.
    * The HTTP route always sets these from the environment policy.
@@ -216,6 +218,17 @@ export async function handleNexusExecuteRequest(request: Request, options: Nexus
     }
     if (payload.contractVersion === CONTRACTS.SOURCE_DISCOVERY_REQUEST) {
       const production = process.env.VERCEL_ENV === "production";
+      if (production && options.allowCommunionEvents === true) {
+        const input = validateSourceDiscoveryRequest(payload);
+        const { communionProductionRequest, executeCommunionProduction } = await import('./source-discovery/communion-production.ts');
+        if (communionProductionRequest(payload,input)) {
+          try { return json(200,await executeCommunionProduction(input,options.store,options.sourceDiscoveryOptions,options.now?.()??Date.now())); }
+          catch(error) {
+            if(error instanceof Error&&error.message==='COMMUNION_RESERVATION_DENIED')return json(409,{code:error.message});
+            throw error;
+          }
+        }
+      }
       if (options.allowSourceDiscovery === false && !(production && options.allowScopedSourceDiscovery === true)) return json(404, { code: "NEXUS_SOURCE_DISCOVERY_NOT_AVAILABLE" });
       if (production) {
         const scope = options.sourceDiscoveryBatchScope;
