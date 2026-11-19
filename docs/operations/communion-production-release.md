@@ -12,7 +12,9 @@ remains owned by Cursor session `e122bb36-ed2d-4b1a-94a1-21c1ad25d2d9`.
   `0f6826ca36d78dff4a8e27663ce6f2ba7e39650f` (PR #120).
 - Current Production/rollback deployment: `dpl_Zr2xCpuLA4KTi9Hs1K4dwdKGrNfg`,
   immutable URL `ai-revenue-engine-o4o3arh76-event-suite-team.vercel.app`.
-- Stable alias: `ai-revenue-engine-pearl.vercel.app`.
+- Public stable alias: `ai-revenue-engine-pearl.vercel.app`. Preserve its
+  execute-prefix deny. Release Communion on its separately approved, protected
+  immutable Production hostname.
 - Project: `prj_zCAVzqxUl0ucWokSD6BL1WzlHO17`; team:
   `team_7e0dqKmLkWnN0A6MM3GVklEe` (`event-suite-team`). Environment: Production.
 - Main `aa178214da0c2db2d08d2439ac6bfe53beab0f8b` includes source-only changes;
@@ -36,9 +38,8 @@ MUST NOT: open general source discovery/research, change Resources/venue-email
 rules, purchase provider usage, enable rendering, change schema/RLS, mutate live
 customer records, send messages to customers, publish events or edit LTH.
 
-Activation is a new specific default-off `NEXUS_COMMUNION_EVENTS_ENABLED=true`;
-`NEXUS_SOURCE_DISCOVERY_ENABLED=false` stays false. No activation value has been
-set by the implementation task. Existing other flags/policies remain unchanged.
+Activation uses the default-off `NEXUS_COMMUNION_EVENTS_ENABLED` flag, enabled
+only on the scoped release deployment. Keep `NEXUS_SOURCE_DISCOVERY_ENABLED=false`.
 
 The signed existing LTH request advertises 100 pages/150 requests. This exception
 accepts that shape but bounds actual work to one page, at most six HTTP requests,
@@ -48,9 +49,10 @@ observed, never followed. Existing robots, public-DNS and certificate checks sta
 
 The deployed one-use batch reservation/receipt RPCs and result table are reused
 under Communion-specific keys. Concurrent duplicates and changed semantics under
-one key cannot reopen execution. A successful replay requires the separate marker
-written after usage receipt completion. Receipt uncertainty stays consumed and
-returns a hold, with no recrawl/refund. Existing SQL is unmodified. LTH's deployed
+one key cannot reopen execution. Persist one replay result after the usage receipt
+is recorded. Production enforces a unique request ID on the result table. If the
+receipt or result write fails, the reservation stays consumed and denies recrawl.
+Existing SQL is unmodified. LTH's deployed
 client validates result v1, so this exception projects the already-supported v1
 response; the retained execution evidence remains v2. Other consumers keep v2.
 
@@ -69,62 +71,50 @@ within the enforced six-request limit; exact live HTTP count was not retained).
 Persistence was mocked; no paid provider/Production state was touched. The final
 route test stubs HTTPS, DNS and persistence and performs no external HTTP.
 
-## Protection decision still required
+## Deployment protection and caller
 
-Current project protection is `all_except_custom_domains`. The registered domain
-inventory contains only the protected `ai-revenue-engine-pearl.vercel.app`; there
-is no existing custom Production domain to reuse.
+AIRE uses Vercel Standard Protection (`all_except_custom_domains`). The public
+stable alias serves requests without Vercel authentication. The approved
+immutable Production hostname must require Vercel authentication.
 
-[Vercel automation bypass](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/protection-bypass-automation)
-is a project credential covering all deployments, not a route credential. No
-token has been issued, copied or enabled by this task. The PM's read-only LTH
-metadata check found URL/HMAC/bypass/version settings only in Preview, none in
-Production. The Preview bypass's AIRE binding was not read or inferred.
-
-Two concrete access choices for the human:
-
-1. Authorise a dedicated project-scoped automation credential for the existing
-   LTH client, acknowledging its project/all-deployments protection access. Keep
-   application HMAC and this exact Communion scope. This is a wider credential
-   authority than a route-only request and needs explicit permission.
-2. Prefer a short-lived identity path: authorise
-   [Trusted Sources](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/trusted-sources)
-   only from LTH project `prj_ZHdJk43l95Ep2lRr1i2EDsl0e0w5` Production to this
-   AIRE project Production. Its existing LTH owner must forward the OIDC token
-   header. This still grants environment-level deployment access, not route-only
-   access, but avoids a shared long-lived all-deployments secret. No development,
-   Preview, custom-environment or unrelated caller grant is proposed.
-
-Neither choice disables project protection. If neither permission is acceptable,
-leave the remote controls untouched; strict route-only credential authority is
-not offered by the existing automation header. Do not claim this is resolved by
-an OPTIONS allowlist or by adding a domain exception.
+Use [Vercel Trusted Sources](https://vercel.com/docs/deployment-protection/methods-to-bypass-deployment-protection/trusted-sources)
+only from LTH project `prj_ZHdJk43l95Ep2lRr1i2EDsl0e0w5` Production to AIRE
+Production. The LTH owner forwards the short-lived
+`x-vercel-trusted-oidc-idp-token` header and the existing HMAC signature.
+Trusted Sources grants access at the environment level. The firewall restricts
+the Nexus execute route to the approved hostname, method and path, and AIRE
+enforces the exact signed Communion payload. Keep project protection enabled.
 
 ## Exact firewall, activation and recovery sequence
 
-Current active firewall config is version 1, `waf_nthb9eIxd5XY`; its only scoped
-execution hold is `rule_email_first_code_release_execution_hold_IYbHGh`, denying
-the path prefix `/api/integrations/nexus/execute`.
+The full execution hold in firewall config `waf_nthb9eIxd5XY` belongs to
+`rule_email_first_code_release_execution_hold_IYbHGh`. It denies the prefix
+`/api/integrations/nexus/execute`. Confirm the live version before editing.
 
-After the human approves the exact reviewed source head, target and access choice:
+Stage under the full hold, then apply access after the exact hostname and
+release commit are approved:
 
 1. Reconfirm stable Production alias/source, project/team and current firewall
    version; save the current rule for exact rollback. Confirm existing result and
    reservation/receipt tables/RPCs before executing. No migrations are required.
-2. Build/stage this release branch head with Production configuration, keeping
-   general discovery false. Do not promote a Preview build or deploy main.
+2. Stage the exact reviewed release head as a Production deployment with
+   `--skip-domain` and the deployment-scoped flag
+   `NEXUS_COMMUNION_EVENTS_ENABLED=true`. Keep general discovery false. Verify
+   the immutable hostname requires Vercel authentication and record its SHA and
+   deployment ID in #115 before seeking or applying exact-host authority.
 3. Stage the narrow deny-rule replacement: deny the existing execute prefix when
-   **host differs from the stable alias OR method differs from POST OR path
+   **host differs from the approved immutable hostname OR method differs from POST OR path
    differs from exact `/api/integrations/nexus/execute`**. All unrelated rules stay
-   byte-for-byte unchanged. Thus other hosts, immutable URLs and prefix suffixes
-   retain the hold; only the stable alias's exact POST can reach application auth.
-4. Set only the Communion activation flag, stage/rebuild as necessary, capture
-   the exact deployment ID/source, and promote under the approved release target.
-   Apply the reviewed exact firewall exception and approved protection path.
+   in place. The public alias and every other hostname retain the full hold.
+4. Apply the Production-to-Production trust rule and publish the reviewed
+   firewall diff. Confirm the public alias still returns the firewall denial and
+   the exact pinned POST requires Vercel identity. Leave the public alias on its
+   existing release when releasing Communion on the protected hostname alone.
 5. Using existing secrets securely, verify a real bounded signed Communion call,
    its durable receipt and zero-network replay. Verify missing/invalid/stale
    signature, wrong product/entity/source/extractors, research and unregistered
-   venue-email requests fail without external work. Immutable hosts retain deny.
+   venue-email requests fail without external work. Verify the hold on other
+   hostnames and on wrong methods and paths at the pin.
    Do not write credentials in logs, comments, URL query strings or artifacts.
 6. Post deployed source/target, runtime statuses/counts, receipt/replay proof and
    the remaining LTH configuration dependency in #115. Only then does the LTH
@@ -137,7 +127,15 @@ protection and immutable target protection on. Preserve result/reservation/usage
 records, including uncertainty; never refund/delete them to permit another crawl.
 Because there is no schema change, application rollback requires no DB restore.
 
-This packet records preparation, not live acceptance or a human sign-off. No
-Production code, activation, firewall, protection, domain or LTH setting has been
-changed during preparation. The exact PR head and selected access permission must
-be included in the human's release approval; no generic activation is requested.
+## Rotate the pinned URL with AIRE releases
+
+Each new AIRE deployment has a different immutable hostname. Record and approve
+the replacement commit, deployment ID and protected hostname in #115 before
+retiring the old deployment. In a coordinated window, pause Communion ingestion,
+prepare the new exact-host firewall rule and update the pinned endpoint in the
+LTH Production release through its existing owner. Keep the public alias denied
+throughout. Verify a real signed request, stored receipt and replay from LTH
+Production on the replacement, then resume ingestion and verify the resulting
+import. Preserve the prior deployment until acceptance so the owners can restore
+both the previous firewall host and LTH pin if a rollback is required. Record the
+final AIRE and LTH commits, active hostname and verification in #115.

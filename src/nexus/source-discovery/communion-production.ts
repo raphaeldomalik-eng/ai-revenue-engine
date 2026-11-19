@@ -34,8 +34,8 @@ export async function executeCommunionProduction(input:SourceDiscoveryRequest,st
  const response=(value:Record<string,unknown>)=>validateSourceDiscoveryResult({...value,contractVersion:CONTRACTS.SOURCE_DISCOVERY_RESULT_V1,idempotencyKey:input.idempotencyKey});
  const receipted=await store.get(receiptedKey);
  if(sourceDiscoveryReplayable(receipted))return response(receipted!);
- // The executor writes before its receipt. An uncertain completion must never
- // become success on retry, and must not initiate another website execution.
+ // Earlier builds wrote an execution row before confirming the receipt.
+ // Treat those orphaned rows as consumed without authorizing a replay.
  if(await store.get(cacheKey))throw Error('COMMUNION_RESERVATION_DENIED');
  const budget={...input.crawlBudget,maxPages:1,maxRequests:Math.min(6,input.crawlBudget.maxRequests)};
  const binding={scopeId,manifestSha256:createHash('sha256').update('communion-production-v1:'+fingerprint).digest('hex'),requestSha256:fingerprint,
@@ -46,10 +46,12 @@ export async function executeCommunionProduction(input:SourceDiscoveryRequest,st
  let observed:import('./types.ts').CrawlObservability|null=null;
  let completionAttempted=false;
  try{
+  // Use the executor's request-local store. The durable reservation prevents
+  // recrawls, and the result ledger allows only one row per discovery request.
   const result=validateSourceDiscoveryResult(await executeSourceDiscoveryRequest({...input,idempotencyKey:internalKey,crawlBudget:budget},{...options,
    // The shared EVENTS parser observes external ticket links; it never follows them.
    allowedHosts:['www.communionmusic.co.uk'],renderAdapter:undefined,renderPolicy:undefined,
-   onCrawlObservability:async value=>{observed=value;await options.onCrawlObservability?.(value)}},store));
+   onCrawlObservability:async value=>{observed=value;await options.onCrawlObservability?.(value)}}));
   completionAttempted=true;
   await store.completeBatchRequest({...binding,status:result.crawl.status==='FAILED'?'FAILED':'COMPLETED',requestCount:result.crawl.requestCount,bytesRead:result.crawl.bytesRead??0,providerCostUsd:0,resultStatus:result.crawl.status});
   await store.set(receiptedKey,result);

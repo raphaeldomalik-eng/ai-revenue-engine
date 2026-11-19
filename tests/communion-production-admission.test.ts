@@ -91,12 +91,22 @@ test('a denied durable reservation prevents all Communion HTTP',async()=>product
  assert.equal((await handleNexusExecuteRequest(signed(),h.options)).status,409);assert.equal(h.requests.length,0);
 }));
 
-test('receipt failure cannot turn an unreceipted execution cache into a successful replay',async()=>production(async()=>{
+test('receipt failure consumes the reservation without writing a replay result',async()=>production(async()=>{
  const h=harness();h.options.store.completeBatchRequest=async()=>{throw Error('Receipt RPC unavailable')};
+ let writes=0;
+ h.options.store.set=async()=>{writes++};
  assert.equal((await handleNexusExecuteRequest(signed(),h.options)).status,422);
  assert.equal(h.requests.length,2);
  const replay=await handleNexusExecuteRequest(signed(),h.options);
- assert.equal(replay.status,409);assert.equal(h.requests.length,2);
+ assert.equal(replay.status,409);assert.equal(h.requests.length,2);assert.equal(writes,0);
+}));
+
+test('failure to persist a completed result leaves the reservation consumed without a second crawl',async()=>production(async()=>{
+ const h=harness();h.options.store.set=async()=>{throw Error('Replay result write unavailable')};
+ assert.equal((await handleNexusExecuteRequest(signed(),h.options)).status,422);
+ assert.equal(h.receipts.length,1);
+ assert.equal((await handleNexusExecuteRequest(signed(),h.options)).status,409);
+ assert.equal(h.requests.length,2);assert.equal(h.receipts.length,1);
 }));
 
 test('actual execute route admits only signed Communion when its separate switch is active',()=>{
@@ -137,12 +147,23 @@ test('actual execute route admits only signed Communion when its separate switch
  execFileSync(process.execPath,['--experimental-transform-types','--input-type=module','-e',script],{stdio:'pipe',env:{...process.env,VERCEL_ENV:'production',NEXUS_COMMUNION_EVENTS_ENABLED:'true',NEXUS_EXECUTOR_ENABLED:'true',NEXUS_SOURCE_DISCOVERY_ENABLED:'true',NEXUS_CONTENT_INTERPRETATION_ENABLED:'false',NEXUS_SOURCE_DISCOVERY_BATCH_SCOPE:'',NEXT_PUBLIC_SUPABASE_URL:'https://store.fixture',SUPABASE_SECRET_KEY:'fixture-service-key',NEXUS_HMAC_SECRET:'fixture-secret'}});
 });
 
-test('deployed reservation SQL bounds concurrent Communion execution and retains zero-cost receipts',async()=>production(async()=>{
+test('deployed result and reservation SQL persist one Communion result and replay it without crawling',async()=>production(async()=>{
  const db=new PGlite();
  try{
   await db.exec('create role anon; create role authenticated; create role service_role;');
+  await db.exec(readFileSync(new URL('../supabase/migrations/20260921100000_nexus_executor_results.sql',import.meta.url),'utf8'));
   await db.exec(readFileSync(new URL('../supabase/migrations/20261021110000_nexus_source_discovery_batch_scopes.sql',import.meta.url),'utf8'));
   const h=harness();h.options.now=()=>Date.now();
+  h.options.store.get=async key=>{
+   const result=await db.query<{result_payload:Record<string,unknown>}>('select result_payload from public.nexus_executor_results where idempotency_key=$1',[key]);
+   return result.rows[0]?.result_payload??null;
+  };
+  h.options.store.set=async(key,result)=>{
+   await db.query(
+    'insert into public.nexus_executor_results(idempotency_key,contract_version,request_id,result_payload) values ($1,$2,$3,$4) on conflict (idempotency_key) do nothing',
+    [key,result.contractVersion,result.requestId??result.discoveryRequestId,result],
+   );
+  };
   h.options.store.reserveBatchRequest=async r=>{
    const result=await db.query<{result:{state:string}}>('select public.reserve_nexus_source_discovery_batch_request($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) result',[r.scopeId,r.manifestSha256,r.validFrom,r.validUntil,r.maxVenues,r.maxRequestsPerVenue,r.maxTotalRequests,r.listingId,r.host,r.idempotencyKey,r.requestSha256,r.requestBudget]);
    return result.rows[0].result.state==='RESERVED';
@@ -153,7 +174,14 @@ test('deployed reservation SQL bounds concurrent Communion execution and retains
   };
   const request=()=>signed(payload(),String(Math.floor(Date.now()/1000)));
   const responses=await Promise.all([handleNexusExecuteRequest(request(),h.options),handleNexusExecuteRequest(request(),h.options)]);
-  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);assert.equal(h.requests.length,2);
+  const responseBodies=await Promise.all(responses.map(response=>response.json()));
+  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409],JSON.stringify(responseBodies));
+  const replay=await handleNexusExecuteRequest(request(),h.options);
+  assert.equal(replay.status,200);
+  assert.deepEqual(await replay.json(),responseBodies[responses.findIndex(response=>response.status===200)]);
+  assert.equal(h.requests.length,2);
+  const stored=(await db.query("select request_id,contract_version,jsonb_array_length(result_payload->'eventCandidates') as event_count from public.nexus_executor_results")).rows;
+  assert.deepEqual(stored,[{request_id:payload().discoveryRequestId,contract_version:'nexus.source-discovery-result.v2',event_count:1}]);
   const rows=(await db.query('select reserved_requests,request_count,provider_cost_usd::text,status from public.nexus_source_discovery_batch_receipts')).rows;
   assert.deepEqual(rows,[{reserved_requests:6,request_count:2,provider_cost_usd:'0.0000',status:'COMPLETED'}]);
   const permissions=(await db.query("select has_function_privilege('anon','public.reserve_nexus_source_discovery_batch_request(uuid,text,timestamptz,timestamptz,integer,integer,integer,uuid,text,uuid,text,integer)','execute') anon_can_reserve")).rows;
