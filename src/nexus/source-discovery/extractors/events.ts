@@ -2,7 +2,15 @@ import { createHash } from "node:crypto";
 import { tags } from "../html.ts";
 import { canonicalHttpsUrl } from "../network.ts";
 import type { FetchedDocument } from "../types.ts";
-import { extractHtmlCardEvents, extractHtmlEventFacts, type HtmlEventFacts } from "./event-html.ts";
+import {
+  extractHCalendarIndexSummaries,
+  extractHtmlCardEvents,
+  extractHtmlEventFacts,
+  type ArtistPageObservation,
+  type HCalendarIndexSummary,
+  type HtmlEventFacts,
+  type PerformerBillingObservation,
+} from "./event-html.ts";
 import { parseCalendarDocument, type CalendarEventFacts } from "./event-ics.ts";
 
 function text(value: unknown): string | null {
@@ -70,6 +78,12 @@ export type EventEvidence = {
   confidence: number | null;
   sourceExternalId?: string;
   sourceIdentityEvidenceRef?: string;
+  timePrecision?: "EXPLICIT_INSTANT" | "DATE_ONLY";
+  timeMeaning?: "DOORS_OPEN" | "SHOW_WINDOW" | "DOORS_OR_START" | "DATE_ONLY_DEFAULTED";
+  seriesTitle?: string | null;
+  performerBillings?: PerformerBillingObservation[];
+  outboundArtistUrls?: string[];
+  artistObservations?: ArtistPageObservation[];
 };
 
 type NormalizedEvent = { event: EventEvidence; identity: string };
@@ -128,6 +142,7 @@ export function extractEventsFromDocuments(documents: FetchedDocument[]): { even
   const warnings: string[] = [];
   const evidenceRefs: string[] = [];
   const htmlFacts = new Map<string, { facts: HtmlEventFacts; document: FetchedDocument }>();
+  const hcalendarByUrl = new Map<string, HCalendarIndexSummary>();
   const calendarFacts: CalendarEventFacts[] = [];
   for (const document of documents) {
     if (/text\/calendar|\.ics(?:$|\?)/i.test(document.contentType ?? "") || /(?:\.ics|[?&]format=ical)(?:$|&)/i.test(document.url)) {
@@ -137,10 +152,13 @@ export function extractEventsFromDocuments(documents: FetchedDocument[]): { even
       for (const event of calendar.events) evidenceRefs.push(identityRef(event.sourceHash, "ics", event.sourceExternalId));
       continue;
     }
+    for (const summary of extractHCalendarIndexSummaries(document)) {
+      if (!hcalendarByUrl.has(summary.sourceEventUrl)) hcalendarByUrl.set(summary.sourceEventUrl, summary);
+    }
     const html = extractHtmlEventFacts(document);
     if (html) htmlFacts.set(html.sourceEventUrl, { facts: html, document });
     for (const card of extractHtmlCardEvents(document)) {
-      htmlFacts.set(card.sourceEventUrl, { facts: card, document });
+      if (!htmlFacts.has(card.sourceEventUrl)) htmlFacts.set(card.sourceEventUrl, { facts: card, document });
     }
     const nodes: Record<string, unknown>[] = [];
     for (const script of tags(document.body, "script")) {
@@ -185,6 +203,17 @@ export function extractEventsFromDocuments(documents: FetchedDocument[]): { even
     candidate.sourceIdentityEvidenceRef = identityRef(facts.sourceHash, "ics", facts.sourceExternalId);
   }
   for (const [eventUrl, { facts, document }] of htmlFacts) {
+    const hcal = hcalendarByUrl.get(eventUrl);
+    if (hcal) {
+      facts.sourceExternalId ??= hcal.sourceExternalId;
+      if (!facts.startAt || facts.timePrecision === "DATE_ONLY") {
+        facts.startAt = hcal.startAt;
+        facts.timezone ??= hcal.timezone;
+        facts.timePrecision = hcal.timePrecision;
+        facts.timeMeaning = hcal.timeMeaning;
+      }
+      evidenceRefs.push(identityRef(hcal.sourceHash, "html", hcal.sourceExternalId));
+    }
     let candidate = candidates.find((event) => event.sourceEventUrl === eventUrl && event.sourcePageUrl === document.url);
     if (!candidate && facts.startAt) {
       candidate = blankEvent(facts.title, facts.startAt, eventUrl, document);
@@ -198,13 +227,22 @@ export function extractEventsFromDocuments(documents: FetchedDocument[]): { even
     candidate.timezone ??= facts.timezone;
     candidate.venueText ??= facts.venueText;
     candidate.description ??= facts.description;
+    candidate.organiser ??= facts.organiser ?? null;
+    candidate.ageRestriction ??= facts.ageRestriction ?? null;
+    candidate.eventStatus ??= facts.eventStatus ?? null;
+    if (facts.timePrecision) candidate.timePrecision ??= facts.timePrecision;
+    if (facts.timeMeaning) candidate.timeMeaning ??= facts.timeMeaning;
+    if (facts.seriesTitle) candidate.seriesTitle ??= facts.seriesTitle;
     if (!candidate.performers.length) candidate.performers = facts.performers;
+    if (facts.performerBillings?.length && !candidate.performerBillings?.length) candidate.performerBillings = facts.performerBillings;
+    if (facts.outboundArtistUrls?.length && !candidate.outboundArtistUrls?.length) candidate.outboundArtistUrls = facts.outboundArtistUrls;
+    if (facts.artistObservations?.length && !candidate.artistObservations?.length) candidate.artistObservations = facts.artistObservations;
     candidate.ticketUrl ??= facts.ticketUrl;
     candidate.ticketDomain ??= candidate.ticketUrl ? new URL(candidate.ticketUrl).hostname : null;
     candidate.eventImageUrl ??= facts.eventImageUrl;
     if (facts.sourceExternalId && !candidate.sourceExternalId) {
       candidate.sourceExternalId = facts.sourceExternalId;
-      candidate.sourceIdentityEvidenceRef = identityRef(document.sourceHash, "html", facts.sourceExternalId);
+      candidate.sourceIdentityEvidenceRef = identityRef(hcal ? hcal.sourceHash : document.sourceHash, "html", facts.sourceExternalId);
       evidenceRefs.push(candidate.sourceIdentityEvidenceRef);
     }
     evidenceRefs.push(`source:${document.sourceHash}:html:${createHash("sha256").update(eventUrl).digest("hex").slice(0, 16)}`);
