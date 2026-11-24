@@ -93,9 +93,17 @@ const UK_LOCALITY_NATION: Record<string, "SCT" | "ENG" | "WLS" | "NIR"> = {
   nottingham: "ENG",
   birmingham: "ENG",
   southampton: "ENG",
+  wigan: "ENG",
+  preston: "ENG",
+  york: "ENG",
+  hull: "ENG",
+  oxford: "ENG",
+  norwich: "ENG",
+  coventry: "ENG",
   cardiff: "WLS",
   wrexham: "WLS",
   swansea: "WLS",
+  newport: "WLS",
   wales: "WLS",
   belfast: "NIR",
   derry: "NIR",
@@ -398,6 +406,7 @@ function extractArtistObservations(
   performers: string[],
   paragraphs: string[],
   outboundUrls: string[],
+  embeddedMedia: Array<{ kind: "SPOTIFY_ARTIST" | "SPOTIFY_TRACK" | "SPOTIFY_ALBUM" | "YOUTUBE_VIDEO"; url: string; title: string | null }> = [],
 ): ArtistPageObservation[] {
   const observations: ArtistPageObservation[] = [];
   const spotifyIdMatch = outboundUrls
@@ -464,7 +473,10 @@ function extractArtistObservations(
       for (const m of p.matchAll(/\b(?:hailing\s+from|band\s+from|piece\s+from|outfit\s+from)\s+([A-Z][a-z]+)\b/g)) {
         if (m[1]) addUkLocality(m[1]);
       }
-      const prefixLoc = p.match(new RegExp(`\\b(Aberdeen|Edinburgh|Glasgow|Fife|Bristol|Manchester|London|Brighton|Leeds|Cardiff|Belfast)\\s+[^.]{0,50}?\\b${escaped}\\b`, "i"));
+      for (const m of p.matchAll(/\b([A-Z][a-z]+)(?:['’]s\s+newest\s+buzz\s+(?:band|act|outfit)|\s+up\s+and\s+comers)\b/g)) {
+        if (m[1]) addUkLocality(m[1]);
+      }
+      const prefixLoc = p.match(new RegExp(`\\b(Aberdeen|Edinburgh|Glasgow|Fife|Bristol|Manchester|London|Brighton|Leeds|Cardiff|Belfast|Wigan|Preston|Sheffield|Liverpool|Newcastle|Nottingham)\\s+[^.]{0,50}?\\b${escaped}\\b`, "i"));
       if (prefixLoc?.[1]) addUkLocality(prefixLoc[1]);
 
       // Explicit non-UK origins
@@ -497,11 +509,35 @@ function extractArtistObservations(
         const ex = boundedExcerpt(p);
         emergingSignals.push({ signalType: "DEBUT_ALBUM_UPCOMING", value: "Upcoming debut album", excerpt: ex });
         musicEvidence.push({ title: null, releaseKind: "ALBUM", releaseStatus: "UPCOMING", url: outboundUrls[0] ?? null, excerpt: ex });
-      } else if (/\b(?:songwriting|songwriters|each\s+new\s+release|high-energy\s+punk\s+songs|infuriatingly\s+catchy\s+songs)\b/i.test(p)) {
+      } else if (/\b(?:songwriting|songwriters|each\s+new\s+release|quality\s+releases|high-energy\s+punk\s+songs|infuriatingly\s+catchy\s+songs|classic\s+catchy\s+indie)\b/i.test(p)) {
         repertoireOriginality = "ORIGINAL";
       }
-      if (/\b(?:2026\s+has\s+been\s+a\s+breakout\s+year|debut\s+[A-Z][A-Za-z ]+\s+tour)\b/i.test(p)) {
-        emergingSignals.push({ signalType: "EARLY_TOUR_OR_BREAKOUT_CONTEXT", value: "2026 breakout / debut tour context", excerpt: boundedExcerpt(p) });
+      if (/\b(?:2026\s+has\s+been\s+a\s+breakout\s+year|debut\s+[A-Z][A-Za-z ]+\s+tour|newest\s+buzz\s+band|up\s+and\s+comers)\b/i.test(p)) {
+        emergingSignals.push({ signalType: "EARLY_TOUR_OR_BREAKOUT_CONTEXT", value: "Emerging tour / buzz context", excerpt: boundedExcerpt(p) });
+      }
+    }
+
+    if (performers.length === 1 && embeddedMedia.length > 0) {
+      for (const media of embeddedMedia) {
+        if (media.kind === "SPOTIFY_TRACK" || media.kind === "SPOTIFY_ALBUM") {
+          repertoireOriginality = repertoireOriginality === "UNKNOWN" ? "ORIGINAL" : repertoireOriginality;
+          musicEvidence.push({
+            title: media.title,
+            releaseKind: media.kind === "SPOTIFY_ALBUM" ? "ALBUM" : "SINGLE",
+            releaseStatus: "RELEASED",
+            url: media.url,
+            excerpt: boundedExcerpt(media.title ? `Embedded Spotify release: ${media.title}` : `Embedded Spotify link: ${media.url}`),
+          });
+        } else if (media.kind === "YOUTUBE_VIDEO" && media.title && /\b(?:official\s+video|music\s+video)\b/i.test(media.title)) {
+          repertoireOriginality = repertoireOriginality === "UNKNOWN" ? "ORIGINAL" : repertoireOriginality;
+          musicEvidence.push({
+            title: media.title,
+            releaseKind: "MUSIC_VIDEO",
+            releaseStatus: "RELEASED",
+            url: media.url,
+            excerpt: boundedExcerpt(`Embedded video: ${media.title}`),
+          });
+        }
       }
     }
 
@@ -777,5 +813,154 @@ export function extractHtmlCardEvents(document: FetchedDocument): HtmlEventFacts
       eventImageUrl,
     });
   }
+  return events;
+}
+
+function decodeHtmlDashAndEntities(raw: string): string {
+  return raw
+    .replace(/&#8211;|&ndash;|&#8212;|&mdash;/gi, "–")
+    .replace(/&#8217;|&rsquo;|&#8216;|&lsquo;/gi, "'")
+    .replace(/&#8220;|&ldquo;|&#8221;|&rdquo;/gi, '"')
+    .replace(/&amp;|&#038;/gi, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractEmbeddedMediaLinks(article: string): Array<{
+  kind: "SPOTIFY_ARTIST" | "SPOTIFY_TRACK" | "SPOTIFY_ALBUM" | "YOUTUBE_VIDEO";
+  url: string;
+  title: string | null;
+}> {
+  const found: Array<{
+    kind: "SPOTIFY_ARTIST" | "SPOTIFY_TRACK" | "SPOTIFY_ALBUM" | "YOUTUBE_VIDEO";
+    url: string;
+    title: string | null;
+  }> = [];
+  for (const iframe of tags(article, "iframe")) {
+    const src = iframe.attrs.src ?? "";
+    const rawTitle = text(iframe.attrs.title ? decodeHtmlDashAndEntities(iframe.attrs.title) : null);
+    const spArtist = src.match(/^https:\/\/open\.spotify\.com\/embed\/artist\/([A-Za-z0-9]{22})\b/);
+    if (spArtist) {
+      const cleanUrl = `https://open.spotify.com/artist/${spArtist[1]}`;
+      if (!found.some((f) => f.url === cleanUrl)) found.push({ kind: "SPOTIFY_ARTIST", url: cleanUrl, title: rawTitle });
+      continue;
+    }
+    const spTrack = src.match(/^https:\/\/open\.spotify\.com\/embed\/(track|album)\/([A-Za-z0-9]{22})\b/);
+    if (spTrack) {
+      const kind = spTrack[1] === "album" ? "SPOTIFY_ALBUM" : "SPOTIFY_TRACK";
+      const cleanUrl = `https://open.spotify.com/${spTrack[1]}/${spTrack[2]}`;
+      const cleanTitle = rawTitle ? rawTitle.replace(/^Spotify\s+Embed\s*:\s*/i, "").trim() || null : null;
+      if (!found.some((f) => f.url === cleanUrl)) found.push({ kind, url: cleanUrl, title: cleanTitle });
+      continue;
+    }
+    const yt = src.match(/^https:\/\/(?:www\.)?youtube\.com\/embed\/([A-Za-z0-9_-]{8,16})\b/);
+    if (yt) {
+      const cleanUrl = `https://www.youtube.com/watch?v=${yt[1]}`;
+      if (!found.some((f) => f.url === cleanUrl)) found.push({ kind: "YOUTUBE_VIDEO", url: cleanUrl, title: rawTitle });
+    }
+  }
+  return found;
+}
+
+function inferPromoterSiteOrganiser(document: FetchedDocument, actName: string): string | null {
+  const host = new URL(document.url).hostname.replace(/^www\./i, "").toLowerCase();
+  const hostCompact = host.split(".")[0]?.replace(/[^a-z0-9]/g, "") ?? "";
+  const actCompact = actName.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!hostCompact || (actCompact.length >= 3 && hostCompact.includes(actCompact))) return null;
+
+  const ogSiteName = meta(document, "og:site_name");
+  if (ogSiteName && ogSiteName.toLowerCase().replace(/[^a-z0-9]/g, "") !== actCompact) {
+    return ogSiteName;
+  }
+  if (host === "thisfeeling.co.uk" || /\bTF\s+Records\b/i.test(document.body)) {
+    return "This Feeling";
+  }
+  return null;
+}
+
+/**
+ * Extracts multi-stop or single-stop tour dates published on an artist or promoter showcase `<article>`
+ * where each date is formatted as `<p><strong>DD MONTH YYYY – CITY VENUE</strong></p>` followed by a
+ * ticket button (`BUY TICKETS` / `TICKETS`). Keeps `timePrecision: "DATE_ONLY"` when no clock hour is stated.
+ */
+export function extractHtmlTourScheduleEvents(document: FetchedDocument): HtmlEventFacts[] {
+  const pathname = new URL(document.url).pathname;
+  if (datedPermalinkPath.test(pathname)) return [];
+
+  const articleTag = tags(document.body, "article")[0];
+  const article = articleTag?.inner;
+  if (!article) return [];
+
+  const h1Raw = tags(article, "h1")[0]?.inner ?? null;
+  const h1Clean = h1Raw ? artist(decodeHtmlDashAndEntities(visibleText(h1Raw))) : null;
+  if (!h1Clean) return [];
+
+  const stopPattern = /<p\b[^>]*>\s*<strong\b[^>]*>\s*(\d{1,2})\s+([A-Za-z]{3,9})\s+(20\d{2})\s*(?:&#8211;|&ndash;|&#8212;|&mdash;|[–—-])\s*([\s\S]*?)<\/strong>\s*<\/p>([\s\S]*?)(?=<p\b[^>]*>\s*<strong\b|<figure\b|<\/div>\s*<\/article>|<\/article>|$)/gi;
+  const rawStops = [...article.matchAll(stopPattern)];
+  if (!rawStops.length) return [];
+
+  const rawParagraphs = tags(article, "p")
+    .map((p) => text(decodeHtmlDashAndEntities(visibleText(p.inner))))
+    .filter((p): p is string => Boolean(p) && !/^buy\s+tickets$/i.test(p!) && !/^\d{1,2}\s+[A-Za-z]{3,9}\s+20\d{2}\s*[–—-]/.test(p!));
+
+  const embeddedMedia = extractEmbeddedMediaLinks(article);
+  const embeddedUrls = embeddedMedia.map((m) => m.url);
+  const baseOutbound = extractOutboundArtistUrls(article, document.url, null, [h1Clean]);
+  const outboundArtistUrls = [...new Set([...baseOutbound, ...embeddedUrls])];
+  const artistObservations = extractArtistObservations([h1Clean], rawParagraphs, outboundArtistUrls, embeddedMedia);
+  const organiser = inferPromoterSiteOrganiser(document, h1Clean);
+  const eventImageUrl = imageFromPage(document, article);
+  const canonicalPageUrl = canonicalHttpsUrl(document.url, document.url) ?? document.url;
+  const description = rawParagraphs.filter((p) => !isForFansOfClause(p)).join("\n").slice(0, 10_000) || null;
+
+  const events: HtmlEventFacts[] = [];
+  for (const stop of rawStops) {
+    const dayNum = stop[1]!.padStart(2, "0");
+    const monthNum = MONTHS[stop[2]!.toLowerCase()];
+    const yearStr = stop[3]!;
+    if (!monthNum) continue;
+
+    const dateStr = `${yearStr}-${monthNum}-${dayNum}`;
+    const rawVenueLine = decodeHtmlDashAndEntities(visibleText(stop[4]!));
+    const venueText = text(rawVenueLine);
+    if (!venueText) continue;
+
+    const trailingHtml = stop[5] ?? "";
+    const ticketAnchor = hrefTags(trailingHtml).find((a) =>
+      /\b(?:buy\s+tickets?|tickets?|rsvp|book)\b/i.test(visibleText(a.inner)),
+    );
+    const ticketUrl = ticketAnchor ? normalizeTicketUrl(ticketAnchor.attrs.href, document.url) : null;
+    const venueSlug = venueText.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64);
+    const sourceEventUrl = `${canonicalPageUrl.replace(/#.*$/, "")}#tour-${dateStr}-${venueSlug}`;
+
+    events.push({
+      title: `${h1Clean} – ${venueText}`,
+      sourceExternalId: `tour:${dateStr}:${venueSlug}`,
+      sourceEventUrl,
+      startAt: `${dateStr}T00:00:00.000Z`,
+      endAt: null,
+      timezone: "Europe/London",
+      venueText,
+      description,
+      organiser,
+      ageRestriction: null,
+      eventStatus: "SCHEDULED",
+      timePrecision: "DATE_ONLY",
+      timeMeaning: "DATE_ONLY_DEFAULTED",
+      performers: [h1Clean],
+      performerBillings: [{
+        billedName: h1Clean,
+        listedPosition: 1,
+        role: "HEADLINE",
+        billingRank: 1,
+        billingOrderBasis: "EXPLICIT",
+      }],
+      outboundArtistUrls,
+      artistObservations,
+      ticketUrl,
+      eventImageUrl,
+    });
+  }
+
   return events;
 }
