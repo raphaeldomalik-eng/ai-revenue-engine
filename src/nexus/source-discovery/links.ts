@@ -5,6 +5,7 @@ import type { SiteIdentity } from "./site-identity.ts";
 import type { FetchedDocument } from "./types.ts";
 
 const EVENT_PATH = /(^|\/)(events?|gigs?|shows?|tour|live|whats[-_]?on|calendar|concerts?)(\/|$)/i;
+const DATED_EVENT_PERMALINK_PATH = /^\/20\d{2}\/\d{2}\/\d{2}\/[a-z0-9%-]+\/?$/i;
 const EVENT_TEXT = /\b(events?|gigs?|shows?|tour dates?|live dates?|what'?s on|calendar|concerts?)\b/i;
 const DATE_SIGNAL = /\b(20\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun)\b/i;
 const CALENDAR_URL = /\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i;
@@ -85,8 +86,9 @@ export function discoverLikelyEventDetailUrls(document: FetchedDocument, site?: 
     const label = visibleText(anchor.inner);
     const isDeeper = url.pathname.split("/").filter(Boolean).length > sourceDepth;
     const hasDateSignal = DATE_SIGNAL.test(`${label} ${url.pathname}`);
-    if (!EVENT_PATH.test(url.pathname) || (!isDeeper && !hasDateSignal)) continue;
-    const score = Number(isDeeper) + Number(hasDateSignal) * 2;
+    const isDatedPermalinkFromEventIndex = EVENT_PATH.test(source.pathname) && DATED_EVENT_PERMALINK_PATH.test(url.pathname);
+    if (!isDatedPermalinkFromEventIndex && (!EVENT_PATH.test(url.pathname) || (!isDeeper && !hasDateSignal))) continue;
+    const score = Number(isDeeper || isDatedPermalinkFromEventIndex) + Number(hasDateSignal) * 2;
     scored.set(normalized, Math.max(score, scored.get(normalized) ?? 0));
   }
   return [...scored.entries()]

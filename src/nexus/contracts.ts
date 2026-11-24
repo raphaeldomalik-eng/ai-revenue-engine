@@ -323,7 +323,84 @@ function imageCandidate(value: unknown) {
   else if (supplied === "VERIFIED_REUSABLE" && (!rightsEvidence || !["PUBLIC_DOMAIN", "CC0", "CC_BY", "CC_BY_SA", "EXPLICIT_COMMERCIAL_REUSE_PERMISSION", "EQUIVALENT_VERIFIED_REUSABLE"].includes(rightsEvidence.basis))) fail("VERIFIED_REUSABLE_EVIDENCE_REQUIRED");
   return { sourceImageUrl: url(v.sourceImageUrl, "INVALID_IMAGE_SOURCE_URL", { httpsOnly: true })!, sourcePageUrl: url(v.sourcePageUrl, "INVALID_IMAGE_PAGE_URL", { httpsOnly: true })!, filename: v.filename == null ? null : text(v.filename, "INVALID_IMAGE_FILENAME", { max: 512 }), alt: v.alt == null ? null : text(v.alt, "INVALID_IMAGE_ALT", { max: 2048 }), title: v.title == null ? null : text(v.title, "INVALID_IMAGE_TITLE", { max: 2048 }), caption: v.caption == null ? null : text(v.caption, "INVALID_IMAGE_CAPTION", { max: 4096 }), width: v.width == null ? null : nonNegativeNumber(v.width, "INVALID_IMAGE_WIDTH", { max: 100_000, positive: true }), height: v.height == null ? null : nonNegativeNumber(v.height, "INVALID_IMAGE_HEIGHT", { max: 100_000, positive: true }), mime: v.mime == null ? null : text(v.mime, "INVALID_IMAGE_MIME", { max: 128 }), likelyRole: enumValue(v.likelyRole ?? "OTHER", IMAGE_ROLES, "INVALID_IMAGE_ROLE"), exactVenue: v.exactVenue === true ? true : v.exactVenue === false ? false : null, discoveredAt: iso(v.discoveredAt, "INVALID_IMAGE_DISCOVERED_AT"), originDomain: text(v.originDomain, "INVALID_IMAGE_ORIGIN_DOMAIN", { max: 512 })!, rightsState, rightsEvidence, operatorConfirmed, legacyRightsState, rightsReviewRequired };
 }
-function eventCandidate(value: unknown) { const v = object(value, "INVALID_EVENT_CANDIDATE"); return { title: text(v.title, "INVALID_EVENT_TITLE", { max: 1024 })!, sourceEventUrl: url(v.sourceEventUrl, "INVALID_EVENT_SOURCE_URL", { httpsOnly: true })!, sourcePageUrl: url(v.sourcePageUrl, "INVALID_EVENT_PAGE_URL", { httpsOnly: true })!, venueText: v.venueText == null ? null : text(v.venueText, "INVALID_EVENT_VENUE_TEXT", { max: 1024 }), startAt: v.startAt == null ? null : iso(v.startAt, "INVALID_EVENT_START_AT"), endAt: v.endAt == null ? null : iso(v.endAt, "INVALID_EVENT_END_AT"), timezone: v.timezone == null ? null : text(v.timezone, "INVALID_EVENT_TIMEZONE", { max: 128 }), eventStatus: v.eventStatus == null ? null : text(v.eventStatus, "INVALID_EVENT_STATUS", { max: 128 }), description: v.description == null ? null : text(v.description, "INVALID_EVENT_DESCRIPTION", { max: 10000 }), organiser: v.organiser == null ? null : text(v.organiser, "INVALID_EVENT_ORGANISER", { max: 1024 }), performers: stringArray(v.performers, "INVALID_EVENT_PERFORMERS", { maxItems: 100 }), sourceCategory: v.sourceCategory == null ? null : text(v.sourceCategory, "INVALID_EVENT_CATEGORY", { max: 256 }), ticketUrl: url(v.ticketUrl, "INVALID_EVENT_TICKET_URL", { optional: true }), ticketDomain: v.ticketDomain == null ? null : text(v.ticketDomain, "INVALID_EVENT_TICKET_DOMAIN", { max: 512 }), priceText: v.priceText == null ? null : text(v.priceText, "INVALID_EVENT_PRICE_TEXT", { max: 1024 }), ageRestriction: v.ageRestriction == null ? null : text(v.ageRestriction, "INVALID_EVENT_AGE_RESTRICTION", { max: 512 }), eventImageUrl: url(v.eventImageUrl, "INVALID_EVENT_IMAGE_URL", { optional: true }), sourceFingerprint: text(v.sourceFingerprint, "INVALID_EVENT_FINGERPRINT", { max: 512 })!, observedAt: iso(v.observedAt, "INVALID_EVENT_OBSERVED_AT"), state: enumValue(v.state ?? "DISCOVERED", EVENT_REVIEW_STATES, "INVALID_EVENT_REVIEW_STATE"), confidence: v.confidence == null ? null : nonNegativeNumber(v.confidence, "INVALID_EVENT_CONFIDENCE", { max: 1 }), ...(v.sourceExternalId == null ? {} : { sourceExternalId: text(v.sourceExternalId, "INVALID_EVENT_SOURCE_EXTERNAL_ID", { max: 256 })! }), ...(v.sourceIdentityEvidenceRef == null ? {} : { sourceIdentityEvidenceRef: text(v.sourceIdentityEvidenceRef, "INVALID_EVENT_SOURCE_IDENTITY_EVIDENCE_REF", { max: 512 })! }) }; }
+const PERFORMER_BILLING_ROLES = ["HEADLINE", "SUPPORT", "SPECIAL_GUEST", "DJ", "HOST", "PERFORMER"] as const;
+const PERFORMER_BILLING_ORDER_BASES = ["EXPLICIT", "LIST_ORDER_ONLY", "ALPHABETICAL", "UNKNOWN"] as const;
+const ARTIST_REPERTOIRE_CLASSES = ["ORIGINAL", "MIXED", "COVER", "TRIBUTE", "FUNCTION", "UNKNOWN"] as const;
+const UK_NATION_CODES = ["SCT", "ENG", "WLS", "NIR"] as const;
+const PERFORMER_BILLING_FIELDS = new Set(["billedName", "listedPosition", "role", "billingRank", "billingOrderBasis"]);
+const EMERGING_SIGNAL_FIELDS = new Set(["signalType", "value", "excerpt"]);
+const MUSIC_EVIDENCE_FIELDS = new Set(["title", "releaseKind", "releaseStatus", "url", "excerpt"]);
+const ARTIST_OBSERVATION_FIELDS = new Set(["billedName", "baseLocalities", "baseCountryCode", "ukNation", "originText", "originCountryCode", "repertoireOriginality", "emergingSignals", "musicEvidence", "spotifyArtistUri", "excerpt"]);
+
+function isoCountry2(value: unknown, code: string): string | null {
+  if (value == null) return null;
+  const normalized = text(value, code, { max: 2 })!.toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) fail(code);
+  return normalized;
+}
+function performerBillingObservation(value: unknown) {
+  const v = object(value, "INVALID_EVENT_PERFORMER_BILLING");
+  assertOnlyFields(v, PERFORMER_BILLING_FIELDS, "INVALID_EVENT_PERFORMER_BILLING_FIELDS");
+  const listedPosition = nonNegativeNumber(v.listedPosition, "INVALID_EVENT_PERFORMER_LISTED_POSITION", { max: 100, positive: true });
+  if (!Number.isInteger(listedPosition)) fail("INVALID_EVENT_PERFORMER_LISTED_POSITION");
+  let billingRank: number | null = null;
+  if (v.billingRank != null) {
+    billingRank = nonNegativeNumber(v.billingRank, "INVALID_EVENT_PERFORMER_BILLING_RANK", { max: 100, positive: true });
+    if (!Number.isInteger(billingRank)) fail("INVALID_EVENT_PERFORMER_BILLING_RANK");
+  }
+  return {
+    billedName: text(v.billedName, "INVALID_EVENT_PERFORMER_BILLING_NAME", { max: 256 })!,
+    listedPosition,
+    role: enumValue(v.role, PERFORMER_BILLING_ROLES, "INVALID_EVENT_PERFORMER_ROLE"),
+    billingRank,
+    billingOrderBasis: enumValue(v.billingOrderBasis, PERFORMER_BILLING_ORDER_BASES, "INVALID_EVENT_PERFORMER_BILLING_ORDER_BASIS"),
+  };
+}
+function emergingSignalObservation(value: unknown) {
+  const v = object(value, "INVALID_EVENT_EMERGING_SIGNAL");
+  assertOnlyFields(v, EMERGING_SIGNAL_FIELDS, "INVALID_EVENT_EMERGING_SIGNAL_FIELDS");
+  return {
+    signalType: text(v.signalType, "INVALID_EVENT_EMERGING_SIGNAL_TYPE", { max: 128 })!,
+    value: text(v.value, "INVALID_EVENT_EMERGING_SIGNAL_VALUE", { max: 256 })!,
+    excerpt: text(v.excerpt, "INVALID_EVENT_EMERGING_SIGNAL_EXCERPT", { max: 280 })!,
+  };
+}
+function musicEvidenceObservation(value: unknown) {
+  const v = object(value, "INVALID_EVENT_MUSIC_EVIDENCE_ITEM");
+  assertOnlyFields(v, MUSIC_EVIDENCE_FIELDS, "INVALID_EVENT_MUSIC_EVIDENCE_FIELDS");
+  return {
+    title: v.title == null ? null : text(v.title, "INVALID_EVENT_MUSIC_EVIDENCE_TITLE", { max: 256 }),
+    releaseKind: text(v.releaseKind, "INVALID_EVENT_MUSIC_EVIDENCE_KIND", { max: 64 })!,
+    releaseStatus: text(v.releaseStatus, "INVALID_EVENT_MUSIC_EVIDENCE_STATUS", { max: 64 })!,
+    url: v.url == null ? null : url(v.url, "INVALID_EVENT_MUSIC_EVIDENCE_URL", { httpsOnly: true }),
+    excerpt: text(v.excerpt, "INVALID_EVENT_MUSIC_EVIDENCE_EXCERPT", { max: 280 })!,
+  };
+}
+function artistPageObservation(value: unknown) {
+  const v = object(value, "INVALID_EVENT_ARTIST_OBSERVATION");
+  assertOnlyFields(v, ARTIST_OBSERVATION_FIELDS, "INVALID_EVENT_ARTIST_OBSERVATION_FIELDS");
+  if (!Array.isArray(v.emergingSignals) || v.emergingSignals.length > 20) fail("INVALID_EVENT_EMERGING_SIGNALS");
+  if (!Array.isArray(v.musicEvidence) || v.musicEvidence.length > 20) fail("INVALID_EVENT_MUSIC_EVIDENCE");
+  let spotifyArtistUri: string | null = null;
+  if (v.spotifyArtistUri != null) {
+    spotifyArtistUri = text(v.spotifyArtistUri, "INVALID_EVENT_SPOTIFY_ARTIST_URI", { max: 64 })!;
+    if (!/^spotify:artist:[A-Za-z0-9]{22}$/.test(spotifyArtistUri)) fail("INVALID_EVENT_SPOTIFY_ARTIST_URI");
+  }
+  return {
+    billedName: text(v.billedName, "INVALID_EVENT_ARTIST_OBSERVATION_NAME", { max: 256 })!,
+    baseLocalities: stringArray(v.baseLocalities, "INVALID_EVENT_ARTIST_BASE_LOCALITIES", { maxItems: 10 }),
+    baseCountryCode: isoCountry2(v.baseCountryCode, "INVALID_EVENT_ARTIST_BASE_COUNTRY"),
+    ukNation: v.ukNation == null ? null : enumValue(v.ukNation, UK_NATION_CODES, "INVALID_EVENT_ARTIST_UK_NATION"),
+    originText: v.originText == null ? null : text(v.originText, "INVALID_EVENT_ARTIST_ORIGIN_TEXT", { max: 256 }),
+    originCountryCode: isoCountry2(v.originCountryCode, "INVALID_EVENT_ARTIST_ORIGIN_COUNTRY"),
+    repertoireOriginality: enumValue(v.repertoireOriginality, ARTIST_REPERTOIRE_CLASSES, "INVALID_EVENT_ARTIST_REPERTOIRE_ORIGINALITY"),
+    emergingSignals: v.emergingSignals.map(emergingSignalObservation),
+    musicEvidence: v.musicEvidence.map(musicEvidenceObservation),
+    spotifyArtistUri,
+    excerpt: v.excerpt == null ? null : text(v.excerpt, "INVALID_EVENT_ARTIST_EXCERPT", { max: 280 }),
+  };
+}
+function eventCandidate(value: unknown) { const v = object(value, "INVALID_EVENT_CANDIDATE"); if (v.performerBillings != null && (!Array.isArray(v.performerBillings) || v.performerBillings.length > 100)) fail("INVALID_EVENT_PERFORMER_BILLINGS"); if (v.outboundArtistUrls != null && (!Array.isArray(v.outboundArtistUrls) || v.outboundArtistUrls.length > 100)) fail("INVALID_EVENT_OUTBOUND_ARTIST_URLS"); if (v.artistObservations != null && (!Array.isArray(v.artistObservations) || v.artistObservations.length > 100)) fail("INVALID_EVENT_ARTIST_OBSERVATIONS"); return { title: text(v.title, "INVALID_EVENT_TITLE", { max: 1024 })!, sourceEventUrl: url(v.sourceEventUrl, "INVALID_EVENT_SOURCE_URL", { httpsOnly: true })!, sourcePageUrl: url(v.sourcePageUrl, "INVALID_EVENT_PAGE_URL", { httpsOnly: true })!, venueText: v.venueText == null ? null : text(v.venueText, "INVALID_EVENT_VENUE_TEXT", { max: 1024 }), startAt: v.startAt == null ? null : iso(v.startAt, "INVALID_EVENT_START_AT"), endAt: v.endAt == null ? null : iso(v.endAt, "INVALID_EVENT_END_AT"), timezone: v.timezone == null ? null : text(v.timezone, "INVALID_EVENT_TIMEZONE", { max: 128 }), eventStatus: v.eventStatus == null ? null : text(v.eventStatus, "INVALID_EVENT_STATUS", { max: 128 }), description: v.description == null ? null : text(v.description, "INVALID_EVENT_DESCRIPTION", { max: 10000 }), organiser: v.organiser == null ? null : text(v.organiser, "INVALID_EVENT_ORGANISER", { max: 1024 }), performers: stringArray(v.performers, "INVALID_EVENT_PERFORMERS", { maxItems: 100 }), sourceCategory: v.sourceCategory == null ? null : text(v.sourceCategory, "INVALID_EVENT_CATEGORY", { max: 256 }), ticketUrl: url(v.ticketUrl, "INVALID_EVENT_TICKET_URL", { optional: true }), ticketDomain: v.ticketDomain == null ? null : text(v.ticketDomain, "INVALID_EVENT_TICKET_DOMAIN", { max: 512 }), priceText: v.priceText == null ? null : text(v.priceText, "INVALID_EVENT_PRICE_TEXT", { max: 1024 }), ageRestriction: v.ageRestriction == null ? null : text(v.ageRestriction, "INVALID_EVENT_AGE_RESTRICTION", { max: 512 }), eventImageUrl: url(v.eventImageUrl, "INVALID_EVENT_IMAGE_URL", { optional: true }), sourceFingerprint: text(v.sourceFingerprint, "INVALID_EVENT_FINGERPRINT", { max: 512 })!, observedAt: iso(v.observedAt, "INVALID_EVENT_OBSERVED_AT"), state: enumValue(v.state ?? "DISCOVERED", EVENT_REVIEW_STATES, "INVALID_EVENT_REVIEW_STATE"), confidence: v.confidence == null ? null : nonNegativeNumber(v.confidence, "INVALID_EVENT_CONFIDENCE", { max: 1 }), ...(v.sourceExternalId == null ? {} : { sourceExternalId: text(v.sourceExternalId, "INVALID_EVENT_SOURCE_EXTERNAL_ID", { max: 256 })! }), ...(v.sourceIdentityEvidenceRef == null ? {} : { sourceIdentityEvidenceRef: text(v.sourceIdentityEvidenceRef, "INVALID_EVENT_SOURCE_IDENTITY_EVIDENCE_REF", { max: 512 })! }), ...(v.timePrecision == null ? {} : { timePrecision: enumValue(v.timePrecision, ["EXPLICIT_INSTANT", "DATE_ONLY"] as const, "INVALID_EVENT_TIME_PRECISION") }), ...(v.timeMeaning == null ? {} : { timeMeaning: enumValue(v.timeMeaning, ["DOORS_OPEN", "SHOW_WINDOW", "DOORS_OR_START", "DATE_ONLY_DEFAULTED"] as const, "INVALID_EVENT_TIME_MEANING") }), ...(v.seriesTitle == null ? {} : { seriesTitle: text(v.seriesTitle, "INVALID_EVENT_SERIES_TITLE", { max: 256 }) }), ...(v.performerBillings == null ? {} : { performerBillings: v.performerBillings.map(performerBillingObservation) }), ...(v.outboundArtistUrls == null ? {} : { outboundArtistUrls: v.outboundArtistUrls.map((u: unknown) => url(u, "INVALID_EVENT_OUTBOUND_ARTIST_URL", { httpsOnly: true })!) }), ...(v.artistObservations == null ? {} : { artistObservations: v.artistObservations.map(artistPageObservation) }) }; }
 export function validateSourceDiscoveryResult(input: unknown) { const v = object(input, "INVALID_SOURCE_DISCOVERY_RESULT"); const publicContacts = Array.isArray(v.publicContacts) ? v.publicContacts.map(publicContact) : []; if (v.guideEmailReady === true && !publicContacts.some((item) => item.type === "EMAIL" && item.reviewRequired !== true)) fail("GUIDE_EMAIL_READY_REQUIRES_EVIDENCED_VENUE_EMAIL"); const contractVersion = enumValue(v.contractVersion, [CONTRACTS.SOURCE_DISCOVERY_RESULT, CONTRACTS.SOURCE_DISCOVERY_RESULT_V1] as const, "INVALID_CONTRACT_VERSION"); const crawl = crawlSummary(v.crawl); if (contractVersion === CONTRACTS.SOURCE_DISCOVERY_RESULT && !crawl.evidenceManifest) fail("SOURCE_DISCOVERY_V2_MANIFEST_REQUIRED"); return Object.freeze({ contractVersion, discoveryRequestId: uuid(v.discoveryRequestId, "INVALID_DISCOVERY_REQUEST_ID")!, idempotencyKey: uuid(v.idempotencyKey, "INVALID_IDEMPOTENCY_KEY")!, subjectReference: subject(v.subjectReference), source: sourceDescriptor(v.source), crawl, identityFacts: Array.isArray(v.identityFacts) ? v.identityFacts.map(proposedFact) : [], publicContacts, venueFacts: Array.isArray(v.venueFacts) ? v.venueFacts.map(venueFact) : [], imageCandidates: Array.isArray(v.imageCandidates) ? v.imageCandidates.map(imageCandidate) : [], eventCandidates: Array.isArray(v.eventCandidates) ? v.eventCandidates.map(eventCandidate) : [], evidenceRefs: stringArray(v.evidenceRefs, "INVALID_EVIDENCE_REFS", { maxItems: 1000 }), ...(v.guideEmailReady == null ? {} : { guideEmailReady: v.guideEmailReady === true }) }); }
 
 export function outboxArgs(contract: Record<string, any>) { const version = text(contract.contractVersion, "INVALID_CONTRACT_VERSION", { max: 128 })!; const idempotencyKey = uuid(contract.idempotencyKey, "INVALID_IDEMPOTENCY_KEY")!; const sourceRecordId = contract.requestId ?? contract.discoveryRequestId; if (!sourceRecordId) fail("SOURCE_RECORD_ID_REQUIRED"); return { schemaVersion: version, sourceSystem: "prestige_nexus", sourceRecordId: String(sourceRecordId), idempotencyKey, payload: contract, canonicalEntityId: contract.subject?.canonicalEntityId ?? contract.subjectReference?.canonicalEntityId ?? null }; }
