@@ -9,6 +9,25 @@ const DATED_EVENT_PERMALINK_PATH = /^\/20\d{2}\/\d{2}\/\d{2}\/[a-z0-9%-]+\/?$/i;
 const EVENT_TEXT = /\b(events?|gigs?|shows?|tour dates?|live dates?|what'?s on|calendar|concerts?)\b/i;
 const DATE_SIGNAL = /\b(20\d{2}|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|mon|tue|wed|thu|fri|sat|sun)\b/i;
 const CALENDAR_URL = /\.ics(?:$|\?)|[?&]format=ical(?:&|$)/i;
+const SHOWCASE_NAV_UTILITY_SLUG = /^\/(?:tickets|bands|festivals|applytoplay|bythesea|bigin20\d{2}|comingupthisweek|about|contact|shop|news|feed|comments|wp-json|xmlrpc\.php)\/?$/i;
+
+function extractShowcaseWidgetUrls(document: FetchedDocument, site?: SiteIdentity): Set<string> {
+  const found = new Set<string>();
+  if (!/<article\b[\s\S]*?<strong\b[^>]*>\s*\d{1,2}\s+[A-Za-z]{3,9}\s+20\d{2}\s*(?:&#8211;|&ndash;|&#8212;|&mdash;|[–—-])/i.test(document.body)) {
+    return found;
+  }
+  for (const asideMatch of document.body.matchAll(/<aside\b[^>]*class=["'][^"']*\bwidget_media_image\b[^"']*["'][^>]*>([\s\S]*?)<\/aside>/gi)) {
+    for (const anchor of hrefTags(asideMatch[1]!)) {
+      const normalized = sameOrigin(anchor.attrs.href ?? "", document.url, site);
+      if (!normalized || normalized === document.url) continue;
+      const pathname = new URL(normalized).pathname;
+      if (/^\/[a-z0-9-]+\/$/i.test(pathname) && !SHOWCASE_NAV_UTILITY_SLUG.test(pathname)) {
+        found.add(normalized);
+      }
+    }
+  }
+  return found;
+}
 
 function sameOrigin(value: string, base: string, site?: SiteIdentity): string | null {
   const normalized = site ? site.canonicalize(value, base) : canonicalHttpsUrl(value, base);
@@ -32,6 +51,7 @@ function extractorTerms(extractors: SourceExtractor[]): string[] {
 
 export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: SourceExtractor[], site?: SiteIdentity): string[] {
   const terms = extractorTerms(extractors);
+  const showcaseWidgetUrls = extractors.includes("EVENTS") ? extractShowcaseWidgetUrls(document, site) : new Set<string>();
   const scored = new Map<string, number>();
   for (const anchor of hrefTags(document.body)) {
     const normalized = sameOrigin(anchor.attrs.href ?? "", document.url, site);
@@ -45,6 +65,7 @@ export function discoverUsefulSourceUrls(document: FetchedDocument, extractors: 
       if (EVENT_PATH.test(url.pathname)) score += 4;
       if (EVENT_TEXT.test(label)) score += 3;
       if (/\/events?\//i.test(url.pathname)) score += 1;
+      if (showcaseWidgetUrls.has(normalized)) score += 5;
     }
     if (score > 0) scored.set(normalized, Math.max(score, scored.get(normalized) ?? 0));
   }

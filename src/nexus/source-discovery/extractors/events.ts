@@ -6,6 +6,7 @@ import {
   extractHCalendarIndexSummaries,
   extractHtmlCardEvents,
   extractHtmlEventFacts,
+  extractHtmlTourScheduleEvents,
   type ArtistPageObservation,
   type HCalendarIndexSummary,
   type HtmlEventFacts,
@@ -159,6 +160,9 @@ export function extractEventsFromDocuments(documents: FetchedDocument[]): { even
     if (html) htmlFacts.set(html.sourceEventUrl, { facts: html, document });
     for (const card of extractHtmlCardEvents(document)) {
       if (!htmlFacts.has(card.sourceEventUrl)) htmlFacts.set(card.sourceEventUrl, { facts: card, document });
+    }
+    for (const tourStop of extractHtmlTourScheduleEvents(document)) {
+      if (!htmlFacts.has(tourStop.sourceEventUrl)) htmlFacts.set(tourStop.sourceEventUrl, { facts: tourStop, document });
     }
     const nodes: Record<string, unknown>[] = [];
     for (const script of tags(document.body, "script")) {
