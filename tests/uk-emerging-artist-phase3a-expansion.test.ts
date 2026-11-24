@@ -202,5 +202,85 @@ describe("UK Emerging Artist Phase 3A — Bounded 1-Hop Follow-Up Discovery & Pr
       }),
       (err: any) => err.code === "DISCOVERY_HOP_BUDGET_EXCEEDED",
     );
+
+    // Non-integer, NaN, Infinity, zero/negative, and step-page out-of-range inputs fail closed BEFORE any permission or fetch work
+    let sideEffectCalls = 0;
+    const countingEvaluator: OriginPermissionEvaluator = (url) => {
+      sideEffectCalls += 1;
+      return SYNTHETIC_PERMISSION_EVALUATOR(url);
+    };
+
+    const invalidLoopCases: Array<{ patch: Record<string, unknown>; expectedCode: string }> = [
+      { patch: { maxRootDomains: 0 }, expectedCode: "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED" },
+      { patch: { maxRootDomains: 1.5 }, expectedCode: "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED" },
+      { patch: { maxRootDomains: Number.NaN }, expectedCode: "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED" },
+      { patch: { maxRootDomains: Number.POSITIVE_INFINITY }, expectedCode: "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED" },
+      { patch: { maxRootDomains: null }, expectedCode: "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED" },
+      { patch: { maxRootDomains: "2" }, expectedCode: "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED" },
+      { patch: { maxRootDomains: 3 }, expectedCode: "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED" },
+      { patch: { rootSeeds: [] }, expectedCode: "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED" },
+      { patch: { maxTotalHtmlPages: 0 }, expectedCode: "DISCOVERY_HTML_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxTotalHtmlPages: -3 }, expectedCode: "DISCOVERY_HTML_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxTotalHtmlPages: 10.25 }, expectedCode: "DISCOVERY_HTML_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxTotalHtmlPages: Number.NaN }, expectedCode: "DISCOVERY_HTML_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxPagesPerHop: 0 }, expectedCode: "DISCOVERY_STEP_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxPagesPerHop: -1 }, expectedCode: "DISCOVERY_STEP_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxPagesPerHop: 2.5 }, expectedCode: "DISCOVERY_STEP_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxPagesPerHop: Number.NaN }, expectedCode: "DISCOVERY_STEP_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxTotalHtmlPages: 5, maxPagesPerHop: 6 }, expectedCode: "DISCOVERY_STEP_PAGE_BUDGET_EXCEEDED" },
+      { patch: { maxExpansionHops: -1 }, expectedCode: "DISCOVERY_HOP_BUDGET_EXCEEDED" },
+      { patch: { maxExpansionHops: 0.5 }, expectedCode: "DISCOVERY_HOP_BUDGET_EXCEEDED" },
+      { patch: { maxExpansionHops: Number.NaN }, expectedCode: "DISCOVERY_HOP_BUDGET_EXCEEDED" },
+      { patch: { maxExpansionHops: null }, expectedCode: "DISCOVERY_HOP_BUDGET_EXCEEDED" },
+    ];
+
+    for (const { patch, expectedCode } of invalidLoopCases) {
+      await assert.rejects(
+        () => runBoundedEmergingArtistDiscoveryLoop({
+          rootSeeds: [{ verifiedUrl: "https://leith-lockup.example.uk/gigs/" }],
+          evaluateOriginPermission: countingEvaluator,
+          offlineDocumentsByDomain: offlineMap,
+          ...(patch as any),
+        }),
+        (err: any) => err.code === expectedCode,
+        `Expected ${expectedCode} for ${JSON.stringify(patch)}`,
+      );
+    }
+    assert.equal(sideEffectCalls, 0, "Invalid bounds must fail before any permission evaluation or fetch work");
+
+    // Default maxPagesPerHop clamps cleanly when maxTotalHtmlPages < 12
+    const smallBudgetOut = await runBoundedEmergingArtistDiscoveryLoop({
+      rootSeeds: [{ verifiedUrl: "https://leith-lockup.example.uk/gigs/" }],
+      maxTotalHtmlPages: 3,
+      evaluateOriginPermission: SYNTHETIC_PERMISSION_EVALUATOR,
+      offlineDocumentsByDomain: offlineMap,
+    });
+    assert.equal(smallBudgetOut.totals.totalHtmlPagesCaptured, 3);
+
+    // evaluateFollowUpUrlsFromDiscoveryResult also validates integer hop depths pre-work
+    const sampleDiscovery = loopResult.steps[0]!.discoveryResult;
+    for (const badOpts of [
+      { currentHopDepth: -1 },
+      { currentHopDepth: 0.5 },
+      { currentHopDepth: Number.NaN },
+      { currentHopDepth: 2 },
+      { currentHopDepth: 0, maxExpansionHops: 1.2 },
+      { currentHopDepth: 0, maxExpansionHops: -1 },
+      { currentHopDepth: 0, maxExpansionHops: 2 },
+    ]) {
+      let evalCalls = 0;
+      assert.throws(
+        () => evaluateFollowUpUrlsFromDiscoveryResult(sampleDiscovery, {
+          visitedOrigins: new Set(),
+          evaluateOriginPermission: () => {
+            evalCalls += 1;
+            return { permitted: true, reasonCode: "OK" };
+          },
+          ...(badOpts as any),
+        }),
+        (err: any) => err.code === "DISCOVERY_HOP_BUDGET_EXCEEDED",
+      );
+      assert.equal(evalCalls, 0);
+    }
   });
 });

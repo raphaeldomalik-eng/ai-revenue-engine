@@ -58,6 +58,29 @@ function deterministicUuid(seed: string): string {
   return `${hex.slice(0, 8).join("")}-${hex.slice(8, 12).join("")}-${hex.slice(12, 16).join("")}-${hex.slice(16, 20).join("")}-${hex.slice(20).join("")}`;
 }
 
+function assertFiniteIntegerInRange(
+  value: unknown,
+  min: number,
+  max: number,
+  code: string,
+  label: string,
+): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    !Number.isInteger(value) ||
+    value < min ||
+    value > max
+  ) {
+    const err = new Error(
+      `${code}: ${label}=${String(value)} must be a finite integer in [${min}, ${max}].`,
+    ) as Error & { code?: string };
+    err.code = code;
+    throw err;
+  }
+  return value;
+}
+
 export function normalizeDomainKey(rawUrl: string): string {
   const parsed = new URL(rawUrl);
   const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
@@ -112,7 +135,20 @@ export function evaluateFollowUpUrlsFromDiscoveryResult(
     evaluateOriginPermission: OriginPermissionEvaluator;
   },
 ): EvaluatedFollowUpCandidate[] {
-  const maxExpansionHops = options.maxExpansionHops ?? PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS;
+  const maxExpansionHops = assertFiniteIntegerInRange(
+    options.maxExpansionHops === undefined ? PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS : options.maxExpansionHops,
+    0,
+    PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS,
+    "DISCOVERY_HOP_BUDGET_EXCEEDED",
+    "maxExpansionHops",
+  );
+  const currentHopDepth = assertFiniteIntegerInRange(
+    options.currentHopDepth,
+    0,
+    PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS,
+    "DISCOVERY_HOP_BUDGET_EXCEEDED",
+    "currentHopDepth",
+  );
   const sourceOrigin = new URL(discoveryResult.source.verifiedUrl).origin;
   const seenCandidateUrls = new Set<string>();
   const evaluated: EvaluatedFollowUpCandidate[] = [];
@@ -134,7 +170,7 @@ export function evaluateFollowUpUrlsFromDiscoveryResult(
       const parsed = new URL(candidateUrl);
       const normalizedOrigin = parsed.origin;
       const registrableDomain = normalizeDomainKey(candidateUrl);
-      const nextHopDepth = options.currentHopDepth + 1;
+      const nextHopDepth = currentHopDepth + 1;
       const defaultRole = inferCandidateRole(candidateUrl, ev.performers);
 
       if (
@@ -190,7 +226,7 @@ export function evaluateFollowUpUrlsFromDiscoveryResult(
         continue;
       }
 
-      if (options.currentHopDepth >= maxExpansionHops) {
+      if (currentHopDepth >= maxExpansionHops) {
         evaluated.push({
           candidateUrl,
           normalizedOrigin,
@@ -352,28 +388,62 @@ export type BoundedDiscoveryLoopInput = {
 };
 
 export async function runBoundedEmergingArtistDiscoveryLoop(input: BoundedDiscoveryLoopInput) {
-  const maxRootDomains = input.maxRootDomains ?? PHASE3A_HARD_LIMITS.MAX_ROOT_DOMAINS;
-  const maxTotalHtmlPages = input.maxTotalHtmlPages ?? PHASE3A_HARD_LIMITS.MAX_TOTAL_HTML_PAGES;
-  const maxExpansionHops = input.maxExpansionHops ?? PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS;
-  const maxPagesPerHop = input.maxPagesPerHop ?? 12;
+  if (!input || typeof input !== "object") {
+    const err = new Error("INVALID_DISCOVERY_LOOP_INPUT: input object is required.") as Error & { code?: string };
+    err.code = "INVALID_DISCOVERY_LOOP_INPUT";
+    throw err;
+  }
 
-  if (maxRootDomains < 1 || maxRootDomains > PHASE3A_HARD_LIMITS.MAX_ROOT_DOMAINS) {
-    const err = new Error(`DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED: maxRootDomains=${maxRootDomains} exceeds Phase 3A ceiling (${PHASE3A_HARD_LIMITS.MAX_ROOT_DOMAINS}).`) as Error & { code?: string };
+  const maxRootDomains = assertFiniteIntegerInRange(
+    input.maxRootDomains === undefined ? PHASE3A_HARD_LIMITS.MAX_ROOT_DOMAINS : input.maxRootDomains,
+    1,
+    PHASE3A_HARD_LIMITS.MAX_ROOT_DOMAINS,
+    "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED",
+    "maxRootDomains",
+  );
+  const maxTotalHtmlPages = assertFiniteIntegerInRange(
+    input.maxTotalHtmlPages === undefined ? PHASE3A_HARD_LIMITS.MAX_TOTAL_HTML_PAGES : input.maxTotalHtmlPages,
+    1,
+    PHASE3A_HARD_LIMITS.MAX_TOTAL_HTML_PAGES,
+    "DISCOVERY_HTML_PAGE_BUDGET_EXCEEDED",
+    "maxTotalHtmlPages",
+  );
+  const maxExpansionHops = assertFiniteIntegerInRange(
+    input.maxExpansionHops === undefined ? PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS : input.maxExpansionHops,
+    0,
+    PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS,
+    "DISCOVERY_HOP_BUDGET_EXCEEDED",
+    "maxExpansionHops",
+  );
+  const maxPagesPerHop = assertFiniteIntegerInRange(
+    input.maxPagesPerHop === undefined ? Math.min(12, maxTotalHtmlPages) : input.maxPagesPerHop,
+    1,
+    maxTotalHtmlPages,
+    "DISCOVERY_STEP_PAGE_BUDGET_EXCEEDED",
+    "maxPagesPerHop",
+  );
+
+  if (!Array.isArray(input.rootSeeds) || input.rootSeeds.length < 1) {
+    const err = new Error("DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED: At least 1 rootSeed is required.") as Error & { code?: string };
     err.code = "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED";
     throw err;
   }
-  if (maxTotalHtmlPages < 1 || maxTotalHtmlPages > PHASE3A_HARD_LIMITS.MAX_TOTAL_HTML_PAGES) {
-    const err = new Error(`DISCOVERY_HTML_PAGE_BUDGET_EXCEEDED: maxTotalHtmlPages=${maxTotalHtmlPages} exceeds Phase 3A ceiling (${PHASE3A_HARD_LIMITS.MAX_TOTAL_HTML_PAGES}).`) as Error & { code?: string };
-    err.code = "DISCOVERY_HTML_PAGE_BUDGET_EXCEEDED";
-    throw err;
-  }
-  if (maxExpansionHops < 0 || maxExpansionHops > PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS) {
-    const err = new Error(`DISCOVERY_HOP_BUDGET_EXCEEDED: maxExpansionHops=${maxExpansionHops} exceeds Phase 3A ceiling (${PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS}).`) as Error & { code?: string };
-    err.code = "DISCOVERY_HOP_BUDGET_EXCEEDED";
-    throw err;
-  }
 
-  const rootDomains = new Set(input.rootSeeds.map((s) => normalizeDomainKey(s.verifiedUrl)));
+  const normalizedRootSeeds = input.rootSeeds.map((seed) => {
+    const verifiedUrl = canonicalHttpsUrl(seed?.verifiedUrl ?? "");
+    if (!verifiedUrl) {
+      const err = new Error(`INVALID_VERIFIED_SOURCE_URL: "${String(seed?.verifiedUrl)}" must be public HTTPS.`) as Error & { code?: string };
+      err.code = "INVALID_VERIFIED_SOURCE_URL";
+      throw err;
+    }
+    return {
+      verifiedUrl,
+      subjectEntityType: seed.subjectEntityType ?? "VENUE",
+      canonicalEntityId: seed.canonicalEntityId ?? null,
+    };
+  });
+
+  const rootDomains = new Set(normalizedRootSeeds.map((s) => normalizeDomainKey(s.verifiedUrl)));
   if (rootDomains.size > maxRootDomains) {
     const err = new Error(`DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED: ${rootDomains.size} root domains provided, limit is ${maxRootDomains}.`) as Error & { code?: string };
     err.code = "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED";
@@ -390,11 +460,11 @@ export async function runBoundedEmergingArtistDiscoveryLoop(input: BoundedDiscov
     relatedPerformers: string[];
   };
 
-  const queue: QueueItem[] = input.rootSeeds.map((seed) => ({
+  const queue: QueueItem[] = normalizedRootSeeds.map((seed) => ({
     hopDepth: 0,
-    verifiedUrl: canonicalHttpsUrl(seed.verifiedUrl)!,
-    subjectEntityType: seed.subjectEntityType ?? "VENUE",
-    canonicalEntityId: seed.canonicalEntityId ?? null,
+    verifiedUrl: seed.verifiedUrl,
+    subjectEntityType: seed.subjectEntityType,
+    canonicalEntityId: seed.canonicalEntityId,
     discoveredFromSourceUrl: null,
     discoveredFromEventUrl: null,
     relatedPerformers: [],
