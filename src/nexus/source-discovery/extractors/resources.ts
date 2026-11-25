@@ -21,6 +21,7 @@ type RightsEvidence = { basis: string; sourceUrl: string; evidenceRef: string; s
 export type ImageCandidate = { sourceImageUrl: string; sourcePageUrl: string; filename: string | null; alt: string | null; title: string | null; caption: string | null; width: number | null; height: number | null; mime: string | null; likelyRole: string; exactVenue: boolean | null; discoveredAt: string; originDomain: string; rightsState: RightsState; rightsEvidence: RightsEvidence | null; operatorConfirmed: false };
 export type ResourceExtraction = { identityFacts: IdentityFact[]; publicContacts: PublicContact[]; venueFacts: VenueFact[]; imageCandidates: ImageCandidate[]; evidenceRefs: string[]; warnings: string[] };
 
+const RIGHTS_RANK: Record<RightsState, number> = { UNKNOWN_RIGHTS: 0, VERIFIED_REUSABLE: 1, PERMISSION_REQUIRED: 2, RIGHTS_RESERVED: 3 };
 const clean = (value: unknown): string | null => typeof value === "string" ? value.trim().replace(/\s+/g, " ") || null : null;
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const list = (value: unknown): unknown[] => Array.isArray(value) ? value : value == null ? [] : [value];
@@ -713,6 +714,35 @@ function srcsetBest(value: string | undefined, base: string): ImageSource | null
 }
 const PLACEHOLDER = /(?:^data:|blank\.gif|spacer\.gif|placeholder|lazy[-_]?load|transparent\.png|1x1)/i;
 const TRACKER = /(?:facebook\.com\/tr|google-analytics|doubleclick|googletagmanager|pixel\.|\/pixel\b|analytics\.)/i;
+const IMAGE_TRANSFORM_PARAM = /^(?:auto|w|width|h|height|fit|crop|position|q|quality|format|fm|dpr|resize|ixid|ixlib)$/i;
+
+export function imageVariantKey(value: string): string {
+  const url = new URL(value);
+  for (const key of [...url.searchParams.keys()]) if (IMAGE_TRANSFORM_PARAM.test(key)) url.searchParams.delete(key);
+  url.hash = "";
+  let path = url.pathname
+    .replace(/-\d{2,5}x\d{2,5}(?=\.(?:jpe?g|png|webp|avif)$)/i, "")
+    .replace(/\/media\/([^/]+)\/v1\/[^/]+(?:\/[^/]+)*\/([^/]+)$/i, "/media/$1/$2");
+  path = path.replace(/\/+$/, "");
+  return `${url.hostname.toLowerCase()}${path}${url.search ? `?${url.searchParams.toString()}` : ""}`;
+}
+
+function mergeImageCandidates(left: ImageCandidate, right: ImageCandidate): ImageCandidate {
+  const pixels = (item: ImageCandidate) => (item.width ?? 0) * (item.height ?? 0);
+  const preferred = pixels(right) > pixels(left) ? right : left;
+  const restrictive = RIGHTS_RANK[right.rightsState] > RIGHTS_RANK[left.rightsState] ? right : left;
+  return {
+    ...preferred,
+    alt: preferred.alt ?? (preferred === right ? left.alt : right.alt),
+    title: preferred.title ?? (preferred === right ? left.title : right.title),
+    caption: preferred.caption ?? (preferred === right ? left.caption : right.caption),
+    exactVenue: left.exactVenue === true || right.exactVenue === true ? true
+      : left.exactVenue === false || right.exactVenue === false ? false : null,
+    rightsState: restrictive.rightsState,
+    rightsEvidence: restrictive.rightsEvidence,
+  };
+}
+
 function imageRole(filename: string | null, alt: string | null, element: DomElement | null, docUrl: string, og: boolean): string {
   const context = `${filename ?? ""} ${alt ?? ""} ${element?.attrs.class ?? ""} ${element?.attrs.id ?? ""}`;
   const logoMarker = /(?:^|[\s_])(?:custom-logo|site-logo|navbar-brand|logo)(?:$|[\s_])/i;
@@ -735,14 +765,16 @@ function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement 
     if (TRACKER.test(source.url)) return;
     if ((source.width !== null && source.width < 50) || (source.height !== null && source.height < 50)) return;
     const image = new URL(source.url); const filename = decodeURIComponent(image.pathname.split("/").pop() || "") || null;
-    if (out.imageCandidates.some((item) => item.sourceImageUrl === source.url)) return;
     const likelyRole = options.role ?? imageRole(filename, alt, element, doc.url, Boolean(options.og));
     const imageRights = rights.rightsState === "VERIFIED_REUSABLE" && likelyRole === "LOGO"
       && !/\blogos?\b[^.]{0,100}\b(?:CC\s*BY|CC0|public domain|commercial reuse permitted)/i.test(rights.rightsEvidence?.statement ?? "")
       ? { rightsState: "UNKNOWN_RIGHTS" as const, rightsEvidence: null } : rights;
     const mime = /\.(jpe?g)$/i.test(filename ?? "") ? "image/jpeg" : /\.png$/i.test(filename ?? "") ? "image/png" : /\.webp$/i.test(filename ?? "") ? "image/webp" : /\.avif$/i.test(filename ?? "") ? "image/avif" : /\.svg$/i.test(filename ?? "") ? "image/svg+xml" : /\.gif$/i.test(filename ?? "") ? "image/gif" : null;
-    out.imageCandidates.push({ sourceImageUrl: source.url, sourcePageUrl: doc.url, filename, alt, title, caption, width: source.width, height: source.height, mime,
-      likelyRole, exactVenue: options.exactVenue ?? null, discoveredAt: doc.observedAt, originDomain: image.hostname, ...imageRights, operatorConfirmed: false });
+    const candidate: ImageCandidate = { sourceImageUrl: source.url, sourcePageUrl: doc.url, filename, alt, title, caption, width: source.width, height: source.height, mime,
+      likelyRole, exactVenue: options.exactVenue ?? null, discoveredAt: doc.observedAt, originDomain: image.hostname, ...imageRights, operatorConfirmed: false };
+    const duplicate = out.imageCandidates.findIndex((item) => imageVariantKey(item.sourceImageUrl) === imageVariantKey(candidate.sourceImageUrl));
+    if (duplicate < 0) out.imageCandidates.push(candidate);
+    else out.imageCandidates[duplicate] = mergeImageCandidates(out.imageCandidates[duplicate]!, candidate);
   };
   const dimension = (value: string | undefined) => { const number = Number(value); return Number.isFinite(number) && number > 0 ? Math.round(number) : null; };
   if (root) {
@@ -933,11 +965,11 @@ export function extractResourcesFromDocuments(documents: FetchedDocument[], extr
   const publicContacts = [...firstByKey.values()].map((item, order) => ({ item, order }))
     .sort((a, b) => PURPOSE_RANK[a.item.purpose] - PURPOSE_RANK[b.item.purpose] || a.order - b.order).map(({ item }) => item);
   const venueFacts = unique(merged.venueFacts, (item) => `${item.fieldName}:${JSON.stringify(item.value)}:${item.sourceUrl}`);
-  const rightsRank: Record<RightsState, number> = { UNKNOWN_RIGHTS: 0, VERIFIED_REUSABLE: 1, PERMISSION_REQUIRED: 2, RIGHTS_RESERVED: 3 };
   const imagesByUrl = new Map<string, ImageCandidate>();
   for (const item of merged.imageCandidates) {
-    const previous = imagesByUrl.get(item.sourceImageUrl);
-    if (!previous || rightsRank[item.rightsState] > rightsRank[previous.rightsState]) imagesByUrl.set(item.sourceImageUrl, previous && previous.exactVenue && !item.exactVenue ? { ...item, exactVenue: true } : item);
+    const key = imageVariantKey(item.sourceImageUrl);
+    const previous = imagesByUrl.get(key);
+    imagesByUrl.set(key, previous ? mergeImageCandidates(previous, item) : item);
   }
   const imageCandidates = [...imagesByUrl.values()];
   for (const doc of documents) {
@@ -946,7 +978,7 @@ export function extractResourcesFromDocuments(documents: FetchedDocument[], extr
     if (!restriction) continue;
     for (const candidate of imageCandidates) {
       if (candidate.likelyRole === "LOGO" || new URL(candidate.sourceImageUrl).origin !== new URL(doc.url).origin) continue;
-      if (rightsRank[restriction.rightsState] <= rightsRank[candidate.rightsState]) continue;
+      if (RIGHTS_RANK[restriction.rightsState] <= RIGHTS_RANK[candidate.rightsState]) continue;
       candidate.rightsState = restriction.rightsState;
       candidate.rightsEvidence = restriction.rightsEvidence;
       merged.evidenceRefs.push(restriction.rightsEvidence.evidenceRef);

@@ -95,6 +95,17 @@ test("image rights default unknown and explicit restrictive or reusable terms re
   }
 });
 
+test("responsive and CDN image variants collapse to the largest source asset", () => {
+  const gallery = page("/gallery", `<img src="/photos/hall.jpg?width=400" width="400" height="250" alt="Hall">
+    <img src="/photos/hall.jpg?width=1600" width="1600" height="1000" alt="Main Hall interior">
+    <img src="/photos/hall-320x200.jpg" width="320" height="200">`);
+  const images = extractFromFetchedDocuments([gallery], ["IMAGE_CANDIDATES"]).imageCandidates;
+  assert.equal(images.length, 1);
+  assert.match(images[0]!.sourceImageUrl, /width=1600/);
+  assert.equal(images[0]!.width, 1600);
+  assert.equal(images[0]!.alt, "Main Hall interior");
+});
+
 test("footer vendor and privacy mailto links do not displace public booking contacts", () => {
   const source = page("/contact", `<main><h1>Contact us</h1><a href="mailto:bookings@venue.org">Book the venue</a></main>
     <footer>Website by Pixel Studio <a href="mailto:hello@pixelstudio.org">Email the designer</a>
