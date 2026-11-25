@@ -10,6 +10,18 @@ export const PHASE3A_HARD_LIMITS = Object.freeze({
   MAX_EXPANSION_HOPS: 1,
 });
 
+export const PHASE3B_HARD_LIMITS = Object.freeze({
+  MAX_ROOT_DOMAINS: 3,
+  MAX_TOTAL_HTML_PAGES: 30,
+  MAX_EXPANSION_HOPS: 2,
+});
+
+export type DiscoveryBudgetMode = "PHASE3A" | "PHASE3B";
+
+function resolveHardLimits(mode?: DiscoveryBudgetMode) {
+  return mode === "PHASE3B" ? PHASE3B_HARD_LIMITS : PHASE3A_HARD_LIMITS;
+}
+
 const TICKETING_PLATFORM_HOST = /(?:^|\.)(?:seetickets\.com|dice\.fm|wegottickets\.com|ticketmaster\.co\.uk|ticketmaster\.com|ra\.co|offaxisgigs\.com|skiddle\.com|eventbrite\.co\.uk|eventbrite\.com|musicglue\.com|gigantic\.com|ents24\.com|citizensticket\.com|citizenticket\.co\.uk|universe\.com|fatsoma\.com)$/i;
 
 const STREAMING_OR_SOCIAL_HOST = /(?:^|\.)(?:spotify\.com|bandcamp\.com|youtube\.com|youtu\.be|soundcloud\.com|apple\.com|instagram\.com|facebook\.com|tiktok\.com|x\.com|twitter\.com|linktr\.ee|os\.fan)$/i;
@@ -130,22 +142,24 @@ export function evaluateFollowUpUrlsFromDiscoveryResult(
   options: {
     currentHopDepth: number;
     maxExpansionHops?: number;
+    phaseBudgetMode?: DiscoveryBudgetMode;
     visitedOrigins: ReadonlySet<string>;
     visitedUrls?: ReadonlySet<string>;
     evaluateOriginPermission: OriginPermissionEvaluator;
   },
 ): EvaluatedFollowUpCandidate[] {
+  const hardLimits = resolveHardLimits(options.phaseBudgetMode);
   const maxExpansionHops = assertFiniteIntegerInRange(
-    options.maxExpansionHops === undefined ? PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS : options.maxExpansionHops,
+    options.maxExpansionHops === undefined ? hardLimits.MAX_EXPANSION_HOPS : options.maxExpansionHops,
     0,
-    PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS,
+    hardLimits.MAX_EXPANSION_HOPS,
     "DISCOVERY_HOP_BUDGET_EXCEEDED",
     "maxExpansionHops",
   );
   const currentHopDepth = assertFiniteIntegerInRange(
     options.currentHopDepth,
     0,
-    PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS,
+    hardLimits.MAX_EXPANSION_HOPS,
     "DISCOVERY_HOP_BUDGET_EXCEEDED",
     "currentHopDepth",
   );
@@ -371,17 +385,30 @@ export type DiscoveryLoopStep = {
   documents: FetchedDocument[];
 };
 
+export type ExplicitHopCandidate = {
+  parentDomain: string;
+  candidateUrl: string;
+  discoveredFromSourceUrl: string;
+  discoveredFromEventUrl: string;
+  relatedPerformers: string[];
+  subjectEntityType?: "VENUE" | "CREATIVE_ENTITY" | "ORGANISATION";
+  canonicalEntityId?: string | null;
+};
+
 export type BoundedDiscoveryLoopInput = {
   rootSeeds: Array<{
     verifiedUrl: string;
     subjectEntityType?: "VENUE" | "CREATIVE_ENTITY" | "ORGANISATION";
     canonicalEntityId?: string | null;
   }>;
+  phaseBudgetMode?: DiscoveryBudgetMode;
   maxRootDomains?: number;
   maxTotalHtmlPages?: number;
   maxExpansionHops?: number;
   maxPagesPerHop?: number;
   evaluateOriginPermission: OriginPermissionEvaluator;
+  /** Optional operator-approved venue/entity follow-up candidates resolved from named tour stops. */
+  explicitHopCandidates?: ExplicitHopCandidate[];
   /** Offline replay fixture map keyed by registrable domain (`sneakypetes.co.uk`, `thisfeeling.co.uk`). */
   offlineDocumentsByDomain?: ReadonlyMap<string, FetchedDocument[]>;
   crawlOptions?: Pick<CrawlInput, "fetchImpl" | "resolveHost" | "userAgent" | "sleep" | "now">;
@@ -394,24 +421,26 @@ export async function runBoundedEmergingArtistDiscoveryLoop(input: BoundedDiscov
     throw err;
   }
 
+  const hardLimits = resolveHardLimits(input.phaseBudgetMode);
+
   const maxRootDomains = assertFiniteIntegerInRange(
-    input.maxRootDomains === undefined ? PHASE3A_HARD_LIMITS.MAX_ROOT_DOMAINS : input.maxRootDomains,
+    input.maxRootDomains === undefined ? hardLimits.MAX_ROOT_DOMAINS : input.maxRootDomains,
     1,
-    PHASE3A_HARD_LIMITS.MAX_ROOT_DOMAINS,
+    hardLimits.MAX_ROOT_DOMAINS,
     "DISCOVERY_ROOT_DOMAIN_BUDGET_EXCEEDED",
     "maxRootDomains",
   );
   const maxTotalHtmlPages = assertFiniteIntegerInRange(
-    input.maxTotalHtmlPages === undefined ? PHASE3A_HARD_LIMITS.MAX_TOTAL_HTML_PAGES : input.maxTotalHtmlPages,
+    input.maxTotalHtmlPages === undefined ? hardLimits.MAX_TOTAL_HTML_PAGES : input.maxTotalHtmlPages,
     1,
-    PHASE3A_HARD_LIMITS.MAX_TOTAL_HTML_PAGES,
+    hardLimits.MAX_TOTAL_HTML_PAGES,
     "DISCOVERY_HTML_PAGE_BUDGET_EXCEEDED",
     "maxTotalHtmlPages",
   );
   const maxExpansionHops = assertFiniteIntegerInRange(
-    input.maxExpansionHops === undefined ? PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS : input.maxExpansionHops,
+    input.maxExpansionHops === undefined ? hardLimits.MAX_EXPANSION_HOPS : input.maxExpansionHops,
     0,
-    PHASE3A_HARD_LIMITS.MAX_EXPANSION_HOPS,
+    hardLimits.MAX_EXPANSION_HOPS,
     "DISCOVERY_HOP_BUDGET_EXCEEDED",
     "maxExpansionHops",
   );
@@ -553,6 +582,7 @@ export async function runBoundedEmergingArtistDiscoveryLoop(input: BoundedDiscov
     const evaluated = evaluateFollowUpUrlsFromDiscoveryResult(discoveryResult, {
       currentHopDepth: current.hopDepth,
       maxExpansionHops,
+      phaseBudgetMode: input.phaseBudgetMode,
       visitedOrigins,
       visitedUrls,
       evaluateOriginPermission: input.evaluateOriginPermission,
@@ -571,6 +601,75 @@ export async function runBoundedEmergingArtistDiscoveryLoop(input: BoundedDiscov
         discoveredFromEventUrl: cand.discoveredFromEventUrl,
         relatedPerformers: cand.relatedPerformers,
       });
+    }
+
+    // Evaluate any explicit operator-approved venue/entity follow-ups discovered from named tour stops
+    for (const explicit of input.explicitHopCandidates ?? []) {
+      if (explicit.parentDomain.toLowerCase().replace(/^www\./, "") !== domain) continue;
+      const cleanUrl = cleanTrackingParams(explicit.candidateUrl);
+      if (!cleanUrl) continue;
+      const parsed = new URL(cleanUrl);
+      const candDomain = normalizeDomainKey(cleanUrl);
+      const nextHopDepth = current.hopDepth + 1;
+      if (visitedOrigins.has(candDomain) || visitedOrigins.has(parsed.origin) || visitedUrls.has(cleanUrl)) {
+        continue;
+      }
+      if (current.hopDepth >= maxExpansionHops) {
+        candidateLedger.push({
+          candidateUrl: cleanUrl,
+          normalizedOrigin: parsed.origin,
+          registrableDomain: candDomain,
+          discoveredFromSourceUrl: explicit.discoveredFromSourceUrl,
+          discoveredFromEventUrl: explicit.discoveredFromEventUrl,
+          relatedPerformers: [...explicit.relatedPerformers],
+          hopDepth: nextHopDepth,
+          inferredRole: "VENUE_OR_EVENT_WEBSITE",
+          disposition: "HELD_HOP_DEPTH_LIMIT",
+          reasonCode: `MAX_EXPANSION_HOPS_${maxExpansionHops}_REACHED`,
+        });
+        continue;
+      }
+      const permission = input.evaluateOriginPermission(cleanUrl);
+      if (!permission.permitted) {
+        candidateLedger.push({
+          candidateUrl: cleanUrl,
+          normalizedOrigin: parsed.origin,
+          registrableDomain: candDomain,
+          discoveredFromSourceUrl: explicit.discoveredFromSourceUrl,
+          discoveredFromEventUrl: explicit.discoveredFromEventUrl,
+          relatedPerformers: [...explicit.relatedPerformers],
+          hopDepth: nextHopDepth,
+          inferredRole: permission.sourceRole ?? "VENUE_OR_EVENT_WEBSITE",
+          disposition: permission.reasonCode === "UNREGISTERED_SOURCE_BLOCKED"
+            ? "HELD_UNREGISTERED_EXTERNAL_DOMAIN"
+            : "BLOCKED_BY_SOURCE_POLICY",
+          reasonCode: permission.reasonCode,
+        });
+        continue;
+      }
+      candidateLedger.push({
+        candidateUrl: cleanUrl,
+        normalizedOrigin: parsed.origin,
+        registrableDomain: candDomain,
+        discoveredFromSourceUrl: explicit.discoveredFromSourceUrl,
+        discoveredFromEventUrl: explicit.discoveredFromEventUrl,
+        relatedPerformers: [...explicit.relatedPerformers],
+        hopDepth: nextHopDepth,
+        inferredRole: permission.sourceRole ?? "VENUE_OR_EVENT_WEBSITE",
+        disposition: "ELIGIBLE_FOLLOW_UP",
+        reasonCode: permission.reasonCode,
+      });
+      if (!queue.some((q) => normalizeDomainKey(q.verifiedUrl) === candDomain)) {
+        queue.push({
+          hopDepth: nextHopDepth,
+          verifiedUrl: cleanUrl,
+          subjectEntityType: explicit.subjectEntityType ?? permission.subjectEntityType ?? "VENUE",
+          canonicalEntityId: explicit.canonicalEntityId ?? null,
+          discoveredFromSourceUrl: explicit.discoveredFromSourceUrl,
+          discoveredFromEventUrl: explicit.discoveredFromEventUrl,
+          relatedPerformers: [...explicit.relatedPerformers],
+        });
+      }
     }
   }
 

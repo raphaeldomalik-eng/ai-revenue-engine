@@ -5,6 +5,7 @@ import type { FetchedDocument } from "../types.ts";
 import {
   extractHCalendarIndexSummaries,
   extractHtmlCardEvents,
+  extractHtmlConcrete5EventDetail,
   extractHtmlEventFacts,
   extractHtmlTourScheduleEvents,
   type ArtistPageObservation,
@@ -158,6 +159,10 @@ export function extractEventsFromDocuments(documents: FetchedDocument[]): { even
     }
     const html = extractHtmlEventFacts(document);
     if (html) htmlFacts.set(html.sourceEventUrl, { facts: html, document });
+    const concrete5 = extractHtmlConcrete5EventDetail(document);
+    if (concrete5 && !htmlFacts.has(concrete5.sourceEventUrl)) {
+      htmlFacts.set(concrete5.sourceEventUrl, { facts: concrete5, document });
+    }
     for (const card of extractHtmlCardEvents(document)) {
       if (!htmlFacts.has(card.sourceEventUrl)) htmlFacts.set(card.sourceEventUrl, { facts: card, document });
     }

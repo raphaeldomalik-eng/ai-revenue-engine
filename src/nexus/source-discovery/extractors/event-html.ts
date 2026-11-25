@@ -964,3 +964,145 @@ export function extractHtmlTourScheduleEvents(document: FetchedDocument): HtmlEv
 
   return events;
 }
+
+/**
+ * Extracts Concrete5 venue detail pages (e.g. Brudenell Social Club `/whats-on/<slug>`)
+ * where `<section id="event">` / `<div id="event">` contains `<header>` (`<p>X Presents...</p>`,
+ * `<h1>Headliner</h1>`, `<h2>+ Support @ External Venue</h2>`), `<div id="event_details">`
+ * (`<p class="date">`, `<p class="times">Doors: HH:MM</p>`, `<ul id="event_tickets">`,
+ * `<ul id="event_links">`), and `<div id="event_listen">` embedded media.
+ */
+export function extractHtmlConcrete5EventDetail(document: FetchedDocument): HtmlEventFacts | null {
+  const detailsIdx = document.body.search(/<div\b[^>]*\bid=["']event_details["']/i);
+  if (detailsIdx === -1) return null;
+
+  const eventStartIdx = document.body.search(/<(?:section|div)\b[^>]*\bid=["']event["']/i);
+  const start = eventStartIdx !== -1 && eventStartIdx < detailsIdx ? eventStartIdx : Math.max(0, detailsIdx - 12000);
+  const sectionEnd = document.body.indexOf("</section>", detailsIdx);
+  const block = document.body.slice(start, sectionEnd > detailsIdx ? sectionEnd + 10 : detailsIdx + 4000);
+
+  const headerHtml = block.match(/<header\b[^>]*>([\s\S]*?)<\/header>/i)?.[1] ?? "";
+  const rawH1 = headerHtml.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1] ?? block.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i)?.[1];
+  const rawHeadlineTitle = rawH1 ? text(decodeHtmlDashAndEntities(visibleText(rawH1))) : null;
+  if (!rawHeadlineTitle) return null;
+
+  const detailsBlock = block.slice(block.search(/<div\b[^>]*\bid=["']event_details["']/i));
+  const rawDateText = detailsBlock.match(/<p\b[^>]*\bclass=["'][^"']*\bdate\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1];
+  const dateTextClean = rawDateText ? text(decodeHtmlDashAndEntities(visibleText(rawDateText))) : null;
+  if (!dateTextClean) return null;
+
+  const dm = dateTextClean.match(/(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\s+(20\d{2})\b/i);
+  if (!dm) return null;
+  const monthNum = MONTHS[dm[2]!.toLowerCase()];
+  if (!monthNum) return null;
+  const dateStr = `${dm[3]!}-${monthNum}-${dm[1]!.padStart(2, "0")}`;
+
+  const rawTimesText = detailsBlock.match(/<p\b[^>]*\bclass=["'][^"']*\btimes\b[^"']*["'][^>]*>([\s\S]*?)<\/p>/i)?.[1];
+  const timesClean = rawTimesText ? text(decodeHtmlDashAndEntities(visibleText(rawTimesText))) : null;
+  const timeMatch = timesClean?.match(/\b(\d{1,2}):(\d{2})\b/);
+  let startAt = `${dateStr}T00:00:00.000Z`;
+  let timePrecision: HtmlEventFacts["timePrecision"] = "DATE_ONLY";
+  let timeMeaning: HtmlEventFacts["timeMeaning"] = "DATE_ONLY_DEFAULTED";
+  if (timeMatch) {
+    startAt = londonLocalToUtcIso(dateStr, `${timeMatch[1]!.padStart(2, "0")}:${timeMatch[2]!}:00`);
+    timePrecision = "EXPLICIT_INSTANT";
+    timeMeaning = /\bdoors\b/i.test(timesClean ?? "") ? "DOORS_OPEN" : "DOORS_OR_START";
+  }
+
+  const presentsRaw = headerHtml.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i)?.[1];
+  const presentsText = presentsRaw ? text(decodeHtmlDashAndEntities(visibleText(presentsRaw))) : null;
+  let organiser: string | null = null;
+  if (presentsText) {
+    const pm = presentsText.match(/^(.+?)\s+presents\.{0,3}$/i);
+    if (pm) organiser = text(pm[1]);
+  }
+
+  const rawH2 = headerHtml.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i)?.[1];
+  const h2Text = rawH2 ? text(decodeHtmlDashAndEntities(visibleText(rawH2))) : null;
+  let venueText: string | null = null;
+  let supportPart = h2Text ?? "";
+  if (supportPart.includes("@")) {
+    const atIdx = supportPart.indexOf("@");
+    venueText = text(supportPart.slice(atIdx + 1));
+    supportPart = supportPart.slice(0, atIdx).trim();
+  }
+
+  const headlinerName = artist(
+    rawHeadlineTitle.replace(/^an\s+evening\s+with\s+/i, "").trim(),
+  ) ?? rawHeadlineTitle;
+
+  const performers: string[] = [headlinerName];
+  const performerBillings: PerformerBillingObservation[] = [{
+    billedName: headlinerName,
+    listedPosition: 1,
+    role: "HEADLINE",
+    billingRank: 1,
+    billingOrderBasis: "EXPLICIT",
+  }];
+
+  if (/^(?:\+|plus\s+(?:special\s+)?guests?|with\b|support\b)/i.test(supportPart)) {
+    const cleanedSupport = supportPart
+      .replace(/^(?:\+|plus\s+(?:special\s+)?guests?|with|support(?:ing)?)\s*:?\s*/i, "")
+      .trim();
+    const parts = cleanedSupport
+      .split(/\s*\+\s*|\s*,\s*|\s+\&\s+(?=[A-Z])/i)
+      .map((s) => artist(s))
+      .filter((s): s is string => Boolean(s));
+    for (const sup of parts) {
+      if (!performers.some((p) => p.toLowerCase() === sup.toLowerCase())) {
+        performers.push(sup);
+        performerBillings.push({
+          billedName: sup,
+          listedPosition: performers.length,
+          role: "SUPPORT",
+          billingRank: performers.length,
+          billingOrderBasis: "EXPLICIT",
+        });
+      }
+    }
+  }
+
+  const ticketsUl = detailsBlock.match(/<ul\b[^>]*\bid=["']event_tickets["'][^>]*>([\s\S]*?)<\/ul>/i)?.[1] ?? "";
+  const firstTicketAnchor = hrefTags(ticketsUl)[0];
+  const ticketUrl = firstTicketAnchor ? normalizeTicketUrl(firstTicketAnchor.attrs.href, document.url) : null;
+
+  const linksUl = detailsBlock.match(/<ul\b[^>]*\bid=["']event_links["'][^>]*>([\s\S]*?)<\/ul>/i)?.[1] ?? "";
+  const linkUrls = hrefTags(linksUl)
+    .map((a) => canonicalHttpsUrl(a.attrs.href ?? "", document.url))
+    .filter((u): u is string => Boolean(u));
+
+  const listenBlock = block.match(/<div\b[^>]*\bid=["']event_listen["'][^>]*>([\s\S]*?)<\/div>\s*<\/div>/i)?.[1] ?? block;
+  const embeddedMedia = extractEmbeddedMediaLinks(listenBlock);
+  const outboundArtistUrls = [...new Set([...linkUrls, ...embeddedMedia.map((m) => m.url)])];
+
+  const mainHtml = block.match(/<div\b[^>]*\bid=["']event_main["'][^>]*>([\s\S]*?)<div\b[^>]*\bid=["']event_main_fade["']/i)?.[1] ?? block;
+  const rawParagraphs = tags(mainHtml, "p")
+    .map((p) => text(decodeHtmlDashAndEntities(visibleText(p.inner))))
+    .filter((p): p is string => Boolean(p) && !/^click\s+here\s+to\s+read\s+more/i.test(p!));
+  const artistObservations = extractArtistObservations(performers, rawParagraphs, outboundArtistUrls, embeddedMedia);
+  const description = rawParagraphs.filter((p) => !isForFansOfClause(p)).join("\n").slice(0, 10_000) || null;
+  const eventImageUrl = imageFromPage(document, mainHtml);
+  const slug = new URL(document.url).pathname.replace(/^\/+|\/+$/g, "").split("/").pop() ?? "event";
+
+  return {
+    title: h2Text && !venueText ? `${rawHeadlineTitle} ${h2Text}` : rawHeadlineTitle,
+    sourceExternalId: `c5:${dateStr}:${slug}`,
+    sourceEventUrl: canonicalHttpsUrl(document.url, document.url) ?? document.url,
+    startAt,
+    endAt: null,
+    timezone: "Europe/London",
+    venueText,
+    description,
+    organiser,
+    ageRestriction: null,
+    eventStatus: "SCHEDULED",
+    timePrecision,
+    timeMeaning,
+    performers,
+    performerBillings,
+    outboundArtistUrls,
+    artistObservations,
+    ticketUrl,
+    eventImageUrl,
+  };
+}
