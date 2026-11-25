@@ -238,8 +238,10 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     return result;
   }
   const extracted = extractFromFetchedDocuments(crawl.documents, requestedExtractors, venueName);
+  const documentObservedAt = new Map(crawl.documents.map((document) => [document.url, document.observedAt]));
+  const observedAtFor = (sourceUrl: string) => documentObservedAt.get(sourceUrl) ?? now;
   const sourceHash = createHash("sha256").update(crawl.documents.map((document) => `${document.url}:${document.sourceHash}`).join("\n")).digest("hex");
-  const identityFacts = extracted.identityFacts.map((item) => sourceFact(request, item.fieldName, item.value, item.sourceUrl, item.evidenceRef, now));
+  const identityFacts = extracted.identityFacts.map((item) => sourceFact(request, item.fieldName, item.value, item.sourceUrl, item.evidenceRef, observedAtFor(item.sourceUrl)));
   // Retain observed migrations for Nexus's existing website-verification lane.
   // A refused destination is a candidate, never accepted site/identity evidence.
   for (const hop of crawl.observability?.redirectChain ?? []) {
@@ -257,9 +259,11 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     // A mailbox domain alone is not a current source/attribution contradiction.
     // Keep that historical boolean-only observation eligible for official-page requalification.
     if (reviewReason === "THIRD_PARTY_PLATFORM_DOMAIN" && !candidateRejection(item.sourceUrl) && !/\bticketing\s+provider\b/i.test(item.label ?? "")) reviewReason = null;
-    return { type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.type === "EMAIL" ? item.reviewRequired || !verdict!.accepted : item.reviewRequired, ...(reviewReason ? { reviewReason } : {}), ...(item.label ? { label: item.label } : {}), purpose: item.purpose, ...(item.type === "EMAIL" ? { sourceVerification: "PUBLISHED_ON_SOURCE" as const, deliveryVerified: false } : {}) };
+    const boxOfficeHold = item.type === "EMAIL" && item.purpose === "BOX_OFFICE";
+    if (boxOfficeHold && !reviewReason) reviewReason = "BOX_OFFICE_PURPOSE_NOT_VENUE_ENQUIRY";
+    return { type: item.type, value: item.value, sourceUrl: item.sourceUrl, observedAt: observedAtFor(item.sourceUrl), evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.type === "EMAIL" ? item.reviewRequired || !verdict!.accepted || boxOfficeHold : item.reviewRequired, ...(reviewReason ? { reviewReason } : {}), ...(item.label ? { label: item.label } : {}), purpose: item.purpose, ...(item.type === "EMAIL" ? { sourceVerification: "PUBLISHED_ON_SOURCE" as const, deliveryVerified: false } : {}) };
   });
-  const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: now, evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
+  const venueFacts = extracted.venueFacts.map((item) => ({ fieldName: item.fieldName, value: item.value, sourceUrl: item.sourceUrl, observedAt: observedAtFor(item.sourceUrl), evidenceRef: item.evidenceRef, confidence: item.confidence, reviewRequired: item.reviewRequired }));
   const warnings = boundCrawlWarnings([...crawl.stats.warnings, ...extracted.warnings]);
   const crawlStatus = crawl.stats.status === "COMPLETED" && warnings.length ? "PARTIAL" : crawl.stats.status;
   const disposition = classifyCrawlDisposition(crawl,{identityVerified:!rejectedSource,contactAccepted:emailGoal?publicContacts.some(c=>c.type==="EMAIL"&&!c.reviewRequired):undefined});
@@ -299,7 +303,7 @@ export async function executeSourceDiscoveryRequest(input: unknown, options: Sou
     source: { verifiedUrl: request.verifiedSourceUrl, finalUrl: crawl.finalUrl, observedAt: now, sourceHash },
     crawl: { status: crawlStatus, warnings, requestCount: crawl.stats.requestCount, pageCount: crawl.stats.pageCount, bytesRead: crawl.stats.bytesRead, redirects: crawl.stats.redirects, blockedCount: crawl.stats.blockedCount, retryable, emailOutcome, evidenceManifest, disposition, ...(crawl.stats.diagnostics?{diagnostics:crawl.stats.diagnostics}:{} ) },
     identityFacts, publicContacts, venueFacts,
-    imageCandidates: extracted.imageCandidates.map((item) => ({ ...item, discoveredAt: now })),
+    imageCandidates: extracted.imageCandidates.map((item) => ({ ...item, discoveredAt: item.discoveredAt || observedAtFor(item.sourcePageUrl) })),
     eventCandidates: extracted.eventCandidates,
     evidenceRefs: extracted.evidenceRefs,
     guideEmailReady: emailFound,

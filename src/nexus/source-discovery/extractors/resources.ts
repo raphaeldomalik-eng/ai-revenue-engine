@@ -418,23 +418,23 @@ function contacts(doc: FetchedDocument, out: ResourceExtraction, venueName: stri
   for (const match of primary.matchAll(/\bwhats\s*app\s*[:\-]?\s*(\+?\d[\d\s().-]{7,}\d)/gi)) addContact(out, doc, "WHATSAPP", clean(match[1]), 0.8, false, match[0]);
 }
 const practical: Array<[string, RegExp]> = [
-  ["accessibility", /\b(?:step[- ]free access|wheelchair access(?:ible)?|accessible toilets?|disabled access|hearing loop|induction loop|accessible entrance|lift access)\b[^.]{0,100}/i],
-  ["parking", /\b(?:on[- ]site parking|car park|parking spaces?|park and ride)\b[^.]{0,100}/i],
-  ["publicTransport", /\b(?:public transport|train station|bus stop|underground station|tube station|tram stop)\b[^.]{0,100}/i],
-  ["catering", /\b(?:in[- ]house catering|external catering|catering available)\b[^.]{0,100}/i],
-  ["bar", /\b(?:licensed bar|private bar|bar service)\b[^.]{0,100}/i],
-  ["kitchen", /\b(?:commercial kitchen|catering kitchen|kitchen facilities)\b[^.]{0,100}/i],
-  ["avProduction", /\b(?:AV equipment|audio[- ]visual equipment|production facilities|projector)\b[^.]{0,100}/i],
-  ["sound", /\b(?:sound system|PA system|sound equipment)\b[^.]{0,100}/i],
-  ["lighting", /\b(?:stage lighting|lighting rig|production lighting)\b[^.]{0,100}/i],
-  ["staging", /\b(?:built[- ]in stage|raised stage|stage facilities|staging available|modular staging|stage equipment)\b[^.]{0,100}/i],
-  ["loadingAccess", /\b(?:loading bay|loading access|load[- ]?in)\b[^.]{0,100}/i],
-  ["wifi", /\b(?:wi[- ]?fi|wireless internet)\b[^.]{0,100}/i],
-  ["power", /\b(?:three[- ]phase power|power outlets?|power supply)\b[^.]{0,100}/i],
+  ["accessibility", /\b(?:step[- ]free access|wheelchair access(?:ible)?|accessible toilets?|disabled access|hearing loop|induction loop|accessible entrance|lift access)\b[^.\n]{0,100}/i],
+  ["parking", /\b(?:on[- ]site parking|car park|parking spaces?|park and ride)\b[^.\n]{0,100}/i],
+  ["publicTransport", /\b(?:public transport|train station|bus stop|underground station|tube station|tram stop)\b[^.\n]{0,100}/i],
+  ["catering", /\b(?:in[- ]house catering|external catering|catering available|choice of caterers)\b[^.\n]{0,100}/i],
+  ["bar", /\b(?:licensed bar|private bar|bar service)\b[^.\n]{0,100}/i],
+  ["kitchen", /\b(?:commercial kitchen|catering kitchen|kitchen facilities)\b[^.\n]{0,100}/i],
+  ["avProduction", /\b(?:AV equipment|audio[- ]visual equipment|production facilities|projector|technical officer\b[^.\n]{0,40}\bsound(?:\/|\s+and\s+|\s*&\s*)lights)\b[^.\n]{0,100}/i],
+  ["sound", /\b(?:sound system|PA system|sound equipment)\b[^.\n]{0,100}/i],
+  ["lighting", /\b(?:stage lighting|lighting rig|production lighting)\b[^.\n]{0,100}/i],
+  ["staging", /\b(?:built[- ]in stage|raised stage|stage facilities|staging available|modular staging|stage equipment)\b[^.\n]{0,100}/i],
+  ["loadingAccess", /\b(?:loading bay|loading access|load[- ]?in)\b[^.\n]{0,100}/i],
+  ["wifi", /\b(?:wi[- ]?fi|wireless internet)\b[^.\n]{0,100}/i],
+  ["power", /\b(?:three[- ]phase power|power outlets?|power supply)\b[^.\n]{0,100}/i],
   ["outdoorSpace", /\b((?:(?:sunny|heated|covered|enclosed)\s+)?(?:beer\s+)?(?:garden|terrace|courtyard|outdoor space))\b/i],
-  ["accommodation", /\b(?:on[- ]site accommodation|hotel rooms?|bedrooms?)\b[^.]{0,100}/i],
-  ["cloakroom", /\b(?:cloakroom|coat check)\b[^.]{0,100}/i],
-  ["hireSuitability", /\b(?:(?:available|suitable)\s+for\s+(?:weddings?|receptions?|corporate events?|conferences?|private events?|meetings?|exhibitions?)|(?:hosts?|offers?)\s+(?:(?:corporate|private|outside)\s+events?\b|full\s+venue\s+hire\b))[^.]{0,180}/i],
+  ["accommodation", /\b(?:on[- ]site accommodation|hotel rooms?|bedrooms?)\b[^.\n]{0,100}/i],
+  ["cloakroom", /\b(?:cloakroom|coat check)\b[^.\n]{0,100}/i],
+  ["hireSuitability", /\b(?:(?:available|suitable)\s+for\s+(?:weddings?|receptions?|corporate events?|conferences?|private events?|meetings?|exhibitions?)|(?:hosts?|offers?)\s+(?:(?:corporate|private|outside)\s+events?\b|full\s+venue\s+hire\b))[^.\n]{0,180}/i],
 ];
 
 export const RESOURCE_PRACTICAL_FIELDS = Object.freeze(practical.map(([field])=>field));
@@ -469,14 +469,14 @@ function spaceName(text: string): string | null {
 function headingSpace(heading: string | null, docUrl: string): string | null {
   if (!heading) return null;
   const candidate = heading.replace(/\s+(?:hire|facilities)$/i, "");
-  const named = /^[A-Za-z]/.test(heading)
-    && !/^(?:ideal for|capacities|capacity|our spaces|venue spaces|the space|rooms|facilities|venue|contact|home|gallery|events|newsletter|more at|venue hire)/i.test(heading)
+  const named = /^[\p{L}]/u.test(heading)
+    && !/^(?:ideal for|capacities|capacity|our spaces|venue spaces|the space|rooms|facilities|venue|contact|home|gallery|events|newsletter|more at|venue hire|menu|navigation|contents|search|feedback)/i.test(heading)
     && !/\b(?:where|included|signup|follow|blog|homepage|experience|everything|enquiry|opening hours|opening times)\b/i.test(heading)
     && !/^(?:private|private hire|hire)$/i.test(heading.trim())
     && !/\b(?:access(?:ible|ibility)?|step[- ]free|wheelchair|tickets?|booking|parking|toilets?|companions?|assistance|performances?)\b/i.test(heading)
     && !/\b(?:event|capacity)\b/i.test(heading)
     && !/^(?:conference|corporate|wedding)\s+venue$/i.test(heading)
-    && candidate.replace(/[():/]/g, "").split(/\s+/).filter(Boolean).every((word) => /^[A-Z][A-Za-z0-9'&-]*$/.test(word) || /^\d+$/.test(word))
+    && candidate.replace(/[():/]/g, "").split(/\s+/).filter(Boolean).every((word) => /^[\p{Lu}][\p{L}0-9'&-]*$/u.test(word) || /^\d+$/.test(word))
     && heading.split(/\s+/).length <= 6 && !/[.!?]$/.test(heading)
     && !/\baccommodation\b/i.test(new URL(docUrl).pathname);
   return named ? candidate : null;
@@ -571,7 +571,7 @@ export function capacityMatrixLines(lines: string[]): Array<{ space: string; lay
 }
 
 function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElement | null) {
-  const body = visibleText(doc.body);
+  const body = root ? textContent(root, "\n") : visibleText(doc.body);
   for (const [field, pattern] of practical) {
     const match=body.match(pattern);let statement=clean(field==='outdoorSpace'?match?.[1]:match?.[0]);
     if(match){
@@ -622,8 +622,8 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
     const space = candidateName && (strongName || nearbyCapacity) ? candidateName : null;
     if (space) addFact(out, doc, "spaces", space, 0.85);
     const patterns = [
-      /\b(banquet|reception|theatre|theater|standing|seated|classroom|cabaret|dinner|conference|boardroom)\s+(?:style\s*)?(?:capacity\s*)?[:\-]?\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\b/gi,
-      /\bcapacity\s*(?:of|:|-)?\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(banquet|reception|theatre|theater|standing|seated|classroom|cabaret|dinner|conference|boardroom)?\b/gi,
+      /\b(banquet|reception|theatre|theater|standing|seated|seating|classroom|cabaret|dinner|conference|boardroom)\s+(?:style\s*)?(?:capacity\s*)?(?:is\s+|of\s+)?[:\-]?\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\b/gi,
+      /\bcapacity\s*(?:of|is|:|-)?\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(banquet|reception|theatre|theater|standing|seated|classroom|cabaret|dinner|conference|boardroom)?\b/gi,
       /\bup to\s*(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(standing|seated|guests?|people)\b/gi,
       /\b(\d{1,3}(?:,\d{3})+|\d{1,5})\s*(standing|seated)\b/gi,
       // "larger reception sets up to 450": the layout comes first, so the count is the second group, as in pattern 0.
@@ -655,7 +655,7 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
       if (!Number.isSafeInteger(count) || count < (index === 3 ? 10 : 2) || count > 100000) continue;
       if (!hosting) consumed.push([start, end]);
       const rawLayout = hosting ? null : layoutFirst ? match[1] : match[2];
-      const layout = rawLayout ? /^(?:guests?|people)$/i.test(rawLayout) ? "unspecified" : rawLayout.toLowerCase().replace("theater", "theatre") : "unspecified";
+      const layout = rawLayout ? /^(?:guests?|people)$/i.test(rawLayout) ? "unspecified" : rawLayout.toLowerCase().replace("theater", "theatre").replace(/^seating$/, "seated") : "unspecified";
       addFact(out, doc, "capacity", { space, layout, count, statement: match[0].trim() }, 0.9);
       }
     }
