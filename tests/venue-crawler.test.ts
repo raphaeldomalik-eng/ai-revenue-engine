@@ -43,6 +43,17 @@ test("airport direction variants and menus do not consume the venue budget", () 
   assert.ok(assessVenueLink(`${origin}/directions`, "nav Directions"));
 });
 
+test("FAQ and named room links outrank generic FAQ-blind and shallow venue links", () => {
+  const faq = assessVenueLink(`${origin}/faqs`, "FAQS");
+  const booking = assessVenueLink(`${origin}/bookings`, "Book tables");
+  const namedRoom = assessVenueLink(`${origin}/conferencing/spaces/main-auditorium`, "Main Auditorium");
+  const generic = assessVenueLink(`${origin}/your-visit/`, "Your Visit");
+  assert.ok(faq && booking && faq.strength > booking.strength);
+  assert.ok(namedRoom && generic && namedRoom.strength > generic.strength);
+  assert.ok(faq?.dims.includes("PUBLIC_CONTACT:EMAIL"));
+  assert.ok(namedRoom?.dims.includes("VENUE_FACTS:SPACES"));
+});
+
 test("navigation and path together outrank a bare keyword in the footer", () => {
   const nav = assessVenueLink(`${origin}/venue-hire`, "nav Hire");
   const footer = assessVenueLink(`${origin}/blog/hire-tips`, "Hire tips");
