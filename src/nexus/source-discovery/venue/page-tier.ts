@@ -14,7 +14,7 @@ import { propertyLinkStrength } from "../extractors/profiles.ts";
  */
 export type VenuePageTier = 1 | 2 | 3 | 4;
 
-const CONTACT = /\b(?:contact(?:[- ]us)?|get[- ]in[- ]touch|enquir\w*|inquir\w*|reach[- ]us|speak[- ]to|talk[- ]to[- ]us)\b/i;
+const CONTACT = /\b(?:contact(?:[- ]us)?|faq(?:s)?|get[- ]in[- ]touch|enquir\w*|inquir\w*|reach[- ]us|speak[- ]to|talk[- ]to[- ]us)\b/i;
 const IDENTITY = /\b(?:about(?:[- ]us)?|our[- ]story|the[- ]venue|who[- ]we[- ]are|find[- ]us|location|directions|address|visit(?:[- ]us)?|how[- ]to[- ]find)\b/i;
 const MENU = /\b(?:menus?|food|drinks?|wine[- ]list|wines|cocktails?|brunch|lunch|dinner|breakfast|a[- ]la[- ]carte|set[- ]menus?|tasting|prices?|pricing|tariffs?)\b/i;
 const COMMERCE = /\b(?:shop|store|cart|basket|checkout|products?|collections?|merch\w*|gift[- ]?(?:cards?|vouchers?)|vouchers?|offers?|deals?|promotions?|promo|specials?(?![- ]events?)|sale|discounts?|memberships?|subscriptions?|whats?[- ]?on|tickets?|box[- ]?office|programme|reviews?|testimonials?|competitions?)\b/i;
@@ -45,7 +45,8 @@ export function venuePageTier(url: string, label = "", venueName = ""): VenuePag
   // A venue brochure or specification PDF is supporting material even under /downloads/.
   if (/\.pdf$/i.test(path)) return MENU.test(text) || COMMERCE.test(text) ? 4 : HIRE.test(text) ? 2 : 3;
   if (MENU.test(text) || COMMERCE.test(text) || articleLikePath(url)) return 4;
-  if (IDENTITY.test(text)) return 1;
+  const finalPath = parsed.pathname.split("/").filter(Boolean).at(-1)?.replace(/[\/_.-]+/g, " ") ?? "";
+  if (IDENTITY.test(`${finalPath} ${label}`)) return 1;
   if (HIRE.test(text)) return 2;
   if (SUPPORTING.test(text)) return 3;
   // A property landing page on a group site ("/bar/aberdeen/") is the venue's own identity page.

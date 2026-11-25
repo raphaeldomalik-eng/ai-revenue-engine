@@ -433,7 +433,7 @@ const practical: Array<[string, RegExp]> = [
   ["outdoorSpace", /\b((?:(?:sunny|heated|covered|enclosed)\s+)?(?:beer\s+)?(?:garden|terrace|courtyard|outdoor space))\b/i],
   ["accommodation", /\b(?:on[- ]site accommodation|hotel rooms?|bedrooms?)\b[^.]{0,100}/i],
   ["cloakroom", /\b(?:cloakroom|coat check)\b[^.]{0,100}/i],
-  ["hireSuitability", /\b(?:available|suitable)\s+for\s+(?:weddings?|receptions?|corporate events?|conferences?|private events?|meetings?|exhibitions?)\b[^.]{0,100}/i],
+  ["hireSuitability", /\b(?:(?:available|suitable)\s+for\s+(?:weddings?|receptions?|corporate events?|conferences?|private events?|meetings?|exhibitions?)|(?:hosts?|offers?)\s+(?:(?:corporate|private|outside)\s+events?\b|full\s+venue\s+hire\b))[^.]{0,180}/i],
 ];
 
 export const RESOURCE_PRACTICAL_FIELDS = Object.freeze(practical.map(([field])=>field));
@@ -600,6 +600,18 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
   }
   const lines = root ? textContent(root, "\n").split("\n") : doc.body.split("\n");
   for (const item of capacityMatrixLines(lines)) { addFact(out, doc, "spaces", item.space, 0.85); addFact(out, doc, "capacity", item, 0.85); }
+  if (root) {
+    const path = new URL(doc.url).pathname;
+    const listingSpacePage = /\/(?:community-)?(?:meet[- ]?up|meeting)[- ]space(?:\/|$)/i.test(path);
+    if (listingSpacePage) {
+      for (const element of elements(root, (item) => item.attrs.role === "heading"
+        || /(?:^|\s)[\w-]*(?:heading)[\w-]*(?:\s|$)/i.test(item.attrs.class ?? ""))) {
+        const name = clean(textContent(element));
+        if (!name || !/\b(?:meet[- ]?up|meeting)[ -]+space\b/i.test(name) || name.length > 60) continue;
+        addFact(out, doc, "spaces", name, 0.9);
+      }
+    }
+  }
   const headings = [...html.matchAll(/<h([1-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)];
   const sections = headings.length ? headings.map((match, index) => ({ name: clean(visibleText(match[2]!)), body: visibleText(html.slice((match.index ?? 0) + match[0].length, headings[index + 1]?.index ?? html.length)) })) : [{ name: null, body: visibleText(html) }];
   for (const section of sections) {
@@ -875,9 +887,11 @@ function extractDocument(source: FetchedDocument, extractors: SourceExtractor[],
     // Retain source paragraphs verbatim, before meta, with the same page/hash
     // lineage. Navigation, forms and unrelated news are not venue descriptions.
     if(root&&!/\/(?:news|blogs?|press|events?|gigs?|shows?|tickets?|privacy|terms)(?:\/|$)/i.test(new URL(doc.url).pathname)){
-      const descriptions=elements(root,e=>e.tag==='p'||e.attrs.itemprop==='description').filter(e=>
-        !closestAncestor(e,a=>['nav','footer','header','form','aside','script','style','template'].includes(a.tag)
-          || /cookie|newsletter|subscribe|navigation|social-links/i.test(`${a.attrs.id??''} ${a.attrs.class??''}`)))
+      const descriptions=elements(root,e=>e.tag==='p'||e.attrs.itemprop==='description'
+        || (e.tag === 'h2' && textContent(e).trim().length >= 40
+          && /\b(?:venue|nightclub|club|theatre|theater|restaurant|hotel|hall|event space|private hire)\b/i.test(textContent(e)))).filter(e=>
+          !closestAncestor(e,a=>['nav','footer','header','form','aside','script','style','template'].includes(a.tag)
+            || !["html","body","#root"].includes(a.tag) && /cookie|newsletter|subscribe|navigation|social-links/i.test(`${a.attrs.id??''} ${a.attrs.class??''}`)))
         .map(e=>({text:clean(textContent(e)),heading:precedingHeading(root,e)})).filter(row=>Boolean(row.text&&/[a-z]/i.test(row.text)
           && !/@|\b(?:subscribe|cookie consent|privacy policy|all rights reserved|send message)\b/i.test(row.text)
           && venueDescriptionParagraph(row.text,venueName,`${title??''} ${heading??''} ${out.identityFacts.filter(f=>['siteName','placeName','explicitVenueName'].includes(f.fieldName)).map(f=>String(f.value)).join(' ')}`,row.heading?textContent(row.heading):''))).map(row=>row.text!);

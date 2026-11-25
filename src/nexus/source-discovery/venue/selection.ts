@@ -14,7 +14,7 @@ export const VENUE_DIMENSIONS = {
 } as const;
 
 const SKIP_PATH = /\b(?:whats?-?on|whatson|tickets?|box-?office|news|blog|shop|store|cart|privacy|cookies?|careers?|jobs|search|login|account|directions-from|catalogue|catalog)\b/i;
-const CONTACT = /\b(?:contact|enquir\w*|inquir\w*|bookings?|hire|private[- ](?:hire|events?|experiences?|functions?)|get[- ]in[- ]touch|find[- ]us)\b/i;
+const CONTACT = /\b(?:contact|faq(?:s)?|enquir\w*|inquir\w*|bookings?|hire|private[- ](?:hire|events?|experiences?|functions?)|get[- ]in[- ]touch|find[- ]us)\b/i;
 const SPACES = /\b(?:spaces?|rooms?|venues|halls?|suites?|studios?|auditor(?:ium|ia)|ballrooms?|floor[- ]?plans?|our[- ]venue|function[- ]spaces?)\b/i;
 const HIRE = /\b(?:special[- ]events?|corporate[- ]events?|events?[- ](?:hire|enquir\w*|spaces?|venues|team|packages?|and[- ]functions?)|(?:group|large)[- ](?:group[- ])?bookings?|venue[- ]hire|private[- ](?:hire|events?|dining|parties|experiences?|functions?|rooms?|spaces?|venues?)|functions?|hire|weddings?|conferenc\w*|meetings?|corporate|exhibitions?|banquets?|parties|celebrations?|filming|photo[- ]shoots?)\b/i;
 const CAPACITY = /\b(?:capacit\w*|specifications?|tech(?:nical)?[- ]specs?|floor[- ]?plans?|dimensions|seating|layouts?|brochures?|venue[- ]packs?|fact[- ]?sheets?)\b/i;
@@ -64,7 +64,9 @@ export function assessVenueLink(url: string, label = ""): VenueLinkAssessment | 
   if (HIRE.test(text)) { dims.add("VENUE_DESCRIPTION:CHARACTER"); reasons.push("event-use"); }
   if (!dims.size) return null;
   const depth = new URL(url).pathname.split("/").filter(Boolean).length;
-  const strength = (inNavigation ? 4 : 0) + Math.min(reasons.length, 4) * 2 + (pdf ? 3 : 0) - Math.min(depth, 4);
+  const explicitFaq = /\bfaq(?:s)?\b/i.test(text);
+  const namedSpacePage = /\/(?:spaces|rooms)\/[^/]+\/?$/i.test(new URL(url).pathname);
+  const strength = (inNavigation ? 4 : 0) + Math.min(reasons.length, 4) * 2 + (pdf ? 3 : 0) + (explicitFaq ? 3 : 0) + (namedSpacePage ? 5 : 0) - Math.min(depth, 4);
   return { url, dims: [...dims], strength: Math.max(strength, 1), reason: reasons.join("+") };
 }
 

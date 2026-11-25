@@ -79,6 +79,27 @@ test("the saved Faffless contact context qualifies Craig's published special-req
   assert.equal(contact?.sourceUrl, document.url);
 });
 
+test("explicit host-and-hire copy becomes source-backed venue suitability", () => {
+  const document = page("https://venue.org/corporateevents", `<p>Ballin' hosts corporate events and full venue hire for companies, including Christmas parties, team building and presentations.</p>`);
+  const suitability = extractFromFetchedDocuments([document], ["VENUE_FACTS"], "BALLIN' Maidstone").venueFacts
+    .find((fact) => fact.fieldName === "hireSuitability");
+  assert.equal(suitability?.value, "hosts corporate events and full venue hire for companies, including Christmas parties, team building and presentations");
+  assert.equal(suitability?.sourceUrl, document.url);
+});
+
+test("a source-published meetup space heading is retained from non-semantic HTML", () => {
+  const document = page("https://venue.org/community-meetup-space/", `<span class="dipi-dh-first-heading"><span>COMMUNITY MEET UP SPACE</span></span><p>Individual tables are free to hire for groups.</p>`);
+  const facts = extractFromFetchedDocuments([document], ["VENUE_FACTS"], "The Canteen").venueFacts;
+  assert.ok(facts.some((fact) => fact.fieldName === "spaces" && fact.value === "COMMUNITY MEET UP SPACE"));
+});
+
+test("substantive h2 venue copy is retained when a site has no meta description", () => {
+  const document = page("https://venue.org/private-hire", `<h2>Casino Rooms is a multi-room nightclub and private-hire venue for live events.</h2>`);
+  const descriptions = extractFromFetchedDocuments([document], ["IDENTITY"], "Casino Rooms").identityFacts
+    .filter((fact) => fact.fieldName === "siteDescription");
+  assert.ok(descriptions.some((fact) => fact.value === "Casino Rooms is a multi-room nightclub and private-hire venue for live events."));
+});
+
 test("a later purpose-qualified publication supersedes an earlier held duplicate", () => {
   const privacy = page("https://venue.org/privacy/", `<p>Privacy contact: hello@operator.org</p>`);
   const enquiries = page("https://venue.org/contact/", `<p>For venue enquiries, email hello@operator.org</p>`);
