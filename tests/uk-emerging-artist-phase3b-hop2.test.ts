@@ -12,8 +12,6 @@ function makeSyntheticDoc(url: string, body: string, observedAt = "2026-11-25T10
   const buf = Buffer.from(body, "utf8");
   return {
     url,
-    finalUrl: url,
-    status: 200,
     contentType: "text/html; charset=UTF-8",
     bytes: buf.length,
     sourceHash: createHash("sha256").update(buf).digest("hex"),
