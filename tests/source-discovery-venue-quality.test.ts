@@ -79,7 +79,7 @@ test("named rooms retain explicit layout capacities and conflicting page values 
 
 test("image rights default unknown and explicit restrictive or reusable terms retain evidence", () => {
   const unknown = page("/gallery", `<img src="/images/a.jpg" alt="Hall">`);
-  const reserved = page("/gallery-rights", `<img src="/images/b.jpg"><footer>© 2026 The Lantern. All rights reserved.</footer>`);
+  const reserved = page("/gallery-rights", `<img src="/images/b.jpg"><footer>Photographs: all rights reserved.</footer>`);
   const permission = page("/press", `<img src="/images/c.jpg"><p>Photo use requires written permission from The Lantern.</p>`);
   const reusable = page("/open-media", `<figure><img src="/images/d.jpg"></figure><p>Images on this page are licensed CC BY 4.0 for commercial reuse.</p>`);
   for (const [document, expected] of [[unknown, "UNKNOWN_RIGHTS"], [reserved, "RIGHTS_RESERVED"],
@@ -313,7 +313,7 @@ test("marketing invitation is not staging evidence", () => {
 
 test("image licence is not applied to a logo and a reserved notice wins over generic reuse", () => {
   const source = page("/gallery", `<img src="/brand-logo.png" alt="Brand logo"><img src="/gallery-photo.jpg" alt="Gallery photo">
-    <p>Gallery photos are licensed CC BY 4.0.</p><footer>All rights reserved.</footer>`);
+    <p>Gallery photos are licensed CC BY 4.0.</p><footer>Photographs: all rights reserved.</footer>`);
   const images = extractFromFetchedDocuments([source], ["IMAGE_CANDIDATES"]).imageCandidates;
   assert.notEqual(images.find((item) => item.filename === "brand-logo.png")?.rightsState, "VERIFIED_REUSABLE");
   assert.equal(images.find((item) => item.filename === "gallery-photo.jpg")?.rightsState, "RIGHTS_RESERVED");
@@ -321,12 +321,13 @@ test("image licence is not applied to a logo and a reserved notice wins over gen
 
 test("an explicit restrictive statement survives later unlabelled reuse of the image URL", () => {
   const result = extractFromFetchedDocuments([
-    page("/gallery", `<img src="/shared.jpg"><p>All rights reserved.</p>`),
-    page("/about", `<img src="/shared.jpg">`),
+    page("/gallery", `<figure><img src="/shared.jpg?width=500" width="500" height="350"><figcaption>This photograph may not be reproduced.</figcaption></figure>`),
+    page("/about", `<img src="/shared.jpg?width=1200" width="1200" height="800">`),
   ], ["IMAGE_CANDIDATES"]);
   assert.equal(result.imageCandidates.length, 1);
   assert.equal(result.imageCandidates[0]?.rightsState, "RIGHTS_RESERVED");
   assert.equal(result.imageCandidates[0]?.rightsEvidence?.sourceUrl, `${origin}/gallery`);
+  assert.equal(result.imageCandidates[0]?.width, 1200);
 });
 
 test("image planning discovers first-party permissions pages", () => {
@@ -350,19 +351,68 @@ test("operator and venue names in the same graph do not conflict", () => {
 
 test("a fetched first-party photo permissions page restricts images with its own evidence", () => {
   const result = extractFromFetchedDocuments([
-    page("/gallery", `<img src="/room.jpg"><img src="/brand-logo.svg">`),
+    page("/gallery", `<img src="/room.jpg"><img src="/brand-logo.svg"><img src="https://cdn.example.org/ballroom.jpg">`),
     page("/photo-permissions", `<h1>Photo permissions</h1><p>All photos on this website require written permission for reuse.</p>`),
+    { ...page("/gallery", `<img src="https://cdn.example.org/other-venue.jpg">`), url: "https://another-venue.example/gallery" },
   ], ["IMAGE_CANDIDATES"]);
   const room = result.imageCandidates.find((item) => item.filename === "room.jpg");
   assert.equal(room?.rightsState, "PERMISSION_REQUIRED");
   assert.equal(room?.rightsEvidence?.sourceUrl, `${origin}/photo-permissions`);
+  assert.equal(result.imageCandidates.find((item) => item.filename === "ballroom.jpg")?.rightsState, "PERMISSION_REQUIRED");
+  assert.equal(result.imageCandidates.find((item) => item.filename === "other-venue.jpg")?.rightsState, "UNKNOWN_RIGHTS");
   assert.equal(result.imageCandidates.find((item) => item.filename === "brand-logo.svg")?.rightsState, "UNKNOWN_RIGHTS");
 });
 
-test("explicit copyright notice is restrictive image evidence", () => {
-  const result = extractFromFetchedDocuments([page("/gallery", `<img src="/room.jpg"><footer>© 2026 The Venue.</footer>`)], ["IMAGE_CANDIDATES"]);
-  assert.equal(result.imageCandidates[0]?.rightsState, "RIGHTS_RESERVED");
-  assert.equal(result.imageCandidates[0]?.rightsEvidence?.basis, "EXPLICIT_RIGHTS_RESERVED");
+test("generic copyright and unrelated reuse wording remain page evidence", () => {
+  const capture = page("/gallery", `<img src="/room.jpg"><footer>Copyright 2026 The Venue. All rights reserved.</footer>
+    <p>Text describing the photos is licensed CC BY 4.0.</p>
+    <p>Images on this page illustrate our terms, whose text is licensed CC BY 4.0.</p>`);
+  const result = extractFromFetchedDocuments([capture], ["IMAGE_CANDIDATES"]);
+  assert.equal(result.imageCandidates[0]?.rightsState, "UNKNOWN_RIGHTS");
+  assert.equal(result.imageCandidates[0]?.rightsEvidence, null);
+  assert.ok(result.evidenceRefs.some((ref) => ref.startsWith(`source:${capture.sourceHash}:page-rights-notice:`)));
+});
+
+test("only a licensed figure or a matching ImageObject supplies an individual asset grant", () => {
+  const capture = page("/gallery", `
+    <figure><img src="/room.jpg"><figcaption>This photograph is licensed CC BY 4.0.</figcaption></figure>
+    <figure><img src="/stage.jpg"><figcaption>This photograph may not be reused.</figcaption></figure>
+    <figure><img src="/multiple-a.jpg"><img src="/multiple-b.jpg"><figcaption>This photograph is licensed CC0.</figcaption></figure>
+    <figure><img src="/poster.jpg"><figcaption>This photograph shows a poster licensed CC0.</figcaption></figure>
+    <img src="/garden.jpg"><img src="/entrance.jpg"><img src="/stairs.jpg"><img src="/rooftop.jpg">
+    <script type="application/ld+json">{"@graph":[
+      {"@type":"WebPage","license":"https://creativecommons.org/publicdomain/zero/1.0/"},
+      {"@type":"ImageObject","contentUrl":"/garden.jpg","license":"https://creativecommons.org/licenses/by-sa/4.0/"},
+      {"@type":"ImageObject","contentUrl":"/stairs.jpg","copyrightNotice":"All rights reserved."},
+      {"@type":"ImageObject","contentUrl":"/rooftop.jpg","license":"https://creativecommons.org/licenses/by-nc/4.0/"}
+    ]}</script>`);
+  const extracted = extractFromFetchedDocuments([capture], ["IMAGE_CANDIDATES"]);
+  const states = new Map(extracted.imageCandidates.map((candidate) => [candidate.filename, candidate]));
+  for (const image of ["entrance.jpg", "multiple-a.jpg", "multiple-b.jpg", "poster.jpg"]) {
+    assert.equal(states.get(image)?.rightsState, "UNKNOWN_RIGHTS", image);
+    assert.equal(states.get(image)?.rightsEvidence, null, image);
+  }
+  assert.equal(states.get("rooftop.jpg")?.rightsState, "RIGHTS_RESERVED");
+  assert.equal(states.get("room.jpg")?.rightsEvidence?.basis, "CC_BY");
+  assert.equal(states.get("stage.jpg")?.rightsState, "RIGHTS_RESERVED");
+  assert.equal(states.get("stairs.jpg")?.rightsState, "RIGHTS_RESERVED");
+  assert.equal(states.get("garden.jpg")?.rightsEvidence?.basis, "CC_BY_SA");
+  assert.equal(states.get("garden.jpg")?.rightsEvidence?.sourceUrl, capture.url);
+});
+
+test("a generic notice cannot taint a duplicate with applicable licence evidence", () => {
+  const licensed = page("/gallery", `<figure><img src="/shared.jpg?width=500" width="500" height="350">
+    <figcaption>This photograph is licensed CC BY 4.0.</figcaption></figure>`);
+  const plain = page("/about", `<img src="/shared.jpg?width=1200" width="1200" height="800"><footer>© 2026 The Venue.</footer>`);
+  for (const pages of [[licensed, plain], [plain, licensed]]) {
+    const [candidate, extra] = extractFromFetchedDocuments(pages, ["IMAGE_CANDIDATES"]).imageCandidates;
+    assert.equal(extra, undefined);
+    assert.equal(candidate?.rightsState, "VERIFIED_REUSABLE");
+    assert.equal(candidate?.rightsEvidence?.sourceUrl, licensed.url);
+    assert.equal(candidate?.width, 1200);
+    assert.equal(candidate?.height, 800);
+    assert.equal(candidate?.operatorConfirmed, false);
+  }
 });
 
 test("hire suitability requires an explicit statement rather than the page path", () => {

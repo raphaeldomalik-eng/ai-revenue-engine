@@ -670,34 +670,53 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
     }
   }
 }
-function imageRights(doc: FetchedDocument): { rightsState: RightsState; rightsEvidence: RightsEvidence | null } {
-  const body = visibleText(doc.body);
-  const cases: Array<[RegExp, RightsState, string]> = [
-    [/(?:©|copyright)\s*\d{4}[^.]{0,150}\ball rights reserved\b|\ball rights reserved\b/i, "RIGHTS_RESERVED", "EXPLICIT_RIGHTS_RESERVED"],
-    [/(?:©|\bcopyright\b)\s*(?:19|20)\d{2}\b[^.]{0,100}/i, "RIGHTS_RESERVED", "EXPLICIT_RIGHTS_RESERVED"],
-    [/(?:images?|photos?|photographs?)[^.]{0,100}\b(?:requires?\s+(?:written|prior)?\s*permission|(?:written|prior)\s+permission\s+(?:is\s+)?required|authorisation\s+required|authorization\s+required)\b[^.]{0,100}/i, "PERMISSION_REQUIRED", "EXPLICIT_PERMISSION_REQUIRED"],
-    [/(?:images?|photos?|photographs?)[^.]{0,100}\b(?:CC\s*BY(?:\s*-?SA)?\s*4\.0|CC0|public domain|commercial reuse permitted|free for commercial use)\b[^.]{0,100}/i, "VERIFIED_REUSABLE", "EXPLICIT_COMMERCIAL_REUSE_PERMISSION"],
-  ];
-  for (const [pattern, rightsState, defaultBasis] of cases) {
-    const statement = clean(body.match(pattern)?.[0]); if (!statement) continue;
-    const basis = rightsState === "VERIFIED_REUSABLE" ? /\bCC\s*BY\s*-?SA/i.test(statement) ? "CC_BY_SA" : /\bCC\s*BY/i.test(statement) ? "CC_BY" : /\bCC0\b/i.test(statement) ? "CC0" : /public domain/i.test(statement) ? "PUBLIC_DOMAIN" : defaultBasis : defaultBasis;
-    return { rightsState, rightsEvidence: { basis, sourceUrl: doc.url, evidenceRef: ref(doc, "rights", statement), statement } };
-  }
-  return { rightsState: "UNKNOWN_RIGHTS", rightsEvidence: null };
+type ImageRights = Pick<ImageCandidate, "rightsState" | "rightsEvidence">;
+const UNKNOWN_IMAGE_RIGHTS: ImageRights = { rightsState: "UNKNOWN_RIGHTS", rightsEvidence: null };
+const PHOTO_NOUN = /^(?:(?:all|our|these|the)\s+)?(?:(?:website|gallery)\s+)?(?:images|photos|photographs)\b/i;
+const PHOTO_USE = /^(?:photo\s+use\b|(?:no\s+)?(?:reuse|use|reproduction|copying)(?:\s+of)?\s+(?:(?:these|the|any|our|all)\s+)?(?:images|photos|photographs)\b)/i;
+const WEBSITE_PHOTOS = /^(?:all\s+)?(?:(?:website|site)\s+(?:images|photos|photographs)|(?:images|photos|photographs)\s+on\s+(?:this|our)\s+(?:website|site))\b/i;
+const PHOTO_PERMISSION = /\b(?:requires?\s+(?:(?:prior|written)\s+)*permission|(?:(?:prior|written)\s+)*permission\s+(?:is\s+)?required|authori[sz]ation\s+(?:is\s+)?required|without\s+(?:(?:prior|written)\s+)*permission)\b/i;
+const PHOTO_RESTRICTION = /\b(?:all rights reserved|(?:(?:do|may|must) not|cannot)\s+(?:(?:be\s+)?(?:use[ds]?|reuse[ds]?|cop(?:y|ied)|reproduc(?:e|ed)|redistribut(?:e|ed)|publish(?:ed)?))|(?:reproduction|reuse|copying)\b[^.!?]{0,60}\b(?:prohibited|forbidden|not permitted)|non[- ]commercial(?:\s+use)?\s+only|CC\s*BY[- ](?:NC|ND)\b)\b/i;
+const PAGE_PHOTO_GRANT = /^(?:(?:all|our|these|the)\s+)?(?:images|photos|photographs)\s+on this page(?:\s*:\s*|\s+)(?:(?:are|were)\s+)?(?:licensed|released|in the public domain|free for commercial use|commercial reuse permitted)\b/i;
+const CAPTION_RIGHTS = /^(?:(?:(?:this|the)\s+(?:image|photo|photograph)\s+(?:(?:is|was)\s+)?)?(?:all rights reserved|licensed|released|in the public domain|free for commercial use)|(?:this|the)\s+(?:image|photo|photograph)\s+(?:requires?|may not|must not|cannot)\b)/i;
+const PHOTO_GRANT = /\b(?:licensed|released)\s+(?:under\s+)?(CC\s*BY(?:[- ]SA)?\s*4\.0|CC0(?:\s*1\.0)?)\b(?![-\w]|\.\d)|\b(?:in the public domain|commercial reuse permitted|free for commercial use)\b/i;
+
+function rightsStatements(text: string): string[] {
+  return text.split(/\n+|(?<=[.!?])\s+(?=[A-Z])/).filter(Boolean);
 }
-function sitewidePhotoRestriction(doc: FetchedDocument): { rightsState: "PERMISSION_REQUIRED" | "RIGHTS_RESERVED"; rightsEvidence: RightsEvidence } | null {
-  const body = visibleText(doc.body);
-  const scope = /\ball\s+(?:images|photos|photographs)\s+on\s+(?:this|our)\s+(?:website|site)\b[^.]{0,150}/i;
-  const statement = clean(body.match(scope)?.[0]);
-  if (!statement) return null;
-  const restricted = /\ball rights reserved\b|(?:©|\bcopyright\b)\s*(?:19|20)\d{2}\b/i.test(statement);
-  const permission = /\b(?:requires?\s+(?:written|prior)?\s*permission|(?:written|prior)\s+permission\s+(?:is\s+)?required|authorisation\s+required|authorization\s+required)\b/i.test(statement);
-  if (!restricted && !permission) return null;
-  const rightsState = restricted ? "RIGHTS_RESERVED" : "PERMISSION_REQUIRED";
-  return { rightsState, rightsEvidence: { basis: restricted ? "EXPLICIT_RIGHTS_RESERVED" : "EXPLICIT_PERMISSION_REQUIRED",
-    sourceUrl: doc.url, evidenceRef: ref(doc, "rights", statement), statement } };
+function rightsFromStatements(doc: FetchedDocument, statements: string[], allowGrant: boolean): ImageRights {
+  let strongest = UNKNOWN_IMAGE_RIGHTS;
+  for (const raw of statements) {
+    const statement = clean(raw)?.slice(0, 512);
+    if (!statement) continue;
+    let rightsState: RightsState = "UNKNOWN_RIGHTS";
+    let basis: string | null = null;
+    if (PHOTO_PERMISSION.test(statement)) {
+      rightsState = "PERMISSION_REQUIRED"; basis = "EXPLICIT_PERMISSION_REQUIRED";
+    } else if (PHOTO_RESTRICTION.test(statement) || /^https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by-(?:nc(?:-sa|-nd)?|nd)\//i.test(statement)) {
+      rightsState = "RIGHTS_RESERVED"; basis = "EXPLICIT_RIGHTS_RESERVED";
+    } else if (allowGrant && !/\b(?:except|excluding|not|unless)\b/i.test(statement)) {
+      const grant = statement.match(PHOTO_GRANT)?.[0] ?? statement;
+      if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by-sa\/4\.0\/?|(?:licensed|released)\s+(?:under\s+)?CC\s*BY[- ]SA\s*4\.0)$/i.test(grant)) basis = "CC_BY_SA";
+      else if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by\/4\.0\/?|(?:licensed|released)\s+(?:under\s+)?CC\s*BY\s*4\.0)$/i.test(grant)) basis = "CC_BY";
+      else if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/publicdomain\/zero\/1\.0\/?|(?:licensed|released)\s+(?:under\s+)?CC0(?:\s*1\.0)?)$/i.test(grant)) basis = "CC0";
+      else if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/publicdomain\/mark\/1\.0\/?|in the public domain)$/i.test(grant)) basis = "PUBLIC_DOMAIN";
+      else if (/^(?:commercial reuse permitted|free for commercial use)$/i.test(grant)) basis = "EXPLICIT_COMMERCIAL_REUSE_PERMISSION";
+      if (basis) rightsState = "VERIFIED_REUSABLE";
+    }
+    if (basis && RIGHTS_RANK[rightsState] > RIGHTS_RANK[strongest.rightsState]) {
+      strongest = { rightsState, rightsEvidence: { basis, sourceUrl: doc.url, evidenceRef: ref(doc, "rights", statement), statement } };
+    }
+  }
+  return strongest;
 }
 
+function sitewidePhotoRestriction(doc: FetchedDocument): ImageRights {
+  const text = visibleText(doc.body);
+  if (!/\b(?:(?:website|site)\s+(?:images|photos|photographs)|(?:images|photos|photographs)\s+on\s+(?:this|our)\s+(?:website|site))\b/i.test(text)) return UNKNOWN_IMAGE_RIGHTS;
+  const statements = rightsStatements(textContent(parseHtml(doc.body), "\n"));
+  return rightsFromStatements(doc, statements.filter((statement) => WEBSITE_PHOTOS.test(statement)), false);
+}
 type ImageSource = { url: string; width: number | null; height: number | null };
 function srcsetBest(value: string | undefined, base: string): ImageSource | null {
   if (!value) return null;
@@ -760,15 +779,38 @@ function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement 
   const normalizedName = (value: string) => value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const targetName = normalizedName(venueName);
   const explicitlyNamesTarget = (...values: Array<string | null>) => Boolean(targetName && values.some((value) => value && normalizedName(value).includes(targetName)));
-  const rights = imageRights(doc); if (rights.rightsEvidence) out.evidenceRefs.push(rights.rightsEvidence.evidenceRef);
+  const statements = rightsStatements(root ? textContent(root, "\n") : visibleText(doc.body));
+  const notice = statements.find((statement) => /(?:©|\bcopyright\b|\ball rights reserved\b)/i.test(statement));
+  // Keep unscoped wording findable in the retained page without elevating it to an asset fact.
+  if (notice) out.evidenceRefs.push(ref(doc, "page-rights-notice", notice.slice(0, 512)));
+  const photoStatements = statements.filter((statement) => PHOTO_NOUN.test(statement) || PHOTO_USE.test(statement));
+  const pageRestriction = rightsFromStatements(doc, photoStatements, false);
+  const pageGrant = rightsFromStatements(doc, photoStatements.filter((statement) => PAGE_PHOTO_GRANT.test(statement)), true);
+
+  const { nodes, contained } = structuredNodes(doc);
+  const declaredImageRights = new Map<string, string[]>();
+  for (const node of nodes.filter((item) => typed(item, "ImageObject"))) {
+    const link = clean(node.contentUrl) ?? clean(node.url);
+    const url = link ? canonicalHttpsUrl(link, doc.url) : null;
+    if (!url) continue;
+    const key = imageVariantKey(url);
+    const values = [clean(node.license), clean(node.copyrightNotice)].filter((value): value is string => value !== null);
+    if (values.length) declaredImageRights.set(key, [...(declaredImageRights.get(key) ?? []), ...values]);
+  }
   const push = (source: ImageSource, alt: string | null, title: string | null, caption: string | null, element: DomElement | null, options: { og?: boolean; exactVenue?: boolean | null; role?: string } = {}) => {
     if (TRACKER.test(source.url)) return;
     if ((source.width !== null && source.width < 50) || (source.height !== null && source.height < 50)) return;
     const image = new URL(source.url); const filename = decodeURIComponent(image.pathname.split("/").pop() || "") || null;
     const likelyRole = options.role ?? imageRole(filename, alt, element, doc.url, Boolean(options.og));
-    const imageRights = rights.rightsState === "VERIFIED_REUSABLE" && likelyRole === "LOGO"
-      && !/\blogos?\b[^.]{0,100}\b(?:CC\s*BY|CC0|public domain|commercial reuse permitted)/i.test(rights.rightsEvidence?.statement ?? "")
-      ? { rightsState: "UNKNOWN_RIGHTS" as const, rightsEvidence: null } : rights;
+    const figure = element && closestAncestor(element, (ancestor) => ancestor.tag === "figure");
+    const captionStatements = figure && caption && byTag(figure, "img").length === 1
+      ? rightsStatements(caption).filter((statement) => CAPTION_RIGHTS.test(statement))
+      : [];
+    const assetRights = rightsFromStatements(doc, [...(declaredImageRights.get(imageVariantKey(source.url)) ?? []), ...captionStatements], true);
+    const imageRights = likelyRole === "LOGO" ? assetRights
+      : [assetRights, pageRestriction, pageGrant].reduce((strongest, next) =>
+        RIGHTS_RANK[next.rightsState] > RIGHTS_RANK[strongest.rightsState] ? next : strongest);
+    if (imageRights.rightsEvidence) out.evidenceRefs.push(imageRights.rightsEvidence.evidenceRef);
     const mime = /\.(jpe?g)$/i.test(filename ?? "") ? "image/jpeg" : /\.png$/i.test(filename ?? "") ? "image/png" : /\.webp$/i.test(filename ?? "") ? "image/webp" : /\.avif$/i.test(filename ?? "") ? "image/avif" : /\.svg$/i.test(filename ?? "") ? "image/svg+xml" : /\.gif$/i.test(filename ?? "") ? "image/gif" : null;
     const candidate: ImageCandidate = { sourceImageUrl: source.url, sourcePageUrl: doc.url, filename, alt, title, caption, width: source.width, height: source.height, mime,
       likelyRole, exactVenue: options.exactVenue ?? null, discoveredAt: doc.observedAt, originDomain: image.hostname, ...imageRights, operatorConfirmed: false };
@@ -802,7 +844,7 @@ function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement 
   const og = firstMeta(doc.body, "og:image") ?? firstMeta(doc.body, "og:image:secure_url") ?? firstMeta(doc.body, "twitter:image");
   const ogUrl = og ? canonicalHttpsUrl(og, doc.url) : null;
   if (ogUrl && (!listingPage || explicitlyNamesTarget(clean(firstMeta(doc.body, "og:image:alt"))))) push({ url: ogUrl, width: dimension(firstMeta(doc.body, "og:image:width") ?? undefined), height: dimension(firstMeta(doc.body, "og:image:height") ?? undefined) }, clean(firstMeta(doc.body, "og:image:alt")), null, null, null, { og: true });
-  const { nodes, contained } = structuredNodes(doc);
+
   for (const node of nodes) {
     if (listingPage && (!targetName || normalizedName(clean(node.name) ?? "") !== targetName)) continue;
     const subject = ["Place", "EventVenue", "LocalBusiness", "Organization", "CivicStructure", "PerformingArtsTheater", "MusicVenue"].some((name) => typed(node, name));
@@ -975,9 +1017,9 @@ export function extractResourcesFromDocuments(documents: FetchedDocument[], extr
   for (const doc of documents) {
     if (doc.kind === "PDF") continue;
     const restriction = sitewidePhotoRestriction(doc);
-    if (!restriction) continue;
+    if (!restriction.rightsEvidence) continue;
     for (const candidate of imageCandidates) {
-      if (candidate.likelyRole === "LOGO" || new URL(candidate.sourceImageUrl).origin !== new URL(doc.url).origin) continue;
+      if (candidate.likelyRole === "LOGO" || !sameOrigin(candidate.sourcePageUrl, doc.url)) continue;
       if (RIGHTS_RANK[restriction.rightsState] <= RIGHTS_RANK[candidate.rightsState]) continue;
       candidate.rightsState = restriction.rightsState;
       candidate.rightsEvidence = restriction.rightsEvidence;
