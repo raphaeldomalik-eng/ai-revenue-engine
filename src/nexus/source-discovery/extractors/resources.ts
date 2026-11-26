@@ -672,40 +672,56 @@ function venueFacts(doc: FetchedDocument, out: ResourceExtraction, root: DomElem
 }
 type ImageRights = Pick<ImageCandidate, "rightsState" | "rightsEvidence">;
 const UNKNOWN_IMAGE_RIGHTS: ImageRights = { rightsState: "UNKNOWN_RIGHTS", rightsEvidence: null };
-const PHOTO_NOUN = /^(?:(?:all|our|these|the)\s+)?(?:(?:website|gallery)\s+)?(?:images|photos|photographs)\b/i;
-const PHOTO_USE = /^(?:photo\s+use\b|(?:no\s+)?(?:reuse|use|reproduction|copying)(?:\s+of)?\s+(?:(?:these|the|any|our|all)\s+)?(?:images|photos|photographs)\b)/i;
-const WEBSITE_PHOTOS = /^(?:all\s+)?(?:(?:website|site)\s+(?:images|photos|photographs)|(?:images|photos|photographs)\s+on\s+(?:this|our)\s+(?:website|site))\b/i;
-const PHOTO_PERMISSION = /\b(?:requires?\s+(?:(?:prior|written)\s+)*permission|(?:(?:prior|written)\s+)*permission\s+(?:is\s+)?required|authori[sz]ation\s+(?:is\s+)?required|without\s+(?:(?:prior|written)\s+)*permission)\b/i;
-const PHOTO_RESTRICTION = /\b(?:all rights reserved|(?:(?:do|may|must) not|cannot)\s+(?:(?:be\s+)?(?:use[ds]?|reuse[ds]?|cop(?:y|ied)|reproduc(?:e|ed)|redistribut(?:e|ed)|publish(?:ed)?))|(?:reproduction|reuse|copying)\b[^.!?]{0,60}\b(?:prohibited|forbidden|not permitted)|non[- ]commercial(?:\s+use)?\s+only|CC\s*BY[- ](?:NC|ND)\b)\b/i;
-const PAGE_PHOTO_GRANT = /^(?:(?:all|our|these|the)\s+)?(?:images|photos|photographs)\s+on this page(?:\s*:\s*|\s+)(?:(?:are|were)\s+)?(?:licensed|released|in the public domain|free for commercial use|commercial reuse permitted)\b/i;
-const CAPTION_RIGHTS = /^(?:(?:(?:this|the)\s+(?:image|photo|photograph)\s+(?:(?:is|was)\s+)?)?(?:all rights reserved|licensed|released|in the public domain|free for commercial use)|(?:this|the)\s+(?:image|photo|photograph)\s+(?:requires?|may not|must not|cannot)\b)/i;
-const PHOTO_GRANT = /\b(?:licensed|released)\s+(?:under\s+)?(CC\s*BY(?:[- ]SA)?\s*4\.0|CC0(?:\s*1\.0)?)\b(?![-\w]|\.\d)|\b(?:in the public domain|commercial reuse permitted|free for commercial use)\b/i;
+const PAGE_PHOTOS = /^(?:(?:all|our|these|the)\s+)?(?:images|photos|photographs)\s+on this page(?:\s*:\s*|\s+)/i;
+const WEBSITE_PHOTOS = /^(?:all\s+)?(?:(?:website|site)\s+(?:images|photos|photographs)|(?:images|photos|photographs)\s+on\s+(?:this|our)\s+(?:website|site))(?:\s*:\s*|\s+)/i;
+const PHOTO_SUBJECT = /^(?:(?:all|our|these|the)\s+)?(?:(?:website|gallery)\s+)?(?:images|photos|photographs)(?:\s+on\s+(?:this page|(?:this|our)\s+(?:website|site)))?(?:\s*:\s*|\s+)/i;
+const PHOTO_USE = /^(?:photo\s+use|(?:the\s+)?(?:reuse|use|reproduction|copying)\s+(?:of\s+)?(?:(?:these|the|any|our|all)\s+)?(?:images|photos|photographs))(?:\s*:\s*|\s+)/i;
+const CAPTION_PHOTO = /^(?:this|the)\s+(?:image|photo|photograph)(?:\s*:\s*|\s+)/i;
+const PHOTO_PROHIBITION = /^(?:please\s+)?(?:do not\s+(?:reuse|use|copy|reproduce|publish|redistribute)|no\s+(?:reuse|use|copying|reproduction|publication|redistribution)\s+of)\s+(?:(?:these|the|any|our|all)\s+)?(?:images|photos|photographs)(?:\s+without\s+(?:(?:prior|written)\s+)*permission)?[.!]?$/i;
+const PERMISSION_PREDICATE = /^(?:requires?\s+(?:(?:prior|written)\s+)*permission|(?:(?:prior|written)\s+)*permission\s+(?:is\s+)?required|authori[sz]ation\s+(?:is\s+)?required)\b/i;
+const NEGATED_PHOTO_USE = /^(?:(?:do|may|must) not|cannot)\s+(?:be\s+)?(?:use[ds]?|reuse[ds]?|cop(?:y|ied)|reproduc(?:e|ed)|redistribut(?:e|ed)|publish(?:ed)?)\b/i;
+const RESTRICTED_PHOTO_USE = /^(?:all rights reserved|prohibited|forbidden|not permitted|non[- ]commercial(?:\s+use)?\s+only|(?:licensed|released)\s+(?:under\s+)?CC\s*BY[- ](?:NC|ND))\b/i;
+const CONDITIONAL_PERMISSION = /\bwithout\s+(?:(?:prior|written)\s+)*permission\b/i;
+const TEXT_PHOTO_GRANT = /^(?:(?:licensed|released)\s+(?:under\s+)?(CC\s*BY(?:[- ]SA)?\s*4\.0|CC0(?:\s*1\.0)?)|(in the public domain|commercial reuse (?:is )?permitted|free for commercial use))(?:\s+for commercial (?:use|reuse))?(?:,?\s+with attribution)?[.!]?$/i;
+
+type ImageRightsClause = { statement: string; predicate: string };
 
 function rightsStatements(text: string): string[] {
   return text.split(/\n+|(?<=[.!?])\s+(?=[A-Z])/).filter(Boolean);
 }
-function rightsFromStatements(doc: FetchedDocument, statements: string[], allowGrant: boolean): ImageRights {
+
+function photoRightsClauses(statements: string[], subject: RegExp): ImageRightsClause[] {
+  return statements.flatMap((statement) => {
+    const match = statement.match(subject);
+    return match ? [{ statement, predicate: statement.slice(match[0].length) }] : [];
+  });
+}
+
+function rightsFromStatements(doc: FetchedDocument, clauses: ImageRightsClause[], allowGrant: boolean): ImageRights {
   let strongest = UNKNOWN_IMAGE_RIGHTS;
-  for (const raw of statements) {
-    const statement = clean(raw)?.slice(0, 512);
-    if (!statement) continue;
+  for (const clause of clauses) {
+    const statement = clean(clause.statement);
+    const predicate = clean(clause.predicate)?.replace(/^(?:are|is|were|was)\s+/i, "");
+    if (!statement || !predicate) continue;
     let rightsState: RightsState = "UNKNOWN_RIGHTS";
     let basis: string | null = null;
-    if (PHOTO_PERMISSION.test(statement)) {
+    const negatedUse = NEGATED_PHOTO_USE.test(predicate) || PHOTO_PROHIBITION.test(predicate);
+    if (PERMISSION_PREDICATE.test(predicate) || (negatedUse && CONDITIONAL_PERMISSION.test(predicate))) {
       rightsState = "PERMISSION_REQUIRED"; basis = "EXPLICIT_PERMISSION_REQUIRED";
-    } else if (PHOTO_RESTRICTION.test(statement) || /^https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by-(?:nc(?:-sa|-nd)?|nd)\//i.test(statement)) {
+    } else if (negatedUse || RESTRICTED_PHOTO_USE.test(predicate) || /^https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by-(?:nc(?:-sa|-nd)?|nd)\//i.test(predicate)) {
       rightsState = "RIGHTS_RESERVED"; basis = "EXPLICIT_RIGHTS_RESERVED";
-    } else if (allowGrant && !/\b(?:except|excluding|not|unless)\b/i.test(statement)) {
-      const grant = statement.match(PHOTO_GRANT)?.[0] ?? statement;
-      if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by-sa\/4\.0\/?|(?:licensed|released)\s+(?:under\s+)?CC\s*BY[- ]SA\s*4\.0)$/i.test(grant)) basis = "CC_BY_SA";
-      else if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by\/4\.0\/?|(?:licensed|released)\s+(?:under\s+)?CC\s*BY\s*4\.0)$/i.test(grant)) basis = "CC_BY";
-      else if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/publicdomain\/zero\/1\.0\/?|(?:licensed|released)\s+(?:under\s+)?CC0(?:\s*1\.0)?)$/i.test(grant)) basis = "CC0";
-      else if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/publicdomain\/mark\/1\.0\/?|in the public domain)$/i.test(grant)) basis = "PUBLIC_DOMAIN";
-      else if (/^(?:commercial reuse permitted|free for commercial use)$/i.test(grant)) basis = "EXPLICIT_COMMERCIAL_REUSE_PERMISSION";
+    } else if (allowGrant) {
+      const grant = predicate.match(TEXT_PHOTO_GRANT);
+      const licence = grant?.[1] ?? predicate;
+      if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by-sa\/4\.0\/?|CC\s*BY[- ]SA\s*4\.0)$/i.test(licence)) basis = "CC_BY_SA";
+      else if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/licenses\/by\/4\.0\/?|CC\s*BY\s*4\.0)$/i.test(licence)) basis = "CC_BY";
+      else if (/^(?:https:\/\/(?:www\.)?creativecommons\.org\/publicdomain\/zero\/1\.0\/?|CC0(?:\s*1\.0)?)$/i.test(licence)) basis = "CC0";
+      else if (/^https:\/\/(?:www\.)?creativecommons\.org\/publicdomain\/mark\/1\.0\/?$/i.test(licence) || grant?.[2]?.toLowerCase() === "in the public domain") basis = "PUBLIC_DOMAIN";
+      else if (grant?.[2]) basis = "EXPLICIT_COMMERCIAL_REUSE_PERMISSION";
       if (basis) rightsState = "VERIFIED_REUSABLE";
     }
     if (basis && RIGHTS_RANK[rightsState] > RIGHTS_RANK[strongest.rightsState]) {
-      strongest = { rightsState, rightsEvidence: { basis, sourceUrl: doc.url, evidenceRef: ref(doc, "rights", statement), statement } };
+      strongest = { rightsState, rightsEvidence: { basis, sourceUrl: doc.url, evidenceRef: ref(doc, "rights", statement), statement: statement.slice(0, 512) } };
     }
   }
   return strongest;
@@ -715,7 +731,7 @@ function sitewidePhotoRestriction(doc: FetchedDocument): ImageRights {
   const text = visibleText(doc.body);
   if (!/\b(?:(?:website|site)\s+(?:images|photos|photographs)|(?:images|photos|photographs)\s+on\s+(?:this|our)\s+(?:website|site))\b/i.test(text)) return UNKNOWN_IMAGE_RIGHTS;
   const statements = rightsStatements(textContent(parseHtml(doc.body), "\n"));
-  return rightsFromStatements(doc, statements.filter((statement) => WEBSITE_PHOTOS.test(statement)), false);
+  return rightsFromStatements(doc, photoRightsClauses(statements, WEBSITE_PHOTOS), false);
 }
 type ImageSource = { url: string; width: number | null; height: number | null };
 function srcsetBest(value: string | undefined, base: string): ImageSource | null {
@@ -783,9 +799,12 @@ function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement 
   const notice = statements.find((statement) => /(?:©|\bcopyright\b|\ball rights reserved\b)/i.test(statement));
   // Keep unscoped wording findable in the retained page without elevating it to an asset fact.
   if (notice) out.evidenceRefs.push(ref(doc, "page-rights-notice", notice.slice(0, 512)));
-  const photoStatements = statements.filter((statement) => PHOTO_NOUN.test(statement) || PHOTO_USE.test(statement));
-  const pageRestriction = rightsFromStatements(doc, photoStatements, false);
-  const pageGrant = rightsFromStatements(doc, photoStatements.filter((statement) => PAGE_PHOTO_GRANT.test(statement)), true);
+  const pageRestriction = rightsFromStatements(doc, [
+    ...photoRightsClauses(statements, PHOTO_SUBJECT),
+    ...photoRightsClauses(statements, PHOTO_USE),
+    ...statements.filter((statement) => PHOTO_PROHIBITION.test(statement)).map((statement) => ({ statement, predicate: statement })),
+  ], false);
+  const pageGrant = rightsFromStatements(doc, photoRightsClauses(statements, PAGE_PHOTOS), true);
 
   const { nodes, contained } = structuredNodes(doc);
   const declaredImageRights = new Map<string, string[]>();
@@ -803,10 +822,11 @@ function images(doc: FetchedDocument, out: ResourceExtraction, root: DomElement 
     const image = new URL(source.url); const filename = decodeURIComponent(image.pathname.split("/").pop() || "") || null;
     const likelyRole = options.role ?? imageRole(filename, alt, element, doc.url, Boolean(options.og));
     const figure = element && closestAncestor(element, (ancestor) => ancestor.tag === "figure");
-    const captionStatements = figure && caption && byTag(figure, "img").length === 1
-      ? rightsStatements(caption).filter((statement) => CAPTION_RIGHTS.test(statement))
-      : [];
-    const assetRights = rightsFromStatements(doc, [...(declaredImageRights.get(imageVariantKey(source.url)) ?? []), ...captionStatements], true);
+    const captionStatements = figure && caption && byTag(figure, "img").length === 1 ? rightsStatements(caption) : [];
+    const assetStatements = [...(declaredImageRights.get(imageVariantKey(source.url)) ?? []), ...captionStatements];
+    const assetRights = rightsFromStatements(doc, assetStatements.map((statement) => ({
+      statement, predicate: statement.replace(CAPTION_PHOTO, ""),
+    })), true);
     const imageRights = likelyRole === "LOGO" ? assetRights
       : [assetRights, pageRestriction, pageGrant].reduce((strongest, next) =>
         RIGHTS_RANK[next.rightsState] > RIGHTS_RANK[strongest.rightsState] ? next : strongest);

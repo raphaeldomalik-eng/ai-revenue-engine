@@ -373,6 +373,28 @@ test("generic copyright and unrelated reuse wording remain page evidence", () =>
   assert.ok(result.evidenceRefs.some((ref) => ref.startsWith(`source:${capture.sourceHash}:page-rights-notice:`)));
 });
 
+test("direct prohibition of these photographs overrides a scoped photo licence", () => {
+  const capture = page("/gallery", `<img src="/room.jpg"><p>Images on this page are licensed CC BY 4.0. Do not reproduce these photographs.</p>`);
+  const [asset] = extractFromFetchedDocuments([capture], ["IMAGE_CANDIDATES"]).imageCandidates;
+  assert.equal(asset?.rightsState, "RIGHTS_RESERVED");
+  assert.equal(asset?.rightsEvidence?.statement, "Do not reproduce these photographs.");
+  assert.equal(asset?.rightsEvidence?.sourceUrl, capture.url);
+});
+
+test("a licence qualified as article text only is not a photo grant", () => {
+  const capture = page("/gallery", `<img src="/room.jpg"><p>Images on this page are licensed CC BY 4.0 for the article text only.</p>`);
+  const [asset] = extractFromFetchedDocuments([capture], ["IMAGE_CANDIDATES"]).imageCandidates;
+  assert.equal(asset?.rightsState, "UNKNOWN_RIGHTS");
+  assert.equal(asset?.rightsEvidence, null);
+});
+
+test("a permission clause governing the subject depicted in a photo does not restrict the photo", () => {
+  const capture = page("/gallery", `<img src="/room.jpg"><p>Images on this page show a poster that requires written permission to reproduce.</p>`);
+  const [asset] = extractFromFetchedDocuments([capture], ["IMAGE_CANDIDATES"]).imageCandidates;
+  assert.equal(asset?.rightsState, "UNKNOWN_RIGHTS");
+  assert.equal(asset?.rightsEvidence, null);
+});
+
 test("only a licensed figure or a matching ImageObject supplies an individual asset grant", () => {
   const capture = page("/gallery", `
     <figure><img src="/room.jpg"><figcaption>This photograph is licensed CC BY 4.0.</figcaption></figure>
